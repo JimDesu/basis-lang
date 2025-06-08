@@ -3,5 +3,8 @@ project(basis)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(basis main.cpp)
-add_subdirectory(Doctest_tests)
+file(GLOB SOURCES "*.cpp")
+add_library(basis_obj STATIC ${SOURCES})
+set_target_properties(basis_obj PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+add_subdirectory(basis_tests)
+add_subdirectory(basis_main)

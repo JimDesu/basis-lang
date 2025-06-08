@@ -41,37 +41,41 @@ include CMakeFiles/rules.ninja
 
 cmake_ninja_workdir = C$:/Users/jimde/CLionProjects/basis/cmake-build-debug/
 # =============================================================================
-# Object build statements for EXECUTABLE target basis
+# Object build statements for STATIC_LIBRARY target basis_obj
 
 
 #############################################
-# Order-only phony target for basis
+# Order-only phony target for basis_obj
 
-build cmake_object_order_depends_target_basis: phony || .
+build cmake_object_order_depends_target_basis_obj: phony || .
 
-build CMakeFiles/basis.dir/main.cpp.obj: CXX_COMPILER__basis_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/main.cpp || cmake_object_order_depends_target_basis
-  DEP_FILE = CMakeFiles\basis.dir\main.cpp.obj.d
+build CMakeFiles/basis_obj.dir/basis.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis.cpp || cmake_object_order_depends_target_basis_obj
+  DEP_FILE = CMakeFiles\basis_obj.dir\basis.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles\basis.dir
-  OBJECT_FILE_DIR = CMakeFiles\basis.dir
+  OBJECT_DIR = CMakeFiles\basis_obj.dir
+  OBJECT_FILE_DIR = CMakeFiles\basis_obj.dir
+
+build CMakeFiles/basis_obj.dir/compiler.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/compiler.cpp || cmake_object_order_depends_target_basis_obj
+  DEP_FILE = CMakeFiles\basis_obj.dir\compiler.cpp.obj.d
+  FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles\basis_obj.dir
+  OBJECT_FILE_DIR = CMakeFiles\basis_obj.dir
 
 
 # =============================================================================
-# Link build statements for EXECUTABLE target basis
+# Link build statements for STATIC_LIBRARY target basis_obj
 
 
 #############################################
-# Link the executable basis.exe
+# Link the static library libbasis_obj.a
 
-build basis.exe: CXX_EXECUTABLE_LINKER__basis_Debug CMakeFiles/basis.dir/main.cpp.obj
-  FLAGS = -g
-  LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
-  OBJECT_DIR = CMakeFiles\basis.dir
+build libbasis_obj.a: CXX_STATIC_LIBRARY_LINKER__basis_obj_Debug CMakeFiles/basis_obj.dir/basis.cpp.obj CMakeFiles/basis_obj.dir/compiler.cpp.obj
+  LANGUAGE_COMPILE_FLAGS = -g
+  OBJECT_DIR = CMakeFiles\basis_obj.dir
   POST_BUILD = cd .
   PRE_LINK = cd .
-  TARGET_FILE = basis.exe
-  TARGET_IMPLIB = libbasis.dll.a
-  TARGET_PDB = basis.exe.dbg
+  TARGET_FILE = libbasis_obj.a
+  TARGET_PDB = basis_obj.a.dbg
 
 
 #############################################
@@ -102,69 +106,135 @@ build rebuild_cache: phony CMakeFiles/rebuild_cache.util
 # =============================================================================
 
 # =============================================================================
-# Object build statements for EXECUTABLE target Doctest_tests_run
+# Object build statements for EXECUTABLE target basis_tests_run
 
 
 #############################################
-# Order-only phony target for Doctest_tests_run
+# Order-only phony target for basis_tests_run
 
-build cmake_object_order_depends_target_Doctest_tests_run: phony || .
+build cmake_object_order_depends_target_basis_tests_run: phony || cmake_object_order_depends_target_basis_obj
 
-build Doctest_tests/CMakeFiles/Doctest_tests_run.dir/test_main.cpp.obj: CXX_COMPILER__Doctest_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/Doctest_tests/test_main.cpp || cmake_object_order_depends_target_Doctest_tests_run
-  DEP_FILE = Doctest_tests\CMakeFiles\Doctest_tests_run.dir\test_main.cpp.obj.d
+build basis_tests/CMakeFiles/basis_tests_run.dir/test_main.cpp.obj: CXX_COMPILER__basis_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_tests/test_main.cpp || cmake_object_order_depends_target_basis_tests_run
+  DEP_FILE = basis_tests\CMakeFiles\basis_tests_run.dir\test_main.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
-  OBJECT_DIR = Doctest_tests\CMakeFiles\Doctest_tests_run.dir
-  OBJECT_FILE_DIR = Doctest_tests\CMakeFiles\Doctest_tests_run.dir
+  OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
+  OBJECT_FILE_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
 
 
 # =============================================================================
-# Link build statements for EXECUTABLE target Doctest_tests_run
+# Link build statements for EXECUTABLE target basis_tests_run
 
 
 #############################################
-# Link the executable Doctest_tests\Doctest_tests_run.exe
+# Link the executable basis_tests\basis_tests_run.exe
 
-build Doctest_tests/Doctest_tests_run.exe: CXX_EXECUTABLE_LINKER__Doctest_tests_run_Debug Doctest_tests/CMakeFiles/Doctest_tests_run.dir/test_main.cpp.obj
+build basis_tests/basis_tests_run.exe: CXX_EXECUTABLE_LINKER__basis_tests_run_Debug basis_tests/CMakeFiles/basis_tests_run.dir/test_main.cpp.obj | libbasis_obj.a || libbasis_obj.a
   FLAGS = -g
-  LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
-  OBJECT_DIR = Doctest_tests\CMakeFiles\Doctest_tests_run.dir
+  LINK_LIBRARIES = libbasis_obj.a  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
+  OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
   POST_BUILD = cd .
   PRE_LINK = cd .
-  TARGET_FILE = Doctest_tests\Doctest_tests_run.exe
-  TARGET_IMPLIB = Doctest_tests\libDoctest_tests_run.dll.a
-  TARGET_PDB = Doctest_tests_run.exe.dbg
+  TARGET_FILE = basis_tests\basis_tests_run.exe
+  TARGET_IMPLIB = basis_tests\libbasis_tests_run.dll.a
+  TARGET_PDB = basis_tests_run.exe.dbg
 
 
 #############################################
 # Utility command for edit_cache
 
-build Doctest_tests/CMakeFiles/edit_cache.util: CUSTOM_COMMAND
-  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\Doctest_tests && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" -E echo "No interactive CMake dialog available.""
+build basis_tests/CMakeFiles/edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\basis_tests && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" -E echo "No interactive CMake dialog available.""
   DESC = No interactive CMake dialog available...
   restat = 1
 
-build Doctest_tests/edit_cache: phony Doctest_tests/CMakeFiles/edit_cache.util
+build basis_tests/edit_cache: phony basis_tests/CMakeFiles/edit_cache.util
 
 
 #############################################
 # Utility command for rebuild_cache
 
-build Doctest_tests/CMakeFiles/rebuild_cache.util: CUSTOM_COMMAND
-  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\Doctest_tests && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" --regenerate-during-build -SC:\Users\jimde\CLionProjects\basis -BC:\Users\jimde\CLionProjects\basis\cmake-build-debug"
+build basis_tests/CMakeFiles/rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\basis_tests && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" --regenerate-during-build -SC:\Users\jimde\CLionProjects\basis -BC:\Users\jimde\CLionProjects\basis\cmake-build-debug"
   DESC = Running CMake to regenerate build system...
   pool = console
   restat = 1
 
-build Doctest_tests/rebuild_cache: phony Doctest_tests/CMakeFiles/rebuild_cache.util
+build basis_tests/rebuild_cache: phony basis_tests/CMakeFiles/rebuild_cache.util
+
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# C:/Users/jimde/CLionProjects/basis/CMakeLists.txt
+# =============================================================================
+
+# =============================================================================
+# Object build statements for EXECUTABLE target basis
+
+
+#############################################
+# Order-only phony target for basis
+
+build cmake_object_order_depends_target_basis: phony || cmake_object_order_depends_target_basis_obj
+
+build basis_main/CMakeFiles/basis.dir/main.cpp.obj: CXX_COMPILER__basis_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_main/main.cpp || cmake_object_order_depends_target_basis
+  DEP_FILE = basis_main\CMakeFiles\basis.dir\main.cpp.obj.d
+  FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
+  INCLUDES = -IC:/Users/jimde/CLionProjects/basis/basis_main/basis_obj
+  OBJECT_DIR = basis_main\CMakeFiles\basis.dir
+  OBJECT_FILE_DIR = basis_main\CMakeFiles\basis.dir
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target basis
+
+
+#############################################
+# Link the executable basis_main\basis.exe
+
+build basis_main/basis.exe: CXX_EXECUTABLE_LINKER__basis_Debug basis_main/CMakeFiles/basis.dir/main.cpp.obj | libbasis_obj.a || libbasis_obj.a
+  FLAGS = -g
+  LINK_LIBRARIES = libbasis_obj.a  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
+  OBJECT_DIR = basis_main\CMakeFiles\basis.dir
+  POST_BUILD = cd .
+  PRE_LINK = cd .
+  TARGET_FILE = basis_main\basis.exe
+  TARGET_IMPLIB = basis_main\libbasis.dll.a
+  TARGET_PDB = basis.exe.dbg
+
+
+#############################################
+# Utility command for edit_cache
+
+build basis_main/CMakeFiles/edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\basis_main && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" -E echo "No interactive CMake dialog available.""
+  DESC = No interactive CMake dialog available...
+  restat = 1
+
+build basis_main/edit_cache: phony basis_main/CMakeFiles/edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build basis_main/CMakeFiles/rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\Windows\system32\cmd.exe /C "cd /D C:\Users\jimde\CLionProjects\basis\cmake-build-debug\basis_main && "C:\Program Files\JetBrains\CLion 2024.3.5\bin\cmake\win\x64\bin\cmake.exe" --regenerate-during-build -SC:\Users\jimde\CLionProjects\basis -BC:\Users\jimde\CLionProjects\basis\cmake-build-debug"
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build basis_main/rebuild_cache: phony basis_main/CMakeFiles/rebuild_cache.util
 
 # =============================================================================
 # Target aliases.
 
-build Doctest_tests_run: phony Doctest_tests/Doctest_tests_run.exe
+build basis: phony basis_main/basis.exe
 
-build Doctest_tests_run.exe: phony Doctest_tests/Doctest_tests_run.exe
+build basis.exe: phony basis_main/basis.exe
 
-build basis: phony basis.exe
+build basis_obj: phony libbasis_obj.a
+
+build basis_tests_run: phony basis_tests/basis_tests_run.exe
+
+build basis_tests_run.exe: phony basis_tests/basis_tests_run.exe
 
 # =============================================================================
 # Folder targets.
@@ -174,14 +244,21 @@ build basis: phony basis.exe
 #############################################
 # Folder: C:/Users/jimde/CLionProjects/basis/cmake-build-debug
 
-build all: phony basis.exe Doctest_tests/all
+build all: phony libbasis_obj.a basis_tests/all basis_main/all
 
 # =============================================================================
 
 #############################################
-# Folder: C:/Users/jimde/CLionProjects/basis/cmake-build-debug/Doctest_tests
+# Folder: C:/Users/jimde/CLionProjects/basis/cmake-build-debug/basis_main
 
-build Doctest_tests/all: phony Doctest_tests/Doctest_tests_run.exe
+build basis_main/all: phony basis_main/basis.exe
+
+# =============================================================================
+
+#############################################
+# Folder: C:/Users/jimde/CLionProjects/basis/cmake-build-debug/basis_tests
+
+build basis_tests/all: phony basis_tests/basis_tests_run.exe
 
 # =============================================================================
 # Built-in targets
@@ -190,14 +267,14 @@ build Doctest_tests/all: phony Doctest_tests/Doctest_tests_run.exe
 #############################################
 # Re-run CMake if any of its inputs changed.
 
-build build.ninja: RERUN_CMAKE | C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCXXInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeRCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/CMakeCommonCompilerMacros.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-Initialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/WindowsPaths.cmake C$:/Users/jimde/CLionProjects/basis/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/Doctest_tests/CMakeLists.txt CMakeCache.txt CMakeFiles/3.30.5/CMakeCCompiler.cmake CMakeFiles/3.30.5/CMakeCXXCompiler.cmake CMakeFiles/3.30.5/CMakeRCCompiler.cmake CMakeFiles/3.30.5/CMakeSystem.cmake
+build build.ninja: RERUN_CMAKE | C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCXXInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeRCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/CMakeCommonCompilerMacros.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-Initialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/WindowsPaths.cmake C$:/Users/jimde/CLionProjects/basis/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/basis_main/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/basis_tests/CMakeLists.txt CMakeCache.txt CMakeFiles/3.30.5/CMakeCCompiler.cmake CMakeFiles/3.30.5/CMakeCXXCompiler.cmake CMakeFiles/3.30.5/CMakeRCCompiler.cmake CMakeFiles/3.30.5/CMakeSystem.cmake
   pool = console
 
 
 #############################################
 # A missing CMake input file is not an error.
 
-build C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCXXInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeRCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/CMakeCommonCompilerMacros.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-Initialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/WindowsPaths.cmake C$:/Users/jimde/CLionProjects/basis/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/Doctest_tests/CMakeLists.txt CMakeCache.txt CMakeFiles/3.30.5/CMakeCCompiler.cmake CMakeFiles/3.30.5/CMakeCXXCompiler.cmake CMakeFiles/3.30.5/CMakeRCCompiler.cmake CMakeFiles/3.30.5/CMakeSystem.cmake: phony
+build C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCXXInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeRCInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/CMakeCommonCompilerMacros.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Compiler/GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-C.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-GNU.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-Initialize.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/Windows.cmake C$:/Program$ Files/JetBrains/CLion$ 2024.3.5/bin/cmake/win/x64/share/cmake-3.30/Modules/Platform/WindowsPaths.cmake C$:/Users/jimde/CLionProjects/basis/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/basis_main/CMakeLists.txt C$:/Users/jimde/CLionProjects/basis/basis_tests/CMakeLists.txt CMakeCache.txt CMakeFiles/3.30.5/CMakeCCompiler.cmake CMakeFiles/3.30.5/CMakeCXXCompiler.cmake CMakeFiles/3.30.5/CMakeRCCompiler.cmake CMakeFiles/3.30.5/CMakeSystem.cmake: phony
 
 
 #############################################
