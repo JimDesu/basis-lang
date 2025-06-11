@@ -3,7 +3,7 @@
 This is currently in the ideation stage; there's nothing here worth looking at.
 
 ## Informal Semantics
-Given state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
+Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
     * $exec(c)$ executes a user defined command
