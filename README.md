@@ -10,8 +10,8 @@ Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
     * $fail(\phi)$ sets a failure state
     * $recover$ recovers from a failure status
     * $recover(\phi,\sigma,c)$ recovers a particular failure state type, binding the failure to $\sigma$ in $exec(c)$
-    * $onscope(c)$ executes at the current scope boundary
-    * $onfail(c)$ executes c at the current scope boundary under a failure
+    * $scope(c)$ executes at the current scope boundary
+    * $scopefail(c)$ executes c at the current scope boundary under a failure
 * $\Phi$ represents the current failure status:
     * $\epsilon$ represents no current failure
     * $\phi$ represents a particular failure
