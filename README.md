@@ -5,11 +5,11 @@ This is currently in the ideation stage; there's nothing here worth looking at.
 ## Informal Semantics
 Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
 * V represnets the current command to be performed:
+    * $\overrightarrow{v}$ represents the continuation from $v$
     * $exec(c)$ executes a user defined command
     * $recover$ recovers from a failure status
     * $recover(\phi,c)$ recovers a particular failure state type, binding the failure to $\sigma$ in $exec(c)$
     * $fail(\phi)$ sets a failure state
-    * $\vec{v}$ is the continuation from $v$
 * $\Phi$ represents the current failure status:
     * $\epsilon$ represents no current failure
     * $\phi$ represents a particular failure
