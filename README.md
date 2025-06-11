@@ -8,7 +8,7 @@ Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
     * $\overrightarrow{v}$ represents the continuation from $v$
     * $exec(c)$ executes a user defined command
     * $recover$ recovers from a failure status
-    * $recover(\phi,c)$ recovers a particular failure state type, binding the failure to $\sigma$ in $exec(c)$
+    * $recover(\phi,\sigma,c)$ recovers a particular failure state type, binding the failure to $\sigma$ in $exec(c)$
     * $fail(\phi)$ sets a failure state
 * $\Phi$ represents the current failure status:
     * $\epsilon$ represents no current failure
