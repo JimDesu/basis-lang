@@ -24,8 +24,8 @@ General excution rules:
 
 $$
 \begin{align}
-\text{normal execution} & \langle v, \epsilon, \Sigma \rangle & \Downarrow & \langle v, \epsilon, \Sigma' \rangle & \implies \langle next(v), \epsilon, \Sigma' \rangle \\
-\text{failure retains prior state} & \langle v, \epsilon, \Sigma \rangle & \Downarrow & \langle c, \phi, \Sigma' \rangle & \implies \langle next(c), \phi, \Sigma \rangle 
+\text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle & \Downarrow & \langle v, \epsilon, \Sigma' \rangle & \implies \langle next(v), \epsilon, \Sigma' \rangle \\
+\text{failure retains prior state}\quad & \langle v, \epsilon, \Sigma \rangle & \Downarrow & \langle c, \phi, \Sigma' \rangle & \implies \langle next(v), \phi, \Sigma \rangle 
 \end{align}
 $$
 
