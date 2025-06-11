@@ -17,7 +17,7 @@ Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
 Executing a fail verb advances to the next verb, with the failure state set.  
 
 $$
-\Gamma v = fail(\phi) \quad \langle v, \epsilon, \Sigma \rangle \implies \langle next(c), \phi, \Sigma \rangle 
+\Gamma v = fail(\phi) \quad \langle v, \epsilon, \Sigma \rangle \implies \langle next(v), \phi, \Sigma \rangle 
 $$
 
 General excution rules:
