@@ -16,16 +16,11 @@ Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
 * $\Sigma$ represents the current variable state
     * $\sigma/c$ is sigma bound within the scope of c  
 
-Executing a fail verb advances to the next verb, with the failure state set.  
-
-$$
-\Gamma v = fail(\phi) \quad \langle v, \epsilon, \Sigma \rangle \implies \langle \vec{v}, \phi, \Sigma \rangle 
-$$
-
 General excution rules:
 
 $$
 \begin{align}
+\text{execution failure}\quad & \Gamma v = fail(\phi) \quad \langle v, \epsilon, \Sigma \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle \\
 \text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies \langle \vec{v}, \epsilon, \Sigma' \rangle \\
 \text{failure retains prior state}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi, \Sigma' \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle \\
 \text{failure skips most verbs}\quad & \Gamma v=exec(c) \quad \langle v, \phi, \Sigma \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle \\
