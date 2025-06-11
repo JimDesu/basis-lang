@@ -26,8 +26,8 @@ General excution rules:
 
 $$
 \begin{align}
-\text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v, \epsilon, \Sigma' \rangle & \implies \langle next(v), \epsilon, \Sigma' \rangle \\
-\text{failure retains prior state}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle c, \phi, \Sigma' \rangle & \implies \langle next(v), \phi, \Sigma \rangle \\
+\text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies \langle next(v), \epsilon, \Sigma' \rangle \\
+\text{failure retains prior state}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi, \Sigma' \rangle & \implies \langle next(v), \phi, \Sigma \rangle \\
 \text{failure skips most verbs}\quad & \Gamma v=exec(c) \quad \langle v, \phi, \Sigma \rangle & \implies \langle next(v), \phi, \Sigma \rangle \\
 \text{generic recovery}\quad & \Gamma v=recover \quad \langle v, \phi, \Sigma \rangle & \implies \langle next(v), \phi, \Sigma \rangle 
 \end{align}
