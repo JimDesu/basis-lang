@@ -24,7 +24,7 @@ $$
 \text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies \langle \vec{v}, \epsilon, \Sigma' \rangle \\
 \text{command failure}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi, \Sigma' \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle \\
 \text{failure skips commands}\quad & \Gamma v=exec(c) \quad \langle v, \phi, \Sigma \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle \\
-\text{generic recovery}\quad & \Gamma v=recover \quad \langle v, \phi, \Sigma \rangle & \implies \langle \vec{v}, \phi, \Sigma \rangle 
+\text{generic recovery}\quad & \Gamma v=recover \quad \langle v, \phi, \Sigma \rangle & \implies \langle \vec{v}, \epsilon, \Sigma \rangle 
 \end{align}
 $$
 
