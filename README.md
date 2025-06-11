@@ -7,9 +7,11 @@ Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
 * V represnets the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
     * $exec(c)$ executes a user defined command
+    * $fail(\phi)$ sets a failure state
     * $recover$ recovers from a failure status
     * $recover(\phi,\sigma,c)$ recovers a particular failure state type, binding the failure to $\sigma$ in $exec(c)$
-    * $fail(\phi)$ sets a failure state
+    * $onscope(c)$ executes at the current scope boundary
+    * $onfail(c)$ executes c at the current scope boundary under a failure
 * $\Phi$ represents the current failure status:
     * $\epsilon$ represents no current failure
     * $\phi$ represents a particular failure
