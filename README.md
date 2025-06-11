@@ -4,7 +4,7 @@ This is currently in the ideation stage; there's nothing here worth looking at.
 
 ## Informal Semantics
 Given state as a tuple $\langle C,\Phi,\Sigma \rangle$ where
-* V represnets the current command to be performed:
+* V represnets the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
     * $exec(c)$ executes a user defined command
     * $recover$ recovers from a failure status
