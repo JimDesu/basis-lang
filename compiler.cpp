@@ -1,8 +1,6 @@
 #include <iostream>
-#include <functional>
 #include <string>
 #include <vector>
-#include <unordered_map>
 
 #include "compiler.h"
 
