@@ -49,8 +49,8 @@ cmake_ninja_workdir = C$:/Users/jimde/CLionProjects/basis/cmake-build-debug/
 
 build cmake_object_order_depends_target_basis_obj: phony || .
 
-build CMakeFiles/basis_obj.dir/basis.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis.cpp || cmake_object_order_depends_target_basis_obj
-  DEP_FILE = CMakeFiles\basis_obj.dir\basis.cpp.obj.d
+build CMakeFiles/basis_obj.dir/CompileOptions.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/CompileOptions.cpp || cmake_object_order_depends_target_basis_obj
+  DEP_FILE = CMakeFiles\basis_obj.dir\CompileOptions.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
   OBJECT_DIR = CMakeFiles\basis_obj.dir
   OBJECT_FILE_DIR = CMakeFiles\basis_obj.dir
@@ -69,7 +69,7 @@ build CMakeFiles/basis_obj.dir/compiler.cpp.obj: CXX_COMPILER__basis_obj_unscann
 #############################################
 # Link the static library libbasis_obj.a
 
-build libbasis_obj.a: CXX_STATIC_LIBRARY_LINKER__basis_obj_Debug CMakeFiles/basis_obj.dir/basis.cpp.obj CMakeFiles/basis_obj.dir/compiler.cpp.obj
+build libbasis_obj.a: CXX_STATIC_LIBRARY_LINKER__basis_obj_Debug CMakeFiles/basis_obj.dir/CompileOptions.cpp.obj CMakeFiles/basis_obj.dir/compiler.cpp.obj
   LANGUAGE_COMPILE_FLAGS = -g
   OBJECT_DIR = CMakeFiles\basis_obj.dir
   POST_BUILD = cd .
