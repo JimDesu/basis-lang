@@ -19,7 +19,7 @@ Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * $\Sigma$ represents the current variable state
     * $\sigma/c$ is sigma bound within the scope of c  
 
-General excution rules:
+General excution is described by the following rules:
 
 $$
 \begin{align}
