@@ -40,6 +40,10 @@ void basis::Lexer::drainLine() {
     while( read() && line == lineNumber);
 }
 
+bool basis::Lexer::isIdentifierChar(char c) {
+    return c == '_' || isalnum(c);
+}
+
 bool basis::Lexer::scan() {
     output.clear();
     indents.clear();
@@ -48,7 +52,14 @@ bool basis::Lexer::scan() {
         // skip over whitespace chars
         if( isspace(readChar) ) continue;
         if( iscntrl(readChar) ) continue;
-        // read digits
+        // read comments
+        if( readChar == ';' ) {
+            // this is a comment; drain the remainder of the line without
+            // any token being emitted
+            drainLine();
+        }
+        // TODO read hexadecimals before numerics
+        // read numerics
         if( isdigit(readChar) ) {
             Token* pToken = nextToken();
             pToken->text += readChar;
@@ -56,13 +67,11 @@ bool basis::Lexer::scan() {
                 read();
                 pToken->text += readChar;
             }
-            if( input.good() && input.peek() == '.' ) {
+            if( input.good() && input.peek() == '.' && read()) {
                 // this is a decimal; get the rest of it
-                read();
                 pToken->text += readChar;
                 pToken->type = TokenType::DECIMAL;
-                while( input.good() && isdigit(input.peek()) ){
-                    read();
+                while( input.good() && isdigit(input.peek()) && read()){
                     pToken->text += readChar;
                 }
             } else {
@@ -71,8 +80,19 @@ bool basis::Lexer::scan() {
             // validate that we don't have invalid trailing chars
             if( input.good() &&
                 (input.peek() == '.' || isalpha(input.peek())) ){
-                std::cerr << "Invalid token at line " << lineNumber << " column " << columnNumber << std::endl;
+                std::cerr << "Invalid number at line " << pToken->lineNumber
+                          << " column " << pToken->columnNumber << std::endl;
                 return false;
+            }
+        }
+        // read an identifier
+        if( isalpha(readChar) ||
+            (readChar == '\'' && input.good() && isalpha(input.peek())) ) {
+            Token* pToken = nextToken();
+            pToken->text += readChar;
+            pToken->type = TokenType::IDENTIFIER;
+            while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+                pToken->text += readChar;
             }
         }
     }

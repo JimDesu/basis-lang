@@ -21,6 +21,7 @@ namespace basis {
             bool read();
             Token* nextToken();
             void drainLine();
+            bool isIdentifierChar(char c);
     };
 }
 
