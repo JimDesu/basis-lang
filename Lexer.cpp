@@ -95,6 +95,15 @@ bool basis::Lexer::scan() {
                 pToken->text += readChar;
             }
         }
+        // read a reserved word
+        if( readChar == '.' && input.good() && isalpha(input.peek()) ) {
+          Token* pToken = nextToken();
+          pToken->text += readChar;
+          pToken->type = TokenType::RESWORD;
+            while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+                pToken->text += readChar;
+            }
+        }
     }
     return true;
 }
