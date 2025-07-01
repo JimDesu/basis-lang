@@ -44,13 +44,29 @@ bool basis::Lexer::isIdentifierChar(char c) {
     return c == '_' || isalnum(c);
 }
 
-bool basis::Lexer::scan() {
+void basis::Lexer::loadReservedWords() {
+    reswords[".cmd"] = TokenType::COMMAND;
+}
+
+void basis::Lexer::writeError(std::string message, int lineNo, int columnNo) {
+  std::cerr << message
+            << " at line " << lineNo
+            << " column " << columnNo << std::endl;
+
+}
+bool basis::Lexer::scan(CompilerContext& context) {
     output.clear();
     indents.clear();
     if(!input.good()) return false;
     while( read() ) {
         // skip over whitespace chars
-        if( isspace(readChar) ) continue;
+        if( isspace(readChar) ) {
+          // generate no tokens from whitespace, but respect the
+          // tabwidth option
+          if( readChar == '\t' ) {
+              columnNumber += context.options.tabWidth - 1;
+            }
+        }
         if( iscntrl(readChar) ) continue;
         // read comments
         if( readChar == ';' ) {
@@ -80,8 +96,7 @@ bool basis::Lexer::scan() {
             // validate that we don't have invalid trailing chars
             if( input.good() &&
                 (input.peek() == '.' || isalpha(input.peek())) ){
-                std::cerr << "Invalid number at line " << pToken->lineNumber
-                          << " column " << pToken->columnNumber << std::endl;
+                writeError("invalid number", pToken->lineNumber, pToken->columnNumber);
                 return false;
             }
         }
@@ -99,10 +114,14 @@ bool basis::Lexer::scan() {
         if( readChar == '.' && input.good() && isalpha(input.peek()) ) {
           Token* pToken = nextToken();
           pToken->text += readChar;
-          pToken->type = TokenType::RESWORD;
-            while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+          while( input.good() && isIdentifierChar(input.peek()) && read() ) {
                 pToken->text += readChar;
-            }
+          }
+          if( reswords.find(pToken->text) == reswords.end() ) {
+            writeError("invalid reserved word", pToken->lineNumber, pToken->columnNumber);
+            return false;
+          }
+          pToken->type = reswords[pToken->text];
         }
     }
     return true;

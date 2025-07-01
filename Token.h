@@ -6,12 +6,15 @@
 
 namespace basis {
     enum class TokenType {
+        // data types
         DECIMAL,
         HEXNUMBER,
         IDENTIFIER,
         NUMBER,
         STRING,
-        RESWORD,
+        // reserved words
+        COMMAND,
+
     };
 
     struct Token {

@@ -3,7 +3,9 @@
 
 #include <istream>
 #include <list>
+#include <map>
 #include "Token.h"
+#include "CompilerContext.h"
 
 namespace basis {
     class Lexer {
@@ -13,15 +15,20 @@ namespace basis {
         size_t lineNumber;
         size_t columnNumber;
         char readChar;
+        std::map<std::string, TokenType> reswords;
         public:
-            Lexer(std::istream& inputStream) : input(inputStream), output(), indents() {};
+            Lexer(std::istream& inputStream) : input(inputStream), output(), indents() {
+                loadReservedWords();
+            };
             ~Lexer();
-            bool scan();
+            bool scan(CompilerContext& compilerContext);
         private:
             bool read();
             Token* nextToken();
             void drainLine();
             bool isIdentifierChar(char c);
+            void loadReservedWords();
+            void writeError(std::string message, int lineNo, int columnNo);
     };
 }
 
