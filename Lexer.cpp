@@ -45,13 +45,13 @@ bool basis::Lexer::isIdentifierChar(char c) {
 }
 
 void basis::Lexer::loadReservedWords() {
-    reswords[".cmd"] = TokenType::COMMAND;
+    resWords[".cmd"] = TokenType::COMMAND;
 }
 
-void basis::Lexer::writeError(std::string message, int lineNo, int columnNo) {
+void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
   std::cerr << message
-            << " at line " << lineNo
-            << " column " << columnNo << std::endl;
+            << " at line " << pToken->lineNumber
+            << " column "  << pToken->columnNumber << std::endl;
 
 }
 bool basis::Lexer::scan(CompilerContext& context) {
@@ -96,7 +96,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
             // validate that we don't have invalid trailing chars
             if( input.good() &&
                 (input.peek() == '.' || isalpha(input.peek())) ){
-                writeError("invalid number", pToken->lineNumber, pToken->columnNumber);
+                writeError("invalid number", pToken);
                 return false;
             }
         }
@@ -115,13 +115,14 @@ bool basis::Lexer::scan(CompilerContext& context) {
           Token* pToken = nextToken();
           pToken->text += readChar;
           while( input.good() && isIdentifierChar(input.peek()) && read() ) {
-                pToken->text += readChar;
+              pToken->text += readChar;
           }
-          if( reswords.find(pToken->text) == reswords.end() ) {
-            writeError("invalid reserved word", pToken->lineNumber, pToken->columnNumber);
+          auto pv = resWords.find(pToken->text);
+          if( pv == resWords.end() ) {
+            writeError("invalid reserved word", pToken);
             return false;
           }
-          pToken->type = reswords[pToken->text];
+          pToken->type = pv->second;
         }
     }
     return true;

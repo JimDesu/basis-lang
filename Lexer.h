@@ -15,20 +15,21 @@ namespace basis {
         size_t lineNumber;
         size_t columnNumber;
         char readChar;
-        std::map<std::string, TokenType> reswords;
+        std::map<std::string, TokenType> resWords;
         public:
-            Lexer(std::istream& inputStream) : input(inputStream), output(), indents() {
+            explicit Lexer(std::istream& inputStream)
+                : input(inputStream), output(), indents(), lineNumber(1), columnNumber(0),readChar(0) {
                 loadReservedWords();
-            };
+            }
             ~Lexer();
             bool scan(CompilerContext& compilerContext);
         private:
             bool read();
             Token* nextToken();
             void drainLine();
-            bool isIdentifierChar(char c);
             void loadReservedWords();
-            void writeError(std::string message, int lineNo, int columnNo);
+            static bool isIdentifierChar(char c);
+            static void writeError(const std::string& message, const Token* pToken);
     };
 }
 
