@@ -79,7 +79,21 @@ bool basis::Lexer::scan(CompilerContext& context) {
             // any token being emitted
             drainLine();
         }
-        // TODO read hexadecimals before numerics
+        // read hexadecimals before numerics
+        if( readChar == '0' && input.good() && input.peek() == 'x' && read()) {
+            Token* pToken = nextToken();
+            pToken->type = TokenType::HEXNUMBER;
+            size_t hexDigitCount = 0;
+            while( input.good() && isxdigit(input.peek()) && read() ) {
+                pToken->text += readChar;
+                hexDigitCount++;
+            }
+            // ensure we read an even number of digits so we have whole bytes
+            if( hexDigitCount % 2 != 0 ) {
+                writeError("invalid hex value", pToken);
+                return false;
+            }
+        }
         // read numerics
         if( isdigit(readChar) ) {
             Token* pToken = nextToken();
