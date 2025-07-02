@@ -7,7 +7,6 @@ using namespace basis;
 
 basis::Lexer::~Lexer() {
     output.clear();
-    indents.clear();
 }
 
 bool basis::Lexer::read() {
@@ -25,11 +24,19 @@ bool basis::Lexer::read() {
 }
 
 Token* basis::Lexer::nextToken() {
+    // record and initialize the token
     output.emplace_back();
     Token* pToken = &output.back();
     pToken->lineNumber = lineNumber;
     pToken->columnNumber = columnNumber;
-    // handle bounding here
+
+    // handle indent-based scope bounding
+    while (!indents.empty() && indents.top()->columnNumber >= pToken->columnNumber) {
+        indents.top()->bound = pToken;
+        indents.pop();
+    }
+    indents.push(pToken);
+
     return pToken;
 }
 
@@ -55,8 +62,6 @@ void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
 
 }
 bool basis::Lexer::scan(CompilerContext& context) {
-    output.clear();
-    indents.clear();
     if(!input.good()) return false;
     while( read() ) {
         // skip over whitespace chars

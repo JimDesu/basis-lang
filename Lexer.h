@@ -4,6 +4,8 @@
 #include <istream>
 #include <list>
 #include <map>
+#include <stack>
+
 #include "Token.h"
 #include "CompilerContext.h"
 
@@ -11,7 +13,7 @@ namespace basis {
     class Lexer {
         std::istream& input;
         std::list<Token> output;
-        std::list<Token*> indents;
+        std::stack<Token*> indents;
         size_t lineNumber;
         size_t columnNumber;
         char readChar;
