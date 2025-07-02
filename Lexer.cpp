@@ -143,6 +143,47 @@ bool basis::Lexer::scan(CompilerContext& context) {
           }
           pToken->type = pv->second;
         }
+        // read a string
+        if( readChar == '"' ) {
+            Token* pToken = nextToken();
+            pToken->type = TokenType::STRING;
+            bool foundClosingQuote = false;
+            bool isValidString = true;
+            while( input.good() && read() && isValidString ) {
+                if( readChar == '\n' ) {
+                    isValidString = false;
+                    break;
+                }
+                if( readChar == '"' ) {
+                    // done
+                    foundClosingQuote = true;
+                    break;
+                }
+                if( readChar == '\\' ) {
+                    // escape sequence
+                    pToken->text += readChar;
+                    if( input.good() && read() ) {
+                        if( isalpha(readChar) || readChar == '\\' ) {
+                            // valid following char
+                            pToken->text += readChar;
+                        } else {
+                            // garbage following char
+                            isValidString = false;
+                            break;
+                        }
+                    } else {
+                        isValidString = false;
+                        break;
+                    }
+                } else {
+                    pToken->text += readChar;
+                }
+            }
+            if( !foundClosingQuote || !isValidString ) {
+                writeError("invalid string", pToken);
+                return false;
+            }
+        }
     }
     return true;
 }
