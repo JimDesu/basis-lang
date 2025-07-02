@@ -11,12 +11,12 @@ basis::Lexer::~Lexer() {
 }
 
 bool basis::Lexer::read() {
-    if(input.good()) {
+    while(input.good()) {
         input >> readChar;
         if( readChar == '\n') {
           lineNumber++;
           columnNumber = 0;
-          return read();
+          continue;
         }
         columnNumber++;
         return true;
