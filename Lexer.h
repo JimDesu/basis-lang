@@ -12,7 +12,6 @@
 namespace basis {
     class Lexer {
         std::istream& input;
-        std::list<Token> output;
         std::stack<Token*> indents;
         size_t lineNumber;
         size_t columnNumber;
@@ -24,6 +23,7 @@ namespace basis {
                 loadReservedWords();
             }
             ~Lexer();
+            std::list<Token> output;
             bool scan(CompilerContext& compilerContext);
         private:
             bool read();
