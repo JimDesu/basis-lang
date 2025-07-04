@@ -10,15 +10,17 @@ basis::Lexer::~Lexer() {
 }
 
 bool basis::Lexer::read() {
+    readChar = 0;
     while(input.good()) {
-        input >> readChar;
+        input.get(readChar);
+        if( readChar == EOF ) break;
         if( readChar == '\n') {
           lineNumber++;
           columnNumber = 0;
           continue;
         }
         columnNumber++;
-        return true;
+        return readChar != 0;
     }
     return false;
 }
