@@ -14,6 +14,27 @@ namespace basis {
         STRING,
         // reserved words
         COMMAND,
+        // punctuation
+        AMPERSAND,
+        AMPHORA,
+        ASTERISK,
+        BANG,
+        CARAT,
+        COMMA,
+        COLON,
+        EQUALS,
+        LANGLE,
+        LBRACE,
+        LBRACKET,
+        LPAREN,
+        MINUS,
+        PLUS,
+        RANGLE,
+        RBRACE,
+        RBRACKET,
+        RPAREN,
+        SEMICOLON,
+        SLASH,
 
     };
 

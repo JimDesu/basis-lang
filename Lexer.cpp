@@ -31,14 +31,13 @@ Token* basis::Lexer::nextToken() {
     Token* pToken = &output.back();
     pToken->lineNumber = lineNumber;
     pToken->columnNumber = columnNumber;
-
     // handle indent-based scope bounding
     while (!indents.empty() && indents.top()->columnNumber >= pToken->columnNumber) {
         indents.top()->bound = pToken;
         indents.pop();
     }
     indents.push(pToken);
-
+    // done
     return pToken;
 }
 
