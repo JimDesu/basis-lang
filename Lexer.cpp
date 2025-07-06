@@ -84,6 +84,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
         // read hexadecimals before numerics
         if( readChar == '0' && input.good() && input.peek() == 'x' && read()) {
             Token* pToken = nextToken();
+            pToken->columnNumber -= 1; // correct for the extra 'x' character
             pToken->type = TokenType::HEXNUMBER;
             size_t hexDigitCount = 0;
             while( input.good() && isxdigit(input.peek()) && read() ) {
