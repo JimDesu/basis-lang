@@ -17,10 +17,11 @@ void testLexSingleToken(const std::string& input, TokenType expectedType) {
     CHECK(lexer.output.front().type == expectedType);
 }
 
-basis::Lexer lexInput(const std::string& input, CompilerContext& context) {
+basis::Lexer lexInput(const std::string& input, CompilerContext& context, bool expectSuccess = true) {
     std::istringstream inputStream(input);
     basis::Lexer lexer(inputStream);
-    CHECK(lexer.scan(context));
+    bool scanResult = lexer.scan(context);
+    CHECK_EQ(scanResult, expectSuccess);
     return lexer;
 }
 
@@ -95,21 +96,15 @@ TEST_CASE("test lex all token types") {
     lexTokenAfterPrefix(commentPrefix, commandToken, commandType, context);
 }
 
-TEST_CASE("test lex comment produces nothing") {
-    std::string lexInput = " ;fish sticks";
-    std::istringstream inputStream(lexInput);
-    basis::Lexer lexer(inputStream);
+TEST_CASE("test lex single token negative test cases") {
     CompilerContext context;
-    CHECK(lexer.scan(context));
-    CHECK(lexer.output.empty());
-}
 
-TEST_CASE("test lex unclosed string produces no token") {
-    std::string input = "\"unclosed string";
-    std::istringstream inputStream(input);
-    basis::Lexer lexer(inputStream);
-    CompilerContext context;
-    CHECK(!lexer.scan(context));
-    CHECK(lexer.output.empty());
-}
+    // Test comment line produces no token (success case)
+    CHECK(lexInput(" ;fish sticks", context).output.empty());
 
+    // Test unclosed string produces no token (failure case)
+    CHECK(lexInput("\"unclosed string", context, false).output.empty());
+
+    // Test invalid reserved word produces no token (failure case)
+    CHECK(lexInput(".invalidReservedWord", context, false).output.empty());
+}

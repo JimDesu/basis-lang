@@ -142,6 +142,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
           auto pv = resWords.find(pToken->text);
           if( pv == resWords.end() ) {
             writeError("invalid reserved word", pToken);
+            output.pop_back(); // Remove the invalid token from output
             return false;
           }
           pToken->type = pv->second;
