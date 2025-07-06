@@ -104,4 +104,12 @@ TEST_CASE("test lex comment produces nothing") {
     CHECK(lexer.output.empty());
 }
 
+TEST_CASE("test lex unclosed string produces no token") {
+    std::string input = "\"unclosed string";
+    std::istringstream inputStream(input);
+    basis::Lexer lexer(inputStream);
+    CompilerContext context;
+    CHECK(!lexer.scan(context));
+    CHECK(lexer.output.empty());
+}
 

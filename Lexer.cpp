@@ -152,7 +152,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
             pToken->type = TokenType::STRING;
             bool foundClosingQuote = false;
             bool isValidString = true;
-            while( input.good() && read() && isValidString ) {
+            while( input.good() && read() ) {
                 if( readChar == '\n' ) {
                     isValidString = false;
                     break;
@@ -188,6 +188,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
             }
             if( !foundClosingQuote || !isValidString ) {
                 writeError("invalid string", pToken);
+                output.pop_back(); // Remove the invalid token from output
                 return false;
             }
         }
