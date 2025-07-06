@@ -93,6 +93,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
             }
             // ensure we read an even number of digits so we have whole bytes
             if( hexDigitCount % 2 != 0 ) {
+                output.pop_back(); // Remove the invalid token from output
                 writeError("invalid hex value", pToken);
                 return false;
             }
@@ -118,6 +119,7 @@ bool basis::Lexer::scan(CompilerContext& context) {
             // validate that we don't have invalid trailing chars
             if( input.good() &&
                 (input.peek() == '.' || isalpha(input.peek())) ){
+                output.pop_back(); // Remove the invalid token from output
                 writeError("invalid number", pToken);
                 return false;
             }

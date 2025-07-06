@@ -107,4 +107,37 @@ TEST_CASE("test lex single token negative test cases") {
 
     // Test invalid reserved word produces no token (failure case)
     CHECK(lexInput(".invalidReservedWord", context, false).output.empty());
+
+    // Test invalid decimal produces no token (failure case)
+    CHECK(lexInput("1234.5678.9", context, false).output.empty());
+
+    // Test invalid character after string produces no token (failure case)
+    CHECK(lexInput("\"x\"1", context, false).output.empty());
+    CHECK(lexInput("\"x\"a", context, false).output.empty());
+}
+
+TEST_CASE("test lex multiple tokens") {
+    CompilerContext context;
+    std::string input = "1234 5678";
+    basis::Lexer lexer = lexInput(input, context);
+    CHECK(!lexer.output.empty());
+    CHECK(lexer.output.front().type == TokenType::NUMBER);
+    CHECK(lexer.output.back().type == TokenType::NUMBER);
+}
+
+TEST_CASE("test lex boundary detection") {
+    CompilerContext context;
+    std::string input = "a b\n c\nd\n e\nf\n";
+    basis::Lexer lexer = lexInput(input, context);
+    CHECK(!lexer.output.empty());
+    CHECK_EQ(lexer.output.size(),6);
+    std::vector<Token*> tokens;
+    for (auto& token : lexer.output) {
+        tokens.push_back(&token);
+    }
+    CHECK_EQ(tokens[0]->bound, tokens[3]);
+    CHECK_EQ(tokens[1]->bound, tokens[2]);
+    CHECK_EQ(tokens[2]->bound, tokens[3]);
+    CHECK_EQ(tokens[3]->bound, tokens[5]);
+    CHECK_EQ(tokens[4]->bound, tokens[5]);
 }
