@@ -157,7 +157,11 @@ bool basis::Lexer::scan(CompilerContext& context) {
                     break;
                 }
                 if( readChar == '"' ) {
-                    // done
+                    // found closing quote - check if followed by alphanumeric character
+                    if( input.good() && isalnum(input.peek()) ) {
+                        isValidString = false;
+                        break;
+                    }
                     foundClosingQuote = true;
                     break;
                 }
