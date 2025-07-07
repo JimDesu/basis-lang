@@ -53,7 +53,15 @@ bool basis::Lexer::isIdentifierChar(char c) {
 }
 
 void basis::Lexer::loadReservedWords() {
-    resWords[".cmd"] = TokenType::COMMAND;
+
+    resWords[".alias"]     = TokenType::ALIAS;
+    resWords[".class"]     = TokenType::CLASS;
+    resWords[".cmd"]       = TokenType::COMMAND;
+    resWords[".domain"]    = TokenType::DOMAIN;
+    resWords[".enum"]      = TokenType::ENUMERATION;
+    resWords[".intrinsic"] = TokenType::INTRINSIC;
+    resWords[".object"]    = TokenType::OBJECT;
+    resWords[".record"]    = TokenType::RECORD;
 }
 
 void basis::Lexer::writeError(const std::string& message, const Token* pToken) {

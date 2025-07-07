@@ -6,22 +6,32 @@
 
 namespace basis {
     enum class TokenType {
-        // data types
+        // literals
         DECIMAL,
         HEXNUMBER,
-        IDENTIFIER,
         NUMBER,
         STRING,
+        // identifiers
+        IDENTIFIER,
         // reserved words
+        ALIAS,
+        CLASS,
         COMMAND,
+        DOMAIN,
+        ENUMERATION,
+        INTRINSIC,
+        OBJECT,
+        RECORD,
         // punctuation
         AMPERSAND,
         AMPHORA,
+        ASSIGN,
         ASTERISK,
         BANG,
         CARAT,
         COMMA,
         COLON,
+        DCOLON,
         EQUALS,
         LANGLE,
         LBRACE,
