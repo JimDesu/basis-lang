@@ -1,6 +1,6 @@
 # The Basis Programming Language.  
 
-This is currently in the initial implementation stage; there's nothing useable here yet.
+This is a part-time side project done at the pace of a parent's spare time; it will be a while before there's anythign usable here.
 
 ## Informal Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
