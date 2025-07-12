@@ -102,6 +102,9 @@ TEST_CASE("test lex single token negative test cases") {
     // Test unclosed string produces no token (failure case)
     CHECK(lexInput("\"unclosed string", context, false).output.empty());
 
+    // Test multi-line string fails
+    CHECK(lexInput("\"multiline\nstring\"", context, false).output.empty());
+
     // Test invalid reserved word produces no token (failure case)
     CHECK(lexInput(".invalidReservedWord", context, false).output.empty());
 

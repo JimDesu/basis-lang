@@ -10,19 +10,18 @@ basis::Lexer::~Lexer() {
 }
 
 bool basis::Lexer::read() {
+    if( !input.good() ) return false;
+    char prevChar = readChar;
     readChar = 0;
-    while(input.good()) {
-        input.get(readChar);
-        if( readChar == EOF ) break;
-        if( readChar == '\n') {
-          lineNumber++;
-          columnNumber = 0;
-          continue;
-        }
+    input.get(readChar);
+    if (readChar == EOF || readChar == 0) return false;
+    if ( prevChar == '\n' ) {
+        lineNumber++;
+        columnNumber = 1;
+    } else {
         columnNumber++;
-        return readChar != 0;
     }
-    return false;
+    return true;
 }
 
 Token* basis::Lexer::nextToken() {
@@ -327,8 +326,8 @@ bool basis::Lexer::scan(const CompilerContext& context) {
         // read comments first
         if( readChar == ';' ) {
             // this is a comment; drain the remainder of the line without
-            // any token being emitted.  Note that to avoid logic duplication, this will
-            // read the first character of the next line, so we do not continue
+            // any token being emitted.  Note that drainLine will read into the first
+            // character of the next line, so don't continue back up to the read
             drainLine();
             // do not continue!
         }
