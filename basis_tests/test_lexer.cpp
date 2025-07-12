@@ -34,7 +34,7 @@ basis::Lexer lexTokenAfterPrefix(const std::string& prefix, const std::string& t
     return lexer;
 }
 
-// Helper function to test a complete token with all prefix variations
+// Helper function to test a complete token with prefix variations
 void testSingleToken(const std::string& tokenText, TokenType tokenType, CompilerContext& context) {
     static const std::string whitespacePrefix = "\t";
     static const std::string commentPrefix = " ;fish sticks\n";
