@@ -48,6 +48,255 @@ void basis::Lexer::drainLine() {
     while( read() && line == lineNumber);
 }
 
+bool basis::Lexer::readHexNumber() {
+    // read hexadecimals before numerics
+    if( read()) {
+        Token* pToken = nextToken();
+        pToken->columnNumber -= 1; // correct for the extra 'x' character
+        pToken->type = TokenType::HEXNUMBER;
+        size_t hexDigitCount = 0;
+        while( input.good() && isxdigit(input.peek()) && read() ) {
+            pToken->text += readChar;
+            hexDigitCount++;
+        }
+        // ensure we read an even number of digits so we have whole bytes
+        if( hexDigitCount % 2 != 0 ) {
+            output.pop_back(); // Remove the invalid token from output
+            writeError("invalid hex value", pToken);
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool basis::Lexer::readNumeric() {
+    // read numerics
+    Token* pToken = nextToken();
+    pToken->text += readChar;
+    while( input.good() && isdigit(input.peek()) ){
+        read();
+        pToken->text += readChar;
+    }
+    if( input.good() && input.peek() == '.' && read()) {
+        // this is a decimal; get the rest of it
+        pToken->text += readChar;
+        pToken->type = TokenType::DECIMAL;
+        while( input.good() && isdigit(input.peek()) && read()){
+            pToken->text += readChar;
+        }
+    } else {
+      pToken->type = TokenType::NUMBER;
+    }
+    // validate that we don't have invalid trailing chars
+    if( input.good() &&
+        (input.peek() == '.' || isalpha(input.peek())) ){
+        output.pop_back(); // Remove the invalid token from output
+        writeError("invalid number", pToken);
+        return false;
+    }
+    return true;
+}
+
+bool basis::Lexer::readIdentifier() {
+    // read an identifier
+    Token* pToken = nextToken();
+    pToken->text += readChar;
+    pToken->type = TokenType::IDENTIFIER;
+    while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+        pToken->text += readChar;
+    }
+    return true;
+}
+
+bool basis::Lexer::readResWord() {
+    // read a reserved word
+    Token* pToken = nextToken();
+    pToken->text += readChar;
+    while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+        pToken->text += readChar;
+    }
+    auto pv = resWords.find(pToken->text);
+    if( pv == resWords.end() ) {
+      writeError("invalid reserved word", pToken);
+      output.pop_back(); // Remove the invalid token from output
+      return false;
+    }
+    pToken->type = pv->second;
+    return true;
+}
+
+bool basis::Lexer::readString() {
+    // read a string
+    Token* pToken = nextToken();
+    pToken->type = TokenType::STRING;
+    bool foundClosingQuote = false;
+    bool isValidString = true;
+    while( input.good() && read() ) {
+        if( readChar == '\n' ) {
+            isValidString = false;
+            break;
+        }
+        if( readChar == '"' ) {
+            // found closing quote - check if followed by alphanumeric character
+            if( input.good() && isalnum(input.peek()) ) {
+                isValidString = false;
+                break;
+            }
+            foundClosingQuote = true;
+            break;
+        }
+        if( readChar == '\\' ) {
+            // escape sequence
+            pToken->text += readChar;
+            if( input.good() && read() ) {
+                if( isalpha(readChar) || readChar == '\\' ) {
+                    // valid following char
+                    pToken->text += readChar;
+                } else {
+                    // garbage following char
+                    isValidString = false;
+                    break;
+                }
+            } else {
+                isValidString = false;
+                break;
+            }
+        } else {
+            pToken->text += readChar;
+        }
+    }
+    if( !foundClosingQuote || !isValidString ) {
+        writeError("invalid string", pToken);
+        output.pop_back(); // Remove the invalid token from output
+        return false;
+    }
+    return true;
+}
+
+bool basis::Lexer::readPunct() {
+    bool isValid = true;
+    Token* pToken = nextToken();
+    pToken->text += readChar;
+    switch( readChar ) {
+    case '&':
+        pToken->type = TokenType::AMPERSAND;
+        break;
+    case '@':
+        pToken->type = TokenType::AMPHORA;
+        break;
+    case '*':
+        pToken->type = TokenType::ASTERISK;
+        break;
+    case '!':
+        pToken->type = TokenType::BANG;
+        break;
+    case '^':
+        pToken->type = TokenType::CARAT;
+        break;
+    case ',':
+        pToken->type = TokenType::COMMA;
+        break;
+    case ':':
+        if( input.good() && input.peek() == ':' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::DCOLON;
+        } else if( input.good() && input.peek() == '<' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::COLANGLE;
+        } else {
+            pToken->type = TokenType::COLON;
+        }
+        break;
+    case '=':
+        pToken->type = TokenType::EQUALS;
+        break;
+    case '/':
+        pToken->type = TokenType::SLASH;
+        break;
+    case '<':
+        if ( input.good() && input.peek() == '-') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::ASSIGN;
+        } else {
+            pToken->type = TokenType::LANGLE;
+        }
+        break;
+    case '>':
+        pToken->type = TokenType::RANGLE;
+        break;
+    case '{':
+        pToken->type = TokenType::LBRACE;
+        break;
+    case '}':
+        pToken->type = TokenType::RBRACE;
+        break;
+    case '[':
+        pToken->type = TokenType::LBRACKET;
+        break;
+    case ']':
+        pToken->type = TokenType::RBRACKET;
+        break;
+    case '(':
+        pToken->type = TokenType::LPAREN;
+        break;
+    case ')':
+        pToken->type = TokenType::RPAREN;
+        break;
+    case '+':
+        pToken->type = TokenType::PLUS;
+        break;
+    case '-':
+        pToken->type = TokenType::MINUS;
+        break;
+    case '?':
+        if ( input.good() && input.peek() == '<' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::QLANGLE;
+        } else {
+            pToken->type = TokenType::QMARK;
+        }
+        break;
+    default:
+        isValid = false;
+    }
+
+    if ( !isValid ) {
+        writeError("invalid punctuation", pToken);
+        output.pop_back(); // Remove the invalid token from output
+        return false;
+    }
+    return true;
+}
+
+bool basis::Lexer::checkHex() {
+    return readChar == '0' && input.good() && input.peek() == 'x';
+}
+
+bool basis::Lexer::checkDigit() {
+    return isdigit(readChar);
+}
+
+bool basis::Lexer::checkIdentifier() {
+    return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
+}
+
+bool basis::Lexer::checkResWord() {
+    return readChar == '.' && input.good() && isalpha(input.peek());
+}
+
+bool basis::Lexer::checkString() {
+    return readChar == '"';
+}
+
+bool basis::Lexer::checkPunct() {
+    return ispunct(readChar);
+}
+
 bool basis::Lexer::isIdentifierChar(char c) {
     return c == '_' || isalnum(c);
 }
@@ -73,6 +322,15 @@ void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
 bool basis::Lexer::scan(CompilerContext& context) {
     if(!input.good()) return false;
     while( read() ) {
+        /* --- special handling section --- */
+        // read comments first
+        if( readChar == ';' ) {
+            // this is a comment; drain the remainder of the line without
+            // any token being emitted.  Note that to avoid logic duplication, this will
+            // read the first character of the next line, so we do not continue
+            drainLine();
+            // do not continue!
+        }
         // skip over whitespace chars
         if( isspace(readChar) ) {
           // generate no tokens from whitespace, but respect the
@@ -80,127 +338,40 @@ bool basis::Lexer::scan(CompilerContext& context) {
           if( readChar == '\t' ) {
               columnNumber += context.options.tabWidth - 1;
             }
+            continue;
         }
+        // skip over control characters
         if( iscntrl(readChar) ) continue;
-        // read comments
-        if( readChar == ';' ) {
-            // this is a comment; drain the remainder of the line without
-            // any token being emitted
-            drainLine();
-        }
+        /* --- regular handling section --- */
         // read hexadecimals before numerics
-        if( readChar == '0' && input.good() && input.peek() == 'x' && read()) {
-            Token* pToken = nextToken();
-            pToken->columnNumber -= 1; // correct for the extra 'x' character
-            pToken->type = TokenType::HEXNUMBER;
-            size_t hexDigitCount = 0;
-            while( input.good() && isxdigit(input.peek()) && read() ) {
-                pToken->text += readChar;
-                hexDigitCount++;
-            }
-            // ensure we read an even number of digits so we have whole bytes
-            if( hexDigitCount % 2 != 0 ) {
-                output.pop_back(); // Remove the invalid token from output
-                writeError("invalid hex value", pToken);
-                return false;
-            }
+        if( checkHex() ) {
+            if( !readHexNumber() ) return false;
+            continue;
         }
         // read numerics
-        if( isdigit(readChar) ) {
-            Token* pToken = nextToken();
-            pToken->text += readChar;
-            while( input.good() && isdigit(input.peek()) ){
-                read();
-                pToken->text += readChar;
-            }
-            if( input.good() && input.peek() == '.' && read()) {
-                // this is a decimal; get the rest of it
-                pToken->text += readChar;
-                pToken->type = TokenType::DECIMAL;
-                while( input.good() && isdigit(input.peek()) && read()){
-                    pToken->text += readChar;
-                }
-            } else {
-              pToken->type = TokenType::NUMBER;
-            }
-            // validate that we don't have invalid trailing chars
-            if( input.good() &&
-                (input.peek() == '.' || isalpha(input.peek())) ){
-                output.pop_back(); // Remove the invalid token from output
-                writeError("invalid number", pToken);
-                return false;
-            }
+        if( checkDigit() ) {
+            if( !readNumeric() ) return false;
+            continue;
         }
-        // read an identifier
-        if( isalpha(readChar) ||
-            (readChar == '\'' && input.good() && isalpha(input.peek())) ) {
-            Token* pToken = nextToken();
-            pToken->text += readChar;
-            pToken->type = TokenType::IDENTIFIER;
-            while( input.good() && isIdentifierChar(input.peek()) && read() ) {
-                pToken->text += readChar;
-            }
+        // read an identifier before punctuation
+        if( checkIdentifier() ) {
+            readIdentifier();
+            continue;
         }
-        // read a reserved word
-        if( readChar == '.' && input.good() && isalpha(input.peek()) ) {
-          Token* pToken = nextToken();
-          pToken->text += readChar;
-          while( input.good() && isIdentifierChar(input.peek()) && read() ) {
-              pToken->text += readChar;
-          }
-          auto pv = resWords.find(pToken->text);
-          if( pv == resWords.end() ) {
-            writeError("invalid reserved word", pToken);
-            output.pop_back(); // Remove the invalid token from output
-            return false;
-          }
-          pToken->type = pv->second;
+        // read a reserved word before punctuation
+        if( checkResWord() ) {
+          if( !readResWord() ) return false;
+            continue;
         }
-        // read a string
-        if( readChar == '"' ) {
-            Token* pToken = nextToken();
-            pToken->type = TokenType::STRING;
-            bool foundClosingQuote = false;
-            bool isValidString = true;
-            while( input.good() && read() ) {
-                if( readChar == '\n' ) {
-                    isValidString = false;
-                    break;
-                }
-                if( readChar == '"' ) {
-                    // found closing quote - check if followed by alphanumeric character
-                    if( input.good() && isalnum(input.peek()) ) {
-                        isValidString = false;
-                        break;
-                    }
-                    foundClosingQuote = true;
-                    break;
-                }
-                if( readChar == '\\' ) {
-                    // escape sequence
-                    pToken->text += readChar;
-                    if( input.good() && read() ) {
-                        if( isalpha(readChar) || readChar == '\\' ) {
-                            // valid following char
-                            pToken->text += readChar;
-                        } else {
-                            // garbage following char
-                            isValidString = false;
-                            break;
-                        }
-                    } else {
-                        isValidString = false;
-                        break;
-                    }
-                } else {
-                    pToken->text += readChar;
-                }
-            }
-            if( !foundClosingQuote || !isValidString ) {
-                writeError("invalid string", pToken);
-                output.pop_back(); // Remove the invalid token from output
-                return false;
-            }
+        // read a string before punctuation
+        if( checkString() ) {
+            if( !readString() ) return false;
+            continue;
+        }
+        // read punctuation symbols
+        if ( checkPunct() ) {
+            if( !readPunct() ) return false;
+            continue;
         }
     }
     return true;

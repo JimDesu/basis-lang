@@ -34,66 +34,63 @@ basis::Lexer lexTokenAfterPrefix(const std::string& prefix, const std::string& t
     return lexer;
 }
 
+// Helper function to test a complete token with all prefix variations
+void testSingleToken(const std::string& tokenText, TokenType tokenType, CompilerContext& context) {
+    static const std::string whitespacePrefix = "\t";
+    static const std::string commentPrefix = " ;fish sticks\n";
+
+    // Test as single token
+    testLexSingleToken(tokenText, tokenType);
+
+    // Test with whitespace prefix and verify column number
+    CHECK(lexTokenAfterPrefix(whitespacePrefix, tokenText, tokenType, context)
+          .output.front().columnNumber == context.options.tabWidth + 1);
+
+    // Test with comment prefix
+    lexTokenAfterPrefix(commentPrefix, tokenText, tokenType, context);
+}
+
 TEST_CASE("test lex all token types") {
     int tabWidth = 4;
-    std::string whitespacePrefix = "\t";
-    std::string commentPrefix = " ;fish sticks\n";
     CompilerContext context;
     context.options.tabWidth = tabWidth;
 
-    // Test number token
-    std::string numberToken = "1234";
-    TokenType numberType = TokenType::NUMBER;
-    testLexSingleToken(numberToken, numberType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, numberToken, numberType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, numberToken, numberType, context);
-
-    // Test decimal token
-    std::string decimalToken = "1234.5678";
-    TokenType decimalType = TokenType::DECIMAL;
-    testLexSingleToken(decimalToken, decimalType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, decimalToken, decimalType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, decimalToken, decimalType, context);
-
-    // Test hexadecimal token
-    std::string hexToken = "0x1234";
-    TokenType hexType = TokenType::HEXNUMBER;
-    testLexSingleToken(hexToken, hexType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, hexToken, hexType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, hexToken, hexType, context);
-
-    // Test identifier token
-    std::string identifierToken = "foobar";
-    TokenType identifierType = TokenType::IDENTIFIER;
-    testLexSingleToken(identifierToken, identifierType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, identifierToken, identifierType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, identifierToken, identifierType, context);
-
-    // Test string token
-    std::string stringToken = "\"foobar\"";
-    TokenType stringType = TokenType::STRING;
-    testLexSingleToken(stringToken, stringType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, stringToken, stringType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, stringToken, stringType, context);
-
-    // Test command token
-    std::string commandToken = ".cmd foobar";
-    TokenType commandType = TokenType::COMMAND;
-    testLexSingleToken(commandToken, commandType);
-    CHECK(
-        lexTokenAfterPrefix(whitespacePrefix, commandToken, commandType, context)
-        .output.front().columnNumber == context.options.tabWidth + 1);
-    lexTokenAfterPrefix(commentPrefix, commandToken, commandType, context);
+    testSingleToken("1234", TokenType::NUMBER, context);
+    testSingleToken("1234.5678", TokenType::DECIMAL, context);
+    testSingleToken("0x1234", TokenType::HEXNUMBER, context);
+    testSingleToken("foobar", TokenType::IDENTIFIER, context);
+    testSingleToken("\"foobar\"", TokenType::STRING, context);
+    testSingleToken("&", TokenType::AMPERSAND, context);
+    testSingleToken("@", TokenType::AMPHORA, context);
+    testSingleToken("<-", TokenType::ASSIGN, context);
+    testSingleToken("*", TokenType::ASTERISK, context);
+    testSingleToken("!", TokenType::BANG, context);
+    testSingleToken("^", TokenType::CARAT, context);
+    testSingleToken(",", TokenType::COMMA, context);
+    testSingleToken("::", TokenType::DCOLON, context);
+    testSingleToken(":<", TokenType::COLANGLE, context);
+    testSingleToken(":", TokenType::COLON, context);
+    testSingleToken("=", TokenType::EQUALS, context);
+    testSingleToken("<", TokenType::LANGLE, context);
+    testSingleToken("{", TokenType::LBRACE, context);
+    testSingleToken("[", TokenType::LBRACKET, context);
+    testSingleToken("(", TokenType::LPAREN, context);
+    testSingleToken("-", TokenType::MINUS, context);
+    testSingleToken("+", TokenType::PLUS, context);
+    testSingleToken("?<", TokenType::QLANGLE, context);
+    testSingleToken("?", TokenType::QMARK, context);
+    testSingleToken(">", TokenType::RANGLE, context);
+    testSingleToken("}", TokenType::RBRACE, context);
+    testSingleToken("]", TokenType::RBRACKET, context);
+    testSingleToken(")", TokenType::RPAREN, context);
+    testSingleToken("/", TokenType::SLASH, context);
+    testSingleToken(".cmd foobar", TokenType::COMMAND, context);
+    testSingleToken(".class foobar", TokenType::CLASS, context);
+    testSingleToken(".domain foobar", TokenType::DOMAIN, context);
+    testSingleToken(".enum foobar", TokenType::ENUMERATION, context);
+    testSingleToken(".intrinsic foobar", TokenType::INTRINSIC, context);
+    testSingleToken(".object foobar", TokenType::OBJECT, context);
+    testSingleToken(".record foobar", TokenType::RECORD, context);
 }
 
 TEST_CASE("test lex single token negative test cases") {
@@ -114,6 +111,13 @@ TEST_CASE("test lex single token negative test cases") {
     // Test invalid character after string produces no token (failure case)
     CHECK(lexInput("\"x\"1", context, false).output.empty());
     CHECK(lexInput("\"x\"a", context, false).output.empty());
+
+    // Test invalid reserved words produces no token (failure case)
+    CHECK(lexInput(".invalidReservedWord", context, false).output.empty());
+    CHECK(lexInput(".cm", context, false).output.empty());
+    CHECK(lexInput(".cmda", context, false).output.empty());
+    CHECK(lexInput(".cmd2", context, false).output.empty());
+    CHECK(lexInput(".cmd_", context, false).output.empty());
 }
 
 TEST_CASE("test lex multiple tokens") {

@@ -30,6 +30,18 @@ namespace basis {
             Token* nextToken();
             void drainLine();
             void loadReservedWords();
+            bool readHexNumber();
+            bool readNumeric();
+            bool readIdentifier();
+            bool readResWord();
+            bool readString();
+            bool readPunct();
+            bool checkHex();
+            bool checkDigit();
+            bool checkIdentifier();
+            bool checkResWord();
+            bool checkString();
+            bool checkPunct();
             static bool isIdentifierChar(char c);
             static void writeError(const std::string& message, const Token* pToken);
     };

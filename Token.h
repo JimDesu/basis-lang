@@ -31,6 +31,7 @@ namespace basis {
         CARAT,
         COMMA,
         COLON,
+        COLANGLE,
         DCOLON,
         EQUALS,
         LANGLE,
@@ -39,11 +40,12 @@ namespace basis {
         LPAREN,
         MINUS,
         PLUS,
+        QLANGLE,
+        QMARK,
         RANGLE,
         RBRACE,
         RBRACKET,
         RPAREN,
-        SEMICOLON,
         SLASH,
 
     };
