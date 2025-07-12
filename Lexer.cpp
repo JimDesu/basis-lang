@@ -322,7 +322,6 @@ bool basis::Lexer::scan(const CompilerContext& context) {
     if(!input.good()) return false;
     while( read() ) {
         /* --- special handling section --- */
-        // TODO this section + read is kind of a mess; refactor to make intuitive
         // read comments first
         if( readChar == ';' ) {
             // this is a comment; drain the remainder of the line without
