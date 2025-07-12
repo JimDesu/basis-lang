@@ -24,7 +24,7 @@ namespace basis {
             }
             ~Lexer();
             std::list<Token> output;
-            bool scan(CompilerContext& compilerContext);
+            bool scan(const CompilerContext& compilerContext);
         private:
             bool read();
             Token* nextToken();
@@ -36,12 +36,12 @@ namespace basis {
             bool readResWord();
             bool readString();
             bool readPunct();
-            bool checkHex();
-            bool checkDigit();
-            bool checkIdentifier();
-            bool checkResWord();
-            bool checkString();
-            bool checkPunct();
+            bool checkHex() const;
+            bool checkDigit() const;
+            bool checkIdentifier() const;
+            bool checkResWord() const;
+            bool checkString() const;
+            bool checkPunct() const;
             static bool isIdentifierChar(char c);
             static void writeError(const std::string& message, const Token* pToken);
     };

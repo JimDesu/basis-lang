@@ -273,27 +273,27 @@ bool basis::Lexer::readPunct() {
     return true;
 }
 
-bool basis::Lexer::checkHex() {
+bool basis::Lexer::checkHex() const {
     return readChar == '0' && input.good() && input.peek() == 'x';
 }
 
-bool basis::Lexer::checkDigit() {
+bool basis::Lexer::checkDigit() const {
     return isdigit(readChar);
 }
 
-bool basis::Lexer::checkIdentifier() {
+bool basis::Lexer::checkIdentifier() const {
     return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
 }
 
-bool basis::Lexer::checkResWord() {
+bool basis::Lexer::checkResWord() const {
     return readChar == '.' && input.good() && isalpha(input.peek());
 }
 
-bool basis::Lexer::checkString() {
+bool basis::Lexer::checkString() const {
     return readChar == '"';
 }
 
-bool basis::Lexer::checkPunct() {
+bool basis::Lexer::checkPunct() const {
     return ispunct(readChar);
 }
 
@@ -319,7 +319,7 @@ void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
             << " column "  << pToken->columnNumber << std::endl;
 
 }
-bool basis::Lexer::scan(CompilerContext& context) {
+bool basis::Lexer::scan(const CompilerContext& context) {
     if(!input.good()) return false;
     while( read() ) {
         /* --- special handling section --- */
