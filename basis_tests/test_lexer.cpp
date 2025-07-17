@@ -59,7 +59,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("1234.5678", TokenType::DECIMAL, context);
     testSingleToken("0x1234", TokenType::HEXNUMBER, context);
     testSingleToken("foobar", TokenType::IDENTIFIER, context);
-    testSingleToken("\"foobar\"", TokenType::STRING, context);
+    testSingleToken("\"foo\\\"bar\"", TokenType::STRING, context);
     testSingleToken("&", TokenType::AMPERSAND, context);
     testSingleToken("@", TokenType::AMPHORA, context);
     testSingleToken("<-", TokenType::ASSIGN, context);

@@ -44,7 +44,7 @@ void basis::Lexer::drainLine() {
     // get the current line number
     size_t line = lineNumber;
     // blindly read until we're on the next line
-    while( read() && line == lineNumber);
+    while( read() && readChar != '\n');
 }
 
 bool basis::Lexer::readHexNumber() {
@@ -131,7 +131,7 @@ bool basis::Lexer::readString() {
     pToken->type = TokenType::STRING;
     bool foundClosingQuote = false;
     bool isValidString = true;
-    while( input.good() && read() ) {
+    while(isValidString && input.good() && read() ) {
         if( readChar == '\n' ) {
             isValidString = false;
             break;
@@ -147,15 +147,23 @@ bool basis::Lexer::readString() {
         }
         if( readChar == '\\' ) {
             // escape sequence
-            pToken->text += readChar;
             if( input.good() && read() ) {
-                if( isalpha(readChar) || readChar == '\\' ) {
-                    // valid following char
-                    pToken->text += readChar;
-                } else {
-                    // garbage following char
-                    isValidString = false;
+                switch ( readChar ) {
+                case '"':
+                    pToken->text += '"';
                     break;
+                case '\\':
+                    pToken->text += '\\';
+                    break;
+                case 'n':
+                    pToken->text += '\n';
+                    break;
+                case 'r':
+                    pToken->text += '\r';
+                    break;
+                //TODO add the other common sequences here later
+                default:
+                    isValidString = false;
                 }
             } else {
                 isValidString = false;
@@ -321,14 +329,11 @@ void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
 bool basis::Lexer::scan(const CompilerContext& context) {
     if(!input.good()) return false;
     while( read() ) {
-        /* --- special handling section --- */
+        /* --- whitespace handling section --- */
         // read comments first
         if( readChar == ';' ) {
-            // this is a comment; drain the remainder of the line without
-            // any token being emitted.  Note that drainLine will read into the first
-            // character of the next line, so don't continue back up to the read
             drainLine();
-            // do not continue!
+            continue;
         }
         // skip over whitespace chars
         if( isspace(readChar) ) {
@@ -341,6 +346,7 @@ bool basis::Lexer::scan(const CompilerContext& context) {
         }
         // skip over other control characters
         if( iscntrl(readChar) ) continue;
+
         /* --- regular handling section --- */
         // read hexadecimals before numerics
         if( checkHex() ) {
