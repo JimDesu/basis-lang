@@ -161,7 +161,15 @@ bool basis::Lexer::readString() {
                 case 'r':
                     pToken->text += '\r';
                     break;
-                //TODO add the other common sequences here later
+                case 'b':
+                    pToken->text += '\b';
+                    break;
+                case 't':
+                    pToken->text += '\t';
+                    break;
+                case 'v':
+                    pToken->text += '\v';
+                    break;
                 default:
                     isValidString = false;
                 }
