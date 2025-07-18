@@ -5,11 +5,11 @@
 
 using namespace basis;
 
-basis::Lexer::~Lexer() {
+Lexer::~Lexer() {
     output.clear();
 }
 
-bool basis::Lexer::scan() {
+bool Lexer::scan() {
     if(!input.good()) return false;
     while( read() ) {
         for ( int i = 0; i < 8; i++ ) {
@@ -22,7 +22,7 @@ bool basis::Lexer::scan() {
     return true;
 }
 
-const std::map<std::string, TokenType> basis::Lexer::resWords {
+const std::map<std::string, TokenType> Lexer::resWords {
     {".alias", TokenType::ALIAS},
     {".class", TokenType::CLASS},
     {".cmd", TokenType::COMMAND},
@@ -33,7 +33,7 @@ const std::map<std::string, TokenType> basis::Lexer::resWords {
     {".record", TokenType::RECORD}
 };
 
-bool basis::Lexer::read() {
+bool Lexer::read() {
     if( !input.good() ) return false;
     char prevChar = readChar;
     readChar = 0;
@@ -48,7 +48,7 @@ bool basis::Lexer::read() {
     return true;
 }
 
-Token* basis::Lexer::nextToken() {
+Token* Lexer::nextToken() {
     // record and initialize the token
     output.emplace_back();
     Token* pToken = &output.back();
@@ -72,41 +72,41 @@ bool Lexer::checkWhitespace() const {
     return isspace(readChar) || iscntrl(readChar);
 }
 
-bool basis::Lexer::checkHex() const {
+bool Lexer::checkHex() const {
     return readChar == '0' && input.good() && input.peek() == 'x';
 }
 
-bool basis::Lexer::checkDigit() const {
+bool Lexer::checkDigit() const {
     return isdigit(readChar);
 }
 
-bool basis::Lexer::checkIdentifier() const {
+bool Lexer::checkIdentifier() const {
     return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
 }
 
-bool basis::Lexer::checkResWord() const {
+bool Lexer::checkResWord() const {
     return readChar == '.' && input.good() && isalpha(input.peek());
 }
 
-bool basis::Lexer::checkString() const {
+bool Lexer::checkString() const {
     return readChar == '"';
 }
 
-bool basis::Lexer::checkPunct() const {
+bool Lexer::checkPunct() const {
     return ispunct(readChar);
 }
 
-bool basis::Lexer::isIdentifierChar(char c) {
+bool Lexer::isIdentifierChar(char c) {
     return c == '_' || isalnum(c);
 }
 
-void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
+void Lexer::writeError(const std::string& message, const Token* pToken) {
   std::cerr << message
             << " at line " << pToken->lineNumber
             << " column "  << pToken->columnNumber << std::endl;
 
 }
-bool basis::Lexer::drainLine() {
+bool Lexer::drainLine() {
     // get the current line number
     size_t line = lineNumber;
     // blindly read until we're on the next line
@@ -114,12 +114,12 @@ bool basis::Lexer::drainLine() {
     return true;
 }
 
-bool basis::Lexer::readWhitespace() {
+bool Lexer::readWhitespace() {
     // generate no tokens from whitespace
     return true;
 }
 
-bool basis::Lexer::readHexNumber() {
+bool Lexer::readHexNumber() {
     // read hexadecimals before numerics
     if( read()) {
         Token* pToken = nextToken();
@@ -141,7 +141,7 @@ bool basis::Lexer::readHexNumber() {
     return false;
 }
 
-bool basis::Lexer::readNumeric() {
+bool Lexer::readNumeric() {
     // read numerics
     Token* pToken = nextToken();
     pToken->text += readChar;
@@ -169,7 +169,7 @@ bool basis::Lexer::readNumeric() {
     return true;
 }
 
-bool basis::Lexer::readIdentifier() {
+bool Lexer::readIdentifier() {
     // read an identifier
     Token* pToken = nextToken();
     pToken->text += readChar;
@@ -180,7 +180,7 @@ bool basis::Lexer::readIdentifier() {
     return true;
 }
 
-bool basis::Lexer::readResWord() {
+bool Lexer::readResWord() {
     // read a reserved word
     Token* pToken = nextToken();
     pToken->text += readChar;
@@ -197,7 +197,7 @@ bool basis::Lexer::readResWord() {
     return true;
 }
 
-bool basis::Lexer::readString() {
+bool Lexer::readString() {
     // read a string
     Token* pToken = nextToken();
     pToken->type = TokenType::STRING;
@@ -261,7 +261,7 @@ bool basis::Lexer::readString() {
     return true;
 }
 
-bool basis::Lexer::readPunct() {
+bool Lexer::readPunct() {
     bool isValid = true;
     Token* pToken = nextToken();
     pToken->text += readChar;
