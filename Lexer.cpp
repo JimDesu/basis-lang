@@ -12,7 +12,7 @@ Lexer::~Lexer() {
 bool Lexer::scan() {
     if(!input.good()) return false;
     while( read() ) {
-        for ( int i = 0; i < 8; i++ ) {
+        for ( int i = 0; i < fnCount; i++ ) {
            if ( (this->*checks[i])() ) {
                if ( !(this->*reads[i])() ) return false;
                break;

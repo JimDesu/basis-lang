@@ -24,6 +24,7 @@ namespace basis {
             static bool isIdentifierChar(char c);
             static void writeError(const std::string& message, const Token* pToken);
             const static std::map<std::string, TokenType> resWords;
+            constexpr static int fnCount{ 8 };
             std::istream& input;
             std::stack<Token*> indents;
             size_t lineNumber;
@@ -34,7 +35,7 @@ namespace basis {
             // check functions; if one of these returns true, the concomitant read function must succeed
             // these are listed in correct lexing order; e.g. reserved words start with '.', and have to be
             // lexed before general punctuation
-            bool (Lexer::*checks[8])() const;
+            bool (Lexer::*checks[fnCount])() const;
             bool checkComment() const;
             bool checkWhitespace() const;
             bool checkHex() const;
@@ -44,7 +45,7 @@ namespace basis {
             bool checkString() const;
             bool checkPunct() const;
             // read functions
-            bool (Lexer::*reads[8])();
+            bool (Lexer::*reads[fnCount])();
             bool drainLine();
             bool readWhitespace();
             bool readHexNumber();
