@@ -9,6 +9,19 @@ basis::Lexer::~Lexer() {
     output.clear();
 }
 
+bool basis::Lexer::scan() {
+    if(!input.good()) return false;
+    while( read() ) {
+        for ( int i = 0; i < 8; i++ ) {
+           if ( (this->*checks[i])() ) {
+               if ( !(this->*reads[i])() ) return false;
+               break;
+           }
+        }
+    }
+    return true;
+}
+
 const std::map<std::string, TokenType> basis::Lexer::resWords {
     {".alias", TokenType::ALIAS},
     {".class", TokenType::CLASS},
@@ -59,6 +72,40 @@ bool Lexer::checkWhitespace() const {
     return isspace(readChar) || iscntrl(readChar);
 }
 
+bool basis::Lexer::checkHex() const {
+    return readChar == '0' && input.good() && input.peek() == 'x';
+}
+
+bool basis::Lexer::checkDigit() const {
+    return isdigit(readChar);
+}
+
+bool basis::Lexer::checkIdentifier() const {
+    return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
+}
+
+bool basis::Lexer::checkResWord() const {
+    return readChar == '.' && input.good() && isalpha(input.peek());
+}
+
+bool basis::Lexer::checkString() const {
+    return readChar == '"';
+}
+
+bool basis::Lexer::checkPunct() const {
+    return ispunct(readChar);
+}
+
+bool basis::Lexer::isIdentifierChar(char c) {
+    return c == '_' || isalnum(c);
+}
+
+void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
+  std::cerr << message
+            << " at line " << pToken->lineNumber
+            << " column "  << pToken->columnNumber << std::endl;
+
+}
 bool basis::Lexer::drainLine() {
     // get the current line number
     size_t line = lineNumber;
@@ -309,53 +356,6 @@ bool basis::Lexer::readPunct() {
         writeError("invalid punctuation", pToken);
         output.pop_back(); // Remove the invalid token from output
         return false;
-    }
-    return true;
-}
-
-bool basis::Lexer::checkHex() const {
-    return readChar == '0' && input.good() && input.peek() == 'x';
-}
-
-bool basis::Lexer::checkDigit() const {
-    return isdigit(readChar);
-}
-
-bool basis::Lexer::checkIdentifier() const {
-    return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
-}
-
-bool basis::Lexer::checkResWord() const {
-    return readChar == '.' && input.good() && isalpha(input.peek());
-}
-
-bool basis::Lexer::checkString() const {
-    return readChar == '"';
-}
-
-bool basis::Lexer::checkPunct() const {
-    return ispunct(readChar);
-}
-
-bool basis::Lexer::isIdentifierChar(char c) {
-    return c == '_' || isalnum(c);
-}
-
-void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
-  std::cerr << message
-            << " at line " << pToken->lineNumber
-            << " column "  << pToken->columnNumber << std::endl;
-
-}
-bool basis::Lexer::scan() {
-    if(!input.good()) return false;
-    while( read() ) {
-        for ( int i = 0; i < 8; i++ ) {
-           if ( (this->*checks[i])() ) {
-               if ( !(this->*reads[i])() ) return false;
-               break;
-           }
-        }
     }
     return true;
 }
