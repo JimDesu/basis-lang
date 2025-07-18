@@ -13,9 +13,9 @@ namespace basis {
         public:
             explicit Lexer(std::istream& inputStream) :
                 output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
-                checks{ &checkComment, &checkWhitespace, &checkHex, &checkDigit, &checkIdentifier,
-                    &checkResWord, &checkString, &checkPunct },
-                reads { &drainLine, &readWhitespace, &readHexNumber, &readNumeric,
+                checks{ &checkComment, &checkWhitespace, &checkHex, &checkDigit,
+                    &checkIdentifier, &checkResWord, &checkString, &checkPunct },
+                reads { &readDrainLine, &readWhitespace, &readHexNumber, &readNumeric,
                     &readIdentifier, &readResWord, &readString, &readPunct } {}
             ~Lexer();
             std::list<Token> output;
@@ -32,8 +32,8 @@ namespace basis {
             char readChar;
             bool read();
             Token* nextToken();
-            // check functions; if one of these returns true, the concomitant read function must succeed
-            // these are listed in correct lexing order; e.g. reserved words start with '.', and have to be
+            // check functions... if one of these returns true, the concomitant read function must succeed.
+            // These are listed in correct lexing order; e.g. reserved words start with '.', and have to be
             // lexed before general punctuation
             bool (Lexer::*checks[fnCount])() const;
             bool checkComment() const;
@@ -46,7 +46,7 @@ namespace basis {
             bool checkPunct() const;
             // read functions
             bool (Lexer::*reads[fnCount])();
-            bool drainLine();
+            bool readDrainLine();
             bool readWhitespace();
             bool readHexNumber();
             bool readNumeric();

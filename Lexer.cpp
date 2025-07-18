@@ -106,7 +106,7 @@ void Lexer::writeError(const std::string& message, const Token* pToken) {
             << " column "  << pToken->columnNumber << std::endl;
 
 }
-bool Lexer::drainLine() {
+bool Lexer::readDrainLine() {
     // get the current line number
     size_t line = lineNumber;
     // blindly read until we're on the next line
