@@ -9,6 +9,17 @@ basis::Lexer::~Lexer() {
     output.clear();
 }
 
+const std::map<std::string, TokenType> basis::Lexer::resWords {
+    {".alias", TokenType::ALIAS},
+    {".class", TokenType::CLASS},
+    {".cmd", TokenType::COMMAND},
+    {".domain", TokenType::DOMAIN},
+    {".enum", TokenType::ENUMERATION},
+    {".intrinsic", TokenType::INTRINSIC},
+    {".object", TokenType::OBJECT},
+    {".record", TokenType::RECORD}
+};
+
 bool basis::Lexer::read() {
     if( !input.good() ) return false;
     char prevChar = readChar;
@@ -40,11 +51,25 @@ Token* basis::Lexer::nextToken() {
     return pToken;
 }
 
-void basis::Lexer::drainLine() {
+bool Lexer::checkComment() const {
+    return (readChar == ';');
+}
+
+bool Lexer::checkWhitespace() const {
+    return isspace(readChar) || iscntrl(readChar);
+}
+
+bool basis::Lexer::drainLine() {
     // get the current line number
     size_t line = lineNumber;
     // blindly read until we're on the next line
     while( read() && readChar != '\n');
+    return true;
+}
+
+bool basis::Lexer::readWhitespace() {
+    // generate no tokens from whitespace
+    return true;
 }
 
 bool basis::Lexer::readHexNumber() {
@@ -316,75 +341,20 @@ bool basis::Lexer::isIdentifierChar(char c) {
     return c == '_' || isalnum(c);
 }
 
-void basis::Lexer::loadReservedWords() {
-
-    resWords[".alias"]     = TokenType::ALIAS;
-    resWords[".class"]     = TokenType::CLASS;
-    resWords[".cmd"]       = TokenType::COMMAND;
-    resWords[".domain"]    = TokenType::DOMAIN;
-    resWords[".enum"]      = TokenType::ENUMERATION;
-    resWords[".intrinsic"] = TokenType::INTRINSIC;
-    resWords[".object"]    = TokenType::OBJECT;
-    resWords[".record"]    = TokenType::RECORD;
-}
-
 void basis::Lexer::writeError(const std::string& message, const Token* pToken) {
   std::cerr << message
             << " at line " << pToken->lineNumber
             << " column "  << pToken->columnNumber << std::endl;
 
 }
-bool basis::Lexer::scan(const CompilerContext& context) {
+bool basis::Lexer::scan() {
     if(!input.good()) return false;
     while( read() ) {
-        /* --- whitespace handling section --- */
-        // read comments first
-        if( readChar == ';' ) {
-            drainLine();
-            continue;
-        }
-        // skip over whitespace chars
-        if( isspace(readChar) ) {
-          // generate no tokens from whitespace, but respect the
-          // tabwidth option
-          if( readChar == '\t' ) {
-              columnNumber += context.options.tabWidth - 1;
-            }
-            continue;
-        }
-        // skip over other control characters
-        if( iscntrl(readChar) ) continue;
-
-        /* --- regular handling section --- */
-        // read hexadecimals before numerics
-        if( checkHex() ) {
-            if( !readHexNumber() ) return false;
-            continue;
-        }
-        // read numerics
-        if( checkDigit() ) {
-            if( !readNumeric() ) return false;
-            continue;
-        }
-        // read an identifier before punctuation
-        if( checkIdentifier() ) {
-            readIdentifier();
-            continue;
-        }
-        // read a reserved word before punctuation
-        if( checkResWord() ) {
-          if( !readResWord() ) return false;
-            continue;
-        }
-        // read a string before punctuation
-        if( checkString() ) {
-            if( !readString() ) return false;
-            continue;
-        }
-        // read punctuation symbols
-        if ( checkPunct() ) {
-            if( !readPunct() ) return false;
-            continue;
+        for ( int i = 0; i < 8; i++ ) {
+           if ( (this->*checks[i])() ) {
+               if ( !(this->*reads[i])() ) return false;
+               break;
+           }
         }
     }
     return true;
