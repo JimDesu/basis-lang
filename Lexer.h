@@ -11,12 +11,12 @@
 namespace basis {
     class Lexer {
         public:
-            explicit Lexer(std::istream& inputStream)
-                : input(inputStream), output(), indents(), lineNumber(1), columnNumber(0),readChar(0),
-                  checks{ &checkComment, &checkWhitespace, &checkHex, &checkDigit, &checkIdentifier,
-                          &checkResWord, &checkString, &checkPunct },
-                  reads { &drainLine, &readWhitespace, &readHexNumber, &readNumeric,
-                          &readIdentifier, &readResWord, &readString, &readPunct } {}
+            explicit Lexer(std::istream& inputStream) :
+                output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
+                checks{ &checkComment, &checkWhitespace, &checkHex, &checkDigit, &checkIdentifier,
+                    &checkResWord, &checkString, &checkPunct },
+                reads { &drainLine, &readWhitespace, &readHexNumber, &readNumeric,
+                    &readIdentifier, &readResWord, &readString, &readPunct } {}
             ~Lexer();
             std::list<Token> output;
             bool scan();
