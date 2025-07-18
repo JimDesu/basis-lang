@@ -76,7 +76,7 @@ bool Lexer::checkHex() const {
     return readChar == '0' && input.good() && input.peek() == 'x';
 }
 
-bool Lexer::checkDigit() const {
+bool Lexer::checkNumeric() const {
     return isdigit(readChar);
 }
 
@@ -106,7 +106,7 @@ void Lexer::writeError(const std::string& message, const Token* pToken) {
             << " column "  << pToken->columnNumber << std::endl;
 
 }
-bool Lexer::readDrainLine() {
+bool Lexer::readComment() {
     // get the current line number
     size_t line = lineNumber;
     // blindly read until we're on the next line
@@ -119,7 +119,7 @@ bool Lexer::readWhitespace() {
     return true;
 }
 
-bool Lexer::readHexNumber() {
+bool Lexer::readHex() {
     // read hexadecimals before numerics
     if( read()) {
         Token* pToken = nextToken();

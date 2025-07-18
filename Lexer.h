@@ -13,9 +13,9 @@ namespace basis {
         public:
             explicit Lexer(std::istream& inputStream) :
                 output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
-                checks{ &checkComment, &checkWhitespace, &checkHex, &checkDigit,
+                checks{ &checkComment, &checkWhitespace, &checkHex, &checkNumeric,
                     &checkIdentifier, &checkResWord, &checkString, &checkPunct },
-                reads { &readDrainLine, &readWhitespace, &readHexNumber, &readNumeric,
+                reads { &readComment, &readWhitespace, &readHex, &readNumeric,
                     &readIdentifier, &readResWord, &readString, &readPunct } {}
             ~Lexer();
             std::list<Token> output;
@@ -36,23 +36,22 @@ namespace basis {
             // These are listed in correct lexing order; e.g. reserved words start with '.', and have to be
             // lexed before general punctuation
             bool (Lexer::*checks[fnCount])() const;
-            bool checkComment() const;
-            bool checkWhitespace() const;
-            bool checkHex() const;
-            bool checkDigit() const;
-            bool checkIdentifier() const;
-            bool checkResWord() const;
-            bool checkString() const;
-            bool checkPunct() const;
-            // read functions
             bool (Lexer::*reads[fnCount])();
-            bool readDrainLine();
+            bool checkComment() const;
+            bool readComment();
+            bool checkWhitespace() const;
             bool readWhitespace();
-            bool readHexNumber();
+            bool checkHex() const;
+            bool readHex();
+            bool checkNumeric() const;
             bool readNumeric();
+            bool checkIdentifier() const;
             bool readIdentifier();
+            bool checkResWord() const;
             bool readResWord();
+            bool checkString() const;
             bool readString();
+            bool checkPunct() const;
             bool readPunct();
     };
 }
