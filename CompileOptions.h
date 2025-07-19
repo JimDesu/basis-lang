@@ -9,7 +9,6 @@ namespace basis {
     struct CompileOptions {
         std::string filename;
         std::string outputFile;
-        uint8_t tabWidth;
         bool readCompileOptions(std::vector<std::string>& arguments);
     };
 }

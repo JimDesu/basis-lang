@@ -6,9 +6,8 @@
 
 namespace basis {
     using CompileOptionsSetter = std::function<void(CompileOptions&, std::string&)>;
-    const std::map<std::string, CompileOptionsSetter> options_map = {
-             {"-file", [](CompileOptions& o, std::string& arg) { o.filename = arg; }},
-             {"-tw", [](CompileOptions& o, std::string& arg) { o.tabWidth = (uint8_t) std::stoi(arg); }}
+    const std::map<std::string, CompileOptionsSetter> options_map {
+             {"-file", [](CompileOptions& o, std::string& arg) { o.filename = arg; }}
     };
     bool CompileOptions::readCompileOptions(std::vector<std::string>& arguments) {
         if ( arguments.empty() ) return false;
