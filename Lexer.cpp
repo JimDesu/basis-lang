@@ -10,7 +10,6 @@ Lexer::~Lexer() {
 }
 
 bool Lexer::scan() {
-    if(!input.good()) return false;
     while( read() ) {
         for ( int i = 0; i < fnCount; i++ ) {
            if ( (this->*checks[i])() ) {
