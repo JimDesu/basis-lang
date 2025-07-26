@@ -1,0 +1,182 @@
+Basis grammar notes
+
+01. Fundamental syntax groups via indentation, similar to Python or Haskell.  There's no specific lexeme used to separate statements.
+02. The fundamental unit of execution is the command (procedure).  Function-style expressions are syntactic sugar.
+03. Basic definition of a command:
+    .cmd <name>: <explicit arguments> <context argument>
+04. Commands return values via their arguments.  All variables, local and arguments, are read-only unless marked with an apostrophe.
+    'a is a writeable variable
+    a is a read-only variable
+05. 
+.cmd c: []Int v, … – command taking a vector of Int
+.cmd c: []@Int v – command taking a vector of pointers to Int
+.cmd c: @[]Int v – command taking a pointer to a vector of Int
+
+– if a command has more than one output parm, it can't be used in expressions without
+– identifying 
+.cmd c: T1 'a, T2 'b -> 'a = …
+
+– .var to introduce a variable
+.var id 
+– Using a type bound; applies to initialization and re-initialization
+.var T id
+
+– Generic type with constrait
+.cmd f: Radians 'r, (T:Number) b, T c 
+    = add: 'r, b, c  – smaller, doesn't mess up block
+
+– command that doesn't fail (or malfunctions silently)
+.cmd add: …
+– command that fails
+.cmd ?div: …
+
+.subtype Polar: Number;
+.extend Inches : Double;
+
+.cmd f : []T 'a, @T b, U 'c  = ….
+the type of f is :<[]T', @T, U'>
+
+– constructor sugar
+.cmd TargetType 'x: SourceType a = …
+.cmd Long 's: Int t .intrinsic
+.cmd ?Int 'i: Long l
+
+– construct a fail
+.stop (condition constructor)
+– exit without a fail
+.exit
+         
+.onExit, .onStop
+.done – stops, but only inside the command (or loop/label)
+.repeat loopname :  – similarly for labels
+      ? f 
+        .done loopname
+      g | .return loopname
+      b: x, y
+
+idea: enumeration as restricted set a la XML Schema, implicitly as per c if a type isn't specified
+.enum fish: Sockeye, Salmon
+.enum Text fish: 
+    Sockeye = "Sockeye",
+    Salmon = "Salmon"
+.enum Double angle : Zero = 0.0, Quarter = 90.0
+
+
+.cmd f = add…. 
+         addMore:...
+       | ? 'a = .subtract: … 
+         fish 
+
+.class foo =
+    .cmd m : x, y 
+    .cmd y
+    .cmd z
+
+– assign one of a set of alternatives to 'a
+– the assignment sugar must be valid on all alternatives
+'a <- ( f | g | h )
+
+? – try: continue on failure
+?:  – select: exit on success, continue on failure
+
+– if/else; – only runs if the very first command fails
+? cmd:...
+  cmd:...
+  cmd:...
+- else:...
+  else:...
+
+– while loop; ^ retries at the previous ? unless the ? stops
+? test:....
+  do:...
+  do:...
+^ 
+
+– repeat/until loop forever until a stop occurs
+~ test:....
+  do:...
+  do:...
+^ 
+– or
+doSomething:...
+^ ;forever
+
+– repeat/until loop where another block runs and retry happens if the ^ block succeeds
+~ test:....
+  do:...
+  do:...
+^ test:... 
+  do:...
+
+– what is this? go back to the top forever?
+? test:...
+  do:...
+- else
+  do:...
+^ 
+
+.var .object : A a, B b
+     fish;
+
+– Assignment operators?
+<< streaming write operator, returns lhs
+>> streaming read operator, returns lhs
+<- assignment
+-= decrement
++= increment
+|=, &=, ^= bitwise operators
+
+–member access
+record[field]
+record[field][subindex]
+vector[index]
+object[command] 
+-range member access
+record[field,] – bytes starting at "field"
+record[start,finish] – bytes from start up to but not including finish
+record[,finish] - bytes up to finish
+record[field:length] – length bytes starting at field
+record[field:] – all bytes starting at field
+record[:length] – the first length bytes
+record[:field] - error
+record[start:length] – length bytes starting at start
+ 
+– instead of assuming any command fails at any time, mark them
+.cmd openFile: String filename = .fail – compile-time error
+.cmd ?openFile: String filename = .fail – ok
+– command types
+– :<...> command that doesn't fail
+– ?<...> command that can fail
+
+– perhaps use :: for command invocation requiring dynamic dispatch?  it'd involve more mental
+– bookkeeping, but would retain the "no surprises" ethos
+Object obj :: method : args = ..
+Struct s  :: method : args = …
+
+– static dispatch of the method (avoids overheads in loops)
+m <- obj :: method
+m : …
+
+– mark the object if you don't want a const method
+Object 'obj :: method : . . . 
+
+– what about multiple-dispatch?
+ObjType i, ObjType j:: method : x, y, z = …
+
+– destructuring dispatch?
+(ObjectType a,b) obj :: method Int 'r = 'r <- (a + b)
+
+– nominal destructuring dispatch… ignores other contents
+{Int x, Int y}, Int c :: method Int 'r = 'r <- (c*(a + b))
+
+– passing blocks to commands
+someCommand : arg1, arg2
+       ~ blockarg1
+         blockarg1
+         blockarg1
+       ~ blockarg2
+         blockarg2
+         blockarg2
+       , arg5, arg6
+       / context
+
