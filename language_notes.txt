@@ -1,19 +1,84 @@
-Basis grammar notes
+Notes
 
-01. Fundamental syntax groups via indentation, similar to Python or Haskell.  There's no specific lexeme used to separate statements.
-02. The fundamental unit of execution is the command (procedure).  Function-style expressions are syntactic sugar.
-03. Basic definition of a command:
-    .cmd <name>: <explicit arguments> <context argument>
-04. Commands return values via their arguments.  All variables, local and arguments, are read-only unless marked with an apostrophe.
+* All reserved words begin with a period.  No user-defined identifier is allowed to begin with a period.
+* Comments are designated with a semicolon.  All contents of a line after a semicolon are ignored
+    ; nothing after the semicolon matters
+* Fundamental syntax groups via indentation, similar to Python or Haskell.  There's no specific lexeme used to separate statements.
+* The fundamental unit of execution is the command (procedure).  Function-style expressions are syntactic sugar.
+* Basic definition of a command:
+    .cmd <name>: <explicit arguments> <context argument> <expression result> <command body>
+* Commands return values via their arguments.  All variables, local and arguments, are read-only unless marked with an apostrophe.
     'a is a writeable variable
     a is a read-only variable
-05. 
+* If a command has only one output variable, the output variable may be omitted from the command's argument list and used as a return value.
+* Invoking a command is just like the declaration syntax, but without the .cmd reserved word
+    doSomething: variable1, variable2, ...
+* So long as the arguments to a command are indented, they can be placed on subsequent lines
+    doSomething: variable, ...
+        variable,
+        variable
+* Unsugared variable creation is done via an extra keyword in the argument list.  In the following example, y and z pre-exist, but x is introduced
+  with the .var keyword.  If a bounding type is desired, this can be supplied as well; type names are specified before variables.  If the variable
+  introduced by the var command is not writeable, then its value cannot be changed after its initial assignment.  If the introduced variable is 
+  writeable then it can be re-assigned further.
+    doSomething: .var x, y, z
+    doSomething: .var Numeric x, y, z
+* Expressions are syntactic sugar, and can be used in command invocation.  
+    doSomething: x, (doAnotherThing: y), z
+* Assignment can also be done via syntactic sugar via the <- operator.
+    .var x <- doSomething: x, y
+* Values may be assigned similarly
+    .var x <- 5.3
+* Commands are first-class values, and can be assigned 
+    .var x <- doSomething
+* If the right-hand side of an assignment is a command with no input arguments, and one wishes to assign the result, then the rhs must be within
+  parentheses
+    .var x <- (doSomething)    ; no colon in the command invocation, as there are no regular parameters being passed
+* When defining a command with two or more output parameters, one may designate which output parameter is used as an expression result.
+    .cmd do: 'x, 'y, z -> 'y
+    'r <- (do: 'x, y)  ; 'r gets the value that the do command assigns to its 'y argument
+* In addition to regular parameters, a command may be defined to accept a context argument.  Instead of a semicolon, context arguments are
+  separated by a / character.  Context arguments are supplied automatically as a syntactic sugar: so long as there is one and only one 
+  variable of the type indicated as the context parameter type, then the user need not specify it.  If there is more than one variable of
+  the same type as the context parameter, then this must be specified in the invocation
+    .cmd doSomething: T1 a, T2 b / T3 c  ; c is a context paramter
+    doSomething: x, y                    ; succeeds if there is one and only one variable of type T3 in scope
+* The last parameter type that can be passed to a command is a block of commands to be treated as a command.  These are separated from other
+  arguments by a ~ character.  All content indented from the ~ is collected as the block to be passed.  Unlike regular arguments, each block
+  argument must be proceeded by a ~ even if it's the first argument to be passed.  The type description for block arguments will be described
+  further below.
+    .cmd someCommand : Number arg1, :<> b1, :<> b2 / context  ; a command which accepts a regular argument, two block arguments, & a context argument
+    .someCommand: 5  ; if there was another regular argument between arg1 and b1, it would be here, separated by a comma
+       ~ doSomething: a, b
+         doSomethingElse: x, y
+         doALastThing
+       ~ doSomething: x, y
+         doSomethingElse: a,   
+       ; the context argument is usually matched automatically and doesn't need to be supplied
+* The body of a command is the remainder of the command that is indented from the command declaration, after an equals sign
+    .cmd addFive: 'r, x = add: 'r, x, 5
+    .cmd addSix 'r, x
+      = add: 'r, x, 6
+
+* Commands do not always succeed.  If a command hits a stop condition (see below), then the command may end prematurely.  When this happens, the
+  command's output variables aren't written.  The calling convention involved is called "call by copy/restore".  A copy of the output variable is
+  passed in to the command.  If the command succeeds, its local value of the output variable is copied back out to the calling scope.  If the 
+  command fails, then this copy isn't performed
+    .var 'x <- 5
+    'x <- (assignTheValueSix)  ; fails
+    'x = 5                     ; 'x remains 5, even if it was already assigned 6 inside the command before the failure
+* Commands are normally run in sequence, but when a command fails, then subsequent commands are not executed
+    failingCommand: a, b       ; fails
+    neverRuns: x, y            ; never runs
+
+       
+
+
+---------------------------
 .cmd c: []Int v, … – command taking a vector of Int
 .cmd c: []@Int v – command taking a vector of pointers to Int
 .cmd c: @[]Int v – command taking a pointer to a vector of Int
 
-– if a command has more than one output parm, it can't be used in expressions without
-– identifying 
 .cmd c: T1 'a, T2 'b -> 'a = …
 
 – .var to introduce a variable
@@ -36,12 +101,10 @@ Basis grammar notes
 .cmd f : []T 'a, @T b, U 'c  = ….
 the type of f is :<[]T', @T, U'>
 
-– constructor sugar
 .cmd TargetType 'x: SourceType a = …
 .cmd Long 's: Int t .intrinsic
 .cmd ?Int 'i: Long l
 
-– construct a fail
 .stop (condition constructor)
 – exit without a fail
 .exit
@@ -72,43 +135,36 @@ idea: enumeration as restricted set a la XML Schema, implicitly as per c if a ty
     .cmd y
     .cmd z
 
-– assign one of a set of alternatives to 'a
-– the assignment sugar must be valid on all alternatives
 'a <- ( f | g | h )
 
 ? – try: continue on failure
 ?:  – select: exit on success, continue on failure
 
-– if/else; – only runs if the very first command fails
 ? cmd:...
   cmd:...
   cmd:...
 - else:...
   else:...
 
-– while loop; ^ retries at the previous ? unless the ? stops
 ? test:....
   do:...
   do:...
 ^ 
 
-– repeat/until loop forever until a stop occurs
 ~ test:....
   do:...
   do:...
 ^ 
-– or
+
 doSomething:...
 ^ ;forever
 
-– repeat/until loop where another block runs and retry happens if the ^ block succeeds
 ~ test:....
   do:...
   do:...
 ^ test:... 
   do:...
 
-– what is this? go back to the top forever?
 ? test:...
   do:...
 - else
@@ -118,7 +174,6 @@ doSomething:...
 .var .object : A a, B b
      fish;
 
-– Assignment operators?
 << streaming write operator, returns lhs
 >> streaming read operator, returns lhs
 <- assignment
@@ -126,12 +181,10 @@ doSomething:...
 += increment
 |=, &=, ^= bitwise operators
 
-–member access
 record[field]
 record[field][subindex]
 vector[index]
 object[command] 
--range member access
 record[field,] – bytes starting at "field"
 record[start,finish] – bytes from start up to but not including finish
 record[,finish] - bytes up to finish
@@ -141,7 +194,6 @@ record[:length] – the first length bytes
 record[:field] - error
 record[start:length] – length bytes starting at start
  
-– instead of assuming any command fails at any time, mark them
 .cmd openFile: String filename = .fail – compile-time error
 .cmd ?openFile: String filename = .fail – ok
 – command types
@@ -169,14 +221,5 @@ ObjType i, ObjType j:: method : x, y, z = …
 – nominal destructuring dispatch… ignores other contents
 {Int x, Int y}, Int c :: method Int 'r = 'r <- (c*(a + b))
 
-– passing blocks to commands
-someCommand : arg1, arg2
-       ~ blockarg1
-         blockarg1
-         blockarg1
-       ~ blockarg2
-         blockarg2
-         blockarg2
-       , arg5, arg6
-       / context
+
 
