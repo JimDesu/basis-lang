@@ -44,7 +44,7 @@ Once things are in place, hello world will look like:
 writeLn: "Hello, world!"
 ```
 
-As a general rule, things get done via command invocation.  The actual syntax (see below) is more complicated depending on the nature of the command and more complex argument types.
+As a general rule, things get done via command invocation.  The actual syntax (see below) is more complicated depending on the nature of the command, more complex argument types, and two-dimensional layout like in Haskell or Python.
 ```mermaid
 flowchart LR
   id0(( ))
