@@ -2,7 +2,7 @@
 
 This is a part-time side project done at the pace of a parent's spare time; it will be a while before there's anything usable here.
 
-## Informal Semantics
+## Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
@@ -37,3 +37,6 @@ $$
 \end{align}
 $$
 
+## Syntax Overview
+#### Hello World
+### Data Types
