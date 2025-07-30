@@ -39,4 +39,28 @@ $$
 
 ## Syntax Overview
 #### Hello World
+Once things are in place, hello world will look like:
+```
+writeLn: "Hello, world!"
+```
+
+As a general rule, things get done via command invocation.  The actual syntax (see below) is more complicated depending on the nature of the command and more complex argument types.
+```mermaid
+flowchart LR
+  id0(( ))
+  id1([command name])
+  id2([:])
+  id3([argument])
+  id4([,])
+  id5([argument])
+  id6(( ))
+  id0 --> id1
+  id1 --> id2
+  id2 --> id3
+  id3 --> id6
+  id3 --> id4
+  id4 --> id5
+  id5 --> id3
+  id5 --> id6
+```
 ### Data Types
