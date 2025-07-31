@@ -1,7 +1,7 @@
 # The Basis Programming Language.  
 
 #### Nota Bene
-This is a part-time side project done at the pace of a parent's spare time; it will be a while before the code here matches the intent.  Given that I can only work on this in little bursts, I'm following a doc-first strategy to use the doc as my spec so that I stay consistent.  I've percolated on this thing for years -- originally this was a purely functional language -- so I have a pretty solid understanding of what I want to achieve here, but as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy our thinking is".  By the time I'm done this intro, anyone interested will be able to ask pointed questions.  &#9786;
+This is a part-time side project done at the pace of a parent's spare time; it will be a while before the code here matches the intent.  Given that I can only work on this in little bursts, I'm following a doc-first strategy to use the doc as my spec so that I stay consistent.  I've percolated on this thing for years -- originally this was a purely functional language, but as I thought through details I realized that was the opposite of what's needed -- so I have a pretty solid understanding of what I want to achieve here, already.  But as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy our thinking is".  By the time I'm done this intro, anyone interested will be able to ask pointed questions.  &#9786;
 
 ## Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
