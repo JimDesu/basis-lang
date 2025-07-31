@@ -40,7 +40,7 @@ $$
 \end{align}
 $$
 
-## Syntax Overview
+## Overview
 #### Hello World
 Once things are in place, hello world will look like:
 ```
