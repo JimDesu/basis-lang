@@ -44,7 +44,7 @@ Once things are in place, hello world will look like:
 writeLn: "Hello, world!"
 ```
 
-As a general rule, things get done via command invocation.  The actual syntax (see below) can be more complicated given more complex argument types and two-dimensional layout rules.
+As a general rule, things get done via command invocation.  The basic syntax follows the following pattern:
 ```mermaid
 flowchart LR
   id0(( ))
@@ -56,11 +56,15 @@ flowchart LR
   id6(( ))
   id0 --> id1
   id1 --> id2
+  id1 --> id6
   id2 --> id3
   id3 --> id6
   id3 --> id4
   id4 --> id5
-  id5 --> id3
+  id5 --> id4
   id5 --> id6
 ```
+
+The full syntax is a little more complicated, as we'll see soon.
+
 ### Data Types
