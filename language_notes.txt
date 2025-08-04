@@ -1,4 +1,4 @@
-Notes
+Scratch Notes
 
 * All reserved words begin with a period.  No user-defined identifier is allowed to begin with a period.
 * Comments are designated with a semicolon.  All contents of a line after a semicolon are ignored
@@ -109,13 +109,7 @@ the type of f is :<[]T', @T, U'>
 – exit without a fail
 .exit
          
-.onExit, .onStop
-.done – stops, but only inside the command (or loop/label)
-.repeat loopname :  – similarly for labels
-      ? f 
-        .done loopname
-      g | .return loopname
-      b: x, y
+
 
 idea: enumeration as restricted set a la XML Schema, implicitly as per c if a type isn't specified
 .enum fish: Sockeye, Salmon
@@ -150,6 +144,11 @@ idea: enumeration as restricted set a la XML Schema, implicitly as per c if a ty
   do:...
   do:...
 ^ 
+
+? test:...
+  ~ do:...
+    do:....
+  ^
 
 ~ test:....
   do:...
