@@ -44,9 +44,9 @@ $$
 
 ## Overview
 #### Hello World
-Once things are in place, hello world will look like:
+Once things are in place, hello world will look like this.  Note that all text following semicolons are ignored as comments
 ```
-writeLn: "Hello, world!"
+writeLn: "Hello, world!" ; writes "Hello, World!\n" to standard output
 ```
 
 As a general rule, things get done via command invocation.  The basic syntax follows the following pattern:
@@ -71,5 +71,22 @@ flowchart LR
 ```
 
 The full syntax is a little more complicated, as we'll see soon.
+### Failure Semantics
+
+Commands in Basis do not have return types like functions in other programming languages do (although there's nearly equivalent syntactic sugaring for this).  Commands do have an explicit result status however, which is partitioned into Success and Failure.  By default, a command's result state is Success, but a command may invoke the `.fail` directive to signal a failure.  Once a failure is signalled, normal commands are skipped until recovery code is reached.
+
+#### Recovery
+Recovery comes in two flavors: general and constrained.  General recovery code follows a `|` marker.  A command block covered by this marker is only invoked if one of the preceeding commands has a failure state; if the preceeding commands succeed, the failure code is skipped over.
+
+The `.fail` directive can accept a parameter with extra information describing the failure.  This allows specific recovery handlers to be written.  
+```
+...
+.fail MyFailureTypeInstance     ; the failure is marked with an instance of MyFailureType
+nextCommand: ...                ; this gets skipped because there's a failure
+| OtherFailureType f : ...      ; this gets skipped because the failure has the wrong type
+| MyFailureType f : ...         ; this gets executed because there's a failure with the correct type
+| ...                           ; this would be executed if the preceding, above, wasn't here, since it handles all types,
+                                ; but in this case it's skipped over because the preceeding code clears the failure status
+```
 
 ### Data Types
