@@ -89,4 +89,14 @@ nextCommand: ...                ; this gets skipped because there's a failure
                                 ; but in this case it's skipped over because the preceeding code clears the failure status
 ```
 
+##### Recovery Requirements
+When commands are defined using the `.cmd` directive (see below), commands that can fail are marked with a `?` preceeding their name.  This `?` character is not part of the command name, but it signals the developer's intent both the other developers and to the compiler
+
+```
+.cmd NoFailCommand: ...             ; doesn't fail
+.cmd ?MaybeFailComand: ...          ; can fail
+```
+
+If a command that is not marked with a `?` calls a command that is marked as potentially failing, it MUST recover from the potential failure.  Failure to do so is a compile-time error.
+
 ### Data Types
