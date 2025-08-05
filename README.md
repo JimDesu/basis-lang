@@ -88,7 +88,7 @@ nextCommand: ...                ; this gets skipped because there's a failure
 | ...                           ; this would be executed if the preceding, above, wasn't here, since it handles all types,
                                 ; but in this case it's skipped over because the preceeding code clears the failure status
 ```
-
+ 
 ##### Recovery Requirements
 When commands are defined using the `.cmd` directive (see below), commands that can fail are marked with a `?` preceeding their name.  This `?` character is not part of the command name, but it signals the developer's intent both the other developers and to the compiler
 
