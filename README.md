@@ -127,7 +127,7 @@ There are two layout rules for failure processing.  In normal code, the "|" mark
   | ...                         ; if and only if the prior recovery fails, then this runs
 ```
 
-The other exception is syntactic sugar around variable assignment (see below).  Variables are assigned via the "<-" operator, with the variable on the left hand side, and the expression within parentheses on the right hand side.  In this case, if the first command executed fails, a fallback can be designated
+The other exception is syntactic sugar around variable assignment (see the operators section below).  Variables are assigned via the "<-" operator, with the variable on the left hand side, and the expression within parentheses on the right hand side.  In this case, if the first command executed fails, a fallback can be designated
 ```
 .var v <- (divide: 7, 0 | 1)    ; if the first command fails, then v will be assigned the value 1
 
@@ -162,5 +162,81 @@ command: arg1                      ; no need for comma
     subcommand2: ...               ; second part of arg2.  A trailing comma here would be a syntax error
   arg3                             ; arg3
 ```
+### Control Flow
+Control flow in Basis is determined by some other markers.
+| Marker | Usage |
+|--------|-------|
+|   ?    | Attempts the next command, but if the command fails, execution proceeds normally |
+|   ?:   | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
+|   -    | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
+|   ~    | Groups a serious of commands into a logical block. |
+|   ^    | Rewinds execution to the previous governing item at the same level. |
+
+Basic conditional:
+```
+  ...
+  ? ( a < 5 )       ; fails if a >= 5
+    ...             ; only runs if the value of a is less than 5
+  ...               ; runs irrespective of a's value
+```
+
+If-Else style conditional:
+```
+  ...
+  ? (x > 5 )     ; fails if x <= 5
+    ....         ; runs if x > 5
+  - ...          ; runs if x <= 5
+    ...          ; same
+  ...            ; runs irrespective of x's value
+```
+
+Selection conditional:
+```
+  ...
+  ?: (x > 5)    ; fails if x <= 5
+     a <- 17    ; runs only if x > 5
+  ...           ; SKIPPED
+...             ; execution resumes here
+```
+
+Simple looping:
+```
+  ...
+  doSomething: ...
+  ^ ; forever
+```
+
+Conditional looping.  So long as the optional block closed over by the "^" marker succeeds, the the first command block is repeated
+```
+   ~ doSomething: ...
+     andThis: ...
+   ^ doSomethingElse: ...
+     andSomethingElse: ...
+   ...
+```
+
+If-Else looping.  Note that execution rewinds back up to the "?" marker, not the "-" marker.
+```
+? doSomething: ...
+- orSomethingElse: ...
+^ ; one or the other forever
+...  ; doesn't run unless there's a failure
+```
+
+Another example.
+```
+? doSomething: ...
+  ^ ; forever
+- ~ orSomethingElse: ...
+    andThisToo: ...
+  ^ ; both forever
+... ; never runs unless there's a failure above
+```
 
 ### Data Types
+
+### Directives
+
+### Operators
+
+
