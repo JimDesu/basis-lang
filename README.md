@@ -1,9 +1,9 @@
 # The Basis Programming Language.  
 
 #### Nota Bene
-This is the programming language that I want to write code in, which doesn't actually exist yet.  
+This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without immolating ourselves with category-theoretic ways of declaring imperatives and reacting to computational statuses that have nothing to do with pure functions?  The fundamental problem here is that the basis of getting things done is mutation, and that's the realm of the procedural (with or without object-orientation or other abstractons).  So, in this spirit I've torn up my prior designs and have embarked on a pure procedural programming language.  
 
-This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  Given that I can only work on this in little bursts, I'm following a doc-first strategy to use the doc as my spec so that I stay consistent.  I've percolated on this thing for years -- originally this was a purely functional language, but as I thought through details I realized that was the opposite of what's needed -- so I have a pretty solid understanding of what I want to achieve here, already.  But as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
+This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" first to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
 
 By the time I'm done this intro, anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worthwhile.  &#9786;
 
@@ -100,9 +100,67 @@ When commands are defined using the `.cmd` directive (see below), commands that 
 If a command that is not marked with a `?` calls a command that is marked as potentially failing, it MUST recover from the potential failure.  Failure to do so is a compile-time error.
 
 ### Two Dimensional Layout
+
+Like Python and Haskell, in Basis whitespace is syntactically significant.
+
 #### General Layout Rule
 
-#### Parameterization Layout
+The general rule for understanding whitespace layout is that for syntactic concerns that close over multiple syntacic elements, indentation determines the boundaries over which elements in the text will be considered for inclusion.  
+```
+.directive        ; some grouping syntax
+  stuff           ; indented, so included
 
+  things          ; indented, so included irrespective of preceeding blank line
+  more stuff      ; indented, so included
+other stuff       ; not indented, so not considered for inclusion in the directive
+```
+The syntaxes for different directives (special forms) differs somewhat: in syntax diagrams indentation will be denoted by "&rdsh;".  
+
+#### Failure Processing
+There are two layout rules for failure processing.  In normal code, the "|" marker only recovers from failures resulting from commands that were more indented.  Until a failure is handled, command execution never drills in to more indented code.
+```
+   ... doing something
+   .fail
+   ... doing something else     ; this line is skipped and doesn't run
+      | ...                     ; this line is skipped and doesn't run
+   | ...                        ; this recovery executes
+  | ...                         ; if and only if the prior recovery fails, then this runs
+```
+
+The other exception is syntactic sugar around variable assignment (see below).  Variables are assigned via the "<-" operator, with the variable on the left hand side, and the expression within parentheses on the right hand side.  In this case, if the first command executed fails, a fallback can be designated
+```
+.var v <- (divide: 7, 0 | 1)    ; if the first command fails, then v will be assigned the value 1
+
+; multiple commands may be grouped in this way, which are attempted in turn.
+.var m <- (add: 1, 2 | multiply: 2, 3 | 0)
+
+; note that there's no need for a fixed value at the end
+.var q <- (add: 1,2 | subtract: 7, 4)
+
+; compile-time constants are a kind of command that never fails, so while the following is correct,
+; the second command will never be attempted
+.var a <- (7 | add: 1,2)
+```
+
+#### Parameterization Layout
+Parameters for command invocation follow the same general layout rule, with the extra aspect that comma separators between command arguments are optional where indentation across lines is used.
+```
+command1: arg1, arg2, ..., argn    ; commas needed because everything's on one line
+command2: arg1                     ; no commas needed for this command
+  arg2
+  arg3
+command3: arg1,                    ; comma unnecessary but OK
+  arg2,                            ; ditto
+  arg3,                            ; last comma is a syntax error
+command4: ...
+```
+
+This becomes especially useful where a block of commands is passed.  Blocks are designated using a "~" marker, and can be passed as parameters without special syntax.
+```
+command: arg1                      ; no need for comma
+  ~ subcommand1: ...               ; first part of arg2
+    subcommand2: ...               ; second part of arg2.  A trailing comma here would be a syntax error
+  arg3                             ; arg3
+```
 
 ### Data Types
