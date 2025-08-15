@@ -122,7 +122,7 @@ There are two layout rules for failure processing.  In normal code, the "|" mark
    ... doing something
    .fail
    ... doing something else     ; this line is skipped and doesn't run
-      | ...                     ; this line is skipped and doesn't run
+      | ...                     ; this line is part of the line above it, which is skipped, so this is skipped too
    | ...                        ; this recovery executes
   | ...                         ; if and only if the prior recovery fails, then this runs
 ```
