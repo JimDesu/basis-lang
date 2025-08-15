@@ -1,17 +1,5 @@
 Scratch Notes
 
-* Basic definition of a command:
-    .cmd <name>: <explicit arguments> <context argument> <expression result> <command body>
-* Commands return values via their arguments.  All variables, local and arguments, are read-only unless marked with an apostrophe.
-    'a is a writeable variable
-    a is a read-only variable
-* If a command has only one output variable, the output variable may be omitted from the command's argument list and used as a return value.
-* Invoking a command is just like the declaration syntax, but without the .cmd reserved word
-    doSomething: variable1, variable2, ...
-* So long as the arguments to a command are indented, they can be placed on subsequent lines
-    doSomething: variable, ...
-        variable,
-        variable
 * Unsugared variable creation is done via an extra keyword in the argument list.  In the following example, y and z pre-exist, but x is introduced
   with the .var keyword.  If a bounding type is desired, this can be supplied as well; type names are specified before variables.  If the variable
   introduced by the var command is not writeable, then its value cannot be changed after its initial assignment.  If the introduced variable is 
