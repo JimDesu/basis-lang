@@ -179,7 +179,15 @@ Basic conditional:
     ...             ; only runs if the value of a is less than 5
   ...               ; runs irrespective of a's value
 ```
-
+Block conditional 
+```
+...
+? ~ doSomething:...
+    doSomethingElse:...   ; only runs if doSomething succeeds
+  doALastThing:...        ; only runs if both the preceesing commands succeed
+doOneMoreThing:...        ; runs if doSomething and doSomethingElse succeed or fail
+                          ; but not if doALastThing fails
+```
 If-Else style conditional:
 ```
   ...
