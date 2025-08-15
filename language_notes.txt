@@ -1,10 +1,5 @@
 Scratch Notes
 
-* All reserved words begin with a period.  No user-defined identifier is allowed to begin with a period.
-* Comments are designated with a semicolon.  All contents of a line after a semicolon are ignored
-    ; nothing after the semicolon matters
-* Fundamental syntax groups via indentation, similar to Python or Haskell.  There's no specific lexeme used to separate statements.
-* The fundamental unit of execution is the command (procedure).  Function-style expressions are syntactic sugar.
 * Basic definition of a command:
     .cmd <name>: <explicit arguments> <context argument> <expression result> <command body>
 * Commands return values via their arguments.  All variables, local and arguments, are read-only unless marked with an apostrophe.
