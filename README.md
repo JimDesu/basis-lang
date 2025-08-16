@@ -246,11 +246,11 @@ Another example.
 
 Retry looping
 ```
-...
-  doSomething: ...
+doSomething: ...
 | RetryableFailure f] ^         ; Note the indent level for ^ is taken from the start of the line it's on.  Usually
-                                 ; this is the same thing, but not necessarily.
+                                ; this is the same thing as the position of the ^, but not necessarily so.
 | write: "something went wrong"
+
 ```
 ### Data Types
 ##### Compile time constants
@@ -259,7 +259,7 @@ Explicit constants in the code may be one of the following types.
 * Hexadecimal -- binary data in pairs of 0-F characters (upper or lower case) following a "0x" prefix
 * String -- character data delimited by " characters, all on the same line
 
-Compile-time string constants are not zero-terminated like in C.  Note also that Basis has no character data type (at all -- see below).
+Compile-time string constants are not zero-terminated like in the language C.  Note also that Basis has no character data type (at all -- see below).  Like in the language Icon, Basis has no boolean data type, and hence no predefined boolean constants. 
 
 Note that compile-time constants are not technically data types: they're inline ad-hoc commands that write a value to an output parameter.  Thus, both of the following are syntactically correct.  
 ```
