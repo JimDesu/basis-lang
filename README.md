@@ -98,7 +98,7 @@ When commands are defined using the `.cmd` directive (see below), commands that 
 .cmd !AlwaysFailCommand: ...        ; cannot succeed
 ```
 
-If a command that is not marked with a `?` calls a command that is marked as potentially failing, it MUST recover from the potential failure.  Failure to do so is a compile-time error.
+If a command that is not marked with a `?` calls a command that is marked with '?' or '!', it MUST recover from the failure.  Failure to do so is a compile-time error.  
 
 ### Two Dimensional Layout
 
