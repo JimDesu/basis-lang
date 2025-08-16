@@ -78,13 +78,13 @@ Commands in Basis do not have return types like functions in other programming l
 #### Recovery
 Recovery comes in two flavors: general and constrained.  General recovery code follows a `|` marker.  A command block covered by this marker is only invoked if one of the preceeding commands has a failure state; if the preceeding commands succeed, the failure code is skipped over.
 
-The `.fail` directive can accept a parameter with extra information describing the failure.  This allows specific recovery handlers to be written.  
+The `!` marker generates a failure based either on the contents of a variable or else on a command used as an expression.  This is useful when we want to process different failures in different ways (for example, to potentially retry the operation)
 ```
 ...
-.fail MyFailureTypeInstance     ; the failure is marked with an instance of MyFailureType
+! MyFailureTypeInstance         ; the failure is marked with an instance of MyFailureType
 nextCommand: ...                ; this gets skipped because there's a failure
-| OtherFailureType f : ...      ; this gets skipped because the failure has the wrong type
-| MyFailureType f : ...         ; this gets executed because there's a failure with the correct type
+| OtherFailureType f ] ...      ; this gets skipped because the failure has the wrong type
+| MyFailureType f ] ...         ; this gets executed because there's a failure with the correct type
 | ...                           ; this would be executed if the preceding, above, wasn't here, since it handles all types,
                                 ; but in this case it's skipped over because the preceeding code clears the failure status
 ```
@@ -95,6 +95,7 @@ When commands are defined using the `.cmd` directive (see below), commands that 
 ```
 .cmd NoFailCommand: ...             ; doesn't fail
 .cmd ?MaybeFailComand: ...          ; can fail
+.cmd !AlwaysFailCommand: ...        ; cannot succeed
 ```
 
 If a command that is not marked with a `?` calls a command that is marked as potentially failing, it MUST recover from the potential failure.  Failure to do so is a compile-time error.
@@ -171,6 +172,8 @@ Control flow in Basis is determined by some other markers.
 |   -    | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | Groups a serious of commands into a logical block. |
 |   ^    | Rewinds execution to the previous governing item at the same level. |
+|   |    | Recover (potentially conditionally) from a failure |
+|   !    | Generate a failure signal |
 
 Basic conditional:
 ```
@@ -241,7 +244,32 @@ Another example.
 ... ; never runs unless there's a failure above
 ```
 
+Retry looping
+```
+...
+  doSomething: ...
+| RetryableFailure f] ^         ; Note the indent level for ^ is taken from the start of the line it's on.  Usually
+                                 ; this is the same thing, but not necessarily.
+| write: "something went wrong"
+```
 ### Data Types
+##### Compile time constants
+Explicit constants in the code may be one of the following types.
+* Numeric -- 1 or more digits optionally followed by a decimal point and one or more trailing digits
+* Hexadecimal -- binary data in pairs of 0-F characters (upper or lower case) following a "0x" prefix
+* String -- character data delimited by " characters, all on the same line
+
+Compile-time string constants are not zero-terminated like in C.  Note also that Basis has no character data type (at all -- see below).
+
+Note that compile-time constants are not technically data types: they're inline ad-hoc commands that write a value to an output parameter.  Thus, both of the following are syntactically correct.  
+```
+.var a <- ("data")
+"data": .var a
+.var b <- (27.3)
+27.3: .var b
+```
+
+#### Fundamental Data Types
 
 ### Directives
 
