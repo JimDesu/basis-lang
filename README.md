@@ -270,9 +270,22 @@ Note that compile-time constants are not technically data types: they're inline 
 ```
 
 #### Fundamental Data Types
+Basis has the following fundamental data types:
+* Buffers
+* Pointers
+* Objects
+* Commands
+
+##### Buffers
+
+##### Pointers
+
+##### Objects
+
+##### Commands
 
 ### Directives
 
-### Operators
+### Expressions
 
 
