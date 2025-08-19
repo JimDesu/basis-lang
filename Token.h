@@ -28,6 +28,7 @@ namespace basis {
         ASSIGN,
         ASTERISK,
         BANG,
+        BANGLANGLE,
         CARAT,
         COMMA,
         COLON,
@@ -40,6 +41,7 @@ namespace basis {
         LPAREN,
         MINUS,
         PLUS,
+        QCOLON,
         QLANGLE,
         QMARK,
         RANGLE,
@@ -47,7 +49,6 @@ namespace basis {
         RBRACKET,
         RPAREN,
         SLASH,
-
     };
 
     struct Token {

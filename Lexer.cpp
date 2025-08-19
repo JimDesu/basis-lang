@@ -261,7 +261,6 @@ bool Lexer::readString() {
 }
 
 bool Lexer::readPunct() {
-    bool isValid = true;
     Token* pToken = nextToken();
     pToken->text += readChar;
     switch( readChar ) {
@@ -275,7 +274,13 @@ bool Lexer::readPunct() {
         pToken->type = TokenType::ASTERISK;
         break;
     case '!':
-        pToken->type = TokenType::BANG;
+        if ( input.good() && input.peek() == '<' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::BANGLANGLE;
+        } else {
+            pToken->type = TokenType::BANG;
+        }
         break;
     case '^':
         pToken->type = TokenType::CARAT;
@@ -343,15 +348,15 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::QLANGLE;
+        } else if ( input.good() && input.peek() == ':' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::QCOLON;
         } else {
             pToken->type = TokenType::QMARK;
         }
         break;
     default:
-        isValid = false;
-    }
-
-    if ( !isValid ) {
         writeError("invalid punctuation", pToken);
         output.pop_back(); // Remove the invalid token from output
         return false;
