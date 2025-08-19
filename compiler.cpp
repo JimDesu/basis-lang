@@ -4,6 +4,9 @@
 
 #include "compiler.h"
 #include "CompilerContext.h"
+#include "Lexer.h"
+#include "Parser.h"
+
 
 int compile(std::vector<std::string> arguments) {
     CompilerContext ctx;
@@ -15,6 +18,12 @@ int compile(std::vector<std::string> arguments) {
         std::cerr << "Error opening input file: " << ctx.options.filename << std::endl;
         return 1;
     }
+    Lexer lexer(ctx.inputFile);
+    if ( !lexer.scan() ) {
+        std::cerr << "Error scanning input file: " << ctx.options.filename << std::endl;
+        return 1;
+    }
+    Parser parser(lexer.output);
 
     return 0;
 }
