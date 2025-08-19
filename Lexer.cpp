@@ -270,6 +270,15 @@ bool Lexer::readPunct() {
     case '@':
         pToken->type = TokenType::AMPHORA;
         break;
+    case '<':
+        if ( input.good() && input.peek() == '-') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::ASSIGN;
+        } else {
+            pToken->type = TokenType::LANGLE;
+        }
+        break;
     case '*':
         pToken->type = TokenType::ASTERISK;
         break;
@@ -304,44 +313,20 @@ bool Lexer::readPunct() {
     case '=':
         pToken->type = TokenType::EQUALS;
         break;
-    case '/':
-        pToken->type = TokenType::SLASH;
-        break;
-    case '<':
-        if ( input.good() && input.peek() == '-') {
-            read();
-            pToken->text += readChar;
-            pToken->type = TokenType::ASSIGN;
-        } else {
-            pToken->type = TokenType::LANGLE;
-        }
-        break;
-    case '>':
-        pToken->type = TokenType::RANGLE;
-        break;
     case '{':
         pToken->type = TokenType::LBRACE;
-        break;
-    case '}':
-        pToken->type = TokenType::RBRACE;
         break;
     case '[':
         pToken->type = TokenType::LBRACKET;
         break;
-    case ']':
-        pToken->type = TokenType::RBRACKET;
-        break;
     case '(':
         pToken->type = TokenType::LPAREN;
         break;
-    case ')':
-        pToken->type = TokenType::RPAREN;
+    case '-':
+        pToken->type = TokenType::MINUS;
         break;
     case '+':
         pToken->type = TokenType::PLUS;
-        break;
-    case '-':
-        pToken->type = TokenType::MINUS;
         break;
     case '?':
         if ( input.good() && input.peek() == '<' ) {
@@ -355,6 +340,21 @@ bool Lexer::readPunct() {
         } else {
             pToken->type = TokenType::QMARK;
         }
+        break;
+    case '>':
+        pToken->type = TokenType::RANGLE;
+        break;
+    case '}':
+        pToken->type = TokenType::RBRACE;
+        break;
+    case ']':
+        pToken->type = TokenType::RBRACKET;
+        break;
+    case ')':
+        pToken->type = TokenType::RPAREN;
+        break;
+    case '/':
+        pToken->type = TokenType::SLASH;
         break;
     default:
         writeError("invalid punctuation", pToken);
