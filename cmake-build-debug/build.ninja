@@ -67,8 +67,8 @@ build CMakeFiles/basis_obj.dir/Lexer.cpp.obj: CXX_COMPILER__basis_obj_unscanned_
   OBJECT_DIR = CMakeFiles\basis_obj.dir
   OBJECT_FILE_DIR = CMakeFiles\basis_obj.dir
 
-build CMakeFiles/basis_obj.dir/ParseObject.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/ParseObject.cpp || cmake_object_order_depends_target_basis_obj
-  DEP_FILE = CMakeFiles\basis_obj.dir\ParseObject.cpp.obj.d
+build CMakeFiles/basis_obj.dir/ParseTree.cpp.obj: CXX_COMPILER__basis_obj_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/ParseTree.cpp || cmake_object_order_depends_target_basis_obj
+  DEP_FILE = CMakeFiles\basis_obj.dir\ParseTree.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
   OBJECT_DIR = CMakeFiles\basis_obj.dir
   OBJECT_FILE_DIR = CMakeFiles\basis_obj.dir
@@ -87,7 +87,7 @@ build CMakeFiles/basis_obj.dir/compiler.cpp.obj: CXX_COMPILER__basis_obj_unscann
 #############################################
 # Link the static library libbasis_obj.a
 
-build libbasis_obj.a: CXX_STATIC_LIBRARY_LINKER__basis_obj_Debug CMakeFiles/basis_obj.dir/CompileOptions.cpp.obj CMakeFiles/basis_obj.dir/CompilerContext.cpp.obj CMakeFiles/basis_obj.dir/Lexer.cpp.obj CMakeFiles/basis_obj.dir/ParseObject.cpp.obj CMakeFiles/basis_obj.dir/compiler.cpp.obj
+build libbasis_obj.a: CXX_STATIC_LIBRARY_LINKER__basis_obj_Debug CMakeFiles/basis_obj.dir/CompileOptions.cpp.obj CMakeFiles/basis_obj.dir/CompilerContext.cpp.obj CMakeFiles/basis_obj.dir/Lexer.cpp.obj CMakeFiles/basis_obj.dir/ParseTree.cpp.obj CMakeFiles/basis_obj.dir/compiler.cpp.obj
   LANGUAGE_COMPILE_FLAGS = -g
   OBJECT_DIR = CMakeFiles\basis_obj.dir
   POST_BUILD = cd .
