@@ -182,7 +182,7 @@ Control flow in Basis is determined by some other markers.
 |   -    | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | Groups a serious of commands into a logical block. |
 |   ^    | Rewinds execution to the previous governing item at the same level. |
-|   |    | Recover (potentially conditionally) from a failure |
+|   \|    | Recover (potentially conditionally) from a failure |
 |   !    | Generate a failure signal |
 
 Basic conditional:
