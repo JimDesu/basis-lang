@@ -1,6 +1,6 @@
 # The Basis Programming Language.  
 
-### Background
+## Introduction
 This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without immolating ourselves with category-theoretic ways of declaring imperatives and reacting to computational statuses that have nothing to do with pure functions?  The fundamental problem here is that the basis of getting things done is mutation, and that's the realm of the procedural (with or without object-orientation or other abstractons).  So, in this spirit I've torn up my prior designs and have embarked on a pure procedural programming language that eschews the complexities that inevitably result from the collision of pure functional programming and real-world state.  The result is, IMO, a language that is conceptually simple and concise, leading to code that is easy to understtand at first read.  In a world that depends on open source code, clarity is king.
 
 Guiding Principles:
@@ -17,7 +17,7 @@ This's a part-time side project done at the pace of a parent's spare time, so it
 
 By the time I'm done this intro, anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worthwhile.  &#9786;
 
-#### Core Semantics
+### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
