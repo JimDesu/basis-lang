@@ -49,6 +49,8 @@ void testSingleToken(const std::string& tokenText, TokenType tokenType) {
 }
 
 TEST_CASE("test lex all token types") {
+    testSingleToken("-1234", TokenType::NUMBER);
+    testSingleToken("-1234.5678", TokenType::DECIMAL);
     testSingleToken("1234", TokenType::NUMBER);
     testSingleToken("1234.5678", TokenType::DECIMAL);
     testSingleToken("0x1234", TokenType::HEXNUMBER);
@@ -59,6 +61,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("<-", TokenType::ASSIGN);
     testSingleToken("*", TokenType::ASTERISK);
     testSingleToken("!", TokenType::BANG);
+    testSingleToken("!<", TokenType::BANGLANGLE);
     testSingleToken("^", TokenType::CARAT);
     testSingleToken(",", TokenType::COMMA);
     testSingleToken("::", TokenType::DCOLON);
@@ -71,6 +74,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("(", TokenType::LPAREN);
     testSingleToken("-", TokenType::MINUS);
     testSingleToken("+", TokenType::PLUS);
+    testSingleToken("?:", TokenType::QCOLON);
     testSingleToken("?<", TokenType::QLANGLE);
     testSingleToken("?", TokenType::QMARK);
     testSingleToken(">", TokenType::RANGLE);
@@ -116,7 +120,7 @@ TEST_CASE("test lex single token negative test cases") {
 }
 
 TEST_CASE("test lex multiple tokens") {
-    std::string input = "1234 5678";
+    std::string input = "1234 -5678";
     basis::Lexer lexer = lexInput(input);
     CHECK(!lexer.output.empty());
     CHECK(lexer.output.front().type == TokenType::NUMBER);

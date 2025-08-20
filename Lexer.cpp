@@ -76,7 +76,8 @@ bool Lexer::checkHex() const {
 }
 
 bool Lexer::checkNumeric() const {
-    return isdigit(readChar);
+    if ( isdigit(readChar) ) return true;
+    return readChar == '-' && input.good() && isdigit(input.peek());
 }
 
 bool Lexer::checkIdentifier() const {
