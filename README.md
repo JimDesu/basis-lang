@@ -10,7 +10,7 @@ Guiding Principles:
 - no hidden control flow
 - computational status is orthogonal to result state
 - prefer small orthogonal concepts to rich overlapping ones
-- keep special forms explicit & visually distinct from normal code
+- keep special forms explicit & visually distinct from user-defined forms (commands)
 - syntactic sugar is superior to semantic sugar
 
 This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" first to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
