@@ -3,8 +3,7 @@
 
 using namespace basis;
 
-ParseTree::ParseTree(Token* token, ParseTree* next, ParseTree* down)
-    : token(token), next(next), down(down) {
+ParseTree::ParseTree(Token* token): token(token), next(), down() {
     if (token == nullptr) {
         throw std::invalid_argument("Token cannot be null");
     }

@@ -15,5 +15,8 @@ Parser& Parser::operator=(const Parser& rhs) {
     return *this;
 }
 
-Parser::~Parser() {
+Parser::~Parser() {}
+
+bool Parser::parse() {
+
 }

@@ -2,6 +2,9 @@
 #define PARSER_H
 
 #include <list>
+#include <memory>
+
+#include "ParseTree.h"
 #include "Token.h"
 
 namespace basis {
@@ -11,9 +14,11 @@ namespace basis {
         Parser(const Parser& other);
         Parser& operator=(const Parser& rhs);
         ~Parser();
-        
+
+        bool parse();
     private:
         std::list<Token> tokens;
+        std::shared_ptr<ParseTree> parseTree;
     };
 }
 
