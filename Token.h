@@ -23,6 +23,7 @@ namespace basis {
         OBJECT,
         RECORD,
         // punctuation
+        AMBANG,
         AMPERSAND,
         AMPHORA,
         ASSIGN,
