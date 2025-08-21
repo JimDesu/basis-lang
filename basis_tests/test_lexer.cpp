@@ -58,6 +58,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("\"foo\\n\\\"bar's\"", TokenType::STRING);
     testSingleToken("&", TokenType::AMPERSAND);
     testSingleToken("@", TokenType::AMPHORA);
+    testSingleToken("@!", TokenType::AMBANG);
     testSingleToken("<-", TokenType::ASSIGN);
     testSingleToken("*", TokenType::ASTERISK);
     testSingleToken("!", TokenType::BANG);

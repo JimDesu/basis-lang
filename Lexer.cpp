@@ -269,7 +269,13 @@ bool Lexer::readPunct() {
         pToken->type = TokenType::AMPERSAND;
         break;
     case '@':
-        pToken->type = TokenType::AMPHORA;
+        if ( input.good() && input.peek() == '!' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::AMBANG;
+        } else {
+            pToken->type = TokenType::AMPHORA;
+        }
         break;
     case '<':
         if ( input.good() && input.peek() == '-') {
