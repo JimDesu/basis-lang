@@ -182,8 +182,10 @@ Control flow in Basis is determined by some other markers.
 |   -    | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | Groups a serious of commands into a logical block. |
 |   ^    | Rewinds execution to the previous governing item at the same level. |
-|   \|    | Recover (potentially conditionally) from a failure |
+|   \|   | Recover (potentially conditionally) from a failure |
 |   !    | Generate a failure signal |
+|   @    | Run the tagged command at the end of current scope
+|  @!    | Run the tagged command at the end of current scope, but only in a failure condition
 
 Basic conditional:
 ```
@@ -260,8 +262,23 @@ doSomething: ...
 | RetryableFailure f] ^         ; Note the indent level for ^ is taken from the start of the line it's on.  Usually
                                 ; this is the same thing as the position of the ^, but not necessarily so.
 | write: "something went wrong"
-
 ```
+
+At Scope
+```
+.var thing <- (allocateSomething:....)
+@ deallocateIt: thing     ; if no failure above, then this will get run at end of scope
+doSomething:....
+...
+; at end of scope, the call to deallocateIt is done
+```
+
+At Scope during Failure
+```
+@! complain: "It didn't work"    ; doesn't do anything now
+.fail                            ; fails, causing the line above to run at end of scope (assuming nothing below handles the failure)
+```
+
 ### Data Types
 ##### Compile time constants
 Explicit constants in the code may be one of the following types.
