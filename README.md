@@ -175,17 +175,17 @@ command: arg1                      ; no need for comma
 ```
 ### Control Flow
 Control flow in Basis is determined by some other markers.
-| Marker | Usage |
-|--------|-------|
-|   ?    | Attempts the next command, but if the command fails, execution proceeds normally |
-|   ?:   | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
-|   -    | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
-|   ~    | Groups a serious of commands into a logical block. |
-|   ^    | Rewinds execution to the previous governing item at the same level. |
-|   \|   | Recover (potentially conditionally) from a failure |
-|   !    | Generate a failure signal |
-|   @    | Run the tagged command at the end of current scope
-|  @!    | Run the tagged command at the end of current scope, but only in a failure condition
+| Marker | Read As |Usage |
+|--------|-------|-------|
+|   ?    | "try" | Attempts the next command, but if the command fails, execution proceeds normally |
+|   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
+|   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
+|   ~    | "block" | Groups a serious of commands into a logical block. |
+|   ^    | "rewind" | Rewinds execution to the previous governing item at the same level. |
+|   \|   | "recover" | Recover (potentially conditionally) from a failure |
+|   !    | "fail" | Generate a failure signal |
+|   @    | "at exit" | Run the tagged command at the end of current scope
+|  @!    | "at fail-exit" | Run the tagged command at the end of current scope, but only in a failure condition
 
 Basic conditional:
 ```
