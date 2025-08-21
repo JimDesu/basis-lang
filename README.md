@@ -177,7 +177,7 @@ command: arg1                      ; no need for comma
 Control flow in Basis is determined by some other markers.
 | Marker | Read As |Usage |
 |--------|-------|-------|
-|   ?    | "try" | Attempts the next command, but if the command fails, execution proceeds normally |
+|   ?    | "case" | Attempts a command group.  If the first such command fails, execution proceeds normally after the group. |
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
 |   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | "block" | Groups a serious of commands into a logical block. |
