@@ -24,12 +24,17 @@ namespace basis {
         std::shared_ptr<ParseTree> parseTree;
         // exposed for testing
         bool atLimit(itToken& iter, const Token* limit) const;
-        ParseFn match(TokenType type) const;
+        ParseFn match(TokenType type, bool keep = true) const;
         static ParseFn maybe(ParseFn fn);
-        static ParseFn first(std::vector<ParseFn> fns);
-        static ParseFn chain(std::vector<ParseFn> fns);
+        static ParseFn choice(std::vector<ParseFn> fns);
+        static ParseFn sequence(std::vector<ParseFn> fns);
+        static ParseFn object(ParseFn head, ParseFn body);
+        static ParseFn zeroOrMore(ParseFn fn);
+        static ParseFn oneOrMore(ParseFn fn);
     private:
         std::list<Token> tokens;
+        ParseFn parseFn;
+        ParseFn buildParser();
     };
 }
 

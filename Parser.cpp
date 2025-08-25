@@ -2,7 +2,9 @@
 
 using namespace basis;
 
-Parser::Parser(const std::list<Token>& tokens) : tokens(tokens) {}
+Parser::Parser(const std::list<Token>& tokens) : tokens(tokens) {
+    parseFn = buildParser();
+}
 Parser::Parser(const Parser& other) : tokens(other.tokens) {}
 Parser& Parser::operator=(const Parser& rhs) {
     if (this != &rhs) {
@@ -12,17 +14,15 @@ Parser& Parser::operator=(const Parser& rhs) {
 }
 Parser::~Parser() {}
 
-// check to see if the current iterator refers to the specified limiter
 bool Parser::atLimit(itToken& iter, const Token* limit) const {
     return iter != tokens.cend() && limit != nullptr && &(*iter) == limit;
 }
 
-// match a token by its type
-ParseFn Parser::match(TokenType type) const {
+ParseFn Parser::match(TokenType type, bool keep) const {
     return [&](spParseTree& result, itToken& iter, const Token* limit) {
         if ( atLimit(iter, limit) ) return false;
         if (iter->type == type) {
-            result = std::make_shared<ParseTree>(&(*iter));
+            if ( keep ) result = std::make_shared<ParseTree>(&(*iter));
             ++iter;
             return true;
         }
@@ -36,7 +36,7 @@ ParseFn Parser::maybe(ParseFn fn) {
     };
 }
 
-ParseFn Parser::first(std::vector<ParseFn> fns) {
+ParseFn Parser::choice(std::vector<ParseFn> fns) {
     return [&](spParseTree& result, itToken& iter, const Token* limit) {
         itToken start = iter;
         for (auto& fn : fns) {
@@ -47,16 +47,41 @@ ParseFn Parser::first(std::vector<ParseFn> fns) {
     };
 }
 
-ParseFn Parser::chain(std::vector<ParseFn> fns) {
+ParseFn Parser::sequence(std::vector<ParseFn> fns) {
     return [&](spParseTree& result, itToken& iter, const Token* limit) {
         for (auto& fn : fns) {
+            // TODO: fix result accumulation
             if ( !fn(result, iter, limit) ) return false;
         }
         return true;
     };
 }
 
-bool Parser::parse() {
+ParseFn Parser::object(ParseFn head, ParseFn body) {
+    return [&](spParseTree& result, itToken& iter, const Token* limit) {
+        //TODO
+        return false;
+    };
+}
 
-    return false;
+ParseFn Parser::zeroOrMore(ParseFn fn) {
+    return [&](spParseTree& result, itToken& iter, const Token* limit) {
+        //TODO
+        return true;
+    };
+}
+ParseFn Parser::oneOrMore(ParseFn fn) {
+    return [&](spParseTree& result, itToken& iter, const Token* limit) {
+        //TODO
+        return true;
+    };
+}
+
+bool Parser::parse() {
+    itToken start = tokens.cbegin();
+    return parseFn(parseTree, start, start->bound);
+}
+
+ParseFn Parser::buildParser() {
+  //TODO
 }
