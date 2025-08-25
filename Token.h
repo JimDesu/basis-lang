@@ -6,6 +6,7 @@
 
 namespace basis {
     enum class TokenType {
+        _NOTHING,
         // literals
         DECIMAL,
         HEXNUMBER,
@@ -58,6 +59,7 @@ namespace basis {
         size_t lineNumber;
         size_t columnNumber;
         Token* bound;
+        Token() : type(TokenType::_NOTHING), lineNumber(0), columnNumber(0), bound(nullptr) {}
     };
 }
 

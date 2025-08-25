@@ -8,12 +8,12 @@
 namespace basis {
     class ParseTree {
     public:
-        explicit ParseTree(Token* token);
+        explicit ParseTree(const Token* token);
         ParseTree(const ParseTree& other);
         ParseTree& operator=(const ParseTree& rhs);
         ~ParseTree();
         
-        Token* token;
+        const Token* token;
         std::shared_ptr<ParseTree> next;
         std::shared_ptr<ParseTree> down;
     };
