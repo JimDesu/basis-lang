@@ -4,18 +4,21 @@
 This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without immolating ourselves with category-theoretic ways of declaring imperatives and reacting to computational statuses that have nothing to do with a function's result and everything to do with how we want to wire functions together?  It's all elegant until you want to reuse it in a different way than it was written... then you get in trouble.  Stacks of monad transformers are only elegant until they're not.  The fundamental problem here is that the basis of getting things done is imperative, state mutation, and that's the realm of the procedural.  So, in this spirit I've torn up my prior designs and have embarked on a purely imperative programming language that eschews the complexities that inevitably result from the collision of pure functional programming and real-world state.  The result is, IMO, a language that is conceptually simple and concise, leading to code that is easy to understand at first read.  In a world that depends on open source code, clarity is king.  
 
 Guiding Principles:
-- All state access is local
+- Strong typing saves lives &#9786;
+- All state access is scope-local
+- The fundamental datatype is a buffer
 - You don't pay for what you don't use
 - Mutation either succeeds fully or fails fully
 - No hidden control flow
+- Dictionaries are superior to vtables
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
-- Special forms are visually distinct from user-defined forms
+- Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 
 This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" as I go to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
 
-By the time I'm done this intro, anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worthwhile.  &#9786;
+By the time I'm done this intro, anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worthwhile.  
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
