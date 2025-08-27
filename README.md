@@ -10,7 +10,7 @@ Guiding Principles:
 - You don't pay for what you don't use
 - Mutation either succeeds fully or fails fully
 - No hidden control flow
-- Dictionaries are superior to vtables
+- Prefer Dictionaries over to vtables
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
