@@ -5,7 +5,7 @@ This is the programming language that I want to write code in, which doesn't act
 
 Guiding Principles:
 - Strong typing saves lives &#9786;
-- All state access is scope-local
+- No non-local state access
 - The fundamental datatype is a buffer
 - You don't pay for what you don't use
 - Mutation either succeeds fully or fails fully
