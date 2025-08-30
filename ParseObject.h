@@ -19,7 +19,7 @@ namespace basis {
     using spParseObject = std::variant<std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
 
     struct ParseNode {
-        ParseNode(Production p) : production(p), next(), down() {}
+        ParseNode(Production p) : production(p) {}
         Production production;
         spParseObject next;
         spParseObject down;
@@ -28,6 +28,7 @@ namespace basis {
     struct ParseLeaf {
         ParseLeaf(Production p, const Token* pt) : production(p), pToken(pt) {}
         Production production;
+        spParseObject next;
         const Token* pToken;
     };
 
@@ -39,6 +40,9 @@ namespace basis {
 
     std::shared_ptr<ParseLeaf> getLeaf(const spParseObject& obj);
     std::shared_ptr<ParseNode> getNode(const spParseObject& obj);
+
+    spParseObject& getNext(const spParseObject& obj);
+    spParseObject& getDown(const spParseObject& obj);
 }
 
 #endif // PARSEOBJECT_H

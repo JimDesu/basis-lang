@@ -27,3 +27,14 @@ std::shared_ptr<ParseNode> basis::getNode(const spParseObject& obj) {
     if ( !isNode(obj) ) throw std::runtime_error("object is not a node");
     return std::get<std::shared_ptr<ParseNode>>(obj);
 }
+
+spParseObject& basis::getNext(const spParseObject& obj) {
+    if ( isLeaf(obj) ) {
+        return getLeaf(obj)->next;
+    } else {
+        return getNode(obj)->next;
+    }
+}
+
+
+
