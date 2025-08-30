@@ -45,16 +45,16 @@ ParseFn Parser::maybe(ParseFn fn) {
     };
 }
 
-//ParseFn Parser::choice(std::vector<ParseFn> fns) {
-    //return [&](spParseTree& result, itToken& iter, const Token* limit) {
-        //itToken start = iter;
-        //for (auto& fn : fns) {
-            //if ( fn(result, iter, limit) ) return true;
-            //iter = start;
-        //}
-        //return false;
-    //};
-//}
+ParseFn Parser::choice(std::vector<ParseFn> fns) {
+    return [&](spParseObject& result, itToken& iter, const Token* limit) {
+        itToken start = iter;
+        for (auto& fn : fns) {
+            if ( fn(result, iter, limit) ) return true;
+            iter = start;
+        }
+        return false;
+    };
+}
 
 //ParseFn Parser::sequence(std::vector<ParseFn> fns) {
     //return [&](spParseTree& result, itToken& iter, const Token* limit) {
