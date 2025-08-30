@@ -32,7 +32,13 @@ namespace basis {
     };
 
     spParseObject makeParseNode(Production production, spParseObject next, spParseObject down);
-    spParseObject makeParseLeaf(Production production, const Token* token);
+    spParseObject makeParseLeaf(Production production, const Token* pToken);
+
+    bool isLeaf(const spParseObject& obj);
+    bool isNode(const spParseObject& obj);
+
+    std::shared_ptr<ParseLeaf> getLeaf(const spParseObject& obj);
+    std::shared_ptr<ParseNode> getNode(const spParseObject& obj);
 }
 
 #endif // PARSEOBJECT_H

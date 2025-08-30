@@ -24,8 +24,9 @@ TEST_CASE("test single match") {
     parser.setParseFn( parser.match(Production::VARNAME, TokenType::IDENTIFIER) );
     CHECK( parser.parse() );
     spParseObject& result = parser.parseTree;
-    CHECK( std::holds_alternative<std::shared_ptr<ParseLeaf>>(result) );
-    CHECK( std::get<std::shared_ptr<ParseLeaf>>(result)->production == Production::VARNAME );
+    CHECK( isLeaf(result) );
+    CHECK( getLeaf(result)->production == Production::VARNAME );
+    CHECK( getLeaf(result)->pToken == &(tokens.front()));
 }
 
 TEST_CASE("test simple match fail") {

@@ -33,7 +33,7 @@ namespace basis {
         static ParseFn zeroOrMore(ParseFn fn);
         static ParseFn oneOrMore(ParseFn fn);
     private:
-        std::list<Token> tokens;
+        const std::list<Token>& tokens;
         ParseFn parseFn;
         //ParseFn buildParser();
     };
