@@ -9,7 +9,7 @@
 namespace basis {
     // production rule identifiers
     enum class Production {
-        temp1,
+        VARNAME,
         temp2
     };
 
