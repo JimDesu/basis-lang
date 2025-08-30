@@ -5,13 +5,12 @@
 #include <list>
 #include <memory>
 
-#include "ParseTree.h"
+#include "ParseObject.h"
 #include "Token.h"
 
 namespace basis {
-    using spParseTree = std::shared_ptr<ParseTree>;
     using itToken = std::list<Token>::const_iterator;
-    using ParseFn = std::function<bool(spParseTree& result, itToken& iter, const Token* limit)>;
+    using ParseFn = std::function<bool(spParseObject result, itToken& iter, const Token* limit)>;
 
     class Parser {
     public:
@@ -21,20 +20,21 @@ namespace basis {
         ~Parser();
 
         bool parse();
-        std::shared_ptr<ParseTree> parseTree;
+        spParseObject parseTree;
         // exposed for testing
         bool atLimit(itToken& iter, const Token* limit) const;
-        ParseFn match(TokenType type, bool keep = true) const;
-        static ParseFn maybe(ParseFn fn);
-        static ParseFn choice(std::vector<ParseFn> fns);
-        static ParseFn sequence(std::vector<ParseFn> fns);
-        static ParseFn object(ParseFn head, ParseFn body);
-        static ParseFn zeroOrMore(ParseFn fn);
-        static ParseFn oneOrMore(ParseFn fn);
+        ParseFn match(Production production, TokenType type, bool keep = true) const;
+
+        //static ParseFn maybe(ParseFn fn);
+        //static ParseFn choice(std::vector<ParseFn> fns);
+        //static ParseFn sequence(std::vector<ParseFn> fns);
+        //static ParseFn object(ParseFn head, ParseFn body);
+        //static ParseFn zeroOrMore(ParseFn fn);
+        //static ParseFn oneOrMore(ParseFn fn);
     private:
         std::list<Token> tokens;
         ParseFn parseFn;
-        ParseFn buildParser();
+        //ParseFn buildParser();
     };
 }
 
