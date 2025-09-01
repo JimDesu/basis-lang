@@ -16,35 +16,37 @@ namespace basis {
     // generic parse tree representation
     struct ParseNode;
     struct ParseLeaf;
-    using spParseObject = std::variant<std::monostate, std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
+    using vParseObject = std::variant<std::monostate, std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
 
     struct ParseNode {
         ParseNode(Production p) : production(p) {}
         Production production;
-        spParseObject next;
-        spParseObject down;
+        vParseObject next;
+        vParseObject down;
     };
 
     struct ParseLeaf {
         ParseLeaf(Production p, const Token* pt) : production(p), pToken(pt) {}
         Production production;
-        spParseObject next;
+        vParseObject next;
         const Token* pToken;
     };
 
-    spParseObject makeParseNode(Production production);
-    spParseObject makeParseLeaf(Production production, const Token* pToken);
+    vParseObject makeParseNode(Production production);
+    vParseObject makeParseLeaf(Production production, const Token* pToken);
 
-    bool isLeaf(const spParseObject& obj);
-    bool isNode(const spParseObject& obj);
+    bool isNodeVariant(const vParseObject& obj);
+    bool isLeafVariant(const vParseObject& obj);
+    bool isEmptyVariant(const vParseObject& obj);
 
-    std::shared_ptr<ParseLeaf> getLeaf(const spParseObject& obj);
-    std::shared_ptr<ParseNode> getNode(const spParseObject& obj);
+    std::shared_ptr<ParseLeaf> asParseLeaf(const vParseObject& obj);
+    std::shared_ptr<ParseNode> asParseNode(const vParseObject& obj);
 
-    spParseObject& getLinkNext(const spParseObject& obj);
-    spParseObject& getLinkDown(const spParseObject& obj);
+    vParseObject& getLinkNext(const vParseObject& obj);
+    vParseObject& getLinkDown(const vParseObject& obj);
 
-    void clearParseObject(spParseObject& obj);
+    void clearParseObject(vParseObject& obj);
+
 }
 
 #endif // PARSEOBJECT_H

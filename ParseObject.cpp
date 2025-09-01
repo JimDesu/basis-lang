@@ -3,43 +3,46 @@
 
 using namespace basis;
 
-spParseObject basis::makeParseNode(Production production) {
-    return spParseObject( std::make_shared<ParseNode>(production) );
+vParseObject basis::makeParseNode(Production production) {
+    return vParseObject( std::make_shared<ParseNode>(production) );
 }
-spParseObject basis::makeParseLeaf(Production production, const Token* pToken) {
-    return spParseObject( std::make_shared<ParseLeaf>(production, pToken) );
+vParseObject basis::makeParseLeaf(Production production, const Token* pToken) {
+    return vParseObject( std::make_shared<ParseLeaf>(production, pToken) );
 }
 
-bool basis::isLeaf(const spParseObject& obj) {
+bool basis::isLeafVariant(const vParseObject& obj) {
     return std::holds_alternative<std::shared_ptr<ParseLeaf>>(obj);
 }
 
-bool basis::isNode(const spParseObject& obj) {
+bool basis::isNodeVariant(const vParseObject& obj) {
     return std::holds_alternative<std::shared_ptr<ParseNode>>(obj);
 }
 
-std::shared_ptr<ParseLeaf> basis::getLeaf(const spParseObject& obj) {
-    if ( !isLeaf(obj) ) throw std::runtime_error("object is not a leaf");
+bool basis::isEmptyVariant(const vParseObject& obj) {
+    return std::holds_alternative<std::monostate>(obj);
+}
+
+std::shared_ptr<ParseLeaf> basis::asParseLeaf(const vParseObject& obj) {
+    if ( !isLeafVariant(obj) ) throw std::runtime_error("object is not a leaf");
     return std::get<std::shared_ptr<ParseLeaf>>(obj);
 }
 
-std::shared_ptr<ParseNode> basis::getNode(const spParseObject& obj) {
-    if ( !isNode(obj) ) throw std::runtime_error("object is not a node");
+std::shared_ptr<ParseNode> basis::asParseNode(const vParseObject& obj) {
+    if ( !isNodeVariant(obj) ) throw std::runtime_error("object is not a node");
     return std::get<std::shared_ptr<ParseNode>>(obj);
 }
 
-spParseObject& basis::getLinkNext(const spParseObject& obj) {
-    if ( isLeaf(obj) ) return getLeaf(obj)->next;
-    if ( isNode(obj) ) return getNode(obj)->next;
-    throw std::runtime_error("object is not a node or leaf");
+vParseObject& basis::getLinkNext(const vParseObject& obj) {
+    if ( isLeafVariant(obj) ) return asParseLeaf(obj)->next;
+    if ( isNodeVariant(obj) ) return asParseNode(obj)->next;
+    throw std::runtime_error("no next: object is not a node or leaf");
 }
 
-spParseObject& basis::getLinkDown(const spParseObject& obj) {
-    if ( isNode(obj) ) return getNode(obj)->down;
-    if ( isLeaf(obj) ) throw std::runtime_error("leaf has no down link");
-    throw std::runtime_error("object is not a node or leaf");
+vParseObject& basis::getLinkDown(const vParseObject& obj) {
+    if ( isNodeVariant(obj) ) return asParseNode(obj)->down;
+    throw std::runtime_error("no down: object is not a node or leaf");
 }
-void basis::clearParseObject(spParseObject& obj) {
+void basis::clearParseObject(vParseObject& obj) {
     obj.emplace<std::monostate>();
 }
 
