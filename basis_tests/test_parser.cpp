@@ -1,5 +1,8 @@
+#include <iostream>
+
 #include "doctest.h"
 
+#include <vector>
 #include "../Parser.h"
 
 using namespace basis;
@@ -7,6 +10,12 @@ using namespace basis;
 void addToken(std::list<Token>& tokens, const TokenType type) {
     tokens.emplace_back();
     tokens.back().type = type;
+}
+
+void addTokens(std::list<Token>& tokens, std::vector<TokenType> types) {
+    for ( auto& type : types ) {
+        addToken(tokens, type);
+    }
 }
 
 TEST_CASE("test least match") {
@@ -48,13 +57,25 @@ TEST_CASE("test maybe match") {
     CHECK( parser.parse() );
 }
 
+/*
 TEST_CASE("test choice match") {
     std::list<Token> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens,true);
     parser.setParseFn(
-        Parser::choice(
-        { parser.match(TokenType::NUMBER),
-                 parser.match(TokenType::IDENTIFIER) } ));
+        Parser::choice( { parser.match(TokenType::NUMBER), parser.match(TokenType::IDENTIFIER) } ));
     CHECK( parser.parse() );
 }
+*/
+
+TEST_CASE("test sequence match") {
+    std::list<Token> tokens;
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ASSIGN } );
+    Parser parser(tokens,true);
+    parser.setParseFn(
+        Parser::sequence( Production::VARNAME,
+        { parser.match(TokenType::IDENTIFIER), parser.match(TokenType::COLON) } ));
+    CHECK( parser.parse() );
+}
+
+

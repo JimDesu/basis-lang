@@ -3,7 +3,6 @@
 
 #include <functional>
 #include <list>
-#include <memory>
 
 #include "ParseObject.h"
 #include "Token.h"
@@ -28,9 +27,7 @@ namespace basis {
 
         static ParseFn maybe(ParseFn fn);
         static ParseFn choice(std::vector<ParseFn> fns);
-        static ParseFn sequence(std::vector<ParseFn> fns);
-        static ParseFn object(ParseFn head, ParseFn body);
-        static ParseFn zeroOrMore(ParseFn fn);
+        static ParseFn sequence(const Production& production, std::vector<ParseFn> fns);
         static ParseFn oneOrMore(ParseFn fn);
     private:
         const std::list<Token>& tokens;

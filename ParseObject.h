@@ -16,7 +16,7 @@ namespace basis {
     // generic parse tree representation
     struct ParseNode;
     struct ParseLeaf;
-    using spParseObject = std::variant<std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
+    using spParseObject = std::variant<std::monostate, std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
 
     struct ParseNode {
         ParseNode(Production p) : production(p) {}
@@ -32,7 +32,7 @@ namespace basis {
         const Token* pToken;
     };
 
-    spParseObject makeParseNode(Production production, spParseObject next, spParseObject down);
+    spParseObject makeParseNode(Production production);
     spParseObject makeParseLeaf(Production production, const Token* pToken);
 
     bool isLeaf(const spParseObject& obj);
@@ -41,8 +41,10 @@ namespace basis {
     std::shared_ptr<ParseLeaf> getLeaf(const spParseObject& obj);
     std::shared_ptr<ParseNode> getNode(const spParseObject& obj);
 
-    spParseObject& getNext(const spParseObject& obj);
-    spParseObject& getDown(const spParseObject& obj);
+    spParseObject& getLinkNext(const spParseObject& obj);
+    spParseObject& getLinkDown(const spParseObject& obj);
+
+    void clearParseObject(spParseObject& obj);
 }
 
 #endif // PARSEOBJECT_H

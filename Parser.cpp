@@ -17,7 +17,7 @@ bool Parser::atLimit(itToken& iter, const Token* limit) const {
 }
 
 ParseFn Parser::match(const TokenType& type) const {
-    return [&](spParseObject& result, itToken& iter, const Token* limit) {
+    return [&](spParseObject& _unused, itToken& iter, const Token* limit) {
         if ( atLimit(iter, limit) ) return false;
         if (iter->type == type) {
             ++iter;
@@ -29,6 +29,7 @@ ParseFn Parser::match(const TokenType& type) const {
 
 ParseFn Parser::match(const Production& production, const TokenType& type) const {
     return [&](spParseObject& result, itToken& iter, const Token* limit) {
+        clearParseObject(result);
         if ( atLimit(iter, limit) ) return false;
         if (iter->type == type) {
              result = makeParseLeaf( production, &(*iter) );
@@ -52,39 +53,26 @@ ParseFn Parser::choice(std::vector<ParseFn> fns) {
             if ( fn(result, iter, limit) ) return true;
             iter = start;
         }
+        clearParseObject(result);
         return false;
     };
 }
 
-//ParseFn Parser::sequence(std::vector<ParseFn> fns) {
-    //return [&](spParseTree& result, itToken& iter, const Token* limit) {
-        //for (auto& fn : fns) {
-            //// TODO: fix result accumulation
-            //if ( !fn(result, iter, limit) ) return false;
-        //}
-        //return true;
-    //};
-//}
-
-//ParseFn Parser::object(ParseFn head, ParseFn body) {
-    //return [&](spParseTree& result, itToken& iter, const Token* limit) {
-        ////TODO
-        //return false;
-    //};
-//}
-
-//ParseFn Parser::zeroOrMore(ParseFn fn) {
-    //return [&](spParseTree& result, itToken& iter, const Token* limit) {
-        ////TODO
-        //return true;
-    //};
-//}
-//ParseFn Parser::oneOrMore(ParseFn fn) {
-    //return [&](spParseTree& result, itToken& iter, const Token* limit) {
-        ////TODO
-        //return true;
-    //};
-//}
+ParseFn Parser::sequence(const Production& production, std::vector<ParseFn> fns) {
+    return [&](spParseObject& result, itToken& iter, const Token* limit) {
+        spParseObject seq = makeParseNode(production);
+        spParseObject& next = getLinkDown(seq); // contents; not the actual next
+        for ( auto& fn : fns ) {
+            if ( fn(next, iter, limit) ) {
+                next = getLinkNext(next);
+            } else {
+                clearParseObject(result);
+                return false;
+            }
+        }
+        return true;
+    };
+}
 
 bool Parser::parse() {
     itToken start = tokens.cbegin();
