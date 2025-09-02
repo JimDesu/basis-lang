@@ -9,6 +9,7 @@ Parser::Parser(const std::list<Token>& tokens, bool deferParseFn) : tokens(token
 Parser::~Parser() {}
 
 void Parser::setParseFn(spParseFn fn) {
+    parseTree.reset();
     parseFn = fn;
 }
 
@@ -25,7 +26,7 @@ bool Parser::parse() {
     return (*parseFn)(parseTree, start, start->bound);
 }
 
-bool Discard::operator()(vParseObject& result, itToken& iter, const Token* limit) {
+bool Discard::operator()(spParseTree& _unused, itToken& iter, const Token* limit) {
     if ( parser.atLimit(iter, limit) ) return false;
     if (iter->type == type) {
         ++iter;
@@ -38,10 +39,10 @@ std::shared_ptr<Discard> basis::discard(Parser& parser, const TokenType& type) {
     return std::make_shared<Discard>(parser, type);
 }
 
-bool Match::operator()(vParseObject& result, itToken& iter, const Token* limit) {
+bool Match::operator()(spParseTree& result, itToken& iter, const Token* limit) {
     if ( parser.atLimit(iter, limit) ) return false;
     if (iter->type == type) {
-        result = makeParseLeaf(production, &(*iter));
+        result = std::make_shared<ParseTree>(production, &(*iter));
         ++iter;
         return true;
     }
@@ -52,7 +53,7 @@ std::shared_ptr<Match> basis::match(const Production production, Parser& parser,
     return std::make_shared<Match>(production, parser, type);
 }
 
-bool Maybe::operator()(vParseObject& result, itToken& iter, const Token* limit) {
+bool Maybe::operator()(spParseTree& result, itToken& iter, const Token* limit) {
     return (*fn)(result, iter, limit) || true;
 }
 
@@ -60,13 +61,12 @@ std::shared_ptr<Maybe> basis::maybe(const spParseFn fn) {
     return std::make_shared<Maybe>(fn);
 }
 
-bool FirstOf::operator()(vParseObject& result, itToken& iter, const Token* limit) {
+bool FirstOf::operator()(spParseTree& result, itToken& iter, const Token* limit) {
     itToken start = iter;
     for (auto& fn : fns) {
         if ( (*fn)(result, iter, limit) ) return true;
         iter = start;
     }
-    clearParseObject(result);
     return false;
 }
 
@@ -74,52 +74,34 @@ std::shared_ptr<FirstOf> basis::firstOf(const std::vector<spParseFn> fns) {
     return std::make_shared<FirstOf>(fns);
 }
 
-bool AllOf::operator()(vParseObject& result, itToken& iter, const Token* limit) {
-    vParseObject seq = makeParseNode(production);
-    vParseObject& next = getLinkDown(seq); // contents; not the actual next
+bool AllOf::operator()(spParseTree& result, itToken& iter, const Token* limit) {
+    spParseTree* next = &result;
     for ( auto& fn : fns ) {
-        if ( (*fn)(next, iter, limit) ) {
+        if ( (*fn)(*next, iter, limit) ) {
             // be sure to check for nothing in case the parseFn is a discard
-            if ( !isEmptyVariant(next) ) next = getLinkNext(next);
+            if ( *next ) next = &((*next)->spNext);
         } else {
             return false;
         }
     }
-    result = seq;
     return true;
 }
+
 std::shared_ptr<AllOf> basis::allOf(const Production production, const std::vector<spParseFn> fns) {
-    return std::make_shared<AllOf>(production, fns);
+    return std::make_shared<AllOf>(fns);
 }
 
-bool OneOrMore::operator()(vParseObject& result, itToken& iter, const Token* limit) {
+bool OneOrMore::operator()(spParseTree& result, itToken& iter, const Token* limit) {
     if (! (*fn)(result, iter, limit) ) return false;
-    vParseObject& next = getLinkNext(result);
-    while( (*fn)(next, iter, limit) ) {
-        next = getLinkNext(next);
+    spParseTree* next = result ? &(result->spDown) : &result;
+    while( (*fn)(*next, iter, limit) ) {
+        if ( *next ) next = &((*next)->spNext);
     }
     return true;
 }
-std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParseFn fn) {
-    return std::make_shared<OneOrMore>(production, fn);
-}
 
-bool Obliged::operator()(vParseObject& result, itToken& iter, const Token* limit) {
-    clearParseObject(result);
-    if ( !(*prefix)(result, iter, limit) ) return false;
-    if ( isEmptyVariant(result) ) {
-        // the prefix added no production, create one
-        result = makeParseNode(production);
-    } else {
-        // the prefix added a production, subsume it
-        vParseObject temp = makeParseNode(production);
-        getLinkDown(temp) = result;
-        result = temp;
-    }
-    return (*suffix)(getLinkDown(result), iter, limit);
-}
-std::shared_ptr<Obliged> basis::obliged(const Production production, spParseFn prefix, spParseFn suffix) {
-    return std::make_shared<Obliged>(production, prefix, suffix);
+std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParseFn fn) {
+    return std::make_shared<OneOrMore>(fn);
 }
 
 

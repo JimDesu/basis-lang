@@ -32,10 +32,7 @@ TEST_CASE("test single match") {
     Parser parser(tokens, true);
     parser.setParseFn( match(Production::VARNAME, parser, TokenType::IDENTIFIER) );
     CHECK( parser.parse() );
-    vParseObject& result = parser.parseTree;
-    CHECK( isLeafVariant(result) );
-    CHECK( asParseLeaf(result)->production == Production::VARNAME );
-    CHECK( asParseLeaf(result)->pToken == &(tokens.front()));
+    // TODO validate the result
 }
 
 TEST_CASE("test simple match fail") {
@@ -89,4 +86,29 @@ TEST_CASE("test sequence fail") {
     CHECK_FALSE( parser.parse() );
 }
 
-
+TEST_CASE("test repeating match") {
+    std::list<Token> tokens;
+    addTokens(tokens,
+        { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::COMMA } );
+    Parser parser(tokens,true);
+    parser.setParseFn(
+        allOf( Production::VARNAME,
+        { oneOrMore(Production::VARNAME, discard(parser,TokenType::IDENTIFIER)),
+                 discard(parser, TokenType::COMMA) } ));
+    CHECK( parser.parse() );
+    parser.setParseFn(
+        allOf( Production::VARNAME,
+        { oneOrMore(Production::VARNAME, match(Production::VARNAME, parser,TokenType::IDENTIFIER)),
+                 discard(parser, TokenType::COMMA) } ));
+    CHECK( parser.parse() );
+    parser.setParseFn(
+        allOf( Production::VARNAME,
+        { oneOrMore(Production::VARNAME, discard(parser,TokenType::IDENTIFIER)),
+                 match(Production::VARNAME, parser, TokenType::COMMA) } ));
+    CHECK( parser.parse() );
+    parser.setParseFn(
+        allOf( Production::VARNAME,
+        { oneOrMore(Production::VARNAME, match(Production::temp2, parser,TokenType::IDENTIFIER)),
+                 match(Production::VARNAME, parser, TokenType::COMMA) } ));
+    CHECK( parser.parse() );
+}

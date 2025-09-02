@@ -13,40 +13,18 @@ namespace basis {
         temp2
     };
 
+    struct ParseTree;
+    using spParseTree = std::shared_ptr<ParseTree>;
+
     // generic parse tree representation
-    struct ParseNode;
-    struct ParseLeaf;
-    using vParseObject = std::variant<std::monostate, std::shared_ptr<ParseNode>, std::shared_ptr<ParseLeaf>>;
-
-    struct ParseNode {
-        ParseNode(Production p) : production(p) {}
+    struct ParseTree {
+        ParseTree(Production p) : production(p) {}
+        ParseTree(Production p, const Token* pT) : production(p), pToken(pT) {}
         Production production;
-        vParseObject next;
-        vParseObject down;
-    };
-
-    struct ParseLeaf {
-        ParseLeaf(Production p, const Token* pt) : production(p), pToken(pt) {}
-        Production production;
-        vParseObject next;
+        spParseTree spNext;
+        spParseTree spDown;
         const Token* pToken;
     };
-
-    vParseObject makeParseNode(Production production);
-    vParseObject makeParseLeaf(Production production, const Token* pToken);
-
-    bool isNodeVariant(const vParseObject& obj);
-    bool isLeafVariant(const vParseObject& obj);
-    bool isEmptyVariant(const vParseObject& obj);
-
-    std::shared_ptr<ParseLeaf> asParseLeaf(const vParseObject& obj);
-    std::shared_ptr<ParseNode> asParseNode(const vParseObject& obj);
-
-    vParseObject& getLinkNext(const vParseObject& obj);
-    vParseObject& getLinkDown(const vParseObject& obj);
-
-    void clearParseObject(vParseObject& obj);
-
 }
 
 #endif // PARSEOBJECT_H

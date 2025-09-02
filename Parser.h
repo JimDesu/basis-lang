@@ -11,7 +11,7 @@ namespace basis {
 
     using itToken = std::list<Token>::const_iterator;
     struct ParseFn {
-        virtual bool operator()(vParseObject& result, itToken& iter, const Token* limit) = 0;
+        virtual bool operator()(spParseTree& result, itToken& iter, const Token* limit) = 0;
     };
     using spParseFn = std::shared_ptr<ParseFn>;
 
@@ -21,7 +21,7 @@ namespace basis {
         ~Parser();
 
         bool parse();
-        vParseObject parseTree;
+        spParseTree parseTree;
         // unit testing only
         void setParseFn(spParseFn fn);
     private:
@@ -37,7 +37,7 @@ namespace basis {
         TokenType type;
         Parser& parser;
         Discard(Parser p, const TokenType& t) : parser(p), type(t) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        bool operator()(spParseTree& _unused, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<Discard> discard(Parser& parser, const TokenType& type);
 
@@ -46,48 +46,38 @@ namespace basis {
         Parser& parser;
         TokenType type;
         Match(const Production pr, Parser p, const TokenType& t) : production(pr), parser(p), type(t) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        bool operator()(spParseTree& result, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<Match> match(const Production production, Parser& parser, const TokenType& type);
 
     struct Maybe : public ParseFn {
         const spParseFn fn;
         Maybe(const spParseFn f) : fn(f) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        bool operator()(spParseTree& result, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<Maybe> maybe(const spParseFn fn);
 
     struct FirstOf : public ParseFn {
         const std::vector<spParseFn> fns;
         FirstOf(const std::vector<spParseFn> fs) : fns(fs) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        bool operator()(spParseTree& result, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<FirstOf> firstOf(const std::vector<spParseFn> fns);
 
     struct AllOf : public ParseFn {
-        Production production;
         const std::vector<spParseFn> fns;
-        AllOf(Production pr, const std::vector<spParseFn> fs) : production(pr), fns(fs) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        AllOf(const std::vector<spParseFn> fs) : fns(fs) {}
+        bool operator()(spParseTree& result, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<AllOf> allOf(const Production production, const std::vector<spParseFn> fns);
 
     struct OneOrMore : public ParseFn {
-        Production production;
         spParseFn fn;
-        OneOrMore(Production p, spParseFn f) : production(p), fn(f) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
+        OneOrMore(spParseFn f) : fn(f) {}
+        bool operator()(spParseTree& result, itToken& iter, const Token* limit) override;
     };
     std::shared_ptr<OneOrMore> oneOrMore(const Production production, spParseFn fn);
 
-    struct Obliged : public ParseFn {
-        Production production;
-        spParseFn prefix;
-        spParseFn suffix;
-        Obliged(Production p, spParseFn pre, spParseFn suf) : production(p), prefix(pre), suffix(suf) {}
-        bool operator()(vParseObject& result, itToken& iter, const Token* limit) override;
-    };
-    std::shared_ptr<Obliged> obliged(const Production production, spParseFn prefix, spParseFn suffix);
 }
 
 #endif // PARSER_H
