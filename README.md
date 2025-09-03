@@ -1,7 +1,7 @@
 # The Basis Programming Language.  
 
 ## Introduction
-This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without mixing our result types (which should be stable and reuseable) with our status-indications (which vary depending on how we want to wire things together -- monoids, monads, arrows, ZIO, &c.).  The basis of getting things done is imperative state mutation, and that's really the realm of the procedural; pure functional programming ties these two concerns together in a way that's elegant until it's awkward.  In this regard, C "errno" may be unwieldy, but it's crystal clear.  Thus, I've torn up my prior designs and have embarked on a purely imperative programming language that eschews the complexities that inevitably result from the collision of result and status.  In a world that depends on open source code, clarity is king.  
+This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is a "pure" imperative programming language that's simple to learn and easy to understand.  In a world that depends on open source code, clarity is king.  
 
 Guiding Principles:
 - Strong typing saves lives &#9786;
