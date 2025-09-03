@@ -1,7 +1,7 @@
 # The Basis Programming Language.  
 
 ## Introduction
-This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without mixing our result types (which should be stable and reuseable) with our status-indications (which vary depending on how we want to wire things together -- monoids, monads, arrows, ZIO, &c.).  The basis of getting things done is imperative state mutation, and that's really the realm of the procedural; pure functional programming ties these two concerns together in a way that's elegant until it's awkward.  In this regard, C "errno" may be unwieldy, but it's crystal clear.  Thus, I've torn up my prior designs and have embarked on a purely imperative programming language that eschews the complexities that inevitably result from the collision of result and status.  In a world that depends on open source code, clarity is king.  
+This is the programming language that I want to write code in, which doesn't actually exist yet.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  I was originally looking at a functional programming language with lower level primitives, but my brief experiences with functional languages has convinced me that they're great for hard-core computing, but lousy for real world software (I might lose friends over this).  The $64K question is: how do we get the benefits that come from a functionally pure language, without mixing our result types (which should be stable and reuseable) with our status-indications (which vary depending on how we want to wire things together -- monoids, monads, arrows, ZIO, &c.).  The basis of getting things done is imperative state mutation, and that's really the realm of the procedural; pure functional programming ties these two concerns together in a way that's elegant until it's awkward.  In this regard, C "errno" may be unwieldy, but it's crystal clear.  Thus, I've torn up my prior designs and have embarked on a purely imperative programming language that eschews the complexities that inevitably result from the collision of result and status.  In a world that depends on open source code, clarity is king.  
 
 Guiding Principles:
 - Strong typing saves lives &#9786;
@@ -142,19 +142,19 @@ There are two layout rules for failure processing.  In normal code, the "|" mark
   | ...                         ; if and only if the prior recovery fails, then this runs
 ```
 
-The other exception is syntactic sugar around variable assignment (see the operators section below).  Variables are assigned via the "<-" operator, with the variable on the left hand side, and the expression within parentheses on the right hand side.  In this case, if the first command executed fails, a fallback can be designated
+The other exception is syntactic sugar around variable assignment (see the operators section below).  Variables are assigned via the "<-" operator, with the variable on the left hand side, and the expression within parentheses on the right hand side.  In this case, if the first command executed fails, a fallback can be designated.  (n.b. new variables are introduced with the "#" symbol.)
 ```
-.var v <- (divide: 7, 0 | 1)    ; if the first command fails, then v will be assigned the value 1
+# v <- (divide: 7, 0 | 1)    ; if the first command fails, then v will be assigned the value 1
 
 ; multiple commands may be grouped in this way, which are attempted in turn.
-.var m <- (add: 1, 2 | multiply: 2, 3 | 0)
+# m <- (add: 1, 2 | multiply: 2, 3 | 0)
 
 ; note that there's no need for a fixed value at the end
-.var q <- (add: 1,2 | subtract: 7, 4)
+# q <- (add: 1,2 | subtract: 7, 4)
 
 ; compile-time constants are a kind of command that never fails, so while the following is correct,
 ; the second command will never be attempted
-.var a <- (7 | add: 1,2)
+# a <- (7 | add: 1,2)
 ```
 
 #### Parameterization Layout
@@ -270,7 +270,7 @@ doSomething: ...
 
 At Scope
 ```
-.var thing <- (allocateSomething:....)
+# thing <- (allocateSomething:....)
 @ deallocateIt: thing     ; if no failure above, then this will get run at end of scope
 doSomething:....
 ...
@@ -294,10 +294,10 @@ Compile-time string constants are not zero-terminated like in the language C.  N
 
 Note that compile-time constants are not technically data types: they're inline ad-hoc commands that write a value to an output parameter.  Thus, both of the following are syntactically correct.  
 ```
-.var a <- ("data")
-"data": .var a
-.var b <- (27.3)
-27.3: .var b
+# a <- ("data")
+"data": # a
+# b <- (27.3)
+27.3: # b
 ```
 
 #### Fundamental Data Types
