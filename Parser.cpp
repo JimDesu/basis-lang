@@ -76,6 +76,7 @@ std::shared_ptr<FirstOf> basis::firstOf(const std::vector<spParseFn> fns) {
     return std::make_shared<FirstOf>(fns);
 }
 
+//TODO: control for pLimit on sequences
 bool AllOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     spParseTree* next = *dpspResult;
     for ( auto& fn : fns ) {
