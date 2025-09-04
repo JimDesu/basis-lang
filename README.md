@@ -16,6 +16,7 @@ Guiding Principles:
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 - Fexprs and macros, not fexprs vs macros
+- "syntactic whitespace" improves code clarity
 
 This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" as I go to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
 
