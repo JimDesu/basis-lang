@@ -40,12 +40,12 @@ std::shared_ptr<Discard> basis::discard(Parser& parser, const TokenType& type) {
     return std::make_shared<Discard>(parser, type);
 }
 
-bool Match::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLimit) {
+bool Match::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     if ( parser.atLimit(pIter, pLimit) ) return false;
     if ((*pIter)->type == type) {
-        **pspResult = std::make_shared<ParseTree>(production, &(**pIter));
+        **dpspResult = std::make_shared<ParseTree>(production, &(**pIter));
         ++(*pIter);
-        *pspResult = &((**pspResult)->spNext);
+        *dpspResult = &((**dpspResult)->spNext);
         return true;
     }
     return false;
@@ -55,18 +55,18 @@ std::shared_ptr<Match> basis::match(const Production production, Parser& parser,
     return std::make_shared<Match>(production, parser, type);
 }
 
-bool Maybe::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLimit) {
-    return (*fn)(pspResult, pIter, pLimit) || true;
+bool Maybe::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    return (*fn)(dpspResult, pIter, pLimit) || true;
 }
 
 std::shared_ptr<Maybe> basis::maybe(const spParseFn fn) {
     return std::make_shared<Maybe>(fn);
 }
 
-bool FirstOf::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLimit) {
+bool FirstOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     itToken start = *pIter;
     for (auto& fn : fns) {
-        if ( (*fn)(pspResult, pIter, pLimit) ) return true;
+        if ( (*fn)(dpspResult, pIter, pLimit) ) return true;
         (*pIter) = start;
     }
     return false;
@@ -76,8 +76,8 @@ std::shared_ptr<FirstOf> basis::firstOf(const std::vector<spParseFn> fns) {
     return std::make_shared<FirstOf>(fns);
 }
 
-bool AllOf::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLimit) {
-    spParseTree* next = *pspResult;
+bool AllOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    spParseTree* next = *dpspResult;
     for ( auto& fn : fns ) {
         if ( (*fn)(&next, pIter, pLimit) ) {
             // be sure to check for nothing in case the parseFn is a discard
@@ -86,7 +86,7 @@ bool AllOf::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLi
             return false;
         }
     }
-    *pspResult = next;
+    *dpspResult = next;
     return true;
 }
 
@@ -94,14 +94,14 @@ std::shared_ptr<AllOf> basis::allOf(const Production production, const std::vect
     return std::make_shared<AllOf>(fns);
 }
 
-bool OneOrMore::operator()(spParseTree** pspResult, itToken* pIter, const Token* pLimit) {
-    if (! (*fn)(pspResult, pIter, pLimit) ) return false;
-    spParseTree* next = *pspResult;
+bool OneOrMore::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    if (! (*fn)(dpspResult, pIter, pLimit) ) return false;
+    spParseTree* next = *dpspResult;
     if ( *next ) next = &((*next)->spNext);
     while( (*fn)(&next, pIter, pLimit) ) {
         if ( *next ) next = &((*next)->spNext);
     }
-    *pspResult = next;
+    *dpspResult = next;
     return true;
 }
 
