@@ -77,8 +77,14 @@ namespace basis {
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
     std::shared_ptr<OneOrMore> oneOrMore(const Production production, spParseFn fn);
-    //TODO object/contains parse function
 
+    struct Container : public ParseFn {
+        spParseFn prefix;
+        spParseFn suffix;
+        Container(spParseFn p, spParseFn s) : prefix(p), suffix(s) {}
+        bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
+    };
+    std::shared_ptr<Container> container(spParseFn prefix, spParseFn suffix);
 }
 
 #endif // PARSER_H

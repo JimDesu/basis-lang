@@ -24,7 +24,7 @@ bool Parser::atLimit(itToken* pIter, const Token* pLimit) const {
 bool Parser::parse() {
     itToken start = tokens.cbegin();
     spParseTree* pTree = &parseTree;
-    return (*parseFn)(&pTree, &start, start->bound);
+    return (*parseFn)(&pTree, &start, nullptr);
 }
 
 bool Discard::operator()(spParseTree** _unused, itToken* pIter, const Token* pLimit) {
@@ -76,7 +76,6 @@ std::shared_ptr<FirstOf> basis::firstOf(const std::vector<spParseFn> fns) {
     return std::make_shared<FirstOf>(fns);
 }
 
-//TODO: control for pLimit on sequences
 bool AllOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     spParseTree* next = *dpspResult;
     for ( auto& fn : fns ) {
@@ -108,5 +107,14 @@ bool OneOrMore::operator()(spParseTree** dpspResult, itToken* pIter, const Token
 
 std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParseFn fn) {
     return std::make_shared<OneOrMore>(fn);
+}
+
+bool Container::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    //TODO
+    return false;
+}
+
+std::shared_ptr<Container> basis::container(spParseFn prefix, spParseFn suffix) {
+    return std::make_shared<Container>(prefix, suffix);
 }
 
