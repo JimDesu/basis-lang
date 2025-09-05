@@ -109,12 +109,6 @@ std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParse
     return std::make_shared<OneOrMore>(fn);
 }
 
-bool Container::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
-    //TODO
-    return false;
-}
-
-std::shared_ptr<Container> basis::container(spParseFn prefix, spParseFn suffix) {
-    return std::make_shared<Container>(prefix, suffix);
-}
+bool Head::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {}
+std::shared_ptr<Head> basis::head(spParseFn fn) {}
 

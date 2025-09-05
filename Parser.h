@@ -78,13 +78,13 @@ namespace basis {
     };
     std::shared_ptr<OneOrMore> oneOrMore(const Production production, spParseFn fn);
 
-    struct Container : public ParseFn {
-        spParseFn prefix;
-        spParseFn suffix;
-        Container(spParseFn p, spParseFn s) : prefix(p), suffix(s) {}
+    //TODO reconcile subordination b/wn this and seqeuences
+    struct Head : public ParseFn {
+        spParseFn fn;
+        Head(spParseFn f) : fn(f) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<Container> container(spParseFn prefix, spParseFn suffix);
+    std::shared_ptr<Head> head(spParseFn fn);
 }
 
 #endif // PARSER_H
