@@ -57,19 +57,19 @@ namespace basis {
     };
     std::shared_ptr<Maybe> maybe(const spParseFn fn);
 
-    struct FirstOf : public ParseFn {
+    struct Any : public ParseFn {
         const std::vector<spParseFn> fns;
-        FirstOf(const std::vector<spParseFn> fs) : fns(fs) {}
+        Any(const std::vector<spParseFn> fs) : fns(fs) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<FirstOf> firstOf(const std::vector<spParseFn> fns);
+    std::shared_ptr<Any> any(const std::vector<spParseFn> fns);
 
-    struct AllOf : public ParseFn {
+    struct All : public ParseFn {
         const std::vector<spParseFn> fns;
-        AllOf(const std::vector<spParseFn> fs) : fns(fs) {}
+        All(const std::vector<spParseFn> fs) : fns(fs) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<AllOf> allOf(const Production production, const std::vector<spParseFn> fns);
+    std::shared_ptr<All> all(const Production production, const std::vector<spParseFn> fns);
 
     struct OneOrMore : public ParseFn {
         spParseFn fn;
@@ -78,7 +78,6 @@ namespace basis {
     };
     std::shared_ptr<OneOrMore> oneOrMore(const Production production, spParseFn fn);
 
-    //TODO reconcile subordination b/wn this and seqeuences
     struct Head : public ParseFn {
         spParseFn fn;
         Head(spParseFn f) : fn(f) {}

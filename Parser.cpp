@@ -63,7 +63,7 @@ std::shared_ptr<Maybe> basis::maybe(const spParseFn fn) {
     return std::make_shared<Maybe>(fn);
 }
 
-bool FirstOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+bool Any::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     itToken start = *pIter;
     for (auto& fn : fns) {
         if ( (*fn)(dpspResult, pIter, pLimit) ) return true;
@@ -72,11 +72,11 @@ bool FirstOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* 
     return false;
 }
 
-std::shared_ptr<FirstOf> basis::firstOf(const std::vector<spParseFn> fns) {
-    return std::make_shared<FirstOf>(fns);
+std::shared_ptr<Any> basis::any(const std::vector<spParseFn> fns) {
+    return std::make_shared<Any>(fns);
 }
 
-bool AllOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+bool All::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     spParseTree* next = *dpspResult;
     for ( auto& fn : fns ) {
         if ( (*fn)(&next, pIter, pLimit) ) {
@@ -90,8 +90,8 @@ bool AllOf::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pL
     return true;
 }
 
-std::shared_ptr<AllOf> basis::allOf(const Production production, const std::vector<spParseFn> fns) {
-    return std::make_shared<AllOf>(fns);
+std::shared_ptr<All> basis::all(const Production production, const std::vector<spParseFn> fns) {
+    return std::make_shared<All>(fns);
 }
 
 bool OneOrMore::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
@@ -109,6 +109,11 @@ std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParse
     return std::make_shared<OneOrMore>(fn);
 }
 
-bool Head::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {}
-std::shared_ptr<Head> basis::head(spParseFn fn) {}
+bool Head::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    return (*fn)(dpspResult, pIter, (*pIter)->bound);
+}
+
+std::shared_ptr<Head> basis::head(spParseFn fn) {
+    return std::make_shared<Head>(fn);
+}
 

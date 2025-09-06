@@ -59,7 +59,7 @@ TEST_CASE("test choice match") {
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens,true);
     parser.setParseFn(
-        firstOf(
+        any(
             { discard(parser, TokenType::NUMBER), discard(parser, TokenType::IDENTIFIER) } ));
     CHECK( parser.parse() );
 }
@@ -69,7 +69,7 @@ TEST_CASE("test sequence match") {
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ASSIGN } );
     Parser parser(tokens,true);
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { discard(parser,TokenType::IDENTIFIER),
                  discard(parser, TokenType::COLON),
                  discard(parser, TokenType::ASSIGN) } ));
@@ -81,7 +81,7 @@ TEST_CASE("test sequence fail") {
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ASSIGN } );
     Parser parser(tokens,true);
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { discard(parser,TokenType::ASSIGN), discard(parser, TokenType::COLON) } ));
     CHECK_FALSE( parser.parse() );
 }
@@ -92,22 +92,22 @@ TEST_CASE("test repeating match") {
         { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::COMMA } );
     Parser parser(tokens,true);
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { oneOrMore(Production::VARNAME, discard(parser,TokenType::IDENTIFIER)),
                  discard(parser, TokenType::COMMA) } ));
     CHECK( parser.parse() );
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { oneOrMore(Production::VARNAME, match(Production::VARNAME, parser,TokenType::IDENTIFIER)),
                  discard(parser, TokenType::COMMA) } ));
     CHECK( parser.parse() );
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { oneOrMore(Production::VARNAME, discard(parser,TokenType::IDENTIFIER)),
                  match(Production::VARNAME, parser, TokenType::COMMA) } ));
     CHECK( parser.parse() );
     parser.setParseFn(
-        allOf( Production::VARNAME,
+        all( Production::VARNAME,
         { oneOrMore(Production::VARNAME, match(Production::temp2, parser,TokenType::IDENTIFIER)),
                  match(Production::VARNAME, parser, TokenType::COMMA) } ));
     CHECK( parser.parse() );
