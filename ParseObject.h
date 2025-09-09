@@ -17,7 +17,8 @@ namespace basis {
     using spParseTree = std::shared_ptr<ParseTree>;
 
     // generic parse tree representation
-    struct ParseTree {
+    class ParseTree {
+    public:
         ParseTree(Production p) : production(p) {}
         ParseTree(Production p, const Token* pT) : production(p), pToken(pT) {}
         Production production;
@@ -25,6 +26,7 @@ namespace basis {
         spParseTree spDown;
         const Token* pToken;
     };
+    bool operator==(const ParseTree& lhs, const ParseTree& rhs);
 }
 
 #endif // PARSEOBJECT_H

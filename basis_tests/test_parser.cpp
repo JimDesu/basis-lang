@@ -32,7 +32,7 @@ TEST_CASE("test single match") {
     Parser parser(tokens, true);
     parser.setParseFn( match(Production::VARNAME, parser, TokenType::IDENTIFIER) );
     CHECK( parser.parse() );
-    // TODO validate the result
+    CHECK( *(parser.parseTree->pToken) == tokens.back() );
 }
 
 TEST_CASE("test simple match fail") {
@@ -50,8 +50,9 @@ TEST_CASE("test maybe match") {
     parser.setParseFn( maybe(discard(parser, TokenType::NUMBER) ));
     CHECK( parser.parse() );
     // the failed maybe test shouldn't advance the iterator, so we should be able to match the identifier
-    parser.setParseFn( maybe(discard(parser, TokenType::IDENTIFIER) ));
+    parser.setParseFn( maybe(match(Production::VARNAME, parser, TokenType::IDENTIFIER) ));
     CHECK( parser.parse() );
+    CHECK( *(parser.parseTree->pToken) == tokens.back() );
 }
 
 TEST_CASE("test choice match") {
@@ -60,8 +61,10 @@ TEST_CASE("test choice match") {
     Parser parser(tokens,true);
     parser.setParseFn(
         any(
-            { discard(parser, TokenType::NUMBER), discard(parser, TokenType::IDENTIFIER) } ));
+            { match(Production::VARNAME, parser, TokenType::NUMBER),
+                     match(Production::VARNAME, parser, TokenType::IDENTIFIER) } ));
     CHECK( parser.parse() );
+    CHECK( *(parser.parseTree->pToken) == tokens.back() );
 }
 
 TEST_CASE("test sequence match") {

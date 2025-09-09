@@ -53,7 +53,8 @@ namespace basis {
         SLASH,
     };
 
-    struct Token {
+    class Token {
+    public:
         TokenType type;
         std::string text;
         size_t lineNumber;
@@ -61,6 +62,8 @@ namespace basis {
         Token* bound;
         Token() : type(TokenType::_NOTHING), lineNumber(0), columnNumber(0), bound(nullptr) {}
     };
+
+    bool operator==(const Token& lhs, const Token& rhs);
 }
 
 
