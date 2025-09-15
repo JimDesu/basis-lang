@@ -187,7 +187,7 @@ Control flow in Basis is determined by some other markers.
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
 |   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | "block" | Groups a serious of commands into a logical block. |
-|   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "until" if this governs a block. |
+|   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "rewind when" if this governs a block. |
 |   ^?   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. If this governs a block, don't rewind if the block fails. |
 |   \|   | "recover" | Recover (potentially conditionally) from a failure |
 |   !    | "fail" | Generate a failure signal |
