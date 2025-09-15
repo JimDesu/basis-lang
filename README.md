@@ -182,11 +182,13 @@ command: arg1                      ; no need for comma
 Control flow in Basis is determined by some other markers.
 | Marker | Read As |Usage |
 |--------|-------|-------|
-|   ?    | "case" | Attempts a command group.  If the first such command fails, execution proceeds normally after the group. |
+|   ?    | "when" | Attempts a command group.  If the first such command fails, execution proceeds normally after the group. |
+|   ?-   | "unless" | Execute the command group only if the first command fails. |
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
 |   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed.|
 |   ~    | "block" | Groups a serious of commands into a logical block. |
-|   ^    | "rewind" | Rewinds execution to the previous governing item at the same level. |
+|   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "until" if this governs a block. |
+|   ^:   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. |
 |   \|   | "recover" | Recover (potentially conditionally) from a failure |
 |   !    | "fail" | Generate a failure signal |
 |   @    | "at exit" | Run the tagged command at the end of current scope
