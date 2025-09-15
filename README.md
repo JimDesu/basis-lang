@@ -186,7 +186,7 @@ Control flow in Basis is determined by some other markers.
 |   ?-   | "unless" | Execute the command group only if the first command fails. |
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
 |   -    | "else/unless" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed. If there's no governing test and this governs a block, fail if the governened block succeeds.          |
-|   ~    | "block" | Groups a serious of commands into a logical block. |
+|   $    | "block" | Groups a serious of commands into a logical block. |
 |   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "rewind when" if this governs a block. |
 |   ^:   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. If this governs a block, don't rewind if the block fails. |
 |   \|   | "recover" | Recover (potentially conditionally) from a failure |
