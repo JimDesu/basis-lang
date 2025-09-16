@@ -185,14 +185,16 @@ Control flow in Basis is determined by some other markers.
 |   ?    | "when" | Attempts a command group.  If the first such command fails, execution proceeds normally after the group. |
 |   ?-   | "unless" | Execute the command group only if the first command fails. |
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
-|   -    | "else/unless" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed. If there's no governing test and this governs a block, fail if the governened block succeeds.          |
-|   $    | "block" | Groups a serious of commands into a logical block. |
+|   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed. |
+|   !    | "unless" | Attempt a command group, but abort the group if the first command fails. |
+|   %    | "block" | Groups a serious of commands into a logical block. |
 |   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "rewind when" if this governs a block. |
-|   ^:   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. If this governs a block, don't rewind if the block fails. |
+|   ^?   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. If this governs a block, don't rewind if the block fails. |
 |   \|   | "recover" | Recover (potentially conditionally) from a failure |
-|   !    | "fail" | Generate a failure signal |
 |   @    | "at exit" | Run the tagged command at the end of current scope
 |  @!    | "at fail-exit" | Run the tagged command at the end of current scope, but only in a failure condition
+
+TODO: the text below is outdated -- need to update it
 
 Basic conditional:
 ```
