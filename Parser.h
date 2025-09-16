@@ -95,7 +95,7 @@ namespace basis {
 
     // group a parse tree in a labelled parent node
     struct Group final : ParseFn {
-        explicit Group(const Production p, spParseFn f) : production(p), fn(f) {}
+        Group(const Production p, spParseFn f) : production(p), fn(f) {}
         Production production;
         spParseFn fn;
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
