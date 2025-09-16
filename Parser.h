@@ -12,12 +12,13 @@ namespace basis {
     using itToken = std::list<Token>::const_iterator;
     struct ParseFn {
         virtual bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) = 0;
+        virtual ~ParseFn() = default;
     };
     using spParseFn = std::shared_ptr<ParseFn>;
 
     class Parser {
     public:
-        Parser(const std::list<Token>& tokens, bool deferParseFn = false);
+        explicit Parser(const std::list<Token>& tokens, bool deferParseFn = false);
         ~Parser();
 
         bool parse();
@@ -25,65 +26,81 @@ namespace basis {
         // unit testing only
         void setParseFn(spParseFn fn);
     private:
-        friend class Discard;
-        friend class Match;
+        friend struct Discard;
+        friend struct Match;
         spParseFn buildParser();
         bool atLimit(itToken* pIter, const Token* pLimit) const;
         const std::list<Token>& tokens;
         spParseFn parseFn;
     };
 
-    struct Discard : public ParseFn {
-        TokenType type;
+    // match a token but don't keep it
+    struct Discard final : ParseFn {
+        Discard(Parser& p, const TokenType& t) : parser(p), type(t) {}
         Parser& parser;
-        Discard(Parser p, const TokenType& t) : parser(p), type(t) {}
+        TokenType type;
         bool operator()(spParseTree** _unused, itToken* pIter, const Token* pLimit) override;
     };
     std::shared_ptr<Discard> discard(Parser& parser, const TokenType& type);
 
-    struct Match : public ParseFn {
+    // match a token and keep it
+    struct Match final: ParseFn {
+        Match(const Production pr, Parser& p, const TokenType& t) : production(pr), parser(p), type(t) {}
         Production production;
         Parser& parser;
         TokenType type;
-        Match(const Production pr, Parser p, const TokenType& t) : production(pr), parser(p), type(t) {}
         bool operator()(spParseTree**  dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<Match> match(const Production production, Parser& parser, const TokenType& type);
+    std::shared_ptr<Match> match(Production production, Parser& parser, const TokenType& type);
 
-    struct Maybe : public ParseFn {
+    // match zero or one instances
+    struct Maybe final : ParseFn {
+        explicit Maybe(const spParseFn f) : fn(f) {}
         const spParseFn fn;
-        Maybe(const spParseFn f) : fn(f) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<Maybe> maybe(const spParseFn fn);
+    std::shared_ptr<Maybe> maybe(spParseFn fn);
 
-    struct Any : public ParseFn {
+    // match the first matching instance
+    struct Any final : ParseFn {
+        explicit Any(const std::vector<spParseFn> fs) : fns(fs) {}
         const std::vector<spParseFn> fns;
-        Any(const std::vector<spParseFn> fs) : fns(fs) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<Any> any(const std::vector<spParseFn> fns);
+    std::shared_ptr<Any> any(std::vector<spParseFn> fns);
 
-    struct All : public ParseFn {
+    // match all instances
+    struct All final : ParseFn {
+        explicit All(const std::vector<spParseFn> fs) : fns(fs) {}
         const std::vector<spParseFn> fns;
-        All(const std::vector<spParseFn> fs) : fns(fs) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<All> all(const Production production, const std::vector<spParseFn> fns);
+    std::shared_ptr<All> all(std::vector<spParseFn> fns);
 
-    struct OneOrMore : public ParseFn {
+    // match as many instances as possible but at least one
+    struct OneOrMore final : ParseFn {
+        explicit OneOrMore(spParseFn f) : fn(f) {}
         spParseFn fn;
-        OneOrMore(spParseFn f) : fn(f) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<OneOrMore> oneOrMore(const Production production, spParseFn fn);
+    std::shared_ptr<OneOrMore> oneOrMore(spParseFn fn);
 
-    struct Head : public ParseFn {
+    // match up to the bound
+    struct Bound final : ParseFn {
+        explicit Bound(spParseFn f) : fn(f) {}
         spParseFn fn;
-        Head(spParseFn f) : fn(f) {}
         bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
     };
-    std::shared_ptr<Head> head(spParseFn fn);
+    std::shared_ptr<Bound> bound(spParseFn fn);
+
+    // group a parse tree in a labelled parent node
+    struct Group final : ParseFn {
+        explicit Group(const Production p, spParseFn f) : production(p), fn(f) {}
+        Production production;
+        spParseFn fn;
+        bool operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) override;
+    };
+    std::shared_ptr<Group> group(const Production production, spParseFn fn);
 }
 
 #endif // PARSER_H

@@ -21,6 +21,10 @@ namespace basis {
     public:
         ParseTree(Production p) : production(p) {}
         ParseTree(Production p, const Token* pT) : production(p), pToken(pT) {}
+        // test support
+        ParseTree(Production p, const Token* pT, spParseTree spN): production(p), pToken(pT), spNext(spN)  {}
+        ParseTree(Production p, const Token* pT, spParseTree spN, spParseTree spD)
+            : production(p), pToken(pT), spNext(spN), spDown(spD) {}
         Production production;
         spParseTree spNext;
         spParseTree spDown;

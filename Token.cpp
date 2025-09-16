@@ -7,5 +7,5 @@ bool basis::operator==(const Token& lhs, const Token& rhs) {
         && lhs.text == rhs.text
         && lhs.lineNumber == rhs.lineNumber
         && lhs.columnNumber == rhs.columnNumber
-        && (lhs.bound == nullptr && rhs.bound == nullptr || lhs.bound == rhs.bound );
+        && (lhs.bound == nullptr && rhs.bound == nullptr || *lhs.bound == *rhs.bound );
 }

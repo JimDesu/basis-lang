@@ -90,7 +90,7 @@ bool All::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLim
     return true;
 }
 
-std::shared_ptr<All> basis::all(const Production production, const std::vector<spParseFn> fns) {
+std::shared_ptr<All> basis::all(const std::vector<spParseFn> fns) {
     return std::make_shared<All>(fns);
 }
 
@@ -105,15 +105,15 @@ bool OneOrMore::operator()(spParseTree** dpspResult, itToken* pIter, const Token
     return true;
 }
 
-std::shared_ptr<OneOrMore> basis::oneOrMore(const Production production, spParseFn fn) {
+std::shared_ptr<OneOrMore> basis::oneOrMore(spParseFn fn) {
     return std::make_shared<OneOrMore>(fn);
 }
 
-bool Head::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+bool Bound::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
     return (*fn)(dpspResult, pIter, (*pIter)->bound);
 }
 
-std::shared_ptr<Head> basis::head(spParseFn fn) {
-    return std::make_shared<Head>(fn);
+std::shared_ptr<Bound> basis::bound(spParseFn fn) {
+    return std::make_shared<Bound>(fn);
 }
 
