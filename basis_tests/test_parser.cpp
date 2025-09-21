@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include "doctest.h"
 
 #include <vector>
@@ -121,4 +119,21 @@ TEST_CASE("test repeating match") {
                 std::make_shared<ParseTree>(Production::temp2, &IDENT_EXPECTED,
                     std::make_shared<ParseTree>(Production::VARNAME, &COMMA_EXPECTED ) ))}
     );
+}
+
+TEST_CASE("test bound match") {
+    std::list<Token> tokens;
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
+    tokens.front().bound = &tokens.back();
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
+    Parser parser(tokens,true);
+    parser.setParseFn( bound(oneOrMore(match(Production::VARNAME, parser,TokenType::IDENTIFIER))) );
+    CHECK( parser.parse() );
+    // can't reuse the expected items because one has a bound and the other doesn't
+    Token& EXPECTED1 = tokens.front();
+    Token& EXPECTED2 = tokens.back();
+    ParseTree c =
+        ParseTree { Production::VARNAME, &EXPECTED1,
+            std::make_shared<ParseTree>(Production::VARNAME, &EXPECTED2) };
+    CHECK( *parser.parseTree == c );
 }

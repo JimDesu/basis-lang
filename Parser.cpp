@@ -117,7 +117,18 @@ std::shared_ptr<Bound> basis::bound(spParseFn fn) {
     return std::make_shared<Bound>(fn);
 }
 
-// TODO
-bool Group::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {}
-std::shared_ptr<Group> basis::group(const Production production, spParseFn fn) {}
+bool Group::operator()(spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+    spParseTree *target = *dpspResult;
+    (*target) = std::make_shared<ParseTree>(production);
+    spParseTree* down = &(*target)->spDown;
+    if ( (*fn)(&down, pIter, pLimit) ) {
+        return true;
+    }
+    target->reset();
+    return false;
+}
+
+std::shared_ptr<Group> basis::group(const Production production, spParseFn fn) {
+    return std::make_shared<Group>(production, fn);
+}
 
