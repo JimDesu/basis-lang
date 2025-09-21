@@ -19,8 +19,8 @@ namespace basis {
     // generic parse tree representation
     class ParseTree {
     public:
-        ParseTree(Production p) : production(p) {}
-        ParseTree(Production p, const Token* pT) : production(p), pToken(pT) {}
+        ParseTree(Production p) : production(p), spNext(nullptr), spDown(nullptr), pToken(nullptr) {}
+        ParseTree(Production p, const Token* pT) : production(p), spNext(nullptr), spDown(nullptr), pToken(pT) {}
         // test support
         ParseTree(Production p, const Token* pT, spParseTree spN): production(p), pToken(pT), spNext(spN)  {}
         ParseTree(Production p, const Token* pT, spParseTree spN, spParseTree spD)

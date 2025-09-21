@@ -93,7 +93,7 @@ namespace basis {
     };
     std::shared_ptr<Bound> bound(spParseFn fn);
 
-    // group a parse tree in a labelled parent node
+    // group a parse tree into a labelled parent node
     struct Group final : ParseFn {
         Group(const Production p, spParseFn f) : production(p), fn(f) {}
         Production production;
