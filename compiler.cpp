@@ -23,6 +23,7 @@ int compile(std::vector<std::string> arguments) {
         std::cerr << "Error scanning input file: " << ctx.options.filename << std::endl;
         return 1;
     }
+    // TODO replace with Parser2
     Parser parser(lexer.output);
 
     return 0;
