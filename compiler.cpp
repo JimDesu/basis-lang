@@ -5,7 +5,7 @@
 #include "compiler.h"
 #include "CompilerContext.h"
 #include "Lexer.h"
-#include "Parser.h"
+//#include "Parser.h"
 
 
 int compile(std::vector<std::string> arguments) {
@@ -23,8 +23,8 @@ int compile(std::vector<std::string> arguments) {
         std::cerr << "Error scanning input file: " << ctx.options.filename << std::endl;
         return 1;
     }
-    // TODO replace with Parser2
-    Parser parser(lexer.output);
+    // TODO replace with template-based Parser
+    //Parser parser(lexer.output);
 
     return 0;
 }

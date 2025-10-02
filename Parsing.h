@@ -1,5 +1,5 @@
-#ifndef PARSER2_H
-#define PARSER2_H
+#ifndef PARSING_H
+#define PARSING_H
 
 #include <list>
 #include <vector>
@@ -15,9 +15,9 @@ namespace basis {
 
     // Template metaprogramming parser using compile-time dispatch
     template<typename ParseFnType>
-    class Parser2 {
+    class Parser {
     public:
-        explicit Parser2(const std::list<Token>& tokens) : tokens(tokens) {}
+        explicit Parser(const std::list<Token>& tokens) : tokens(tokens) {}
 
         bool parse() {
             itToken start = tokens.cbegin();
@@ -171,4 +171,4 @@ namespace basis {
 
 }
 
-#endif // PARSER2_H
+#endif // PARSING_H
