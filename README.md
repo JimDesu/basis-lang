@@ -190,7 +190,8 @@ Control flow in Basis is determined by some other markers.
 |   %    | "block" | Groups a serious of commands into a logical block. |
 |   ^    | "rewind" | Rewinds execution to the previous governing item at the same level.  Read as "rewind when" if this governs a block. |
 |   ^?   | "continue" | Rewind execution to the governing conditional until that conditional isn't satisfied. If this governs a block, don't rewind if the block fails. |
-|   \|   | "recover" | Recover (potentially conditionally) from a failure |
+|   \|   | "recover" | Recover from a failure |
+|   \|-  | "recover" | Recover from a particular failure |
 |   @    | "at exit" | Run the tagged command at the end of current scope
 |  @!    | "at fail-exit" | Run the tagged command at the end of current scope, but only in a failure condition
 
