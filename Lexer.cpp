@@ -299,7 +299,13 @@ bool Lexer::readPunct() {
         }
         break;
     case '^':
-        pToken->type = TokenType::CARAT;
+        if ( input.good() && input.peek() == '?' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::CARATQ;
+        } else {
+            pToken->type = TokenType::CARAT;
+        }
         break;
     case ',':
         pToken->type = TokenType::COMMA;
@@ -326,11 +332,23 @@ bool Lexer::readPunct() {
     case '[':
         pToken->type = TokenType::LBRACKET;
         break;
+    case '%':
+        pToken->type = TokenType::PERCENT;
+        break;
     case '(':
         pToken->type = TokenType::LPAREN;
         break;
     case '-':
         pToken->type = TokenType::MINUS;
+        break;
+    case '|':
+        if ( input.good() && input.peek() == ':' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::PIPECOL;
+        } else {
+            pToken->type = TokenType::PIPE;
+        }
         break;
     case '+':
         pToken->type = TokenType::PLUS;
@@ -344,6 +362,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::QCOLON;
+        } else if ( input.good() && input.peek() == '-' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::QMINUS;
         } else {
             pToken->type = TokenType::QMARK;
         }

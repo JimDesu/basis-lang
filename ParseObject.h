@@ -2,7 +2,6 @@
 #define PARSEOBJECT_H
 
 #include <memory>
-#include <variant>
 
 #include "Token.h"
 
@@ -13,7 +12,7 @@ namespace basis {
         temp2
     };
 
-    struct ParseTree;
+    class ParseTree;
     using spParseTree = std::shared_ptr<ParseTree>;
 
     // generic parse tree representation
