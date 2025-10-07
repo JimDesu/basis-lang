@@ -6,7 +6,6 @@
 #include <memory>
 #include <type_traits>
 
-#include "Grammar.h"
 #include "ParseObject.h"
 #include "Token.h"
 
