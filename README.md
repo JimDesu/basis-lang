@@ -1,7 +1,7 @@
 # The Basis Programming Language.  
 
 ## Introduction
-There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is a "pure" imperative programming language that's simple to learn and easy to read.  In a world that depends on open source code, clarity is king.  
+There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is a "pure" imperative programming language that's simple to learn and easy to read.  In a world that depends on open source code now -- and will soon depend on LLM tokens for productivity -- clarity and concision are paramount.  
 
 Guiding Principles:
 - Strong typing saves lives &#9786;
