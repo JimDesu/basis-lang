@@ -6,6 +6,7 @@
 namespace basis {
     // production rule identifiers
     enum class Production {
+        // ----- basic tokens -----
         // literals
         DECIMAL,
         HEXNUMBER,
@@ -55,6 +56,8 @@ namespace basis {
         RBRACKET,
         RPAREN,
         SLASH,
+        // ----- top-level definitions -----
+
     };
 
     // Parser type aliases for each Production
