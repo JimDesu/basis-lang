@@ -60,7 +60,7 @@ namespace basis {
 
     };
 
-    // Parser type aliases for each Production
+    /* Parser types for basic tokens */
     // literals
     using DECIMAL = Parser<Match<Production::DECIMAL, TokenType::DECIMAL>>;
     using HEXNUMBER = Parser<Match<Production::HEXNUMBER, TokenType::HEXNUMBER>>;
@@ -110,6 +110,8 @@ namespace basis {
     using RBRACKET = Parser<Match<Production::RBRACKET, TokenType::RBRACKET>>;
     using RPAREN = Parser<Match<Production::RPAREN, TokenType::RPAREN>>;
     using SLASH = Parser<Match<Production::SLASH, TokenType::SLASH>>;
+
+    /* parser types for toplevel definitions */
 
 }
 
