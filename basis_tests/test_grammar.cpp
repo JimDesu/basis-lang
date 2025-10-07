@@ -13,333 +13,70 @@ namespace {
         lexer.scan();
         return lexer.output;
     }
+
+    template<typename ParserType>
+    auto parseText(const std::string& text) {
+        ParserType parser(tokenize(text));
+        CHECK(parser.parse());
+        return parser.parseTree;
+    }
 }
 
 TEST_CASE("test parse literals") {
-    // DECIMAL
-    {
-        DECIMAL parser(tokenize("3.14"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::DECIMAL);
-    }
-
-    // HEXNUMBER
-    {
-        HEXNUMBER parser(tokenize("0x1234"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::HEXNUMBER);
-    }
-
-    // NUMBER
-    {
-        NUMBER parser(tokenize("1234"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::NUMBER);
-    }
-
-    // STRING
-    {
-        STRING parser(tokenize("\"foo\\n\\\"bar's\""));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::STRING);
-    }
+    CHECK(parseText<DECIMAL>("3.14")->production == Production::DECIMAL);
+    CHECK(parseText<HEXNUMBER>("0x1234")->production == Production::HEXNUMBER);
+    CHECK(parseText<NUMBER>("1234")->production == Production::NUMBER);
+    CHECK(parseText<STRING>("\"foo\\n\\\"bar's\"")->production == Production::STRING);
 }
 
 TEST_CASE("test parse identifiers") {
-    // IDENTIFIER
-    {
-        IDENTIFIER parser(tokenize("foobar"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::IDENTIFIER);
-    }
+    CHECK(parseText<IDENTIFIER>("foobar")->production == Production::IDENTIFIER);
 }
 
 TEST_CASE("test parse reserved words") {
-    // ALIAS
-    {
-        ALIAS parser(tokenize(".alias"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::ALIAS);
-    }
-
-    // CLASS
-    {
-        CLASS parser(tokenize(".class"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::CLASS);
-    }
-
-    // COMMAND
-    {
-        COMMAND parser(tokenize(".cmd"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::COMMAND);
-    }
-
-    // DOMAIN
-    {
-        DOMAIN parser(tokenize(".domain"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::DOMAIN);
-    }
-
-    // ENUMERATION
-    {
-        ENUMERATION parser(tokenize(".enum"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::ENUMERATION);
-    }
-
-    // INTRINSIC
-    {
-        INTRINSIC parser(tokenize(".intrinsic"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::INTRINSIC);
-    }
-
-    // OBJECT
-    {
-        OBJECT parser(tokenize(".object"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::OBJECT);
-    }
-
-    // RECORD
-    {
-        RECORD parser(tokenize(".record"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::RECORD);
-    }
+    CHECK(parseText<ALIAS>(".alias")->production == Production::ALIAS);
+    CHECK(parseText<CLASS>(".class")->production == Production::CLASS);
+    CHECK(parseText<COMMAND>(".cmd")->production == Production::COMMAND);
+    CHECK(parseText<DOMAIN>(".domain")->production == Production::DOMAIN);
+    CHECK(parseText<ENUMERATION>(".enum")->production == Production::ENUMERATION);
+    CHECK(parseText<INTRINSIC>(".intrinsic")->production == Production::INTRINSIC);
+    CHECK(parseText<OBJECT>(".object")->production == Production::OBJECT);
+    CHECK(parseText<RECORD>(".record")->production == Production::RECORD);
 }
 
-
-TEST_CASE("test parse punctuation part 1") {
-    // AMBANG
-    {
-        AMBANG parser(tokenize("@!"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::AMBANG);
-    }
-
-    // AMPERSAND
-    {
-        AMPERSAND parser(tokenize("&"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::AMPERSAND);
-    }
-
-    // AMPHORA
-    {
-        AMPHORA parser(tokenize("@"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::AMPHORA);
-    }
-
-    // ASSIGN
-    {
-        ASSIGN parser(tokenize("<-"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::ASSIGN);
-    }
-
-    // ASTERISK
-    {
-        ASTERISK parser(tokenize("*"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::ASTERISK);
-    }
-
-    // BANG
-    {
-        BANG parser(tokenize("!"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::BANG);
-    }
-
-    // BANGLANGLE
-    {
-        BANGLANGLE parser(tokenize("!<"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::BANGLANGLE);
-    }
-
-    // CARAT
-    {
-        CARAT parser(tokenize("^"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::CARAT);
-    }
-
-    // CARATQ
-    {
-        CARATQ parser(tokenize("^?"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::CARATQ);
-    }
-
-    // COMMA
-    {
-        COMMA parser(tokenize(","));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::COMMA);
-    }
-
-    // COLON
-    {
-        COLON parser(tokenize(":"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::COLON);
-    }
-
-    // COLANGLE
-    {
-        COLANGLE parser(tokenize(":<"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::COLANGLE);
-    }
-
-    // DCOLON
-    {
-        DCOLON parser(tokenize("::"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::DCOLON);
-    }
-
-    // EQUALS
-    {
-        EQUALS parser(tokenize("="));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::EQUALS);
-    }
-}
-
-
-TEST_CASE("test parse punctuation part 2") {
-    // LANGLE
-    {
-        LANGLE parser(tokenize("<"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::LANGLE);
-    }
-
-    // LBRACE
-    {
-        LBRACE parser(tokenize("{"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::LBRACE);
-    }
-
-    // LBRACKET
-    {
-        LBRACKET parser(tokenize("["));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::LBRACKET);
-    }
-
-    // LPAREN
-    {
-        LPAREN parser(tokenize("("));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::LPAREN);
-    }
-
-    // MINUS
-    {
-        MINUS parser(tokenize("-"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::MINUS);
-    }
-
-    // PERCENT
-    {
-        PERCENT parser(tokenize("%"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::PERCENT);
-    }
-
-    // PIPE
-    {
-        PIPE parser(tokenize("|"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::PIPE);
-    }
-
-    // PIPECOL
-    {
-        PIPECOL parser(tokenize("|:"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::PIPECOL);
-    }
-
-    // PLUS
-    {
-        PLUS parser(tokenize("+"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::PLUS);
-    }
-
-    // QCOLON
-    {
-        QCOLON parser(tokenize("?:"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::QCOLON);
-    }
-
-    // QLANGLE
-    {
-        QLANGLE parser(tokenize("?<"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::QLANGLE);
-    }
-
-    // QMARK
-    {
-        QMARK parser(tokenize("?"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::QMARK);
-    }
-
-    // QMINUS
-    {
-        QMINUS parser(tokenize("?-"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::QMINUS);
-    }
-
-    // RANGLE
-    {
-        RANGLE parser(tokenize(">"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::RANGLE);
-    }
-
-    // RBRACE
-    {
-        RBRACE parser(tokenize("}"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::RBRACE);
-    }
-
-    // RBRACKET
-    {
-        RBRACKET parser(tokenize("]"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::RBRACKET);
-    }
-
-    // RPAREN
-    {
-        RPAREN parser(tokenize(")"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::RPAREN);
-    }
-
-    // SLASH
-    {
-        SLASH parser(tokenize("/"));
-        CHECK(parser.parse());
-        CHECK(parser.parseTree->production == Production::SLASH);
-    }
+TEST_CASE("test parse punctuation") {
+    CHECK(parseText<AMBANG>("@!")->production == Production::AMBANG);
+    CHECK(parseText<AMPERSAND>("&")->production == Production::AMPERSAND);
+    CHECK(parseText<AMPHORA>("@")->production == Production::AMPHORA);
+    CHECK(parseText<ASSIGN>("<-")->production == Production::ASSIGN);
+    CHECK(parseText<ASTERISK>("*")->production == Production::ASTERISK);
+    CHECK(parseText<BANG>("!")->production == Production::BANG);
+    CHECK(parseText<BANGLANGLE>("!<")->production == Production::BANGLANGLE);
+    CHECK(parseText<CARAT>("^")->production == Production::CARAT);
+    CHECK(parseText<CARATQ>("^?")->production == Production::CARATQ);
+    CHECK(parseText<COMMA>(",")->production == Production::COMMA);
+    CHECK(parseText<COLON>(":")->production == Production::COLON);
+    CHECK(parseText<COLANGLE>(":<")->production == Production::COLANGLE);
+    CHECK(parseText<DCOLON>("::")->production == Production::DCOLON);
+    CHECK(parseText<EQUALS>("=")->production == Production::EQUALS);
+    CHECK(parseText<LANGLE>("<")->production == Production::LANGLE);
+    CHECK(parseText<LBRACE>("{")->production == Production::LBRACE);
+    CHECK(parseText<LBRACKET>("[")->production == Production::LBRACKET);
+    CHECK(parseText<LPAREN>("(")->production == Production::LPAREN);
+    CHECK(parseText<MINUS>("-")->production == Production::MINUS);
+    CHECK(parseText<PERCENT>("%")->production == Production::PERCENT);
+    CHECK(parseText<PIPE>("|")->production == Production::PIPE);
+    CHECK(parseText<PIPECOL>("|:")->production == Production::PIPECOL);
+    CHECK(parseText<PLUS>("+")->production == Production::PLUS);
+    CHECK(parseText<QCOLON>("?:")->production == Production::QCOLON);
+    CHECK(parseText<QLANGLE>("?<")->production == Production::QLANGLE);
+    CHECK(parseText<QMARK>("?")->production == Production::QMARK);
+    CHECK(parseText<QMINUS>("?-")->production == Production::QMINUS);
+    CHECK(parseText<RANGLE>(">")->production == Production::RANGLE);
+    CHECK(parseText<RBRACE>("}")->production == Production::RBRACE);
+    CHECK(parseText<RBRACKET>("]")->production == Production::RBRACKET);
+    CHECK(parseText<RPAREN>(")")->production == Production::RPAREN);
+    CHECK(parseText<SLASH>("/")->production == Production::SLASH);
 }
 
 
