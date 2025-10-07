@@ -7,10 +7,7 @@
 
 namespace basis {
     // production rule identifiers
-    enum class Production {
-        VARNAME,
-        temp2
-    };
+    enum class Production;
 
     class ParseTree;
     using spParseTree = std::shared_ptr<ParseTree>;

@@ -1,4 +1,5 @@
 #include "ParseObject.h"
+#include "Grammar.h"
 #include <stdexcept>
 
 using namespace basis;

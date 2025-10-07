@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <vector>
+#include "../Grammar.h"
 #include "../Parsing.h"
 
 /*
