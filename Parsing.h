@@ -50,7 +50,7 @@ namespace basis {
         const std::list<Token>& tokens;
     };
 
-    // Template-based parse function types
+    // parse function types
     template<TokenType Type>
     struct Discard {
         template<typename ParserType>
