@@ -59,7 +59,6 @@ TEST_CASE("test lex all token types") {
     testSingleToken("&", TokenType::AMPERSAND);
     testSingleToken("@", TokenType::AMPHORA);
     testSingleToken("@!", TokenType::AMBANG);
-    testSingleToken("<-", TokenType::ASSIGN);
     testSingleToken("*", TokenType::ASTERISK);
     testSingleToken("!", TokenType::BANG);
     testSingleToken("!<", TokenType::BANGLANGLE);
@@ -71,6 +70,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken(":", TokenType::COLON);
     testSingleToken("=", TokenType::EQUALS);
     testSingleToken("<", TokenType::LANGLE);
+    testSingleToken("<-", TokenType::LARROW);
     testSingleToken("{", TokenType::LBRACE);
     testSingleToken("[", TokenType::LBRACKET);
     testSingleToken("(", TokenType::LPAREN);
@@ -84,6 +84,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("?", TokenType::QMARK);
     testSingleToken("?-", TokenType::QMINUS);
     testSingleToken(">", TokenType::RANGLE);
+    testSingleToken("->", TokenType::RARROW);
     testSingleToken("}", TokenType::RBRACE);
     testSingleToken("]", TokenType::RBRACKET);
     testSingleToken(")", TokenType::RPAREN);

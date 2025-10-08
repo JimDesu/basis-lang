@@ -48,7 +48,6 @@ TEST_CASE("test parse punctuation") {
     CHECK(parseText<AMBANG>("@!")->production == Production::AMBANG);
     CHECK(parseText<AMPERSAND>("&")->production == Production::AMPERSAND);
     CHECK(parseText<AMPHORA>("@")->production == Production::AMPHORA);
-    CHECK(parseText<ASSIGN>("<-")->production == Production::ASSIGN);
     CHECK(parseText<ASTERISK>("*")->production == Production::ASTERISK);
     CHECK(parseText<BANG>("!")->production == Production::BANG);
     CHECK(parseText<BANGLANGLE>("!<")->production == Production::BANGLANGLE);
@@ -60,6 +59,7 @@ TEST_CASE("test parse punctuation") {
     CHECK(parseText<DCOLON>("::")->production == Production::DCOLON);
     CHECK(parseText<EQUALS>("=")->production == Production::EQUALS);
     CHECK(parseText<LANGLE>("<")->production == Production::LANGLE);
+    CHECK(parseText<LARROW>("<-")->production == Production::LARROW);
     CHECK(parseText<LBRACE>("{")->production == Production::LBRACE);
     CHECK(parseText<LBRACKET>("[")->production == Production::LBRACKET);
     CHECK(parseText<LPAREN>("(")->production == Production::LPAREN);
@@ -73,6 +73,7 @@ TEST_CASE("test parse punctuation") {
     CHECK(parseText<QMARK>("?")->production == Production::QMARK);
     CHECK(parseText<QMINUS>("?-")->production == Production::QMINUS);
     CHECK(parseText<RANGLE>(">")->production == Production::RANGLE);
+    CHECK(parseText<RARROW>("->")->production == Production::RARROW);
     CHECK(parseText<RBRACE>("}")->production == Production::RBRACE);
     CHECK(parseText<RBRACKET>("]")->production == Production::RBRACKET);
     CHECK(parseText<RPAREN>(")")->production == Production::RPAREN);

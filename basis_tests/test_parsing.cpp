@@ -69,17 +69,17 @@ TEST_CASE("test choice match 2") {
 
 TEST_CASE("test sequence match 2") {
     std::list<Token> tokens;
-    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ASSIGN } );
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
     Parser<All<Discard<TokenType::IDENTIFIER>,
                 Discard<TokenType::COLON>,
-                Discard<TokenType::ASSIGN>>> parser(tokens);
+                Discard<TokenType::ALIAS>>> parser(tokens);
     CHECK( parser.parse() );
 }
 
 TEST_CASE("test sequence fail 2") {
     std::list<Token> tokens;
-    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ASSIGN } );
-    Parser<All<Discard<TokenType::ASSIGN>,
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
+    Parser<All<Discard<TokenType::ALIAS>,
                 Discard<TokenType::COLON>>> parser(tokens);
     CHECK_FALSE( parser.parse() );
 }

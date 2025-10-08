@@ -27,7 +27,6 @@ namespace basis {
         AMBANG,
         AMPERSAND,
         AMPHORA,
-        ASSIGN,
         ASTERISK,
         BANG,
         BANGLANGLE,
@@ -39,6 +38,7 @@ namespace basis {
         DCOLON,
         EQUALS,
         LANGLE,
+        LARROW,
         LBRACE,
         LBRACKET,
         LPAREN,
@@ -52,6 +52,7 @@ namespace basis {
         QMARK,
         QMINUS,
         RANGLE,
+        RARROW,
         RBRACE,
         RBRACKET,
         RPAREN,
@@ -81,7 +82,6 @@ namespace basis {
     using AMBANG = Parser<Match<Production::AMBANG, TokenType::AMBANG>>;
     using AMPERSAND = Parser<Match<Production::AMPERSAND, TokenType::AMPERSAND>>;
     using AMPHORA = Parser<Match<Production::AMPHORA, TokenType::AMPHORA>>;
-    using ASSIGN = Parser<Match<Production::ASSIGN, TokenType::ASSIGN>>;
     using ASTERISK = Parser<Match<Production::ASTERISK, TokenType::ASTERISK>>;
     using BANG = Parser<Match<Production::BANG, TokenType::BANG>>;
     using BANGLANGLE = Parser<Match<Production::BANGLANGLE, TokenType::BANGLANGLE>>;
@@ -93,6 +93,7 @@ namespace basis {
     using DCOLON = Parser<Match<Production::DCOLON, TokenType::DCOLON>>;
     using EQUALS = Parser<Match<Production::EQUALS, TokenType::EQUALS>>;
     using LANGLE = Parser<Match<Production::LANGLE, TokenType::LANGLE>>;
+    using LARROW = Parser<Match<Production::LARROW, TokenType::LARROW>>;
     using LBRACE = Parser<Match<Production::LBRACE, TokenType::LBRACE>>;
     using LBRACKET = Parser<Match<Production::LBRACKET, TokenType::LBRACKET>>;
     using LPAREN = Parser<Match<Production::LPAREN, TokenType::LPAREN>>;
@@ -106,6 +107,7 @@ namespace basis {
     using QMARK = Parser<Match<Production::QMARK, TokenType::QMARK>>;
     using QMINUS = Parser<Match<Production::QMINUS, TokenType::QMINUS>>;
     using RANGLE = Parser<Match<Production::RANGLE, TokenType::RANGLE>>;
+    using RARROW = Parser<Match<Production::RARROW, TokenType::RARROW>>;
     using RBRACE = Parser<Match<Production::RBRACE, TokenType::RBRACE>>;
     using RBRACKET = Parser<Match<Production::RBRACKET, TokenType::RBRACKET>>;
     using RPAREN = Parser<Match<Production::RPAREN, TokenType::RPAREN>>;
