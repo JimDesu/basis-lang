@@ -159,3 +159,40 @@ TEST_CASE("test grouping 2") {
             std::make_shared<ParseTree>(Production::SLASH, &EXPECTED,
                 std::make_shared<ParseTree>(Production::SLASH, &EXPECTED )  ))});
 }
+
+TEST_CASE("test bounded group") {
+    std::list<Token> tokens;
+    addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::NUMBER, TokenType::COMMA } );
+    tokens.front().bound = &tokens.back();
+    addTokens(tokens, { TokenType::ALIAS } );
+
+    Parser<BoundedGroup<Production::CARAT,
+        Match<Production::SLASH, TokenType::IDENTIFIER>,
+        Match<Production::SLASH, TokenType::COLON>,
+        Match<Production::SLASH, TokenType::NUMBER>>> parser(tokens);
+    CHECK( parser.parse() );
+    Token& IDENT = tokens.front();
+    auto it = tokens.begin();
+    ++it;
+    Token& COLON = *it;
+    ++it;
+    Token& NUM = *it;
+    CHECK(*parser.parseTree == ParseTree{ Production::CARAT, nullptr, nullptr,
+        std::make_shared<ParseTree>(Production::SLASH, &IDENT,
+            std::make_shared<ParseTree>(Production::SLASH, &COLON,
+                std::make_shared<ParseTree>(Production::SLASH, &NUM)))});
+
+    Parser<All<BoundedGroup<Production::CARAT,
+                   Match<Production::SLASH, TokenType::IDENTIFIER>,
+                   Match<Production::SLASH, TokenType::COLON>,
+                   Match<Production::SLASH, TokenType::NUMBER>>,
+               Match<Production::SLASH, TokenType::COMMA>>> parser2(tokens);
+    CHECK( parser2.parse() );
+    ++it;
+    Token& COMMA = *it;
+    CHECK(*parser2.parseTree == ParseTree{ Production::CARAT, nullptr,
+        std::make_shared<ParseTree>(Production::SLASH, &COMMA),
+        std::make_shared<ParseTree>(Production::SLASH, &IDENT,
+            std::make_shared<ParseTree>(Production::SLASH, &COLON,
+                std::make_shared<ParseTree>(Production::SLASH, &NUM)))});
+}

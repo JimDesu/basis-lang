@@ -168,6 +168,14 @@ namespace basis {
         }
     };
 
+    template<Production Prod, typename... ParseFnTypes>
+    struct BoundedGroup {
+        template<typename ParserType>
+        static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+            return Group<Prod, Bound<All<ParseFnTypes...>>>::parse(parser, dpspResult, pIter, pLimit);
+        }
+    };
+
 
 }
 
