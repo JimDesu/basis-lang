@@ -20,6 +20,12 @@ namespace {
         CHECK(parser.parse());
         return parser.parseTree;
     }
+
+    template<typename ParserType>
+    void parseFail(const std::string& text) {
+        ParserType parser(tokenize(text));
+        CHECK_FALSE(parser.parse());
+    }
 }
 
 TEST_CASE("test parse literals") {
@@ -27,6 +33,10 @@ TEST_CASE("test parse literals") {
     CHECK(parseText<HEXNUMBER>("0x1234")->production == Production::HEXNUMBER);
     CHECK(parseText<NUMBER>("1234")->production == Production::NUMBER);
     CHECK(parseText<STRING>("\"foo\\n\\\"bar's\"")->production == Production::STRING);
+    parseFail<DECIMAL>("3.14.56");
+    parseFail<HEXNUMBER>("0x12345");
+    parseFail<NUMBER>("1234.56");
+    parseFail<STRING>("\"foo\nbar\"");
 }
 
 TEST_CASE("test parse identifiers") {
