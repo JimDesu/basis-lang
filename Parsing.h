@@ -2,9 +2,7 @@
 #define PARSING_H
 
 #include <list>
-#include <vector>
 #include <memory>
-#include <type_traits>
 
 #include "ParseObject.h"
 #include "Token.h"
@@ -17,21 +15,20 @@ namespace basis {
     template<typename ParseFnType>
     class Parser;
 
-    // Type trait to unwrap Parser<T> to T, or leave T as-is if not a Parser
+    // Type trait unwrapper so the parse functions can take either parse functions or a parser instance as
+    // an argument (to keep the grammar clean)
     template<typename T>
     struct UnwrapParser {
         using type = T;
     };
-
     template<typename ParseFnType>
     struct UnwrapParser<Parser<ParseFnType>> {
         using type = ParseFnType;
     };
-
     template<typename T>
     using unwrap = typename UnwrapParser<T>::type;
 
-    // Template metaprogramming parser using compile-time dispatch
+    // the actual parser for the given parse function types
     template<typename ParseFnType>
     class Parser {
     public:
