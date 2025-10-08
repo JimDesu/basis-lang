@@ -93,5 +93,7 @@ TEST_CASE("test parse punctuation") {
 TEST_CASE("test parse enum definition") {
     CHECK(parseText<DEF_ENUM>(".enum T fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
     CHECK(parseText<DEF_ENUM>(".enum fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
+    parseFail<DEF_ENUM>(".enum A B fish: Sockeye = 0, Salmon = 1");
+    parseFail<DEF_ENUM>(".enum A B fish: Sockeye, Salmon");
 }
 
