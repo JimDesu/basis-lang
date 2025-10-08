@@ -13,6 +13,24 @@ namespace basis {
 
     using itToken = std::list<Token>::const_iterator;
 
+    // Forward declaration
+    template<typename ParseFnType>
+    class Parser;
+
+    // Type trait to unwrap Parser<T> to T, or leave T as-is if not a Parser
+    template<typename T>
+    struct UnwrapParser {
+        using type = T;
+    };
+
+    template<typename ParseFnType>
+    struct UnwrapParser<Parser<ParseFnType>> {
+        using type = ParseFnType;
+    };
+
+    template<typename T>
+    using unwrap = typename UnwrapParser<T>::type;
+
     // Template metaprogramming parser using compile-time dispatch
     template<typename ParseFnType>
     class Parser {
@@ -66,9 +84,11 @@ namespace basis {
 
     template<typename ParseFnType>
     struct Maybe {
+        using UnwrappedParseFn = unwrap<ParseFnType>;
+
         template<typename ParserType>
         static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
-            return ParseFnType::parse(parser, dpspResult, pIter, pLimit) || true;
+            return UnwrappedParseFn::parse(parser, dpspResult, pIter, pLimit) || true;
         }
     };
 
@@ -80,7 +100,7 @@ namespace basis {
                 return false;
             } else {
                 itToken start = *pIter;
-                return try_parse<ParseFnTypes...>(parser, dpspResult, pIter, pLimit, start);
+                return try_parse<unwrap<ParseFnTypes>...>(parser, dpspResult, pIter, pLimit, start);
             }
         }
 
@@ -107,7 +127,7 @@ namespace basis {
             if constexpr (sizeof...(ParseFnTypes) == 0) {
                 return true;
             } else {
-                bool result = parse_all<ParseFnTypes...>(parser, next, pIter, pLimit);
+                bool result = parse_all<unwrap<ParseFnTypes>...>(parser, next, pIter, pLimit);
                 *dpspResult = next;
                 return result;
             }
@@ -130,14 +150,44 @@ namespace basis {
 
     template<typename ParseFnType>
     struct OneOrMore {
+        using UnwrappedParseFn = unwrap<ParseFnType>;
+
         template<typename ParserType>
         static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
-            if (!ParseFnType::parse(parser, dpspResult, pIter, pLimit)) {
+            if (!UnwrappedParseFn::parse(parser, dpspResult, pIter, pLimit)) {
                 return false;
             }
             spParseTree* next = *dpspResult;
             if (*next) next = &((*next)->spNext);
-            while (ParseFnType::parse(parser, &next, pIter, pLimit)) {
+            while (UnwrappedParseFn::parse(parser, &next, pIter, pLimit)) {
+                if (*next) next = &((*next)->spNext);
+            }
+            *dpspResult = next;
+            return true;
+        }
+    };
+
+    template<typename ParseFnType, typename SeparatorFnType>
+    struct Separated {
+        using UnwrappedParseFn = unwrap<ParseFnType>;
+        using UnwrappedSeparatorFn = unwrap<SeparatorFnType>;
+
+        template<typename ParserType>
+        static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+            if (!UnwrappedParseFn::parse(parser, dpspResult, pIter, pLimit)) {
+                return false;
+            }
+            spParseTree* next = *dpspResult;
+            if (*next) next = &((*next)->spNext);
+            while (true) {
+                itToken beforeSep = *pIter;
+                if (!UnwrappedSeparatorFn::parse(parser, &next, pIter, pLimit)) {
+                    break;
+                }
+                if (!UnwrappedParseFn::parse(parser, &next, pIter, pLimit)) {
+                    *pIter = beforeSep;
+                    break;
+                }
                 if (*next) next = &((*next)->spNext);
             }
             *dpspResult = next;
@@ -147,20 +197,24 @@ namespace basis {
 
     template<typename ParseFnType>
     struct Bound {
+        using UnwrappedParseFn = unwrap<ParseFnType>;
+
         template<typename ParserType>
         static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
-            return ParseFnType::parse(parser, dpspResult, pIter, (*pIter)->bound);
+            return UnwrappedParseFn::parse(parser, dpspResult, pIter, (*pIter)->bound);
         }
     };
 
     template<Production Prod, typename ParseFnType>
     struct Group {
+        using UnwrappedParseFn = unwrap<ParseFnType>;
+
         template<typename ParserType>
         static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
             spParseTree* target = *dpspResult;
             (*target) = std::make_shared<ParseTree>(Prod);
             spParseTree* down = &(*target)->spDown;
-            if (ParseFnType::parse(parser, &down, pIter, pLimit)) {
+            if (UnwrappedParseFn::parse(parser, &down, pIter, pLimit)) {
                 return true;
             }
             target->reset();
@@ -172,7 +226,7 @@ namespace basis {
     struct BoundedGroup {
         template<typename ParserType>
         static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
-            return Group<Prod, Bound<All<ParseFnTypes...>>>::parse(parser, dpspResult, pIter, pLimit);
+            return Group<Prod, Bound<All<unwrap<ParseFnTypes>...>>>::parse(parser, dpspResult, pIter, pLimit);
         }
     };
 

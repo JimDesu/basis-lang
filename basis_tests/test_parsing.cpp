@@ -196,3 +196,65 @@ TEST_CASE("test bounded group") {
             std::make_shared<ParseTree>(Production::SLASH, &COLON,
                 std::make_shared<ParseTree>(Production::SLASH, &NUM)))});
 }
+
+TEST_CASE("test separated") {
+    std::list<Token> tokens;
+    addTokens(tokens, { TokenType::IDENTIFIER } );
+
+    Parser<Separated<Match<Production::SLASH, TokenType::IDENTIFIER>,
+                     Discard<TokenType::COMMA>>> parser(tokens);
+    CHECK( parser.parse() );
+    Token& IDENT1 = tokens.front();
+    CHECK(*parser.parseTree == ParseTree{ Production::SLASH, &IDENT1 });
+
+    std::list<Token> tokens2;
+    addTokens(tokens2, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER } );
+    Parser<Separated<Match<Production::SLASH, TokenType::IDENTIFIER>,
+                     Discard<TokenType::COMMA>>> parser2(tokens2);
+    CHECK( parser2.parse() );
+    Token& IDENT2_1 = tokens2.front();
+    Token& IDENT2_2 = tokens2.back();
+    CHECK(*parser2.parseTree == ParseTree{ Production::SLASH, &IDENT2_1,
+        std::make_shared<ParseTree>(Production::SLASH, &IDENT2_2) });
+
+    std::list<Token> tokens3;
+    addTokens(tokens3, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER,
+                         TokenType::COMMA, TokenType::IDENTIFIER } );
+    Parser<Separated<Match<Production::SLASH, TokenType::IDENTIFIER>,
+                     Discard<TokenType::COMMA>>> parser3(tokens3);
+    CHECK( parser3.parse() );
+    auto it3 = tokens3.begin();
+    Token& IDENT3_1 = *it3;
+    ++it3; ++it3;
+    Token& IDENT3_2 = *it3;
+    ++it3; ++it3;
+    Token& IDENT3_3 = *it3;
+    CHECK(*parser3.parseTree == ParseTree{ Production::SLASH, &IDENT3_1,
+        std::make_shared<ParseTree>(Production::SLASH, &IDENT3_2,
+            std::make_shared<ParseTree>(Production::SLASH, &IDENT3_3)) });
+
+    std::list<Token> tokens4;
+    addTokens(tokens4, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER,
+                         TokenType::COLON } );
+    Parser<All<Separated<Match<Production::SLASH, TokenType::IDENTIFIER>,
+                         Discard<TokenType::COMMA>>,
+               Match<Production::CARAT, TokenType::COLON>>> parser4(tokens4);
+    CHECK( parser4.parse() );
+    auto it4 = tokens4.begin();
+    Token& IDENT4_1 = *it4;
+    ++it4; ++it4;
+    Token& IDENT4_2 = *it4;
+    ++it4;
+    Token& COLON4 = *it4;
+    CHECK(*parser4.parseTree == ParseTree{ Production::SLASH, &IDENT4_1,
+        std::make_shared<ParseTree>(Production::SLASH, &IDENT4_2,
+            std::make_shared<ParseTree>(Production::CARAT, &COLON4)) });
+
+    std::list<Token> tokens5;
+    addTokens(tokens5, { TokenType::IDENTIFIER, TokenType::COMMA } );
+    Parser<Separated<Match<Production::SLASH, TokenType::IDENTIFIER>,
+                     Discard<TokenType::COMMA>>> parser5(tokens5);
+    CHECK( parser5.parse() );
+    Token& IDENT5 = tokens5.front();
+    CHECK(*parser5.parseTree == ParseTree{ Production::SLASH, &IDENT5 });
+}

@@ -57,8 +57,15 @@ namespace basis {
         RBRACKET,
         RPAREN,
         SLASH,
-        // ----- top-level definitions -----
+        // ----- regular productions -----
+        LITERAL,
 
+        DEF_ENUM,
+        DEF_ENUM_NAME1,
+        DEF_ENUM_NAME2,
+        DEF_ENUM_ITEM,
+        DEF_ENUM_ITEM_NAME,
+        DEF_ENUM_ITEM_LIST
     };
 
     /* Parser types for basic tokens */
@@ -113,8 +120,15 @@ namespace basis {
     using RPAREN = Parser<Match<Production::RPAREN, TokenType::RPAREN>>;
     using SLASH = Parser<Match<Production::SLASH, TokenType::SLASH>>;
 
-    /* parser types for toplevel definitions */
+    using LITERAL = Parser<Any<DECIMAL, HEXNUMBER, NUMBER, STRING>>;
 
+    using DEF_ENUM_ITEM_NAME = Parser<Match<Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER>>;
+    using DEF_ENUM_ITEM = Parser<All<DEF_ENUM_ITEM_NAME, EQUALS, LITERAL>>;
+    using DEF_ENUM_ITEM_LIST = Parser<Separated<DEF_ENUM_ITEM, COMMA>>;
+    using DEF_ENUM_NAME2 = Parser<Maybe<Match<Production::DEF_ENUM_NAME2, TokenType::IDENTIFIER>>>;
+    using DEF_ENUM_NAME1 = Parser<Match<Production::DEF_ENUM_NAME1, TokenType::IDENTIFIER>>;
+    using DEF_ENUM = Parser<BoundedGroup<Production::DEF_ENUM,
+                         ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2 , COLON, DEF_ENUM_ITEM_LIST>>;
 }
 
 #endif // GRAMMAR_H
