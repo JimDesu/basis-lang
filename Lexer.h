@@ -18,7 +18,7 @@ namespace basis {
                 reads { &readComment, &readWhitespace, &readHex, &readNumeric,
                     &readIdentifier, &readResWord, &readString, &readPunct } {}
             ~Lexer();
-            std::list<Token> output;
+            std::list<spToken> output;
             bool scan();
         private:
             static bool isIdentifierChar(char c);
@@ -26,12 +26,12 @@ namespace basis {
             const static std::map<std::string, TokenType> resWords;
             constexpr static int fnCount{ 8 };
             std::istream& input;
-            std::stack<Token*> indents;
+            std::stack<spToken> indents;
             size_t lineNumber;
             size_t columnNumber;
             char readChar;
             bool read();
-            Token* nextToken();
+            spToken nextToken();
             // check functions... if one of these returns true, the concomitant read function must succeed.
             // These are listed in correct lexing order; e.g. reserved words start with '.', and have to be
             // lexed before general punctuation

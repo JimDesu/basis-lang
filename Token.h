@@ -3,8 +3,12 @@
 
 #include <cstddef>
 #include <string>
+#include <memory>
 
 namespace basis {
+    class Token;
+    using spToken = std::shared_ptr<Token>;
+
     enum class TokenType {
         _NOTHING,
         // literals
@@ -65,7 +69,7 @@ namespace basis {
         std::string text;
         size_t lineNumber;
         size_t columnNumber;
-        Token* bound;
+        spToken bound;
         Token() : type(TokenType::_NOTHING), lineNumber(0), columnNumber(0), bound(nullptr) {}
     };
 

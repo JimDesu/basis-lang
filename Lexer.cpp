@@ -47,10 +47,10 @@ bool Lexer::read() {
     return true;
 }
 
-Token* Lexer::nextToken() {
+spToken Lexer::nextToken() {
     // record and initialize the token
-    output.emplace_back();
-    Token* pToken = &output.back();
+    spToken pToken = std::make_shared<Token>();
+    output.push_back(pToken);
     pToken->lineNumber = lineNumber;
     pToken->columnNumber = columnNumber;
     // handle indent-based scope bounding
@@ -122,7 +122,7 @@ bool Lexer::readWhitespace() {
 bool Lexer::readHex() {
     // read hexadecimals before numerics
     if( read()) {
-        Token* pToken = nextToken();
+        spToken pToken = nextToken();
         pToken->columnNumber -= 1; // correct for the extra 'x' character
         pToken->type = TokenType::HEXNUMBER;
         size_t hexDigitCount = 0;
@@ -133,7 +133,7 @@ bool Lexer::readHex() {
         // ensure we read an even number of digits so we have whole bytes
         if( hexDigitCount % 2 != 0 ) {
             output.pop_back(); // Remove the invalid token from output
-            writeError("invalid hex value", pToken);
+            writeError("invalid hex value", pToken.get());
             return false;
         }
         return true;
@@ -143,7 +143,7 @@ bool Lexer::readHex() {
 
 bool Lexer::readNumeric() {
     // read numerics
-    Token* pToken = nextToken();
+    spToken pToken = nextToken();
     pToken->text += readChar;
     while( input.good() && isdigit(input.peek()) ){
         read();
@@ -163,7 +163,7 @@ bool Lexer::readNumeric() {
     if( input.good() &&
         (input.peek() == '.' || isalpha(input.peek())) ){
         output.pop_back(); // Remove the invalid token from output
-        writeError("invalid number", pToken);
+        writeError("invalid number", pToken.get());
         return false;
     }
     return true;
@@ -171,7 +171,7 @@ bool Lexer::readNumeric() {
 
 bool Lexer::readIdentifier() {
     // read an identifier
-    Token* pToken = nextToken();
+    spToken pToken = nextToken();
     pToken->text += readChar;
     pToken->type = TokenType::IDENTIFIER;
     while( input.good() && isIdentifierChar(input.peek()) && read() ) {
@@ -182,14 +182,14 @@ bool Lexer::readIdentifier() {
 
 bool Lexer::readResWord() {
     // read a reserved word
-    Token* pToken = nextToken();
+    spToken pToken = nextToken();
     pToken->text += readChar;
     while( input.good() && isIdentifierChar(input.peek()) && read() ) {
         pToken->text += readChar;
     }
     auto pv = resWords.find(pToken->text);
     if( pv == resWords.end() ) {
-      writeError("invalid reserved word", pToken);
+      writeError("invalid reserved word", pToken.get());
       output.pop_back(); // Remove the invalid token from output
       return false;
     }
@@ -199,7 +199,7 @@ bool Lexer::readResWord() {
 
 bool Lexer::readString() {
     // read a string
-    Token* pToken = nextToken();
+    spToken pToken = nextToken();
     pToken->type = TokenType::STRING;
     bool foundClosingQuote = false;
     bool isValidString = true;
@@ -254,7 +254,7 @@ bool Lexer::readString() {
         }
     }
     if( !foundClosingQuote || !isValidString ) {
-        writeError("invalid string", pToken);
+        writeError("invalid string", pToken.get());
         output.pop_back(); // Remove the invalid token from output
         return false;
     }
@@ -262,7 +262,7 @@ bool Lexer::readString() {
 }
 
 bool Lexer::readPunct() {
-    Token* pToken = nextToken();
+    spToken pToken = nextToken();
     pToken->text += readChar;
     switch( readChar ) {
     case '&':
@@ -392,7 +392,7 @@ bool Lexer::readPunct() {
         pToken->type = TokenType::SLASH;
         break;
     default:
-        writeError("invalid punctuation", pToken);
+        writeError("invalid punctuation", pToken.get());
         output.pop_back(); // Remove the invalid token from output
         return false;
     }

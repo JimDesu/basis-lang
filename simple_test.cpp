@@ -9,7 +9,7 @@ using namespace basis;
 template<TokenType Type>
 struct SimpleDiscard {
     template<typename ParserType>
-    static bool parse(ParserType& parser, spParseTree** _unused, std::list<Token>::const_iterator* pIter, const Token* pLimit) {
+    static bool parse(ParserType& parser, spParseTree** _unused, std::list<spToken>::const_iterator* pIter, const Token* pLimit) {
         return true; // Simplified for testing
     }
 };
@@ -17,24 +17,25 @@ struct SimpleDiscard {
 template<typename ParseFnType>
 class SimpleParser {
 public:
-    explicit SimpleParser(const std::list<Token>& tokens) : tokens(tokens) {}
-    
+    explicit SimpleParser(const std::list<spToken>& tokens) : tokens(tokens) {}
+
     bool parse() {
         auto start = tokens.cbegin();
         spParseTree* pTree = &parseTree;
         return ParseFnType::parse(*this, &pTree, &start, nullptr);
     }
-    
+
     spParseTree parseTree;
-    
+
 private:
-    const std::list<Token>& tokens;
+    const std::list<spToken>& tokens;
 };
 
 int main() {
-    std::list<Token> tokens;
-    tokens.emplace_back();
-    tokens.back().type = TokenType::IDENTIFIER;
+    std::list<spToken> tokens;
+    spToken token = std::make_shared<Token>();
+    token->type = TokenType::IDENTIFIER;
+    tokens.push_back(token);
     
     SimpleParser<SimpleDiscard<TokenType::IDENTIFIER>> parser(tokens);
     bool result = parser.parse();

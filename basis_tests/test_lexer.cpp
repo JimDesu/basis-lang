@@ -13,7 +13,7 @@ void testLexSingleToken(const std::string& input, TokenType expectedType) {
     basis::Lexer lexer(inputStream);
     CHECK(lexer.scan());
     CHECK(!lexer.output.empty());
-    CHECK(lexer.output.front().type == expectedType);
+    CHECK(lexer.output.front()->type == expectedType);
 }
 
 basis::Lexer lexInput(const std::string& input, bool expectSuccess = true) {
@@ -29,7 +29,7 @@ basis::Lexer lexTokenAfterPrefix(const std::string& prefix, const std::string& t
     std::string input = prefix + tokenText;
     basis::Lexer lexer = lexInput(input);
     CHECK(!lexer.output.empty());
-    CHECK(lexer.output.front().type == expectedType);
+    CHECK(lexer.output.front()->type == expectedType);
     return lexer;
 }
 
@@ -42,7 +42,7 @@ void testSingleToken(const std::string& tokenText, TokenType tokenType) {
     testLexSingleToken(tokenText, tokenType);
 
     // Test with whitespace prefix and verify column number
-    CHECK(lexTokenAfterPrefix(whitespacePrefix, tokenText, tokenType).output.front().columnNumber == 2);
+    CHECK(lexTokenAfterPrefix(whitespacePrefix, tokenText, tokenType).output.front()->columnNumber == 2);
 
     // Test with comment prefix
     lexTokenAfterPrefix(commentPrefix, tokenText, tokenType);
@@ -130,8 +130,8 @@ TEST_CASE("test lex multiple tokens") {
     std::string input = "1234 -5678";
     basis::Lexer lexer = lexInput(input);
     CHECK(!lexer.output.empty());
-    CHECK(lexer.output.front().type == TokenType::NUMBER);
-    CHECK(lexer.output.back().type == TokenType::NUMBER);
+    CHECK(lexer.output.front()->type == TokenType::NUMBER);
+    CHECK(lexer.output.back()->type == TokenType::NUMBER);
 }
 
 TEST_CASE("test lex boundary detection") {
@@ -141,11 +141,11 @@ TEST_CASE("test lex boundary detection") {
     CHECK_EQ(lexer.output.size(),6);
     std::vector<Token*> tokens;
     for (auto& token : lexer.output) {
-        tokens.push_back(&token);
+        tokens.push_back(token.get());
     }
-    CHECK_EQ(tokens[0]->bound, tokens[3]);
-    CHECK_EQ(tokens[1]->bound, tokens[2]);
-    CHECK_EQ(tokens[2]->bound, tokens[3]);
-    CHECK_EQ(tokens[3]->bound, tokens[5]);
-    CHECK_EQ(tokens[4]->bound, tokens[5]);
+    CHECK_EQ(tokens[0]->bound.get(), tokens[3]);
+    CHECK_EQ(tokens[1]->bound.get(), tokens[2]);
+    CHECK_EQ(tokens[2]->bound.get(), tokens[3]);
+    CHECK_EQ(tokens[3]->bound.get(), tokens[5]);
+    CHECK_EQ(tokens[4]->bound.get(), tokens[5]);
 }

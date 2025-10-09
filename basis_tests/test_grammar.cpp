@@ -7,23 +7,23 @@
 using namespace basis;
 
 namespace {
-    std::list<Token> tokenize(const std::string& text) {
+    std::list<spToken> tokenize(const std::string& text) {
         std::istringstream input(text);
         Lexer lexer(input);
         lexer.scan();
         return lexer.output;
     }
 
-    template<typename ParserType>
+    template<typename ParseFnType>
     auto parseText(const std::string& text) {
-        ParserType parser(tokenize(text));
+        Parser<ParseFnType> parser(tokenize(text));
         CHECK(parser.parse());
         return parser.parseTree;
     }
 
-    template<typename ParserType>
+    template<typename ParseFnType>
     void parseFail(const std::string& text) {
-        ParserType parser(tokenize(text));
+        Parser<ParseFnType> parser(tokenize(text));
         CHECK_FALSE(parser.parse());
     }
 }
@@ -94,6 +94,6 @@ TEST_CASE("test parse enum definition") {
     CHECK(parseText<DEF_ENUM>(".enum T fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
     CHECK(parseText<DEF_ENUM>(".enum fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
     parseFail<DEF_ENUM>(".enum A B fish: Sockeye = 0, Salmon = 1");
-    parseFail<DEF_ENUM>(".enum A B fish: Sockeye, Salmon");
+    parseFail<DEF_ENUM>(".enum T fish: Sockeye= 0,\nSalmon = 1");
 }
 
