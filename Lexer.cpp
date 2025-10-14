@@ -80,8 +80,15 @@ bool Lexer::checkNumeric() const {
     return readChar == '-' && input.good() && isdigit(input.peek());
 }
 
+bool Lexer::checkTypename() const {
+    return isupper(readChar);
+}
+
 bool Lexer::checkIdentifier() const {
-    return isalpha(readChar) || (readChar == '\'' && input.good() && isalpha(input.peek()));
+    // Identifier: starts with lowercase letter or apostrophe followed by lowercase letter
+    if (islower(readChar)) return true;
+    if (readChar == '\'' && input.good() && islower(input.peek())) return true;
+    return false;
 }
 
 bool Lexer::checkResWord() const {
@@ -169,8 +176,19 @@ bool Lexer::readNumeric() {
     return true;
 }
 
+bool Lexer::readTypename() {
+    // read a typename (starts with uppercase, no leading apostrophe)
+    spToken pToken = nextToken();
+    pToken->text += readChar;
+    pToken->type = TokenType::TYPENAME;
+    while( input.good() && isIdentifierChar(input.peek()) && read() ) {
+        pToken->text += readChar;
+    }
+    return true;
+}
+
 bool Lexer::readIdentifier() {
-    // read an identifier
+    // read an identifier (starts with lowercase or apostrophe+lowercase)
     spToken pToken = nextToken();
     pToken->text += readChar;
     pToken->type = TokenType::IDENTIFIER;
@@ -285,6 +303,9 @@ bool Lexer::readPunct() {
         } else {
             pToken->type = TokenType::LANGLE;
         }
+        break;
+    case '\'':
+        pToken->type = TokenType::APOSTROPHE;
         break;
     case '*':
         pToken->type = TokenType::ASTERISK;

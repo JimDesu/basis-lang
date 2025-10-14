@@ -18,6 +18,7 @@ namespace basis {
         STRING,
         // identifiers
         IDENTIFIER,
+        TYPENAME,
         // reserved words
         ALIAS,
         CLASS,
@@ -31,7 +32,7 @@ namespace basis {
         AMBANG,
         AMPERSAND,
         AMPHORA,
-        LARROW,
+        APOSTROPHE,
         ASTERISK,
         BANG,
         BANGLANGLE,
@@ -43,6 +44,7 @@ namespace basis {
         DCOLON,
         EQUALS,
         LANGLE,
+        LARROW,
         LBRACE,
         LBRACKET,
         LPAREN,

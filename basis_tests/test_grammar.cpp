@@ -41,6 +41,7 @@ TEST_CASE("test parse literals") {
 
 TEST_CASE("test parse identifiers") {
     CHECK(parseText<IDENTIFIER>("foobar")->production == Production::IDENTIFIER);
+    CHECK(parseText<TYPENAME>("Foobar")->production == Production::TYPENAME);
 }
 
 TEST_CASE("test parse reserved words") {
@@ -91,9 +92,9 @@ TEST_CASE("test parse punctuation") {
 }
 
 TEST_CASE("test parse enum definition") {
-    CHECK(parseText<DEF_ENUM>(".enum T fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
-    CHECK(parseText<DEF_ENUM>(".enum fish: Sockeye = 0, Salmon = 1")->production == Production::DEF_ENUM);
-    parseFail<DEF_ENUM>(".enum A B fish: Sockeye = 0, Salmon = 1");
-    parseFail<DEF_ENUM>(".enum T fish: Sockeye= 0,\nSalmon = 1");
+    CHECK(parseText<DEF_ENUM>(".enum T Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
+    CHECK(parseText<DEF_ENUM>(".enum Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
+    parseFail<DEF_ENUM>(".enum A B fish: sockeye = 0, salmon = 1");
+    parseFail<DEF_ENUM>(".enum T Fish: sockeye= 0,\nsalmon = 1");
+    parseFail<DEF_ENUM>(".enum T Fish: Sockeye= 0, Salmon = 1");
 }
-

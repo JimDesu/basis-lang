@@ -14,9 +14,9 @@ namespace basis {
             explicit Lexer(std::istream& inputStream) :
                 output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
                 checks{ &checkComment, &checkWhitespace, &checkHex, &checkNumeric,
-                    &checkIdentifier, &checkResWord, &checkString, &checkPunct },
+                    &checkTypename, &checkIdentifier, &checkResWord, &checkString, &checkPunct },
                 reads { &readComment, &readWhitespace, &readHex, &readNumeric,
-                    &readIdentifier, &readResWord, &readString, &readPunct } {}
+                    &readTypename, &readIdentifier, &readResWord, &readString, &readPunct } {}
             ~Lexer();
             std::list<spToken> output;
             bool scan();
@@ -24,7 +24,7 @@ namespace basis {
             static bool isIdentifierChar(char c);
             static void writeError(const std::string& message, const Token* pToken);
             const static std::map<std::string, TokenType> resWords;
-            constexpr static int fnCount{ 8 };
+            constexpr static int fnCount{ 9 };
             std::istream& input;
             std::stack<spToken> indents;
             size_t lineNumber;
@@ -45,6 +45,8 @@ namespace basis {
             bool readHex();
             bool checkNumeric() const;
             bool readNumeric();
+            bool checkTypename() const;
+            bool readTypename();
             bool checkIdentifier() const;
             bool readIdentifier();
             bool checkResWord() const;

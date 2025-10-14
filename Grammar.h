@@ -14,6 +14,7 @@ namespace basis {
         STRING,
         // identifiers
         IDENTIFIER,
+        TYPENAME,
         // reserved words
         ALIAS,
         CLASS,
@@ -76,6 +77,7 @@ namespace basis {
     using STRING = Match<Production::STRING, TokenType::STRING>;
     // identifiers
     using IDENTIFIER = Match<Production::IDENTIFIER, TokenType::IDENTIFIER>;
+    using TYPENAME = Match<Production::TYPENAME, TokenType::TYPENAME>;
     // reserved words
     using ALIAS = Match<Production::ALIAS, TokenType::ALIAS>;
     using CLASS = Match<Production::CLASS, TokenType::CLASS>;
@@ -125,8 +127,8 @@ namespace basis {
     using DEF_ENUM_ITEM_NAME = Match<Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER>;
     using DEF_ENUM_ITEM = All<DEF_ENUM_ITEM_NAME, EQUALS, LITERAL>;
     using DEF_ENUM_ITEM_LIST = Separated<DEF_ENUM_ITEM, COMMA>;
-    using DEF_ENUM_NAME2 = Maybe<Match<Production::DEF_ENUM_NAME2, TokenType::IDENTIFIER>>;
-    using DEF_ENUM_NAME1 = Match<Production::DEF_ENUM_NAME1, TokenType::IDENTIFIER>;
+    using DEF_ENUM_NAME2 = Maybe<Match<Production::DEF_ENUM_NAME2, TokenType::TYPENAME>>;
+    using DEF_ENUM_NAME1 = Match<Production::DEF_ENUM_NAME1, TokenType::TYPENAME>;
     using DEF_ENUM = BoundedGroup<Production::DEF_ENUM,
                          ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2 , COLON, DEF_ENUM_ITEM_LIST>;
 }

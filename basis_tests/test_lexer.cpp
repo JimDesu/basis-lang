@@ -54,7 +54,10 @@ TEST_CASE("test lex all token types") {
     testSingleToken("1234", TokenType::NUMBER);
     testSingleToken("1234.5678", TokenType::DECIMAL);
     testSingleToken("0x1234", TokenType::HEXNUMBER);
-    testSingleToken("foobar", TokenType::IDENTIFIER);
+    testSingleToken("fOObAR", TokenType::IDENTIFIER);
+    testSingleToken("'foobar", TokenType::IDENTIFIER);
+    testSingleToken("Foobar", TokenType::TYPENAME);
+    testSingleToken("FooBar", TokenType::TYPENAME);
     testSingleToken("\"foo\\n\\\"bar's\"", TokenType::STRING);
     testSingleToken("&", TokenType::AMPERSAND);
     testSingleToken("@", TokenType::AMPHORA);
@@ -148,4 +151,33 @@ TEST_CASE("test lex boundary detection") {
     CHECK_EQ(tokens[2]->bound.get(), tokens[3]);
     CHECK_EQ(tokens[3]->bound.get(), tokens[5]);
     CHECK_EQ(tokens[4]->bound.get(), tokens[5]);
+}
+
+
+TEST_CASE("test identifier vs typename") {
+    // Identifiers: start with lowercase or apostrophe+lowercase
+    testSingleToken("foo", TokenType::IDENTIFIER);
+    testSingleToken("fooBar", TokenType::IDENTIFIER);
+    testSingleToken("foo_bar", TokenType::IDENTIFIER);
+    testSingleToken("foo123", TokenType::IDENTIFIER);
+    testSingleToken("'fOO", TokenType::IDENTIFIER);
+    testSingleToken("'fooBar", TokenType::IDENTIFIER);
+
+    // Typenames: start with uppercase (no leading apostrophe allowed)
+    testSingleToken("Foo", TokenType::TYPENAME);
+    testSingleToken("FooBar", TokenType::TYPENAME);
+    testSingleToken("Foo_Bar", TokenType::TYPENAME);
+    testSingleToken("FOO", TokenType::TYPENAME);
+    testSingleToken("F", TokenType::TYPENAME);
+    testSingleToken("F123", TokenType::TYPENAME);
+
+    // Test that apostrophe+uppercase is NOT recognized as identifier
+    std::string input = "'Foo";
+    basis::Lexer lexer = lexInput(input);
+    CHECK_EQ(lexer.output.size(), 2);  // Should be apostrophe (punct) + Foo (typename)
+    CHECK_EQ(lexer.output.front()->type, TokenType::APOSTROPHE);
+    auto it = lexer.output.begin();
+    ++it;
+    CHECK_EQ((*it)->type, TokenType::TYPENAME);
+    CHECK_EQ((*it)->text, "Foo");
 }
