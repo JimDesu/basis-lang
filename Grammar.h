@@ -66,7 +66,20 @@ namespace basis {
         DEF_ENUM_NAME2,
         DEF_ENUM_ITEM,
         DEF_ENUM_ITEM_NAME,
-        DEF_ENUM_ITEM_LIST
+        DEF_ENUM_ITEM_LIST,
+
+        DEF_CMD,
+        DEF_CMD_NAME,
+        DEF_CMD_PARMS,
+        DEF_CMD_PARM,
+        DEF_CMD_PARMTYPE_NAME,
+        DEF_CMD_PARMTYPE_EXPR,
+        DEF_CMD_PARM_TYPE,
+        DEF_CMD_PARM_NAME,
+        DEF_CMD_IMPARMS,
+        DEF_CMD_IMPARM,
+        DEF_CMD_RETVAL,
+        DEF_CMD_BODY,
     };
 
     /* Parser types for basic tokens */
@@ -123,7 +136,7 @@ namespace basis {
     using SLASH = Match<Production::SLASH, TokenType::SLASH>;
 
     using LITERAL = Any<DECIMAL, HEXNUMBER, NUMBER, STRING>;
-
+    // enumerations
     using DEF_ENUM_ITEM_NAME = Match<Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER>;
     using DEF_ENUM_ITEM = All<DEF_ENUM_ITEM_NAME, EQUALS, LITERAL>;
     using DEF_ENUM_ITEM_LIST = Separated<DEF_ENUM_ITEM, COMMA>;
@@ -131,6 +144,21 @@ namespace basis {
     using DEF_ENUM_NAME1 = Match<Production::DEF_ENUM_NAME1, TokenType::TYPENAME>;
     using DEF_ENUM = BoundedGroup<Production::DEF_ENUM,
                          ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2 , COLON, DEF_ENUM_ITEM_LIST>;
+    // commands
+
+    using DEF_CMD_BODY = int; //TODO
+    using DEF_CMF_PARMTYPE_EXPR = int; //TODO
+    using DEF_CMD_PARMTYPE_NAME = Match<Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME>;
+    using DEF_CMD_PARM_TYPE = Any<DEF_CMF_PARMTYPE_EXPR, DEF_CMD_PARMTYPE_NAME>;
+    using DEF_CMD_PARM_NAME = Match<Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER>;
+    using DEF_CMD_PARM = All<DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME>;
+    using DEF_CMD_PARMS = Maybe<All<COLON, Separated<DEF_CMD_PARM, COMMA>>>;
+    using DEF_CMD_IMPARMS = Maybe<All<SLASH, Separated<DEF_CMD_PARM, COMMA>>>;
+    using DEF_CMD_RETVAL = Maybe<All<RARROW, DEF_CMD_PARM_NAME>>;
+    using DEF_CMD_NAME = Match<Production::DEF_CMD_NAME, TokenType::IDENTIFIER>;
+    using DEF_CMD = BoundedGroup<Production::DEF_CMD,
+              COMMAND, DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL, DEF_CMD_BODY>;
+
 }
 
 #endif // GRAMMAR_H
