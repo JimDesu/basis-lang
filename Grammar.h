@@ -148,7 +148,9 @@ namespace basis {
 
     using DEF_CMD_BODY = int; //TODO
     using DEF_CMF_PARMTYPE_EXPR = int; //TODO
-    using DEF_CMD_PARMTYPE_NAME = Match<Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME>;
+    using DEF_CMD_PARMTYPE_DECO = Maybe<OneOrMore<Any<AMPHORA, All<LBRACKET, Maybe<NUMBER>, RBRACKET>>>>;
+    using DEF_CMD_PARMTYPE_NAME =
+              All<DEF_CMD_PARMTYPE_DECO, Match<Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME>>;
     using DEF_CMD_PARM_TYPE = Any<DEF_CMF_PARMTYPE_EXPR, DEF_CMD_PARMTYPE_NAME>;
     using DEF_CMD_PARM_NAME = Match<Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER>;
     using DEF_CMD_PARM = All<DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME>;
