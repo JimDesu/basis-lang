@@ -82,6 +82,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken("|", TokenType::PIPE);
     testSingleToken("|:", TokenType::PIPECOL);
     testSingleToken("+", TokenType::PLUS);
+    testSingleToken("#", TokenType::POUND);
     testSingleToken("?:", TokenType::QCOLON);
     testSingleToken("?<", TokenType::QLANGLE);
     testSingleToken("?", TokenType::QMARK);

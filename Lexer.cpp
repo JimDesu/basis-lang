@@ -380,6 +380,9 @@ bool Lexer::readPunct() {
     case '+':
         pToken->type = TokenType::PLUS;
         break;
+    case '#':
+        pToken->type = TokenType::POUND;
+        break;
     case '?':
         if ( input.good() && input.peek() == '<' ) {
             read();

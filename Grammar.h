@@ -48,6 +48,7 @@ namespace basis {
         PIPE,
         PIPECOL,
         PLUS,
+        POUND,
         QCOLON,
         QLANGLE,
         QMARK,
@@ -74,6 +75,7 @@ namespace basis {
         DEF_CMD_PARM,
         DEF_CMD_PARMTYPE_NAME,
         DEF_CMD_PARMTYPE_EXPR,
+        DEF_CMD_PARMTYPE_EXPR_INTR,
         DEF_CMD_PARM_TYPE,
         DEF_CMD_PARM_NAME,
         DEF_CMD_IMPARMS,
@@ -124,6 +126,7 @@ namespace basis {
     using PIPE = Match<Production::PIPE, TokenType::PIPE>;
     using PIPECOL = Match<Production::PIPECOL, TokenType::PIPECOL>;
     using PLUS = Match<Production::PLUS, TokenType::PLUS>;
+    using POUND = Match<Production::POUND, TokenType::POUND>;
     using QCOLON = Match<Production::QCOLON, TokenType::QCOLON>;
     using QLANGLE = Match<Production::QLANGLE, TokenType::QLANGLE>;
     using QMARK = Match<Production::QMARK, TokenType::QMARK>;
@@ -144,13 +147,17 @@ namespace basis {
     using DEF_ENUM_NAME1 = Match<Production::DEF_ENUM_NAME1, TokenType::TYPENAME>;
     using DEF_ENUM = BoundedGroup<Production::DEF_ENUM,
                          ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2 , COLON, DEF_ENUM_ITEM_LIST>;
+
     // commands
 
     using DEF_CMD_BODY = int; //TODO
-    using DEF_CMF_PARMTYPE_EXPR = int; //TODO
     using DEF_CMD_PARMTYPE_DECO = Maybe<OneOrMore<Any<AMPHORA, All<LBRACKET, Maybe<NUMBER>, RBRACKET>>>>;
     using DEF_CMD_PARMTYPE_NAME =
               All<DEF_CMD_PARMTYPE_DECO, Match<Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME>>;
+
+    using DEF_CMD_PARMTYPE_EXPR_INTR = All<DEF_CMD_PARMTYPE_NAME, POUND, TYPENAME >;
+    using DEF_CMF_PARMTYPE_EXPR = All<LPAREN, Any<DEF_CMD_PARMTYPE_EXPR_INTR>, RPAREN>;
+
     using DEF_CMD_PARM_TYPE = Any<DEF_CMF_PARMTYPE_EXPR, DEF_CMD_PARMTYPE_NAME>;
     using DEF_CMD_PARM_NAME = Match<Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER>;
     using DEF_CMD_PARM = All<DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME>;

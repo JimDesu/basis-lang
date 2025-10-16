@@ -79,6 +79,7 @@ TEST_CASE("test parse punctuation") {
     CHECK(parseText<PIPE>("|")->production == Production::PIPE);
     CHECK(parseText<PIPECOL>("|:")->production == Production::PIPECOL);
     CHECK(parseText<PLUS>("+")->production == Production::PLUS);
+    CHECK(parseText<POUND>("#")->production == Production::POUND);
     CHECK(parseText<QCOLON>("?:")->production == Production::QCOLON);
     CHECK(parseText<QLANGLE>("?<")->production == Production::QLANGLE);
     CHECK(parseText<QMARK>("?")->production == Production::QMARK);

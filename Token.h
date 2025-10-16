@@ -53,6 +53,7 @@ namespace basis {
         PIPE,
         PIPECOL,
         PLUS,
+        POUND,
         QCOLON,
         QLANGLE,
         QMARK,
