@@ -70,6 +70,14 @@ namespace basis {
         }
     };
 
+    template<typename ParseFnType>
+    struct Fwd {
+        template<typename ParserType>
+        static bool parse(ParserType& parser, spParseTree** dpspResult, itToken* pIter, const Token* pLimit) {
+            return ParseFnType::parse(parser, dpspResult, pIter, pLimit);
+        }
+    };
+
     template<typename... ParseFnTypes>
     struct Any {
         template<typename ParserType>

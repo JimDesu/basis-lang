@@ -3,11 +3,10 @@
 
 #include <memory>
 
+#include "Productions.h"
 #include "Token.h"
 
 namespace basis {
-    // production rule identifiers
-    enum class Production;
 
     class ParseTree;
     using spParseTree = std::shared_ptr<ParseTree>;
