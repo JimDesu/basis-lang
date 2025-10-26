@@ -1,7 +1,6 @@
 #include "doctest.h"
 
 #include <vector>
-#include "../Grammar2.h"
 #include "../Parsing2.h"
 
 /*
@@ -25,58 +24,50 @@ namespace {
     }
 
     // shared combinators
-    Discard discardIdent(TokenType::IDENTIFIER);
-    Discard discardNumber(TokenType::NUMBER);
-    Discard discardComma(TokenType::COMMA);
-    Discard discardColon(TokenType::COLON);
-    Discard discardAlias(TokenType::ALIAS);
-    Match matchSlashIdent(Production::SLASH, TokenType::IDENTIFIER);
-    Match matchSlashNumber(Production::SLASH, TokenType::NUMBER);
-    Match matchSlashComma(Production::SLASH, TokenType::COMMA);
-    Match matchSlashColon(Production::SLASH, TokenType::COLON);
-    Match matchSlashAlias(Production::SLASH, TokenType::ALIAS);
-    Match matchCaratIdent(Production::CARAT, TokenType::IDENTIFIER);
-    Match matchCaratColon(Production::CARAT, TokenType::COLON);
-    Maybe maybeDiscardNumber(discardNumber);
-    Maybe maybeMatchSlashIdent(matchSlashIdent);
-    OneOrMore oneOrMoreDiscardIdent(discardIdent);
-    OneOrMore oneOrMoreSlashIdent(matchSlashIdent);
-    OneOrMore oneOrMoreCaratIdent(matchCaratIdent);
-    Bound boundOneOrMoreSlashIdent(oneOrMoreSlashIdent);
-    Separated separatedSlashIdentComma(matchSlashIdent, discardComma);
-
-    // Commonly used Any combinators
-    Any anyNumberOrIdent({&matchSlashNumber, &matchSlashIdent});
-
-    // Commonly used All combinators
-    All allIdentColonAlias({&discardIdent, &discardColon, &discardAlias});
-    All allAliasColon({&discardAlias, &discardColon});
-    All allOneOrMoreIdentComma({&oneOrMoreDiscardIdent, &discardComma});
-    All allOneOrMoreSlashIdentComma({&oneOrMoreSlashIdent, &discardComma});
-    All allOneOrMoreIdentSlashComma({&oneOrMoreDiscardIdent, &matchSlashComma});
-    All allOneOrMoreCaratIdentSlashComma({&oneOrMoreCaratIdent, &matchSlashComma});
-    All allBoundIdentTwice({&boundOneOrMoreSlashIdent, &boundOneOrMoreSlashIdent});
-    All allSeparatedCaratColon({&separatedSlashIdentComma, &matchCaratColon});
-
-    // Commonly used Group combinators
-    Group groupSlashOneOrMoreIdent(Production::SLASH, oneOrMoreSlashIdent);
-
-    // Commonly used BoundedGroup combinators
-    BoundedGroup boundedGroupCaratIdentColonNumber(Production::CARAT, {&matchSlashIdent, &matchSlashColon, &matchSlashNumber});
-    All allBoundedGroupComma({&boundedGroupCaratIdentColonNumber, &matchSlashComma});
+    SPFN discardIdent = discard(TokenType::IDENTIFIER);
+    SPFN discardNumber = discard(TokenType::NUMBER);
+    SPFN discardComma = discard(TokenType::COMMA);
+    SPFN discardColon = discard(TokenType::COLON);
+    SPFN discardAlias = discard(TokenType::ALIAS);
+    SPFN matchSlashIdent = match(Production::SLASH, TokenType::IDENTIFIER);
+    SPFN matchSlashNumber = match(Production::SLASH, TokenType::NUMBER);
+    SPFN matchSlashComma = match(Production::SLASH, TokenType::COMMA);
+    SPFN matchSlashColon = match(Production::SLASH, TokenType::COLON);
+    SPFN matchSlashAlias = match(Production::SLASH, TokenType::ALIAS);
+    SPFN matchCaratIdent = match(Production::CARAT, TokenType::IDENTIFIER);
+    SPFN matchCaratColon = match(Production::CARAT, TokenType::COLON);
+    SPFN maybeDiscardNumber = maybe(discardNumber);
+    SPFN maybeMatchSlashIdent = maybe(matchSlashIdent);
+    SPFN oneOrMoreDiscardIdent = oneOrMore(discardIdent);
+    SPFN oneOrMoreSlashIdent = oneOrMore(matchSlashIdent);
+    SPFN oneOrMoreCaratIdent = oneOrMore(matchCaratIdent);
+    SPFN boundOneOrMoreSlashIdent = bound(oneOrMoreSlashIdent);
+    SPFN separatedSlashIdentComma = separated(matchSlashIdent, discardComma);
+    SPFN anyNumberOrIdent = any(matchSlashNumber, matchSlashIdent);
+    SPFN allIdentColonAlias = all(discardIdent, discardColon, discardAlias);
+    SPFN allAliasColon = all(discardAlias, discardColon);
+    SPFN allOneOrMoreIdentComma = all(oneOrMoreDiscardIdent, discardComma);
+    SPFN allOneOrMoreSlashIdentComma = all(oneOrMoreSlashIdent, discardComma);
+    SPFN allOneOrMoreIdentSlashComma = all(oneOrMoreDiscardIdent, matchSlashComma);
+    SPFN allOneOrMoreCaratIdentSlashComma = all(oneOrMoreCaratIdent, matchSlashComma);
+    SPFN allBoundIdentTwice = all(boundOneOrMoreSlashIdent, boundOneOrMoreSlashIdent);
+    SPFN allSeparatedCaratColon = all(separatedSlashIdentComma, matchCaratColon);
+    SPFN groupSlashOneOrMoreIdent = group(Production::SLASH, oneOrMoreSlashIdent);
+    SPFN boundedGroupCaratIdentColonNumber = boundedGroup(Production::CARAT, matchSlashIdent, matchSlashColon, matchSlashNumber);
+    SPFN allBoundedGroupComma = all(boundedGroupCaratIdentColonNumber, matchSlashComma);
 }
 
 TEST_CASE("test least match 2 - Parser2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
-    Parsing2 parser(tokens, discardIdent);
+    Parser parser(tokens, discardIdent);
     CHECK( parser.parse() );
 }
 
 TEST_CASE("test single match 2 - Parser2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
-    Parsing2 parser(tokens, matchSlashIdent);
+    Parser parser(tokens, matchSlashIdent);
     CHECK( parser.parse() );
     CHECK( *parser.parseTree == ParseTree{Production::SLASH, tokens.back().get()} );
 }
@@ -84,18 +75,18 @@ TEST_CASE("test single match 2 - Parser2") {
 TEST_CASE("test simple match fail 2 - Parser2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
-    Parsing2 parser(tokens, discardNumber);
+    Parser parser(tokens, discardNumber);
     CHECK_FALSE( parser.parse() );
 }
 
 TEST_CASE("test maybe match 2 - Parser2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
-    Parsing2 parser(tokens, maybeDiscardNumber);
+    Parser parser(tokens, maybeDiscardNumber);
     CHECK( parser.parse() );
 
     // the failed maybe test shouldn't advance the iterator, so we should be able to match the identifier
-    Parsing2 parser2(tokens, maybeMatchSlashIdent);
+    Parser parser2(tokens, maybeMatchSlashIdent);
     CHECK( parser2.parse() );
     CHECK( *(parser2.parseTree->pToken) == *tokens.back() );
 }
@@ -103,7 +94,7 @@ TEST_CASE("test maybe match 2 - Parser2") {
 TEST_CASE("test choice match 2 - Parser2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
-    Parsing2 parser(tokens, anyNumberOrIdent);
+    Parser parser(tokens, anyNumberOrIdent);
     CHECK( parser.parse() );
     CHECK( *parser.parseTree == ParseTree{Production::SLASH, tokens.back().get()} );
 }
@@ -111,14 +102,14 @@ TEST_CASE("test choice match 2 - Parser2") {
 TEST_CASE("test sequence match 2 - Parser2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
-    Parsing2 parser(tokens, allIdentColonAlias);
+    Parser parser(tokens, allIdentColonAlias);
     CHECK( parser.parse() );
 }
 
 TEST_CASE("test sequence fail 2 - Parser2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
-    Parsing2 parser(tokens, allAliasColon);
+    Parser parser(tokens, allAliasColon);
     CHECK_FALSE( parser.parse() );
 }
 
@@ -127,10 +118,10 @@ TEST_CASE("test repeating match 2 - Parser2") {
     addTokens(tokens,
         { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::COMMA } );
 
-    Parsing2 parser(tokens, allOneOrMoreIdentComma);
+    Parser parser(tokens, allOneOrMoreIdentComma);
     CHECK( parser.parse() );
 
-    Parsing2 parser2(tokens, allOneOrMoreSlashIdentComma);
+    Parser parser2(tokens, allOneOrMoreSlashIdentComma);
     CHECK( parser2.parse() );
     Token* IDENT_EXPECTED = tokens.front().get();
     CHECK( *parser2.parseTree ==
@@ -139,10 +130,10 @@ TEST_CASE("test repeating match 2 - Parser2") {
                 std::make_shared<ParseTree>(Production::SLASH, IDENT_EXPECTED ) )}
     );
 
-    Parsing2 parser3(tokens, allOneOrMoreIdentSlashComma);
+    Parser parser3(tokens, allOneOrMoreIdentSlashComma);
     CHECK( parser3.parse() );
 
-    Parsing2 parser4(tokens, allOneOrMoreCaratIdentSlashComma);
+    Parser parser4(tokens, allOneOrMoreCaratIdentSlashComma);
     CHECK( parser4.parse() );
     Token* COMMA_EXPECTED = tokens.back().get();
     CHECK( *parser4.parseTree ==
@@ -159,7 +150,7 @@ TEST_CASE("test bound match 2 - Parser2") {
     tokens.front()->bound = tokens.back();
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
 
-    Parsing2 parser(tokens, boundOneOrMoreSlashIdent);
+    Parser parser(tokens, boundOneOrMoreSlashIdent);
     CHECK( parser.parse() );
     Token* EXPECTED1 = tokens.front().get();
     Token* EXPECTED2 = tokens.back().get();
@@ -168,7 +159,7 @@ TEST_CASE("test bound match 2 - Parser2") {
             std::make_shared<ParseTree>(Production::SLASH, EXPECTED2) };
     CHECK( *parser.parseTree == c );
 
-    Parsing2 parser2(tokens, allBoundIdentTwice);
+    Parser parser2(tokens, allBoundIdentTwice);
     CHECK( parser2.parse() );
     CHECK( *parser2.parseTree == ParseTree{
     Production::SLASH, EXPECTED1,
@@ -183,7 +174,7 @@ TEST_CASE("test grouping 2 - Parser2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
 
-    Parsing2 parser(tokens, groupSlashOneOrMoreIdent);
+    Parser parser(tokens, groupSlashOneOrMoreIdent);
     CHECK( parser.parse() );
     Token* EXPECTED = tokens.front().get();
     CHECK(*parser.parseTree == ParseTree{ Production::SLASH, nullptr, nullptr,
@@ -198,7 +189,7 @@ TEST_CASE("test bounded group - Parser2") {
     tokens.front()->bound = tokens.back();
     addTokens(tokens, { TokenType::ALIAS } );
 
-    Parsing2 parser(tokens, boundedGroupCaratIdentColonNumber);
+    Parser parser(tokens, boundedGroupCaratIdentColonNumber);
     CHECK( parser.parse() );
     Token* IDENT = tokens.front().get();
     auto it = tokens.begin();
@@ -211,7 +202,7 @@ TEST_CASE("test bounded group - Parser2") {
             std::make_shared<ParseTree>(Production::SLASH, COLON,
                 std::make_shared<ParseTree>(Production::SLASH, NUM)))});
 
-    Parsing2 parser2(tokens, allBoundedGroupComma);
+    Parser parser2(tokens, allBoundedGroupComma);
     CHECK( parser2.parse() );
     ++it;
     Token* COMMA = (*it).get();
@@ -226,14 +217,14 @@ TEST_CASE("test separated - Parser2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER } );
 
-    Parsing2 parser(tokens, separatedSlashIdentComma);
+    Parser parser(tokens, separatedSlashIdentComma);
     CHECK( parser.parse() );
     Token* IDENT1 = tokens.front().get();
     CHECK(*parser.parseTree == ParseTree{ Production::SLASH, IDENT1 });
 
     std::list<spToken> tokens2;
     addTokens(tokens2, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER } );
-    Parsing2 parser2(tokens2, separatedSlashIdentComma);
+    Parser parser2(tokens2, separatedSlashIdentComma);
     CHECK( parser2.parse() );
     Token* IDENT2_1 = tokens2.front().get();
     Token* IDENT2_2 = tokens2.back().get();
@@ -243,7 +234,7 @@ TEST_CASE("test separated - Parser2") {
     std::list<spToken> tokens3;
     addTokens(tokens3, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER,
                          TokenType::COMMA, TokenType::IDENTIFIER } );
-    Parsing2 parser3(tokens3, separatedSlashIdentComma);
+    Parser parser3(tokens3, separatedSlashIdentComma);
     CHECK( parser3.parse() );
     auto it3 = tokens3.begin();
     Token* IDENT3_1 = (*it3).get();
@@ -258,7 +249,7 @@ TEST_CASE("test separated - Parser2") {
     std::list<spToken> tokens4;
     addTokens(tokens4, { TokenType::IDENTIFIER, TokenType::COMMA, TokenType::IDENTIFIER,
                          TokenType::COLON } );
-    Parsing2 parser4(tokens4, allSeparatedCaratColon);
+    Parser parser4(tokens4, allSeparatedCaratColon);
     CHECK( parser4.parse() );
     auto it4 = tokens4.begin();
     Token* IDENT4_1 = (*it4).get();
@@ -272,7 +263,7 @@ TEST_CASE("test separated - Parser2") {
 
     std::list<spToken> tokens5;
     addTokens(tokens5, { TokenType::IDENTIFIER, TokenType::COMMA } );
-    Parsing2 parser5(tokens5, separatedSlashIdentComma);
+    Parser parser5(tokens5, separatedSlashIdentComma);
     CHECK( !parser5.parse() );  // Should fail - trailing separator with no following element
 }
 

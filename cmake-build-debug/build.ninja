@@ -156,12 +156,6 @@ build rebuild_cache: phony CMakeFiles/rebuild_cache.util
 
 build cmake_object_order_depends_target_basis_tests_run: phony || cmake_object_order_depends_target_basis_obj
 
-build basis_tests/CMakeFiles/basis_tests_run.dir/test_grammar.cpp.obj: CXX_COMPILER__basis_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_tests/test_grammar.cpp || cmake_object_order_depends_target_basis_tests_run
-  DEP_FILE = basis_tests\CMakeFiles\basis_tests_run.dir\test_grammar.cpp.obj.d
-  FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
-  OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
-  OBJECT_FILE_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
-
 build basis_tests/CMakeFiles/basis_tests_run.dir/test_grammar2.cpp.obj: CXX_COMPILER__basis_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_tests/test_grammar2.cpp || cmake_object_order_depends_target_basis_tests_run
   DEP_FILE = basis_tests\CMakeFiles\basis_tests_run.dir\test_grammar2.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
@@ -180,12 +174,6 @@ build basis_tests/CMakeFiles/basis_tests_run.dir/test_main.cpp.obj: CXX_COMPILER
   OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
   OBJECT_FILE_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
 
-build basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing.cpp.obj: CXX_COMPILER__basis_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_tests/test_parsing.cpp || cmake_object_order_depends_target_basis_tests_run
-  DEP_FILE = basis_tests\CMakeFiles\basis_tests_run.dir\test_parsing.cpp.obj.d
-  FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
-  OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
-  OBJECT_FILE_DIR = basis_tests\CMakeFiles\basis_tests_run.dir
-
 build basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing2.cpp.obj: CXX_COMPILER__basis_tests_run_unscanned_Debug C$:/Users/jimde/CLionProjects/basis/basis_tests/test_parsing2.cpp || cmake_object_order_depends_target_basis_tests_run
   DEP_FILE = basis_tests\CMakeFiles\basis_tests_run.dir\test_parsing2.cpp.obj.d
   FLAGS = -g -std=gnu++20 -fdiagnostics-color=always
@@ -200,7 +188,7 @@ build basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing2.cpp.obj: CXX_COMP
 #############################################
 # Link the executable basis_tests\basis_tests_run.exe
 
-build basis_tests/basis_tests_run.exe: CXX_EXECUTABLE_LINKER__basis_tests_run_Debug basis_tests/CMakeFiles/basis_tests_run.dir/test_grammar.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_grammar2.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_lexer.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_main.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing2.cpp.obj | libbasis_obj.a || libbasis_obj.a
+build basis_tests/basis_tests_run.exe: CXX_EXECUTABLE_LINKER__basis_tests_run_Debug basis_tests/CMakeFiles/basis_tests_run.dir/test_grammar2.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_lexer.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_main.cpp.obj basis_tests/CMakeFiles/basis_tests_run.dir/test_parsing2.cpp.obj | libbasis_obj.a || libbasis_obj.a
   FLAGS = -g
   LINK_LIBRARIES = libbasis_obj.a  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = basis_tests\CMakeFiles\basis_tests_run.dir

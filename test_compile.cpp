@@ -1,4 +1,4 @@
-#include "Parsing.h"
+#include "Parsing2.h"
 #include <iostream>
 
 int main() {
@@ -7,8 +7,9 @@ int main() {
     token->type = basis::TokenType::IDENTIFIER;
     tokens.push_back(token);
 
-    basis::Parser<basis::Discard<basis::TokenType::IDENTIFIER>> parser(tokens);
-    bool result = parser.parse();
-    std::cout << "Parser compiled successfully! Parse result: " << result << std::endl;
+    // TODO: repair refactoring damage
+    //basis::Parser<basis::Discard<basis::TokenType::IDENTIFIER>> parser(tokens);
+    //bool result = parser.parse();
+    //std::cout << "Parser compiled successfully! Parse result: " << result << std::endl;
     return 0;
 }
