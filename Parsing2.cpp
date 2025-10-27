@@ -8,7 +8,7 @@ namespace basis {
     }
 
     // Parsing2 implementation
-    Parser::Parser(const std::list<spToken>& tokens, SPFN spParseFn)
+    Parser::Parser(const std::list<spToken>& tokens, SPPF spParseFn)
         : tokens(tokens), spfn(spParseFn) {}
 
     bool Parser::parse() {
@@ -30,7 +30,7 @@ namespace basis {
         return false;
     }
 
-    SPFN discard(TokenType type) { return std::make_shared<Discard>(type); }
+    SPPF discard(TokenType type) { return std::make_shared<Discard>(type); }
 
     // Match implementation
     Match::Match(Production prod, TokenType type) : prod(prod), type(type) {}
@@ -47,10 +47,10 @@ namespace basis {
         return false;
     }
 
-    SPFN match(Production prod, TokenType type) { return std::make_shared<Match>(prod, type); }
+    SPPF match(Production prod, TokenType type) { return std::make_shared<Match>(prod, type); }
 
     // Maybe implementation
-    Maybe::Maybe(SPFN spParseFn): spfn(spParseFn) {}
+    Maybe::Maybe(SPPF spParseFn): spfn(spParseFn) {}
 
     bool Maybe::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                       itToken* pIter, const Token* pLimit) const {
@@ -58,15 +58,15 @@ namespace basis {
         return true;
     }
 
-    SPFN maybe(SPFN parseFn) { return std::make_shared<Maybe>(parseFn); }
+    SPPF maybe(SPPF parseFn) { return std::make_shared<Maybe>(parseFn); }
 
     // Any implementation
-    Any::Any(std::vector<SPFN> alternatives) : alternatives(alternatives) {}
+    Any::Any(std::vector<SPPF> alternatives) : alternatives(alternatives) {}
 
     bool Any::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                    itToken* pIter, const Token* pLimit) const {
         itToken start = *pIter;
-        for (const SPFN& alt : alternatives) {
+        for (const SPPF& alt : alternatives) {
             if (alt->parse(tokens, dpspResult, pIter, pLimit)) {
                 return true;
             }
@@ -76,12 +76,12 @@ namespace basis {
     }
 
     // All implementation
-    All::All(std::vector<SPFN> sequence) : sequence(sequence) {}
+    All::All(std::vector<SPPF> sequence) : sequence(sequence) {}
 
     bool All::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                    itToken* pIter, const Token* pLimit) const {
         spParseTree* next = *dpspResult;
-        for (const SPFN& fn : sequence) {
+        for (const SPPF& fn : sequence) {
             if (!fn->parse(tokens, &next, pIter, pLimit)) {
                 return false;
             }
@@ -92,7 +92,7 @@ namespace basis {
     }
 
     // OneOrMore implementation
-    OneOrMore::OneOrMore(SPFN spParseFn) : spfn(spParseFn) {}
+    OneOrMore::OneOrMore(SPPF spParseFn) : spfn(spParseFn) {}
 
     bool OneOrMore::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                          itToken* pIter, const Token* pLimit) const {
@@ -108,10 +108,10 @@ namespace basis {
         return true;
     }
 
-    SPFN oneOrMore(SPFN parseFn) { return std::make_shared<OneOrMore>(parseFn); }
+    SPPF oneOrMore(SPPF parseFn) { return std::make_shared<OneOrMore>(parseFn); }
 
     // Separated implementation
-    Separated::Separated(SPFN spElement, SPFN spSeparator)
+    Separated::Separated(SPPF spElement, SPPF spSeparator)
         : spElement(spElement), spSeparator(spSeparator) {}
 
     bool Separated::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
@@ -135,10 +135,10 @@ namespace basis {
         return true;
     }
 
-    SPFN separated(SPFN element, SPFN separator) { return std::make_shared<Separated>(element, separator); }
+    SPPF separated(SPPF element, SPPF separator) { return std::make_shared<Separated>(element, separator); }
 
     // Bound implementation
-    Bound::Bound(SPFN spParseFn) : spfn(spParseFn) {}
+    Bound::Bound(SPPF spParseFn) : spfn(spParseFn) {}
 
     bool Bound::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                      itToken* pIter, const Token* pLimit) const {
@@ -146,10 +146,10 @@ namespace basis {
         return spfn->parse(tokens, dpspResult, pIter, boundLimit);
     }
 
-    SPFN bound(SPFN parseFn) { return std::make_shared<Bound>(parseFn); }
+    SPPF bound(SPPF parseFn) { return std::make_shared<Bound>(parseFn); }
 
     // Group implementation
-    Group::Group(Production prod, SPFN spParseFn) : prod(prod), spfn(spParseFn) {}
+    Group::Group(Production prod, SPPF spParseFn) : prod(prod), spfn(spParseFn) {}
 
     bool Group::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                      itToken* pIter, const Token* pLimit) const {
@@ -163,10 +163,10 @@ namespace basis {
         return false;
     }
 
-    SPFN group(Production prod, SPFN parseFn) { return std::make_shared<Group>(prod, parseFn); }
+    SPPF group(Production prod, SPPF parseFn) { return std::make_shared<Group>(prod, parseFn); }
 
     // BoundedGroup implementation
-    BoundedGroup::BoundedGroup(Production prod, std::vector<SPFN> sequence)
+    BoundedGroup::BoundedGroup(Production prod, std::vector<SPPF> sequence)
         : spfn(group(prod, bound(std::make_shared<All>(sequence)))) {}
 
     bool BoundedGroup::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,

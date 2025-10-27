@@ -14,13 +14,13 @@ namespace {
         return lexer.output;
     }
 
-    auto parseText(SPFN parseFn, const std::string& text) {
+    auto parseText(SPPF parseFn, const std::string& text) {
         Parser parser(tokenize(text), parseFn);
         CHECK(parser.parse());
         return parser.parseTree;
     }
 
-    void parseFail(SPFN parseFn, const std::string& text) {
+    void parseFail(SPPF parseFn, const std::string& text) {
         Parser parser(tokenize(text), parseFn);
         CHECK_FALSE(parser.parse());
     }

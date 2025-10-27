@@ -21,19 +21,19 @@ namespace basis {
         static bool atLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit);
     };
 
-    using SPFN = std::shared_ptr<ParseFn>;
+    using SPPF = std::shared_ptr<ParseFn>;
 
     // Parser class that uses function objects
     class Parser {
     public:
-        explicit Parser(const std::list<spToken>& tokens, SPFN spParseFn);
+        explicit Parser(const std::list<spToken>& tokens, SPPF spParseFn);
         bool parse();
 
         spParseTree parseTree;
 
     private:
         const std::list<spToken>& tokens;
-        SPFN spfn;
+        SPPF spfn;
     };
 
     // Discard combinator - matches a token type but doesn't create parse tree node
@@ -45,7 +45,7 @@ namespace basis {
     private:
         TokenType type;
     };
-    SPFN discard(TokenType type);
+    SPPF discard(TokenType type);
 
     // Match combinator - matches a token type and creates parse tree node
     class Match : public ParseFn {
@@ -57,108 +57,108 @@ namespace basis {
         Production prod;
         TokenType type;
     };
-    SPFN match(Production prod, TokenType type);
+    SPPF match(Production prod, TokenType type);
 
     // Maybe combinator - optional parsing (always succeeds)
     class Maybe : public ParseFn {
     public:
-        explicit Maybe(SPFN spParseFn);
+        explicit Maybe(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPFN spfn;
+        SPPF spfn;
     };
-    SPFN maybe(SPFN parseFn);
+    SPPF maybe(SPPF parseFn);
 
     // Any combinator - tries alternatives in order (first match wins)
     class Any : public ParseFn {
     public:
-        explicit Any(std::vector<SPFN> alternatives);
+        explicit Any(std::vector<SPPF> alternatives);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        std::vector<SPFN> alternatives;
+        std::vector<SPPF> alternatives;
     };
 
     template<typename... Args>
-    inline SPFN any(const Args&... args) {
-        return std::make_shared<Any>(std::vector<SPFN>{args...});
+    inline SPPF any(const Args&... args) {
+        return std::make_shared<Any>(std::vector<SPPF>{args...});
     }
 
     // All combinator - sequence of parsers (all must succeed)
     class All : public ParseFn {
     public:
-        explicit All(std::vector<SPFN> sequence);
+        explicit All(std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        std::vector<SPFN> sequence;
+        std::vector<SPPF> sequence;
     };
 
     template<typename... Args>
-    inline SPFN all(const Args&... args) {
-        return std::make_shared<All>(std::vector<SPFN>{args...});
+    inline SPPF all(const Args&... args) {
+        return std::make_shared<All>(std::vector<SPPF>{args...});
     }
 
     // OneOrMore combinator - one or more repetitions
     class OneOrMore : public ParseFn {
     public:
-        explicit OneOrMore(SPFN spParseFn);
+        explicit OneOrMore(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPFN spfn;
+        SPPF spfn;
     };
-    SPFN oneOrMore(SPFN parseFn);
+    SPPF oneOrMore(SPPF parseFn);
 
     // Separated combinator - separated list (element, separator, element, ...)
     class Separated : public ParseFn {
     public:
-        Separated(SPFN spElement, SPFN spSeparator);
+        Separated(SPPF spElement, SPPF spSeparator);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPFN spElement;
-        SPFN spSeparator;
+        SPPF spElement;
+        SPPF spSeparator;
     };
-    SPFN separated(SPFN element, SPFN separator);
+    SPPF separated(SPPF element, SPPF separator);
 
     // Bound combinator - uses token's bound as limit
     class Bound : public ParseFn {
     public:
-        explicit Bound(SPFN spParseFn);
+        explicit Bound(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPFN spfn;
+        SPPF spfn;
     };
-    SPFN bound(SPFN parseFn);
+    SPPF bound(SPPF parseFn);
 
     // Group combinator - creates a parent node with children
     class Group : public ParseFn {
     public:
-        Group(Production prod, SPFN spParseFn);
+        Group(Production prod, SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
         Production prod;
-        SPFN spfn;
+        SPPF spfn;
     };
-    SPFN group(Production prod, SPFN parseFn);
+    SPPF group(Production prod, SPPF parseFn);
 
     // BoundedGroup combinator - Group with Bound applied to sequence
     class BoundedGroup : public ParseFn {
     public:
-        BoundedGroup(Production prod, std::vector<SPFN> sequence);
+        BoundedGroup(Production prod, std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPFN spfn;
+        SPPF spfn;
     };
 
     template<typename... Args>
-    inline SPFN boundedGroup(Production prod, const Args&... args) {
-        return std::make_shared<BoundedGroup>(prod, std::vector<SPFN>{args...});
+    inline SPPF boundedGroup(Production prod, const Args&... args) {
+        return std::make_shared<BoundedGroup>(prod, std::vector<SPPF>{args...});
     }
 
 }

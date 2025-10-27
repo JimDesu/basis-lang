@@ -24,37 +24,37 @@ namespace {
     }
 
     // shared combinators
-    SPFN discardIdent = discard(TokenType::IDENTIFIER);
-    SPFN discardNumber = discard(TokenType::NUMBER);
-    SPFN discardComma = discard(TokenType::COMMA);
-    SPFN discardColon = discard(TokenType::COLON);
-    SPFN discardAlias = discard(TokenType::ALIAS);
-    SPFN matchSlashIdent = match(Production::SLASH, TokenType::IDENTIFIER);
-    SPFN matchSlashNumber = match(Production::SLASH, TokenType::NUMBER);
-    SPFN matchSlashComma = match(Production::SLASH, TokenType::COMMA);
-    SPFN matchSlashColon = match(Production::SLASH, TokenType::COLON);
-    SPFN matchSlashAlias = match(Production::SLASH, TokenType::ALIAS);
-    SPFN matchCaratIdent = match(Production::CARAT, TokenType::IDENTIFIER);
-    SPFN matchCaratColon = match(Production::CARAT, TokenType::COLON);
-    SPFN maybeDiscardNumber = maybe(discardNumber);
-    SPFN maybeMatchSlashIdent = maybe(matchSlashIdent);
-    SPFN oneOrMoreDiscardIdent = oneOrMore(discardIdent);
-    SPFN oneOrMoreSlashIdent = oneOrMore(matchSlashIdent);
-    SPFN oneOrMoreCaratIdent = oneOrMore(matchCaratIdent);
-    SPFN boundOneOrMoreSlashIdent = bound(oneOrMoreSlashIdent);
-    SPFN separatedSlashIdentComma = separated(matchSlashIdent, discardComma);
-    SPFN anyNumberOrIdent = any(matchSlashNumber, matchSlashIdent);
-    SPFN allIdentColonAlias = all(discardIdent, discardColon, discardAlias);
-    SPFN allAliasColon = all(discardAlias, discardColon);
-    SPFN allOneOrMoreIdentComma = all(oneOrMoreDiscardIdent, discardComma);
-    SPFN allOneOrMoreSlashIdentComma = all(oneOrMoreSlashIdent, discardComma);
-    SPFN allOneOrMoreIdentSlashComma = all(oneOrMoreDiscardIdent, matchSlashComma);
-    SPFN allOneOrMoreCaratIdentSlashComma = all(oneOrMoreCaratIdent, matchSlashComma);
-    SPFN allBoundIdentTwice = all(boundOneOrMoreSlashIdent, boundOneOrMoreSlashIdent);
-    SPFN allSeparatedCaratColon = all(separatedSlashIdentComma, matchCaratColon);
-    SPFN groupSlashOneOrMoreIdent = group(Production::SLASH, oneOrMoreSlashIdent);
-    SPFN boundedGroupCaratIdentColonNumber = boundedGroup(Production::CARAT, matchSlashIdent, matchSlashColon, matchSlashNumber);
-    SPFN allBoundedGroupComma = all(boundedGroupCaratIdentColonNumber, matchSlashComma);
+    SPPF discardIdent = discard(TokenType::IDENTIFIER);
+    SPPF discardNumber = discard(TokenType::NUMBER);
+    SPPF discardComma = discard(TokenType::COMMA);
+    SPPF discardColon = discard(TokenType::COLON);
+    SPPF discardAlias = discard(TokenType::ALIAS);
+    SPPF matchSlashIdent = match(Production::SLASH, TokenType::IDENTIFIER);
+    SPPF matchSlashNumber = match(Production::SLASH, TokenType::NUMBER);
+    SPPF matchSlashComma = match(Production::SLASH, TokenType::COMMA);
+    SPPF matchSlashColon = match(Production::SLASH, TokenType::COLON);
+    SPPF matchSlashAlias = match(Production::SLASH, TokenType::ALIAS);
+    SPPF matchCaratIdent = match(Production::CARAT, TokenType::IDENTIFIER);
+    SPPF matchCaratColon = match(Production::CARAT, TokenType::COLON);
+    SPPF maybeDiscardNumber = maybe(discardNumber);
+    SPPF maybeMatchSlashIdent = maybe(matchSlashIdent);
+    SPPF oneOrMoreDiscardIdent = oneOrMore(discardIdent);
+    SPPF oneOrMoreSlashIdent = oneOrMore(matchSlashIdent);
+    SPPF oneOrMoreCaratIdent = oneOrMore(matchCaratIdent);
+    SPPF boundOneOrMoreSlashIdent = bound(oneOrMoreSlashIdent);
+    SPPF separatedSlashIdentComma = separated(matchSlashIdent, discardComma);
+    SPPF anyNumberOrIdent = any(matchSlashNumber, matchSlashIdent);
+    SPPF allIdentColonAlias = all(discardIdent, discardColon, discardAlias);
+    SPPF allAliasColon = all(discardAlias, discardColon);
+    SPPF allOneOrMoreIdentComma = all(oneOrMoreDiscardIdent, discardComma);
+    SPPF allOneOrMoreSlashIdentComma = all(oneOrMoreSlashIdent, discardComma);
+    SPPF allOneOrMoreIdentSlashComma = all(oneOrMoreDiscardIdent, matchSlashComma);
+    SPPF allOneOrMoreCaratIdentSlashComma = all(oneOrMoreCaratIdent, matchSlashComma);
+    SPPF allBoundIdentTwice = all(boundOneOrMoreSlashIdent, boundOneOrMoreSlashIdent);
+    SPPF allSeparatedCaratColon = all(separatedSlashIdentComma, matchCaratColon);
+    SPPF groupSlashOneOrMoreIdent = group(Production::SLASH, oneOrMoreSlashIdent);
+    SPPF boundedGroupCaratIdentColonNumber = boundedGroup(Production::CARAT, matchSlashIdent, matchSlashColon, matchSlashNumber);
+    SPPF allBoundedGroupComma = all(boundedGroupCaratIdentColonNumber, matchSlashComma);
 }
 
 TEST_CASE("test least match 2 - Parser2") {
