@@ -4,91 +4,78 @@
 #include "Parsing2.h"
 
 namespace basis {
-    namespace grammar {
-        /*
-         * This approach is ugly as hell, and I need to change it.  Originally these were
-         * 'inline const', but that led to a cross-file initialization order problem.  I set
-         * it up this way in an attempt to force the correct order, but that's still not
-         * working right.
-         *
-         * The "easy" alternative is to stop exposing the subordinate parse function objects,
-         * but that would make comprehensive tests grossly impractical.
-         *
-         * I don't have a better solution yet.  This is fugly AND it doesn't work any
-         * better than the simpler way.
-         */
+    struct Grammar2 {
+        // n.b. this relies on default initialization of member fields proper to execution
+        // of the constructor
+        Grammar2();
+        void initLiterals();
+        void initIdentifiers();
+        void initPunctuation();
+        void initReservedWords();
+        void initEnumerations();
+
         // Literals
-        extern SPPF DECIMAL;
-        extern SPPF HEXNUMBER;
-        extern SPPF NUMBER;
-        extern SPPF STRING;
-
+        SPPF DECIMAL;
+        SPPF HEXNUMBER;
+        SPPF NUMBER;
+        SPPF STRING;
+        SPPF LITERAL;
         // Identifiers
-        extern SPPF IDENTIFIER;
-        extern SPPF TYPENAME;
-
+        SPPF IDENTIFIER;
+        SPPF TYPENAME;
         // Reserved words
-        extern SPPF ALIAS;
-        extern SPPF CLASS;
-        extern SPPF COMMAND;
-        extern SPPF DOMAIN;
-        extern SPPF ENUMERATION;
-        extern SPPF INTRINSIC;
-        extern SPPF OBJECT;
-        extern SPPF RECORD;
-
+        SPPF ALIAS;
+        SPPF CLASS;
+        SPPF COMMAND;
+        SPPF DOMAIN;
+        SPPF ENUMERATION;
+        SPPF INTRINSIC;
+        SPPF OBJECT;
+        SPPF RECORD;
         // Punctuation
-        extern SPPF AMBANG;
-        extern SPPF AMPERSAND;
-        extern SPPF AMPHORA;
-        extern SPPF ASTERISK;
-        extern SPPF BANG;
-        extern SPPF BANGLANGLE;
-        extern SPPF CARAT;
-        extern SPPF CARATQ;
-        extern SPPF COMMA;
-        extern SPPF COLON;
-        extern SPPF COLANGLE;
-        extern SPPF DCOLON;
-        extern SPPF EQUALS;
-        extern SPPF LANGLE;
-        extern SPPF LARROW;
-        extern SPPF LBRACE;
-        extern SPPF LBRACKET;
-        extern SPPF LPAREN;
-        extern SPPF MINUS;
-        extern SPPF PERCENT;
-        extern SPPF PIPE;
-        extern SPPF PIPECOL;
-        extern SPPF PLUS;
-        extern SPPF POUND;
-        extern SPPF QCOLON;
-        extern SPPF QLANGLE;
-        extern SPPF QMARK;
-        extern SPPF QMINUS;
-        extern SPPF RANGLE;
-        extern SPPF RARROW;
-        extern SPPF RBRACE;
-        extern SPPF RBRACKET;
-        extern SPPF RPAREN;
-        extern SPPF SLASH;
-
-        // Composite grammar rules
-        extern SPPF LITERAL;
-
+        SPPF AMBANG;
+        SPPF AMPERSAND;
+        SPPF AMPHORA;
+        SPPF ASTERISK;
+        SPPF BANG;
+        SPPF BANGLANGLE;
+        SPPF CARAT;
+        SPPF CARATQ;
+        SPPF COMMA;
+        SPPF COLON;
+        SPPF COLANGLE;
+        SPPF DCOLON;
+        SPPF EQUALS;
+        SPPF LANGLE;
+        SPPF LARROW;
+        SPPF LBRACE;
+        SPPF LBRACKET;
+        SPPF LPAREN;
+        SPPF MINUS;
+        SPPF PERCENT;
+        SPPF PIPE;
+        SPPF PIPECOL;
+        SPPF PLUS;
+        SPPF POUND;
+        SPPF QCOLON;
+        SPPF QLANGLE;
+        SPPF QMARK;
+        SPPF QMINUS;
+        SPPF RANGLE;
+        SPPF RARROW;
+        SPPF RBRACE;
+        SPPF RBRACKET;
+        SPPF RPAREN;
+        SPPF SLASH;
         // Enumerations
-        extern SPPF DEF_ENUM_ITEM_LIST;
-        extern SPPF DEF_ENUM_NAME2;
-        extern SPPF DEF_ENUM_NAME1;
-        extern SPPF DEF_ENUM;
-
-        // temporary definition; we'll build up to this
-        extern SPPF COMPILATION_UNIT;
-
-        SPPF initGrammar();
-    }
-
-    SPPF getGrammar();
+        SPPF DEF_ENUM_ITEM_LIST;
+        SPPF DEF_ENUM_NAME2;
+        SPPF DEF_ENUM_NAME1;
+        SPPF DEF_ENUM;
+        // top-level parse function
+        SPPF COMPILATION_UNIT;
+    };
+    Grammar2& getGrammar();
 
     /*
      TODO: fix up this stuff from the template version
