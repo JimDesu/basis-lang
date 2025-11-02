@@ -161,6 +161,30 @@ namespace basis {
         return std::make_shared<BoundedGroup>(prod, std::vector<SPPF>{args...});
     }
 
+    // Forward combinator, to work in concert with Ref to handle circular dependencies
+    class Fwd : public ParseFn {
+    public:
+        explicit Fwd(Production p);
+        bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                  itToken* pIter, const Token* pLimit) const override;
+        void setParseFn(SPPF spParseFn);
+    private:
+        Production prod;
+        SPPF spfn;
+    };
+    SPPF fwd(Production p);
+
+    // Ref combinator - sets up forward reference by calling setParseFn on Fwd
+    class Ref : public ParseFn {
+    public:
+        Ref(SPPF spFwd, SPPF spParseFn);
+        bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                  itToken* pIter, const Token* pLimit) const override;
+    private:
+        SPPF spfn;
+    };
+    SPPF ref(SPPF spFwd, SPPF spParseFn);
+
 }
 
 #endif // PARSER2_H

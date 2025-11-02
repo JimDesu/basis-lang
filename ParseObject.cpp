@@ -1,5 +1,4 @@
 #include "ParseObject.h"
-#include "Grammar2.h"
 
 using namespace basis;
 
