@@ -19,7 +19,7 @@ Guiding Principles:
 
 This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" as I go to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
 
-I'm keeping this doc always at least a little ahead of the implementation, so anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worth their while.  
+I'm keeping this doc always at least a little ahead of the implementation, so anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worth their while... but bear in mind that the document has some internal inconsistencies at the moment while I tweak things.
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
