@@ -7,10 +7,9 @@ Guiding Principles:
 - Strong typing saves lives &#9786;
 - No non-local state access
 - The fundamental datatype is a buffer
-- You don't pay for what you don't use
 - Mutation either succeeds fully or fails fully
 - No hidden control flow
-- Polymorphism isn't just for objects 
+- Polymorphism and statecharts aren't just for object types 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
