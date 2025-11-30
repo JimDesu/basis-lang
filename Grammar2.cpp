@@ -103,12 +103,12 @@ void Grammar2::initCommandDefinitions() {
 
    DEF_CMD_RECEIVERS = maybe(group(Production::DEF_CMD_RECEIVERS,
        all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) ));
-   DEF_CMD_PARMS = maybe(group(Production::DEF_CMD_PARMS,
-      all(COLON, separated(DEF_CMD_PARM, COMMA)) ));
-   DEF_CMD_IMPARMS = maybe(group(Production::DEF_CMD_IMPARMS,
-      all(SLASH, separated(DEF_CMD_PARM, COMMA)) ));
-   DEF_CMD_RETVAL = maybe(group(Production::DEF_CMD_RETVAL,
-      all(RARROW, IDENTIFIER) ));
+   DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
+      separated(DEF_CMD_PARM, COMMA)) );
+   DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
+      separated(DEF_CMD_PARM, COMMA)) );
+   DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
+      IDENTIFIER) );
 
    // Placeholder for command body (to be implemented later)
    // TODO fix this

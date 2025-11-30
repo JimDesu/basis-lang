@@ -267,3 +267,68 @@ TEST_CASE("test separated - Parser2") {
     CHECK( !parser5.parse() );  // Should fail - trailing separator with no following element
 }
 
+TEST_CASE("test prefix - Parser2") {
+    // prefix(COLON, IDENT) - if COLON found, IDENT must follow
+    SPPF prefixColonIdent = prefix(discardColon, matchSlashIdent);
+
+    // Case 1: prefix not present - should succeed without consuming
+    std::list<spToken> tokens1;
+    addTokens(tokens1, { TokenType::IDENTIFIER });
+    Parser parser1(tokens1, prefixColonIdent);
+    CHECK( parser1.parse() );
+    CHECK( parser1.parseTree == nullptr );  // Nothing consumed
+
+    // Case 2: prefix present with valid continuation - should succeed
+    std::list<spToken> tokens2;
+    addTokens(tokens2, { TokenType::COLON, TokenType::IDENTIFIER });
+    Parser parser2(tokens2, prefixColonIdent);
+    CHECK( parser2.parse() );
+    CHECK( parser2.parseTree != nullptr );
+    CHECK( parser2.parseTree->production == Production::SLASH );
+
+    // Case 3: prefix present but continuation fails - should fail
+    std::list<spToken> tokens3;
+    addTokens(tokens3, { TokenType::COLON, TokenType::NUMBER });
+    Parser parser3(tokens3, prefixColonIdent);
+    CHECK_FALSE( parser3.parse() );
+
+    // Case 4: prefix present but nothing follows - should fail
+    std::list<spToken> tokens4;
+    addTokens(tokens4, { TokenType::COLON });
+    Parser parser4(tokens4, prefixColonIdent);
+    CHECK_FALSE( parser4.parse() );
+
+    // Case 5: prefix with multiple continuations
+    SPPF prefixColonIdentNumber = prefix(discardColon, matchSlashIdent, matchSlashNumber);
+
+    std::list<spToken> tokens5;
+    addTokens(tokens5, { TokenType::COLON, TokenType::IDENTIFIER, TokenType::NUMBER });
+    Parser parser5(tokens5, prefixColonIdentNumber);
+    CHECK( parser5.parse() );
+    CHECK( parser5.parseTree != nullptr );
+
+    // Case 6: prefix with multiple continuations - partial match should fail
+    std::list<spToken> tokens6;
+    addTokens(tokens6, { TokenType::COLON, TokenType::IDENTIFIER });
+    Parser parser6(tokens6, prefixColonIdentNumber);
+    CHECK_FALSE( parser6.parse() );
+
+    // Case 7: use prefix in a sequence with other elements
+    SPPF allIdentPrefixColonNumber = all(matchSlashIdent, prefix(discardColon, matchSlashNumber));
+
+    std::list<spToken> tokens7a;
+    addTokens(tokens7a, { TokenType::IDENTIFIER });
+    Parser parser7a(tokens7a, allIdentPrefixColonNumber);
+    CHECK( parser7a.parse() );  // IDENT present, prefix not present - OK
+
+    std::list<spToken> tokens7b;
+    addTokens(tokens7b, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::NUMBER });
+    Parser parser7b(tokens7b, allIdentPrefixColonNumber);
+    CHECK( parser7b.parse() );  // IDENT present, prefix present with NUMBER - OK
+
+    std::list<spToken> tokens7c;
+    addTokens(tokens7c, { TokenType::IDENTIFIER, TokenType::COLON });
+    Parser parser7c(tokens7c, allIdentPrefixColonNumber);
+    CHECK_FALSE( parser7c.parse() );  // IDENT present, prefix present but no NUMBER - FAIL
+}
+

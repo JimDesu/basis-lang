@@ -149,5 +149,11 @@ TEST_CASE("Test command declarations") {
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: doIt")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result")->production == Production::DEF_CMD);
+    parseFail(grammar.DEF_CMD, ".cmd doIt:");
+    parseFail(grammar.DEF_CMD, ".cmd doIt /");
+    parseFail(grammar.DEF_CMD, ".cmd doIt :/");
+    parseFail(grammar.DEF_CMD, ".cmd doIt : ->");
+    parseFail(grammar.DEF_CMD, ".cmd doIt / ->");
+    parseFail(grammar.DEF_CMD, ".cmd doIt :/->");
 }
 

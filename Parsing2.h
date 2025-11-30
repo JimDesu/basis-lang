@@ -70,6 +70,21 @@ namespace basis {
     };
     SPPF maybe(SPPF parseFn);
 
+    // Prefix combinator - if first arg matches, all must match; otherwise succeeds without consuming
+    class Prefix : public ParseFn {
+    public:
+        explicit Prefix(std::vector<SPPF> sequence);
+        bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                  itToken* pIter, const Token* pLimit) const override;
+    private:
+        std::vector<SPPF> sequence;
+    };
+
+    template<typename... Args>
+    inline SPPF prefix(const Args&... args) {
+        return std::make_shared<Prefix>(std::vector<SPPF>{args...});
+    }
+
     // Any combinator - tries alternatives in order (first match wins)
     class Any : public ParseFn {
     public:

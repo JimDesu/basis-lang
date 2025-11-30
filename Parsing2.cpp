@@ -60,6 +60,38 @@ namespace basis {
 
     SPPF maybe(SPPF parseFn) { return std::make_shared<Maybe>(parseFn); }
 
+    // Prefix implementation
+    Prefix::Prefix(std::vector<SPPF> sequence) : sequence(sequence) {}
+
+    bool Prefix::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                       itToken* pIter, const Token* pLimit) const {
+        if (sequence.empty()) return true;
+
+        itToken start = *pIter;
+        spParseTree* next = *dpspResult;
+
+        // Try to match the first element (the prefix)
+        if (!sequence[0]->parse(tokens, &next, pIter, pLimit)) {
+            // Prefix not found - succeed without consuming anything
+            return true;
+        }
+
+        // Prefix matched - now all remaining elements must match
+        if (*next) next = &((*next)->spNext);
+        for (size_t i = 1; i < sequence.size(); ++i) {
+            if (!sequence[i]->parse(tokens, &next, pIter, pLimit)) {
+                // Failed after prefix matched - restore position and fail
+                *pIter = start;
+                return false;
+            }
+            if (*next) next = &((*next)->spNext);
+        }
+        *dpspResult = next;
+        return true;
+    }
+
+    SPPF prefix(SPPF parseFn) { return std::make_shared<Prefix>(std::vector<SPPF>{parseFn}); }
+
     // Any implementation
     Any::Any(std::vector<SPPF> alternatives) : alternatives(alternatives) {}
 
