@@ -108,4 +108,46 @@ TEST_CASE("test parse enum definition - Parser2") {
     parseFail(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1");
 }
 
+TEST_CASE("Test command declarations") {
+    Grammar2& grammar = getGrammar();
+
+    // DEF_CMD_PARMTYPE_NAME - just a typename
+    CHECK(parseText(grammar.DEF_CMD_PARMTYPE_NAME, "Int")->production == Production::DEF_CMD_PARMTYPE_NAME);
+    parseFail(grammar.DEF_CMD_PARMTYPE_NAME, "value");
+
+    // DEF_CMD_PARM_NAME - just an identifier
+    CHECK(parseText(grammar.DEF_CMD_PARM_NAME, "value")->production == Production::DEF_CMD_PARM_NAME);
+    CHECK(parseText(grammar.DEF_CMD_PARM_NAME, "'value")->production == Production::DEF_CMD_PARM_NAME);
+    parseFail(grammar.DEF_CMD_PARM_NAME, "Value");
+
+    // DEF_CMD_PARM_TYPE - type (name or expr, but we only test name)
+    CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "String")->production == Production::DEF_CMD_PARM_TYPE);
+
+    // DEF_CMD_PARM - type + name
+    CHECK(parseText(grammar.DEF_CMD_PARM, "Int x")->production == Production::DEF_CMD_PARM);
+    CHECK(parseText(grammar.DEF_CMD_PARM, "String name")->production == Production::DEF_CMD_PARM);
+    parseFail(grammar.DEF_CMD_PARM, "value x");
+    parseFail(grammar.DEF_CMD_PARM, "Int X");
+
+    // DEF_CMD_NAME - identifier
+    CHECK(parseText(grammar.DEF_CMD_NAME, "doSomething")->production == Production::DEF_CMD_NAME);
+    parseFail(grammar.DEF_CMD_NAME, "DoSomething");
+
+    // DEF_CMD_RECEIVER - type + name
+    CHECK(parseText(grammar.DEF_CMD_RECEIVER, "Widget w")->production == Production::DEF_CMD_RECEIVER);
+    CHECK(parseText(grammar.DEF_CMD_RECEIVER, "Widget 'w")->production == Production::DEF_CMD_RECEIVER);
+    parseFail(grammar.DEF_CMD_RECEIVER, "widget w");
+
+    // DEF_CMD - full command definition
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x, String y")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt -> result")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x -> result")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt / Int ctx")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x / Int ctx")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: doIt")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result")->production == Production::DEF_CMD);
+}
 

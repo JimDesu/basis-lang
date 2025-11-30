@@ -3,6 +3,8 @@
 
 #include "Parsing2.h"
 
+// This struture is awkward to work with between the different files, but it's a compromise to both
+// facilitate strenuous unit testing and make circular/forward references simple.
 namespace basis {
     struct Grammar2 {
         // n.b. this relies on default initialization of member fields proper to execution
@@ -13,6 +15,8 @@ namespace basis {
         void initPunctuation();
         void initReservedWords();
         void initEnumerations();
+        void initCommandBody();
+        void initCommandDefinitions();
 
         // Literals
         SPPF DECIMAL;
@@ -72,31 +76,35 @@ namespace basis {
         SPPF DEF_ENUM_NAME2;
         SPPF DEF_ENUM_NAME1;
         SPPF DEF_ENUM;
+        // Command definitions
+        SPPF DEF_CMD;
+        SPPF DEF_CMD_RECEIVERS;
+        SPPF DEF_CMD_RECEIVER;
+        SPPF DEF_CMD_NAME;
+        SPPF DEF_CMD_PARMS;
+        SPPF DEF_CMD_PARM;
+        SPPF DEF_CMD_PARMTYPE_NAME;
+        SPPF DEF_CMD_PARMTYPE_EXPR;
+        SPPF DEF_CMD_PARMTYPE_EXPR_INTR;
+        SPPF DEF_CMD_PARM_TYPE;
+        SPPF DEF_CMD_PARM_NAME;
+        SPPF DEF_CMD_IMPARMS;
+        SPPF DEF_CMD_RETVAL;
+        // Command Body
+        SPPF DEF_CMD_BODY;
+        SPPF DEF_CMD_BODY_ITEM;
+        SPPF DEF_CMD_BODY_ITEM_NAME;
+        SPPF DEF_CMD_BODY_ITEM_EXPR;
+        SPPF DEF_CMD_BODY_ITEM_EXPR_INTR;
+        SPPF DEF_CMD_BODY_ITEM_TYPE;
+        SPPF DEF_CMD_BODY_ITEMS;
+        SPPF DEF_CMD_BODY_ITEM_LIST;
+
+
         // top-level parse function
         SPPF COMPILATION_UNIT;
     };
     Grammar2& getGrammar();
-
-    /*
-     TODO: fix up this stuff from the template version
-    using DEF_CMD_BODY; //TODO
-    using DEF_CMD_PARMTYPE_DECO;
-    using DEF_CMD_PARMTYPE_NAME =
-              All<DEF_CMD_PARMTYPE_DECO, Match<Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME>>;
-
-    using DEF_CMD_PARMTYPE_EXPR_INTR;
-    using DEF_CMF_PARMTYPE_EXPR;
-
-    using DEF_CMD_PARM_TYPE;
-    using DEF_CMD_PARM_NAME;
-    using DEF_CMD_PARM;
-    using DEF_CMD_PARMS;
-    using DEF_CMD_IMPARMS;
-    using DEF_CMD_RETVAL;
-    using DEF_CMD_NAME;
-    using DEF_CMD = BoundedGroup<Production::DEF_CMD,
-              COMMAND, DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL, DEF_CMD_BODY>;
-     */
 
 }
 

@@ -59,15 +59,17 @@ namespace basis {
         SLASH,
         // ----- regular productions -----
         LITERAL,
-
+        // -- enumerations
         DEF_ENUM,
         DEF_ENUM_NAME1,
         DEF_ENUM_NAME2,
         DEF_ENUM_ITEM,
         DEF_ENUM_ITEM_NAME,
         DEF_ENUM_ITEM_LIST,
-
+        // -- command definitions/declarations
         DEF_CMD,
+        DEF_CMD_RECEIVERS,
+        DEF_CMD_RECEIVER,
         DEF_CMD_NAME,
         DEF_CMD_PARMS,
         DEF_CMD_PARM,
@@ -77,8 +79,8 @@ namespace basis {
         DEF_CMD_PARM_TYPE,
         DEF_CMD_PARM_NAME,
         DEF_CMD_IMPARMS,
-        DEF_CMD_IMPARM,
         DEF_CMD_RETVAL,
+        // -- command body
         DEF_CMD_BODY,
     };
 }

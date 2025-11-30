@@ -8,7 +8,8 @@ Grammar2::Grammar2() {
     initPunctuation();
     initReservedWords();
     initEnumerations();
-    //TODO compilation unit
+    initCommandBody();
+    initCommandDefinitions();
 }
 
 void Grammar2::initLiterals() {
@@ -81,6 +82,44 @@ void Grammar2::initEnumerations() {
    DEF_ENUM = boundedGroup(Production::DEF_ENUM,
        ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
 }
+
+void Grammar2::initCommandBody() {
+
+}
+
+void Grammar2::initCommandDefinitions() {
+   DEF_CMD_PARMTYPE_NAME = match(Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME);
+   // TODO handle this later
+   DEF_CMD_PARMTYPE_EXPR = match(Production::DEF_CMD_PARMTYPE_EXPR, TokenType::TYPENAME);
+   DEF_CMD_PARM_NAME = match(Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER);
+   DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
+
+   DEF_CMD_PARM_TYPE = group(Production::DEF_CMD_PARM_TYPE,
+      any(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARMTYPE_EXPR) );
+   DEF_CMD_PARM = group(Production::DEF_CMD_PARM,
+      all(DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME) );
+   DEF_CMD_RECEIVER = group(Production::DEF_CMD_RECEIVER,
+      all(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARM_NAME) );
+
+   DEF_CMD_RECEIVERS = maybe(group(Production::DEF_CMD_RECEIVERS,
+       all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) ));
+   DEF_CMD_PARMS = maybe(group(Production::DEF_CMD_PARMS,
+      all(COLON, separated(DEF_CMD_PARM, COMMA)) ));
+   DEF_CMD_IMPARMS = maybe(group(Production::DEF_CMD_IMPARMS,
+      all(SLASH, separated(DEF_CMD_PARM, COMMA)) ));
+   DEF_CMD_RETVAL = maybe(group(Production::DEF_CMD_RETVAL,
+      all(RARROW, IDENTIFIER) ));
+
+   // Placeholder for command body (to be implemented later)
+   // TODO fix this
+   DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::LBRACE);
+
+   // Top-level command definition
+   DEF_CMD = boundedGroup(Production::DEF_CMD,
+       COMMAND, DEF_CMD_RECEIVERS, DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
+       maybe(DEF_CMD_BODY) );
+}
+
 
 Grammar2& basis::getGrammar() {
    static Grammar2 grammar{};
