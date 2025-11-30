@@ -8,6 +8,10 @@ Grammar2::Grammar2() {
     initPunctuation();
     initReservedWords();
     initEnumerations();
+    initSubTypes();
+    initRecordTypes();
+    initClassTypes();
+    initTypeAliases();
     initCommandBody();
     initCommandDefinitions();
 }
@@ -83,19 +87,30 @@ void Grammar2::initEnumerations() {
        ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
 }
 
-void Grammar2::initCommandBody() {
+void Grammar2::initSubTypes() {}
+void Grammar2::initRecordTypes() {}
+void Grammar2::initObjectTypes() {}
+void Grammar2::initClassTypes() {}
 
+void Grammar2::initCompoundTypes() {
+
+}
+void Grammar2::initTypeAliases() {}
+
+void Grammar2::initCommandBody() {
+   // Placeholder for command body (to be implemented later)
+   DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::LBRACE);
 }
 
 void Grammar2::initCommandDefinitions() {
+   //TODO add parm type situation for records/commands etc that aren't aliased, once ready
    DEF_CMD_PARMTYPE_NAME = match(Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME);
-   // TODO handle this later
-   DEF_CMD_PARMTYPE_EXPR = match(Production::DEF_CMD_PARMTYPE_EXPR, TokenType::TYPENAME);
+   DEF_CMD_PARMTYPE_VAR = group(Production::DEF_CMD_PARMTYPE_VAR,
+      all(LPAREN, DEF_CMD_PARMTYPE_NAME, COLON, DEF_CMD_PARMTYPE_NAME, RPAREN) );
    DEF_CMD_PARM_NAME = match(Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER);
-   DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
 
    DEF_CMD_PARM_TYPE = group(Production::DEF_CMD_PARM_TYPE,
-      any(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARMTYPE_EXPR) );
+      any(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARMTYPE_VAR) );
    DEF_CMD_PARM = group(Production::DEF_CMD_PARM,
       all(DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME) );
    DEF_CMD_RECEIVER = group(Production::DEF_CMD_RECEIVER,
@@ -110,14 +125,12 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
       IDENTIFIER) );
 
-   // Placeholder for command body (to be implemented later)
-   // TODO fix this
-   DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::LBRACE);
+   DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
 
    // Top-level command definition
    DEF_CMD = boundedGroup(Production::DEF_CMD,
        COMMAND, DEF_CMD_RECEIVERS, DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
-       maybe(DEF_CMD_BODY) );
+       maybe(DEF_CMD_BODY)  );
 }
 
 

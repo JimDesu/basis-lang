@@ -48,7 +48,7 @@ void testSingleToken(const std::string& tokenText, TokenType tokenType) {
     lexTokenAfterPrefix(commentPrefix, tokenText, tokenType);
 }
 
-TEST_CASE("test lex all token types") {
+TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("-1234", TokenType::NUMBER);
     testSingleToken("-1234.5678", TokenType::DECIMAL);
     testSingleToken("1234", TokenType::NUMBER);
@@ -102,7 +102,7 @@ TEST_CASE("test lex all token types") {
     testSingleToken(".record foobar", TokenType::RECORD);
 }
 
-TEST_CASE("test lex single token negative test cases") {
+TEST_CASE("Lexer::test lex single token negative test cases") {
     // Test comment line produces no token (success case)
     CHECK(lexInput(" ;fish sticks").output.empty());
 
@@ -130,7 +130,7 @@ TEST_CASE("test lex single token negative test cases") {
     CHECK(lexInput(".cmd_", false).output.empty());
 }
 
-TEST_CASE("test lex multiple tokens") {
+TEST_CASE("Lexer::test lex multiple tokens") {
     std::string input = "1234 -5678";
     basis::Lexer lexer = lexInput(input);
     CHECK(!lexer.output.empty());
@@ -138,7 +138,7 @@ TEST_CASE("test lex multiple tokens") {
     CHECK(lexer.output.back()->type == TokenType::NUMBER);
 }
 
-TEST_CASE("test lex boundary detection") {
+TEST_CASE("Lexer::test lex boundary detection") {
     std::string input = "a b\n c\nd\n e\nf\n";
     basis::Lexer lexer = lexInput(input);
     CHECK(!lexer.output.empty());
@@ -155,7 +155,7 @@ TEST_CASE("test lex boundary detection") {
 }
 
 
-TEST_CASE("test identifier vs typename") {
+TEST_CASE("Lexer::test identifier vs typename") {
     // Identifiers: start with lowercase or apostrophe+lowercase
     testSingleToken("foo", TokenType::IDENTIFIER);
     testSingleToken("fooBar", TokenType::IDENTIFIER);

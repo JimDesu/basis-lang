@@ -206,31 +206,13 @@ namespace basis {
         return spfn->parse(tokens, dpspResult, pIter, pLimit);
     }
 
-    // Forward implementation
-    Fwd::Fwd(Production p): prod(p) {
-        // don't do anything -- Ref will call the setter
-    }
-    bool Fwd::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                    itToken* pIter, const Token* pLimit) const {
-        return spfn->parse(tokens, dpspResult, pIter, pLimit);
-    }
-    void Fwd::setParseFn(SPPF spParseFn) {
-        spfn = spParseFn;
-    }
-    SPPF fwd(Production p) { return std::make_shared<Fwd>(p); }
-
-    // Ref implementation
-    Ref::Ref(SPPF spFwd, SPPF spParseFn) : spfn(spFwd) {
-        auto fwdPtr = std::dynamic_pointer_cast<Fwd>(spFwd);
-        if (fwdPtr) {
-            fwdPtr->setParseFn(spParseFn);
-        }
-    }
+    // Ref2 implementation
+    Ref::Ref(const SPPF& ref) : spfnRef(ref) {}
     bool Ref::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                    itToken* pIter, const Token* pLimit) const {
-        return spfn->parse(tokens, dpspResult, pIter, pLimit);
+                     itToken* pIter, const Token* pLimit) const {
+        return spfnRef->parse(tokens, dpspResult, pIter, pLimit);
     }
-    SPPF ref(SPPF spFwd, SPPF spParseFn) { return std::make_shared<Ref>(spFwd, spParseFn); }
+    SPPF ref(const SPPF& spfnRef) { return std::make_shared<Ref>(spfnRef); }
 
 }
 

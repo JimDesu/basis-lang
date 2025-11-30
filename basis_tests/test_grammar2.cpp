@@ -31,7 +31,7 @@ namespace {
     }
 }
 
-TEST_CASE("test parse literals - Parser2") {
+TEST_CASE("Grammar2::test parse literals") {
     Grammar2& grammar = getGrammar();
     CHECK(parseText(grammar.DECIMAL, "3.14")->production == Production::DECIMAL);
     CHECK(parseText(grammar.HEXNUMBER, "0x1234")->production == Production::HEXNUMBER);
@@ -43,13 +43,13 @@ TEST_CASE("test parse literals - Parser2") {
     parseFail(grammar.STRING, "\"foo\nbar\"");
 }
 
-TEST_CASE("test parse identifiers - Parser2") {
+TEST_CASE("Grammar2::test parse identifiers") {
     Grammar2& grammar = getGrammar();
     CHECK(parseText(grammar.IDENTIFIER, "foobar")->production == Production::IDENTIFIER);
     CHECK(parseText(grammar.TYPENAME, "Foobar")->production == Production::TYPENAME);
 }
 
-TEST_CASE("test parse reserved words - Parser2") {
+TEST_CASE("Grammar2::test parse reserved words") {
     Grammar2& grammar = getGrammar();
     CHECK(parseText(grammar.ALIAS, ".alias")->production == Production::ALIAS);
     CHECK(parseText(grammar.CLASS, ".class")->production == Production::CLASS);
@@ -61,7 +61,7 @@ TEST_CASE("test parse reserved words - Parser2") {
     CHECK(parseText(grammar.RECORD, ".record")->production == Production::RECORD);
 }
 
-TEST_CASE("test parse punctuation - Parser2") {
+TEST_CASE("Grammar2::test parse punctuation") {
     Grammar2& grammar = getGrammar();
     CHECK(parseText(grammar.AMBANG, "@!")->production == Production::AMBANG);
     CHECK(parseText(grammar.AMPERSAND, "&")->production == Production::AMPERSAND);
@@ -99,7 +99,7 @@ TEST_CASE("test parse punctuation - Parser2") {
     CHECK(parseText(grammar.SLASH, "/")->production == Production::SLASH);
 }
 
-TEST_CASE("test parse enum definition - Parser2") {
+TEST_CASE("Grammar2::test parse enum definition") {
     Grammar2& grammar = getGrammar();
     CHECK(parseText(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
     CHECK(parseText(grammar.DEF_ENUM, ".enum Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
@@ -108,7 +108,7 @@ TEST_CASE("test parse enum definition - Parser2") {
     parseFail(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1");
 }
 
-TEST_CASE("Test command declarations") {
+TEST_CASE("Grammar2::test command declarations") {
     Grammar2& grammar = getGrammar();
 
     // DEF_CMD_PARMTYPE_NAME - just a typename
@@ -120,8 +120,16 @@ TEST_CASE("Test command declarations") {
     CHECK(parseText(grammar.DEF_CMD_PARM_NAME, "'value")->production == Production::DEF_CMD_PARM_NAME);
     parseFail(grammar.DEF_CMD_PARM_NAME, "Value");
 
-    // DEF_CMD_PARM_TYPE - type (name or expr, but we only test name)
+    // DEF_CMD_PARMTYPE_VAR - (TypeName: TypeName)
+    CHECK(parseText(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String)")->production == Production::DEF_CMD_PARMTYPE_VAR);
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "T: Int");
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)");
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)");
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)");
+
+    // DEF_CMD_PARM_TYPE - type (name or var)
     CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "String")->production == Production::DEF_CMD_PARM_TYPE);
+    CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "(T: Int)")->production == Production::DEF_CMD_PARM_TYPE);
 
     // DEF_CMD_PARM - type + name
     CHECK(parseText(grammar.DEF_CMD_PARM, "Int x")->production == Production::DEF_CMD_PARM);

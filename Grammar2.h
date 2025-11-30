@@ -15,6 +15,12 @@ namespace basis {
         void initPunctuation();
         void initReservedWords();
         void initEnumerations();
+        void initSubTypes();
+        void initRecordTypes();
+        void initObjectTypes();
+        void initClassTypes();
+        void initCompoundTypes();
+        void initTypeAliases();
         void initCommandBody();
         void initCommandDefinitions();
 
@@ -76,6 +82,10 @@ namespace basis {
         SPPF DEF_ENUM_NAME2;
         SPPF DEF_ENUM_NAME1;
         SPPF DEF_ENUM;
+        // Compound types
+
+        // Alias definition
+
         // Command definitions
         SPPF DEF_CMD;
         SPPF DEF_CMD_RECEIVERS;
@@ -84,8 +94,7 @@ namespace basis {
         SPPF DEF_CMD_PARMS;
         SPPF DEF_CMD_PARM;
         SPPF DEF_CMD_PARMTYPE_NAME;
-        SPPF DEF_CMD_PARMTYPE_EXPR;
-        SPPF DEF_CMD_PARMTYPE_EXPR_INTR;
+        SPPF DEF_CMD_PARMTYPE_VAR;
         SPPF DEF_CMD_PARM_TYPE;
         SPPF DEF_CMD_PARM_NAME;
         SPPF DEF_CMD_IMPARMS;

@@ -57,14 +57,14 @@ namespace {
     SPPF allBoundedGroupComma = all(boundedGroupCaratIdentColonNumber, matchSlashComma);
 }
 
-TEST_CASE("test least match 2 - Parser2") {
+TEST_CASE("Parsing2::test least match 2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens, discardIdent);
     CHECK( parser.parse() );
 }
 
-TEST_CASE("test single match 2 - Parser2") {
+TEST_CASE("Parsing2::test single match 2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens, matchSlashIdent);
@@ -72,14 +72,14 @@ TEST_CASE("test single match 2 - Parser2") {
     CHECK( *parser.parseTree == ParseTree{Production::SLASH, tokens.back().get()} );
 }
 
-TEST_CASE("test simple match fail 2 - Parser2") {
+TEST_CASE("Parsing2::test simple match fail 2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens, discardNumber);
     CHECK_FALSE( parser.parse() );
 }
 
-TEST_CASE("test maybe match 2 - Parser2") {
+TEST_CASE("Parsing2::test maybe match 2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens, maybeDiscardNumber);
@@ -91,7 +91,7 @@ TEST_CASE("test maybe match 2 - Parser2") {
     CHECK( *(parser2.parseTree->pToken) == *tokens.back() );
 }
 
-TEST_CASE("test choice match 2 - Parser2") {
+TEST_CASE("Parsing2::test choice match 2") {
     std::list<spToken> tokens;
     addToken(tokens, TokenType::IDENTIFIER);
     Parser parser(tokens, anyNumberOrIdent);
@@ -99,21 +99,21 @@ TEST_CASE("test choice match 2 - Parser2") {
     CHECK( *parser.parseTree == ParseTree{Production::SLASH, tokens.back().get()} );
 }
 
-TEST_CASE("test sequence match 2 - Parser2") {
+TEST_CASE("Parsing2::test sequence match 2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
     Parser parser(tokens, allIdentColonAlias);
     CHECK( parser.parse() );
 }
 
-TEST_CASE("test sequence fail 2 - Parser2") {
+TEST_CASE("Parsing2::test sequence fail 2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::ALIAS } );
     Parser parser(tokens, allAliasColon);
     CHECK_FALSE( parser.parse() );
 }
 
-TEST_CASE("test repeating match 2 - Parser2") {
+TEST_CASE("Parsing2::test repeating match 2") {
     std::list<spToken> tokens;
     addTokens(tokens,
         { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::COMMA } );
@@ -144,7 +144,7 @@ TEST_CASE("test repeating match 2 - Parser2") {
     );
 }
 
-TEST_CASE("test bound match 2 - Parser2") {
+TEST_CASE("Parsing2::test bound match 2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
     tokens.front()->bound = tokens.back();
@@ -170,7 +170,7 @@ TEST_CASE("test bound match 2 - Parser2") {
                        std::make_shared<ParseTree>(Production::SLASH, EXPECTED2)  ))))});
 }
 
-TEST_CASE("test grouping 2 - Parser2") {
+TEST_CASE("Parsing2::test grouping 2") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
 
@@ -183,7 +183,7 @@ TEST_CASE("test grouping 2 - Parser2") {
                 std::make_shared<ParseTree>(Production::SLASH, EXPECTED )  ))});
 }
 
-TEST_CASE("test bounded group - Parser2") {
+TEST_CASE("Parsing2::test bounded group") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER, TokenType::COLON, TokenType::NUMBER, TokenType::COMMA } );
     tokens.front()->bound = tokens.back();
@@ -213,7 +213,7 @@ TEST_CASE("test bounded group - Parser2") {
                 std::make_shared<ParseTree>(Production::SLASH, NUM)))});
 }
 
-TEST_CASE("test separated - Parser2") {
+TEST_CASE("Parsing2::test separated") {
     std::list<spToken> tokens;
     addTokens(tokens, { TokenType::IDENTIFIER } );
 
@@ -267,7 +267,7 @@ TEST_CASE("test separated - Parser2") {
     CHECK( !parser5.parse() );  // Should fail - trailing separator with no following element
 }
 
-TEST_CASE("test prefix - Parser2") {
+TEST_CASE("Parsing2::test prefix") {
     // prefix(COLON, IDENT) - if COLON found, IDENT must follow
     SPPF prefixColonIdent = prefix(discardColon, matchSlashIdent);
 
