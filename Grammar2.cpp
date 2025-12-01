@@ -104,6 +104,7 @@ void Grammar2::initCommandBody() {
 
 void Grammar2::initCommandDefinitions() {
    //TODO add parm type situation for records/commands etc that aren't aliased, once ready
+   //TODO extend with @ and [] combinations so that parms can be more than just the type identifiers
    DEF_CMD_PARMTYPE_NAME = match(Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME);
    DEF_CMD_PARMTYPE_VAR = group(Production::DEF_CMD_PARMTYPE_VAR,
       all(LPAREN, DEF_CMD_PARMTYPE_NAME, COLON, DEF_CMD_PARMTYPE_NAME, RPAREN) );
