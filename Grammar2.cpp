@@ -116,8 +116,8 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_RECEIVER = group(Production::DEF_CMD_RECEIVER,
       all(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARM_NAME) );
 
-   DEF_CMD_RECEIVERS = maybe(group(Production::DEF_CMD_RECEIVERS,
-       all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) ));
+   DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS,
+       all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) );
    DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
@@ -129,8 +129,11 @@ void Grammar2::initCommandDefinitions() {
 
    // Top-level command definition
    DEF_CMD = boundedGroup(Production::DEF_CMD,
-       COMMAND, DEF_CMD_RECEIVERS, DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
-       maybe(DEF_CMD_BODY)  );
+       COMMAND, any(
+          all(DEF_CMD_RECEIVERS, separated(DEF_CMD_PARM, COMMA),
+             maybe(DEF_CMD_BODY)),
+          all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
+              maybe(DEF_CMD_BODY))  ));
 }
 
 

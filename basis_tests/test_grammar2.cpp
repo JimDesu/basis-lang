@@ -21,13 +21,14 @@ namespace {
         std::list<spToken> tokens = tokenize(text);
         Parser parser(tokens, parseFn);
         CHECK(parser.parse());
+        CHECK(parser.allTokensConsumed());
         return parser.parseTree;
     }
 
     void parseFail(SPPF parseFn, const std::string& text) {
         std::list<spToken> tokens = tokenize(text);
         Parser parser(tokens, parseFn);
-        CHECK_FALSE(parser.parse());
+        CHECK((!parser.parse() || !parser.allTokensConsumed()));
     }
 }
 
@@ -157,11 +158,17 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: doIt")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i")->production == Production::DEF_CMD);
     parseFail(grammar.DEF_CMD, ".cmd doIt:");
     parseFail(grammar.DEF_CMD, ".cmd doIt /");
-    parseFail(grammar.DEF_CMD, ".cmd doIt :/");
-    parseFail(grammar.DEF_CMD, ".cmd doIt : ->");
-    parseFail(grammar.DEF_CMD, ".cmd doIt / ->");
+    parseFail(grammar.DEF_CMD, ".cmd doIt :/ Int i");
+    parseFail(grammar.DEF_CMD, ".cmd doIt : -> T");
+    parseFail(grammar.DEF_CMD, ".cmd doIt / x ->");
     parseFail(grammar.DEF_CMD, ".cmd doIt :/->");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i -> Int j");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i");
 }
 

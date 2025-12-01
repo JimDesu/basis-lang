@@ -28,12 +28,15 @@ namespace basis {
     public:
         explicit Parser(const std::list<spToken>& tokens, SPPF spParseFn);
         bool parse();
+        // test support; will not be used at runtime
+        bool allTokensConsumed() const;
 
         spParseTree parseTree;
 
     private:
         const std::list<spToken>& tokens;
         SPPF spfn;
+        itToken finalPosition;
     };
 
     // Discard combinator - matches a token type but doesn't create parse tree node

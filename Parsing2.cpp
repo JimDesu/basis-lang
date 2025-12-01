@@ -9,12 +9,16 @@ namespace basis {
 
     // Parsing2 implementation
     Parser::Parser(const std::list<spToken>& tokens, SPPF spParseFn)
-        : tokens(tokens), spfn(spParseFn) {}
+        : tokens(tokens), spfn(spParseFn), finalPosition(tokens.cend()) {}
 
     bool Parser::parse() {
-        itToken start = tokens.cbegin();
+        finalPosition = tokens.cbegin();
         spParseTree* pTree = &parseTree;
-        return spfn->parse(tokens, &pTree, &start, nullptr);
+        return spfn->parse(tokens, &pTree, &finalPosition, nullptr);
+    }
+
+    bool Parser::allTokensConsumed() const {
+        return finalPosition == tokens.cend();
     }
 
     // Discard implementation
