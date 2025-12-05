@@ -131,7 +131,9 @@ void Grammar2::initCommandDefinitions() {
    // Top-level command definition
    DEF_CMD = boundedGroup(Production::DEF_CMD,
        COMMAND, any(
-          all(DEF_CMD_RECEIVERS, separated(DEF_CMD_PARM, COMMA),
+          all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
+             maybe(DEF_CMD_BODY)),
+          all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
              maybe(DEF_CMD_BODY)),
           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
               maybe(DEF_CMD_BODY))  ));

@@ -127,6 +127,8 @@ TEST_CASE("Grammar2::test command declarations") {
     parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)");
     parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)");
     parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)");
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int");
+    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)");
 
     // DEF_CMD_PARM_TYPE - type (name or var)
     CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "String")->production == Production::DEF_CMD_PARM_TYPE);
@@ -159,14 +161,18 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i")->production == Production::DEF_CMD);
+    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j")->production == Production::DEF_CMD);
     CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i")->production == Production::DEF_CMD);
+    parseFail(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i");
     parseFail(grammar.DEF_CMD, ".cmd doIt:");
     parseFail(grammar.DEF_CMD, ".cmd doIt /");
     parseFail(grammar.DEF_CMD, ".cmd doIt :/ Int i");
     parseFail(grammar.DEF_CMD, ".cmd doIt : -> T");
     parseFail(grammar.DEF_CMD, ".cmd doIt / x ->");
     parseFail(grammar.DEF_CMD, ".cmd doIt :/->");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i -> Int j");
+    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j -> i");
     parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j");
     parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i -> Int j");
     parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i");
