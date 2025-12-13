@@ -98,13 +98,14 @@ void Grammar2::initCompoundTypes() {
 void Grammar2::initTypeAliases() {}
 
 void Grammar2::initCommandBody() {
-   // Placeholder for command body (to be implemented later)
+   // TODO
    DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::LBRACE);
 }
 
 void Grammar2::initCommandDefinitions() {
    //TODO add parm type situation for records/commands etc that aren't aliased, once ready
    //TODO extend with @ and [] combinations so that parms can be more than just the type identifiers
+   //TODO parm type including parametric/generic types
    DEF_CMD_PARMTYPE_NAME = match(Production::DEF_CMD_PARMTYPE_NAME, TokenType::TYPENAME);
    DEF_CMD_PARMTYPE_VAR = group(Production::DEF_CMD_PARMTYPE_VAR,
       all(LPAREN, DEF_CMD_PARMTYPE_NAME, COLON, DEF_CMD_PARMTYPE_NAME, RPAREN) );
@@ -127,18 +128,24 @@ void Grammar2::initCommandDefinitions() {
       IDENTIFIER) );
 
    DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
+   DEF_CMD_MAYFAIL = match(Production::DEF_CMD_MAYFAIL, TokenType::QMARK);
+   DEF_CMD_FAILS = match(Production::DEF_CMD_FAILS, TokenType::BANG);
+   DEF_CMD_NAME_SPEC = group(Production::DEF_CMD_NAME_SPEC,
+       all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
    // Top-level command definition
    DEF_CMD = boundedGroup(Production::DEF_CMD,
        COMMAND, any(
+          // constructor
           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
              maybe(DEF_CMD_BODY)),
+          // virtual constructor
           all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
              maybe(DEF_CMD_BODY)),
-          all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
+          // command / method
+          all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
               maybe(DEF_CMD_BODY))  ));
 }
-
 
 Grammar2& basis::getGrammar() {
    static Grammar2 grammar{};

@@ -90,7 +90,10 @@ namespace basis {
         SPPF DEF_CMD;
         SPPF DEF_CMD_RECEIVERS;
         SPPF DEF_CMD_RECEIVER;
+        SPPF DEF_CMD_NAME_SPEC;
         SPPF DEF_CMD_NAME;
+        SPPF DEF_CMD_FAILS;
+        SPPF DEF_CMD_MAYFAIL;
         SPPF DEF_CMD_PARMS;
         SPPF DEF_CMD_PARM;
         SPPF DEF_CMD_PARMTYPE_NAME;
