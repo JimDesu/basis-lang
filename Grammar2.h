@@ -82,6 +82,7 @@ namespace basis {
         SPPF DEF_ENUM_NAME2;
         SPPF DEF_ENUM_NAME1;
         SPPF DEF_ENUM;
+
         // Compound types
 
         // Alias definition
@@ -102,6 +103,7 @@ namespace basis {
         SPPF DEF_CMD_PARM_NAME;
         SPPF DEF_CMD_IMPARMS;
         SPPF DEF_CMD_RETVAL;
+
         // Command Body
         SPPF DEF_CMD_BODY;
         SPPF DEF_CMD_BODY_ITEM;

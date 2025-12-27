@@ -164,13 +164,19 @@ TEST_CASE("Lexer::test identifier vs typename") {
     testSingleToken("'fOO", TokenType::IDENTIFIER);
     testSingleToken("'fooBar", TokenType::IDENTIFIER);
 
-    // Typenames: start with uppercase (no leading apostrophe allowed)
+    // Typenames: start with uppercase (no leading apostrophe allowed, optional trailing apostrophe)
     testSingleToken("Foo", TokenType::TYPENAME);
     testSingleToken("FooBar", TokenType::TYPENAME);
     testSingleToken("Foo_Bar", TokenType::TYPENAME);
     testSingleToken("FOO", TokenType::TYPENAME);
     testSingleToken("F", TokenType::TYPENAME);
     testSingleToken("F123", TokenType::TYPENAME);
+    testSingleToken("Foo'", TokenType::TYPENAME);
+    testSingleToken("FooBar'", TokenType::TYPENAME);
+    testSingleToken("Foo_Bar'", TokenType::TYPENAME);
+    testSingleToken("FOO'", TokenType::TYPENAME);
+    testSingleToken("F'", TokenType::TYPENAME);
+    testSingleToken("F123'", TokenType::TYPENAME);
 
     // Test that apostrophe+uppercase is NOT recognized as identifier
     std::string input = "'Foo";
@@ -181,4 +187,11 @@ TEST_CASE("Lexer::test identifier vs typename") {
     ++it;
     CHECK_EQ((*it)->type, TokenType::TYPENAME);
     CHECK_EQ((*it)->text, "Foo");
+
+    // Test that typename with trailing apostrophe includes the apostrophe in the text
+    std::string input2 = "Foo'";
+    basis::Lexer lexer2 = lexInput(input2);
+    CHECK_EQ(lexer2.output.size(), 1);
+    CHECK_EQ(lexer2.output.front()->type, TokenType::TYPENAME);
+    CHECK_EQ(lexer2.output.front()->text, "Foo'");
 }
