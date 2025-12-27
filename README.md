@@ -1,7 +1,9 @@
 # The Basis Programming Language.  
 
+Note: this is a very rough draft.  I tick/tock between this draft and working on the implementation, and as a result the current status lacks full coherence.  This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing the "doc" as I go to ensure I don't leave a gap I'll have to code my way out of later, even though minor details evolve in ways that are incompatible with what's written here.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is". 
+
 ## Introduction
-There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is a "pure" imperative programming language that's simple to learn and easy to read.  In a world that depends on open source code now -- and will soon depend on LLM tokens for productivity -- clarity and concision are paramount.  
+There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is to bring the benefits of "pure" programming languages to the imperative world, in a way that's simple to learn and easy to read.  In a world that depends on open source code now -- and will soon depend on reviewing vibe-coded code for correctness -- clarity and concision are paramount.  
 
 Guiding Principles:
 - Strong typing saves lives &#9786;
@@ -15,11 +17,8 @@ Guiding Principles:
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 - Fexprs and macros, not fexprs vs macros
-- Syntactic whitespace improves legibility
+- Syntactic whitespace improves legibility 
 
-This's a part-time side project done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve here, but I'm writing the "doc" as I go to ensure I don't leave a gap I'll have to code my way out of later.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is".  
-
-I'm keeping this doc always at least a little ahead of the implementation, so anyone interested will be able to ask pointed questions and will know if awaiting the implementation's worth their while... but bear in mind that the document has some internal inconsistencies at the moment while I tweak things.
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
