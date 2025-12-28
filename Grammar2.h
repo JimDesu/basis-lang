@@ -20,6 +20,7 @@ namespace basis {
         void initObjectTypes();
         void initClassTypes();
         void initCompoundTypes();
+        void initTypeExpressions();
         void initTypeAliases();
         void initCommandBody();
         void initCommandDefinitions();
@@ -85,7 +86,18 @@ namespace basis {
 
         // Compound types
 
+        // Type Expressions
+        SPPF TYPE_EXPR;
+        SPPF TYPE_EXPR_PTR;
+        SPPF TYPE_EXPR_RANGE;
+        SPPF TYPE_EXPR_CMD;
+        SPPF TYPE_NAME_Q;
+        SPPF TYPE_NAME_PARMS;
+        SPPF TYPE_TYPEPARM_TYPE;
+        SPPF TYPE_TYPEPARM_VALUE;
+
         // Alias definition
+        SPPF DEF_ALIAS;
 
         // Command definitions
         SPPF DEF_CMD;

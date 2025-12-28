@@ -107,12 +107,14 @@ bool Lexer::isIdentifierChar(char c) {
     return c == '_' || isalnum(c);
 }
 
-void Lexer::writeError(const std::string& message, const Token* pToken) {
-  std::cerr << message
-            << " at line " << pToken->lineNumber
-            << " column "  << pToken->columnNumber << std::endl;
-
+void Lexer::writeError(const std::string& message, const Token* pToken) const {
+    if ( emitErrors ) {
+        std::cerr << message
+                  << " at line " << pToken->lineNumber
+                  << " column "  << pToken->columnNumber << std::endl;
+    }
 }
+
 bool Lexer::readComment() {
     // get the current line number
     size_t line = lineNumber;

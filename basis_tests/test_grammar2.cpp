@@ -12,182 +12,233 @@ namespace {
     // forever to diagnose)
     std::list<spToken> tokenize(const std::string& text) {
         std::istringstream input(text);
-        Lexer lexer(input);
+        Lexer lexer(input, false);
         lexer.scan();
         return lexer.output;
     }
 
-    auto parseText(SPPF parseFn, const std::string& text) {
+    bool testParse(SPPF parseFn, const std::string& text) {
         std::list<spToken> tokens = tokenize(text);
         Parser parser(tokens, parseFn);
-        CHECK(parser.parse());
-        CHECK(parser.allTokensConsumed());
-        return parser.parseTree;
+        return parser.parse() && parser.allTokensConsumed();
     }
 
-    void parseFail(SPPF parseFn, const std::string& text) {
+    bool testParse(SPPF parseFn, const std::string& text, Production expected) {
         std::list<spToken> tokens = tokenize(text);
         Parser parser(tokens, parseFn);
-        CHECK((!parser.parse() || !parser.allTokensConsumed()));
+        return parser.parse() && parser.allTokensConsumed()
+            && parser.parseTree != nullptr && parser.parseTree->production == expected;
     }
 }
 
 TEST_CASE("Grammar2::test parse literals") {
     Grammar2& grammar = getGrammar();
-    CHECK(parseText(grammar.DECIMAL, "3.14")->production == Production::DECIMAL);
-    CHECK(parseText(grammar.HEXNUMBER, "0x1234")->production == Production::HEXNUMBER);
-    CHECK(parseText(grammar.NUMBER, "1234")->production == Production::NUMBER);
-    CHECK(parseText(grammar.STRING, "\"foo\\n\\\"bar's\"")->production == Production::STRING);
-    parseFail(grammar.DECIMAL, "3.14.56");
-    parseFail(grammar.HEXNUMBER, "0x12345");
-    parseFail(grammar.NUMBER, "1234.56");
-    parseFail(grammar.STRING, "\"foo\nbar\"");
+    CHECK(testParse(grammar.DECIMAL, "3.14", Production::DECIMAL));
+    CHECK(testParse(grammar.HEXNUMBER, "0x1234", Production::HEXNUMBER));
+    CHECK(testParse(grammar.NUMBER, "1234", Production::NUMBER));
+    CHECK(testParse(grammar.STRING, "\"foo\\n\\\"bar's\"", Production::STRING));
+    CHECK_FALSE(testParse(grammar.DECIMAL, "3.14.56"));
+    CHECK_FALSE(testParse(grammar.HEXNUMBER, "0x12345"));
+    CHECK_FALSE(testParse(grammar.NUMBER, "1234.56"));
+    CHECK_FALSE(testParse(grammar.STRING, "\"foo\nbar\""));
 }
 
 TEST_CASE("Grammar2::test parse identifiers") {
     Grammar2& grammar = getGrammar();
-    CHECK(parseText(grammar.IDENTIFIER, "foobar")->production == Production::IDENTIFIER);
-    CHECK(parseText(grammar.TYPENAME, "Foobar")->production == Production::TYPENAME);
+    CHECK(testParse(grammar.IDENTIFIER, "foobar", Production::IDENTIFIER));
+    CHECK(testParse(grammar.TYPENAME, "Foobar", Production::TYPENAME));
 }
 
 TEST_CASE("Grammar2::test parse reserved words") {
     Grammar2& grammar = getGrammar();
-    CHECK(parseText(grammar.ALIAS, ".alias")->production == Production::ALIAS);
-    CHECK(parseText(grammar.CLASS, ".class")->production == Production::CLASS);
-    CHECK(parseText(grammar.COMMAND, ".cmd")->production == Production::COMMAND);
-    CHECK(parseText(grammar.DOMAIN, ".domain")->production == Production::DOMAIN);
-    CHECK(parseText(grammar.ENUMERATION, ".enum")->production == Production::ENUMERATION);
-    CHECK(parseText(grammar.INTRINSIC, ".intrinsic")->production == Production::INTRINSIC);
-    CHECK(parseText(grammar.OBJECT, ".object")->production == Production::OBJECT);
-    CHECK(parseText(grammar.RECORD, ".record")->production == Production::RECORD);
+    CHECK(testParse(grammar.ALIAS, ".alias", Production::ALIAS));
+    CHECK(testParse(grammar.CLASS, ".class", Production::CLASS));
+    CHECK(testParse(grammar.COMMAND, ".cmd", Production::COMMAND));
+    CHECK(testParse(grammar.DOMAIN, ".domain", Production::DOMAIN));
+    CHECK(testParse(grammar.ENUMERATION, ".enum", Production::ENUMERATION));
+    CHECK(testParse(grammar.INTRINSIC, ".intrinsic", Production::INTRINSIC));
+    CHECK(testParse(grammar.OBJECT, ".object", Production::OBJECT));
+    CHECK(testParse(grammar.RECORD, ".record", Production::RECORD));
 }
 
 TEST_CASE("Grammar2::test parse punctuation") {
     Grammar2& grammar = getGrammar();
-    CHECK(parseText(grammar.AMBANG, "@!")->production == Production::AMBANG);
-    CHECK(parseText(grammar.AMPERSAND, "&")->production == Production::AMPERSAND);
-    CHECK(parseText(grammar.AMPHORA, "@")->production == Production::AMPHORA);
-    CHECK(parseText(grammar.ASTERISK, "*")->production == Production::ASTERISK);
-    CHECK(parseText(grammar.BANG, "!")->production == Production::BANG);
-    CHECK(parseText(grammar.BANGLANGLE, "!<")->production == Production::BANGLANGLE);
-    CHECK(parseText(grammar.CARAT, "^")->production == Production::CARAT);
-    CHECK(parseText(grammar.CARATQ, "^?")->production == Production::CARATQ);
-    CHECK(parseText(grammar.COMMA, ",")->production == Production::COMMA);
-    CHECK(parseText(grammar.COLON, ":")->production == Production::COLON);
-    CHECK(parseText(grammar.COLANGLE, ":<")->production == Production::COLANGLE);
-    CHECK(parseText(grammar.DCOLON, "::")->production == Production::DCOLON);
-    CHECK(parseText(grammar.EQUALS, "=")->production == Production::EQUALS);
-    CHECK(parseText(grammar.LANGLE, "<")->production == Production::LANGLE);
-    CHECK(parseText(grammar.LARROW, "<-")->production == Production::LARROW);
-    CHECK(parseText(grammar.LBRACE, "{")->production == Production::LBRACE);
-    CHECK(parseText(grammar.LBRACKET, "[")->production == Production::LBRACKET);
-    CHECK(parseText(grammar.LPAREN, "(")->production == Production::LPAREN);
-    CHECK(parseText(grammar.MINUS, "-")->production == Production::MINUS);
-    CHECK(parseText(grammar.PERCENT, "%")->production == Production::PERCENT);
-    CHECK(parseText(grammar.PIPE, "|")->production == Production::PIPE);
-    CHECK(parseText(grammar.PIPECOL, "|:")->production == Production::PIPECOL);
-    CHECK(parseText(grammar.PLUS, "+")->production == Production::PLUS);
-    CHECK(parseText(grammar.POUND, "#")->production == Production::POUND);
-    CHECK(parseText(grammar.QCOLON, "?:")->production == Production::QCOLON);
-    CHECK(parseText(grammar.QLANGLE, "?<")->production == Production::QLANGLE);
-    CHECK(parseText(grammar.QMARK, "?")->production == Production::QMARK);
-    CHECK(parseText(grammar.QMINUS, "?-")->production == Production::QMINUS);
-    CHECK(parseText(grammar.RANGLE, ">")->production == Production::RANGLE);
-    CHECK(parseText(grammar.RARROW, "->")->production == Production::RARROW);
-    CHECK(parseText(grammar.RBRACE, "}")->production == Production::RBRACE);
-    CHECK(parseText(grammar.RBRACKET, "]")->production == Production::RBRACKET);
-    CHECK(parseText(grammar.RPAREN, ")")->production == Production::RPAREN);
-    CHECK(parseText(grammar.SLASH, "/")->production == Production::SLASH);
+    CHECK(testParse(grammar.AMBANG, "@!", Production::AMBANG));
+    CHECK(testParse(grammar.AMPERSAND, "&", Production::AMPERSAND));
+    CHECK(testParse(grammar.AMPHORA, "@", Production::AMPHORA));
+    CHECK(testParse(grammar.ASTERISK, "*", Production::ASTERISK));
+    CHECK(testParse(grammar.BANG, "!", Production::BANG));
+    CHECK(testParse(grammar.BANGLANGLE, "!<", Production::BANGLANGLE));
+    CHECK(testParse(grammar.CARAT, "^", Production::CARAT));
+    CHECK(testParse(grammar.CARATQ, "^?", Production::CARATQ));
+    CHECK(testParse(grammar.COMMA, ",", Production::COMMA));
+    CHECK(testParse(grammar.COLON, ":", Production::COLON));
+    CHECK(testParse(grammar.COLANGLE, ":<", Production::COLANGLE));
+    CHECK(testParse(grammar.DCOLON, "::", Production::DCOLON));
+    CHECK(testParse(grammar.EQUALS, "=", Production::EQUALS));
+    CHECK(testParse(grammar.LANGLE, "<", Production::LANGLE));
+    CHECK(testParse(grammar.LARROW, "<-", Production::LARROW));
+    CHECK(testParse(grammar.LBRACE, "{", Production::LBRACE));
+    CHECK(testParse(grammar.LBRACKET, "[", Production::LBRACKET));
+    CHECK(testParse(grammar.LPAREN, "(", Production::LPAREN));
+    CHECK(testParse(grammar.MINUS, "-", Production::MINUS));
+    CHECK(testParse(grammar.PERCENT, "%", Production::PERCENT));
+    CHECK(testParse(grammar.PIPE, "|", Production::PIPE));
+    CHECK(testParse(grammar.PIPECOL, "|:", Production::PIPECOL));
+    CHECK(testParse(grammar.PLUS, "+", Production::PLUS));
+    CHECK(testParse(grammar.POUND, "#", Production::POUND));
+    CHECK(testParse(grammar.QCOLON, "?:", Production::QCOLON));
+    CHECK(testParse(grammar.QLANGLE, "?<", Production::QLANGLE));
+    CHECK(testParse(grammar.QMARK, "?", Production::QMARK));
+    CHECK(testParse(grammar.QMINUS, "?-", Production::QMINUS));
+    CHECK(testParse(grammar.RANGLE, ">", Production::RANGLE));
+    CHECK(testParse(grammar.RARROW, "->", Production::RARROW));
+    CHECK(testParse(grammar.RBRACE, "}", Production::RBRACE));
+    CHECK(testParse(grammar.RBRACKET, "]", Production::RBRACKET));
+    CHECK(testParse(grammar.RPAREN, ")", Production::RPAREN));
+    CHECK(testParse(grammar.SLASH, "/", Production::SLASH));
 }
 
 TEST_CASE("Grammar2::test parse enum definition") {
     Grammar2& grammar = getGrammar();
     // untyped enumeration
-    CHECK(parseText(grammar.DEF_ENUM, ".enum Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
     // enumeration with a type
-    CHECK(parseText(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1")->production == Production::DEF_ENUM);
-    parseFail(grammar.DEF_ENUM, ".enum A B fish: sockeye = 0, salmon = 1");
-    parseFail(grammar.DEF_ENUM, ".enum T Fish: sockeye= 0,\nsalmon = 1");
-    parseFail(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1");
+    CHECK(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum A B fish: sockeye = 0, salmon = 1"));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye= 0,\nsalmon = 1"));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
+}
+
+TEST_CASE("Grammar2::test type expressions") {
+    Grammar2& grammar = getGrammar();
+
+    // TYPE_TYPEPARM_TYPE - optionally constrained typename
+    CHECK(testParse(grammar.TYPE_TYPEPARM_TYPE, "T", Production::TYPE_TYPEPARM_TYPE));
+    CHECK(testParse(grammar.TYPE_TYPEPARM_TYPE, "T U", Production::TYPE_TYPEPARM_TYPE));
+    CHECK(testParse(grammar.TYPE_TYPEPARM_TYPE, "String", Production::TYPE_TYPEPARM_TYPE));
+    CHECK(testParse(grammar.TYPE_TYPEPARM_TYPE, "List Element", Production::TYPE_TYPEPARM_TYPE));
+    CHECK(!testParse(grammar.TYPE_TYPEPARM_TYPE, "t"));
+    CHECK(!testParse(grammar.TYPE_TYPEPARM_TYPE, "T value"));
+    CHECK(!testParse(grammar.TYPE_TYPEPARM_TYPE, "T U V"));
+
+    // TYPE_TYPEPARM_VALUE - typename followed by identifier
+    CHECK(testParse(grammar.TYPE_TYPEPARM_VALUE, "T value", Production::TYPE_TYPEPARM_VALUE));
+    CHECK(testParse(grammar.TYPE_TYPEPARM_VALUE, "String name", Production::TYPE_TYPEPARM_VALUE));
+    CHECK(testParse(grammar.TYPE_TYPEPARM_VALUE, "Int count", Production::TYPE_TYPEPARM_VALUE));
+    CHECK_FALSE(testParse(grammar.TYPE_TYPEPARM_VALUE, "T"));
+    CHECK_FALSE(testParse(grammar.TYPE_TYPEPARM_VALUE, "t value"));
+    CHECK_FALSE(testParse(grammar.TYPE_TYPEPARM_VALUE, "T Value"));
+    CHECK_FALSE(testParse(grammar.TYPE_TYPEPARM_VALUE, "value T"));
+
+    // TYPE_NAME_PARMS - bracketed list of type parameters
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T, U]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T U]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T value]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T, U value]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T U, V value]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[T, U, V]", Production::TYPE_NAME_PARMS));
+    CHECK(testParse(grammar.TYPE_NAME_PARMS, "[String name, Int count]", Production::TYPE_NAME_PARMS));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "T"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[T"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "T]"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[]"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[t]"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[T,]"));
+
+    // TYPE_NAME_Q - typename with optional type parameters
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Int", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "String", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "T", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "List[T]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[K, V]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Container[T U]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Dict[String key, Int value]", Production::TYPE_NAME_Q));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "int"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "value"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "Int[]"));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "[T]"));
 }
 
 TEST_CASE("Grammar2::test command declarations") {
     Grammar2& grammar = getGrammar();
 
     // DEF_CMD_PARMTYPE_NAME - just a typename
-    CHECK(parseText(grammar.DEF_CMD_PARMTYPE_NAME, "Int")->production == Production::DEF_CMD_PARMTYPE_NAME);
-    parseFail(grammar.DEF_CMD_PARMTYPE_NAME, "value");
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Int", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_NAME, "value"));
 
     // DEF_CMD_PARM_NAME - just an identifier
-    CHECK(parseText(grammar.DEF_CMD_PARM_NAME, "value")->production == Production::DEF_CMD_PARM_NAME);
-    CHECK(parseText(grammar.DEF_CMD_PARM_NAME, "'value")->production == Production::DEF_CMD_PARM_NAME);
-    parseFail(grammar.DEF_CMD_PARM_NAME, "Value");
+    CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "value", Production::DEF_CMD_PARM_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "'value", Production::DEF_CMD_PARM_NAME));
+    CHECK(!testParse(grammar.DEF_CMD_PARM_NAME, "Value"));
 
     // DEF_CMD_PARMTYPE_VAR - (TypeName: TypeName)
-    CHECK(parseText(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String)")->production == Production::DEF_CMD_PARMTYPE_VAR);
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "T: Int");
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)");
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)");
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)");
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int");
-    parseFail(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)");
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String)", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T: Int"));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)"));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)"));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)"));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int"));
+    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)"));
 
     // DEF_CMD_PARM_TYPE - type (name or var)
-    CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "String")->production == Production::DEF_CMD_PARM_TYPE);
-    CHECK(parseText(grammar.DEF_CMD_PARM_TYPE, "(T: Int)")->production == Production::DEF_CMD_PARM_TYPE);
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "String", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "(T: Int)", Production::DEF_CMD_PARM_TYPE));
 
     // DEF_CMD_PARM - type + name
-    CHECK(parseText(grammar.DEF_CMD_PARM, "Int x")->production == Production::DEF_CMD_PARM);
-    CHECK(parseText(grammar.DEF_CMD_PARM, "String name")->production == Production::DEF_CMD_PARM);
-    parseFail(grammar.DEF_CMD_PARM, "value x");
-    parseFail(grammar.DEF_CMD_PARM, "Int X");
+    CHECK(testParse(grammar.DEF_CMD_PARM, "Int x", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "String name", Production::DEF_CMD_PARM));
+    CHECK(!testParse(grammar.DEF_CMD_PARM, "value x"));
+    CHECK(!testParse(grammar.DEF_CMD_PARM, "Int X"));
 
     // DEF_CMD_NAME - identifier
-    CHECK(parseText(grammar.DEF_CMD_NAME, "doSomething")->production == Production::DEF_CMD_NAME);
-    parseFail(grammar.DEF_CMD_NAME, "DoSomething");
+    CHECK(testParse(grammar.DEF_CMD_NAME, "doSomething", Production::DEF_CMD_NAME));
+    CHECK(!testParse(grammar.DEF_CMD_NAME, "DoSomething"));
 
     // DEF_CMD_RECEIVER - type + name
-    CHECK(parseText(grammar.DEF_CMD_RECEIVER, "Widget w")->production == Production::DEF_CMD_RECEIVER);
-    CHECK(parseText(grammar.DEF_CMD_RECEIVER, "Widget 'w")->production == Production::DEF_CMD_RECEIVER);
-    parseFail(grammar.DEF_CMD_RECEIVER, "widget w");
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget w", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget 'w", Production::DEF_CMD_RECEIVER));
+    CHECK(!testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
     // DEF_CMD - full command definition
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd ?doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd !doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x, String y")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt -> result")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x -> result")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt / Int ctx")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd doIt: Int x / Int ctx")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: ?doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: !doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j")->production == Production::DEF_CMD);
-    CHECK(parseText(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j")->production == Production::DEF_CMD);
-    parseFail(grammar.DEF_CMD, ".cmd doIt: Int ?x");
-    parseFail(grammar.DEF_CMD, ".cmd doIt: Int !x");
-    parseFail(grammar.DEF_CMD, ".cmd doIt: ?Int x");
-    parseFail(grammar.DEF_CMD, ".cmd doIt: !Int x");
-    parseFail(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i");
-    parseFail(grammar.DEF_CMD, ".cmd doIt:");
-    parseFail(grammar.DEF_CMD, ".cmd doIt /");
-    parseFail(grammar.DEF_CMD, ".cmd doIt :/ Int i");
-    parseFail(grammar.DEF_CMD, ".cmd doIt : Int i -> T");
-    parseFail(grammar.DEF_CMD, ".cmd doIt -> T");
-    parseFail(grammar.DEF_CMD, ".cmd doIt : -> x");
-    parseFail(grammar.DEF_CMD, ".cmd doIt / x ->");
-    parseFail(grammar.DEF_CMD, ".cmd doIt :/->");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i -> Int j");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j -> i");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i -> Int j");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i");
-    parseFail(grammar.DEF_CMD, ".cmd Widget w:: Int i -> i");
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd ?doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd !doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x, String y", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: ?doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: !doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T:Int) i, T j", Production::DEF_CMD));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int ?x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int !x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ?Int x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: !Int x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt:"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt /"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt :/ Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt : Int i -> T"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt -> T"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt : -> x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / x ->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt :/->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i -> Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j -> i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i -> Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i -> i"));
 }
 

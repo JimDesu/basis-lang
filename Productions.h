@@ -66,6 +66,14 @@ namespace basis {
         DEF_ENUM_ITEM,
         DEF_ENUM_ITEM_NAME,
         DEF_ENUM_ITEM_LIST,
+        // -- type expressions
+        TYPE_NAME_Q,
+        TYPE_NAME_PARMS,
+        TYPE_TYPEPARM_TYPE,
+        TYPE_TYPEPARM_VALUE,
+
+        // -- type aliases
+        DEF_ALIAS,
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_RECEIVERS,

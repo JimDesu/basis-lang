@@ -11,7 +11,7 @@
 namespace basis {
     class Lexer {
         public:
-            explicit Lexer(std::istream& inputStream) :
+            explicit Lexer(std::istream& inputStream, bool emit = true) : emitErrors(emit),
                 output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
                 checks{ &checkComment, &checkWhitespace, &checkHex, &checkNumeric,
                     &checkTypename, &checkIdentifier, &checkResWord, &checkString, &checkPunct },
@@ -21,8 +21,9 @@ namespace basis {
             std::list<spToken> output;
             bool scan();
         private:
+            bool emitErrors;
             static bool isIdentifierChar(char c);
-            static void writeError(const std::string& message, const Token* pToken);
+            void writeError(const std::string& message, const Token* pToken) const;
             const static std::map<std::string, TokenType> resWords;
             constexpr static int fnCount{ 9 };
             std::istream& input;

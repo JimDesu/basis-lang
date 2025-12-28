@@ -11,6 +11,7 @@ Grammar2::Grammar2() {
     initSubTypes();
     initRecordTypes();
     initClassTypes();
+    initTypeExpressions();
     initTypeAliases();
     initCommandBody();
     initCommandDefinitions();
@@ -95,7 +96,31 @@ void Grammar2::initClassTypes() {}
 void Grammar2::initCompoundTypes() {
 
 }
-void Grammar2::initTypeAliases() {}
+
+void Grammar2::initTypeExpressions() {
+   TYPE_TYPEPARM_TYPE = group(Production::TYPE_TYPEPARM_TYPE,
+       all(TYPENAME, maybe(TYPENAME)) );
+   TYPE_TYPEPARM_VALUE = group(Production::TYPE_TYPEPARM_VALUE,
+       all(TYPENAME, IDENTIFIER) );
+   // Note: TYPE_TYPEPARM_VALUE must be tried before TYPE_TYPEPARM_TYPE in any() because
+   // TYPE_TYPEPARM_TYPE can match just a TYPENAME, leaving an IDENTIFIER unconsumed,
+   // whereas TYPE_TYPEPARM_VALUE requires both TYPENAME and IDENTIFIER.
+   TYPE_NAME_PARMS = group(Production::TYPE_NAME_PARMS,
+       all(LBRACKET, separated(any(TYPE_TYPEPARM_VALUE, TYPE_TYPEPARM_TYPE), COMMA), RBRACKET) );
+   TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
+       all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
+
+        // SPPF TYPE_EXPR;
+        // SPPF TYPE_EXPR_PTR;
+        // SPPF TYPE_EXPR_RANGE;
+        // SPPF TYPE_EXPR_CMD;
+
+}
+
+void Grammar2::initTypeAliases() {
+   //DEF_ALIAS = boundedGroup(Production::DEF_ALIAS,
+       //ALIAS, TYPE_NAME_Q, COLON, TYPE_EXPR);
+}
 
 void Grammar2::initCommandBody() {
    // TODO
