@@ -92,6 +92,7 @@ namespace basis {
         SPPF TYPE_EXPR_PTR;
         SPPF TYPE_EXPR_RANGE;
         SPPF TYPE_EXPR_CMD;
+        SPPF TYPE_EXPR_CMDPARM;
         SPPF TYPE_NAME_Q;
         SPPF TYPE_ARGNAME_Q;
         SPPF TYPE_NAME_PARMS;

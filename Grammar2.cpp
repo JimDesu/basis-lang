@@ -118,22 +118,23 @@ void Grammar2::initTypeExpressions() {
    TYPE_ARGNAME_Q = group(Production::TYPE_ARGNAME_Q,
        all(TYPENAME, maybe(TYPE_NAME_PARMS), maybe(APOSTROPHE)) );
 
-   // TYPE_EXPR_CMD uses TYPE_ARGNAME_Q (which allows optional apostrophe)
+   TYPE_EXPR_CMDPARM = group(Production::TYPE_EXPR_CMDPARM, any(
+       TYPE_ARGNAME_Q,
+       forward(TYPE_EXPR_CMD),
+       all(TYPE_EXPR_PTR, forward(TYPE_EXPR_CMDPARM)),
+       all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR_CMDPARM))) ));
+
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
-         maybe(
-         separated(
-            all(
-               maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),
-               any(TYPE_ARGNAME_Q, forward(TYPE_EXPR_CMD))
-            ), COMMA)),
+         maybe(separated(TYPE_EXPR_CMDPARM, COMMA)),
          RANGLE) );
 
-   // TYPE_EXPR uses TYPE_NAME_Q (no apostrophes)
    TYPE_EXPR = group(Production::TYPE_EXPR,
-      all(
-         maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),
-         any(TYPE_NAME_Q, TYPE_EXPR_CMD) ));
+         any(
+            TYPE_NAME_Q,
+            TYPE_EXPR_CMD,
+            all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
+            all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR))) ));
 }
 
 void Grammar2::initTypeAliases() {
