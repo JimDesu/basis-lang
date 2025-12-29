@@ -98,28 +98,31 @@ void Grammar2::initCompoundTypes() {
 }
 
 void Grammar2::initTypeExpressions() {
+   TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, CARAT  );
+   TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
+      all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
+
    TYPE_TYPEPARM_TYPE = group(Production::TYPE_TYPEPARM_TYPE,
        all(TYPENAME, maybe(TYPENAME)) );
    TYPE_TYPEPARM_VALUE = group(Production::TYPE_TYPEPARM_VALUE,
        all(TYPENAME, IDENTIFIER) );
-   // Note: TYPE_TYPEPARM_VALUE must be tried before TYPE_TYPEPARM_TYPE in any() because
-   // TYPE_TYPEPARM_TYPE can match just a TYPENAME, leaving an IDENTIFIER unconsumed,
-   // whereas TYPE_TYPEPARM_VALUE requires both TYPENAME and IDENTIFIER.
+   // n.b. ordering is important because of shared prefix
    TYPE_NAME_PARMS = group(Production::TYPE_NAME_PARMS,
        all(LBRACKET, separated(any(TYPE_TYPEPARM_VALUE, TYPE_TYPEPARM_TYPE), COMMA), RBRACKET) );
    TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
        all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
 
-        // SPPF TYPE_EXPR;
-        // SPPF TYPE_EXPR_PTR;
-        // SPPF TYPE_EXPR_RANGE;
-        // SPPF TYPE_EXPR_CMD;
-
+   TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
+         any(LANGLE, QLANGLE, BANGLANGLE),
+         separated(forward(TYPE_EXPR), COMMA), RANGLE) );
+   TYPE_EXPR = group(Production::TYPE_EXPR,
+      all(
+         maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),
+         any(TYPE_NAME_Q, TYPE_EXPR_CMD) ));
 }
 
 void Grammar2::initTypeAliases() {
-   //DEF_ALIAS = boundedGroup(Production::DEF_ALIAS,
-       //ALIAS, TYPE_NAME_Q, COLON, TYPE_EXPR);
+   DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPE_NAME_Q, COLON, TYPE_EXPR));
 }
 
 void Grammar2::initCommandBody() {

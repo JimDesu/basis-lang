@@ -171,7 +171,9 @@ namespace basis {
         return true;
     }
 
-    SPPF separated(SPPF element, SPPF separator) { return std::make_shared<Separated>(element, separator); }
+    SPPF separated(SPPF element, SPPF separator) {
+        return std::make_shared<Separated>(element, separator);
+    }
 
     // Bound implementation
     Bound::Bound(SPPF spParseFn) : spfn(spParseFn) {}
@@ -198,7 +200,6 @@ namespace basis {
         target->reset();
         return false;
     }
-
     SPPF group(Production prod, SPPF parseFn) { return std::make_shared<Group>(prod, parseFn); }
 
     // BoundedGroup implementation
@@ -210,13 +211,17 @@ namespace basis {
         return spfn->parse(tokens, dpspResult, pIter, pLimit);
     }
 
-    // Ref2 implementation
-    Ref::Ref(const SPPF& ref) : spfnRef(ref) {}
-    bool Ref::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+    // Forward implementation
+    Forward::Forward(const SPPF& ref) : spfnRef(ref) {}
+
+    bool Forward::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                      itToken* pIter, const Token* pLimit) const {
         return spfnRef->parse(tokens, dpspResult, pIter, pLimit);
     }
-    SPPF ref(const SPPF& spfnRef) { return std::make_shared<Ref>(spfnRef); }
+
+    SPPF forward(const SPPF& spfnRef) {
+        return std::make_shared<Forward>(spfnRef);
+    }
 
 }
 

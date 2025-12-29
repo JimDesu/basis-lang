@@ -71,6 +71,10 @@ namespace basis {
         TYPE_NAME_PARMS,
         TYPE_TYPEPARM_TYPE,
         TYPE_TYPEPARM_VALUE,
+        TYPE_EXPR_PTR,
+        TYPE_EXPR_RANGE,
+        TYPE_EXPR,
+        TYPE_EXPR_CMD,
 
         // -- type aliases
         DEF_ALIAS,

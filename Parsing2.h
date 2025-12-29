@@ -179,16 +179,16 @@ namespace basis {
         return std::make_shared<BoundedGroup>(prod, std::vector<SPPF>{args...});
     }
 
-    // Ref2 combinator - for forward/circular initialization dependencies
-    class Ref : public ParseFn {
+    // Forward combinator - for forward/circular initialization dependencies
+    class Forward : public ParseFn {
     public:
-        explicit Ref(const SPPF& spfnRef);
+        explicit Forward(const SPPF& spfnRef);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
         const SPPF& spfnRef;
     };
-    SPPF ref(const SPPF& spfnRef);
+    SPPF forward(const SPPF& spfnRef);
 
 }
 
