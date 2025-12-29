@@ -121,11 +121,13 @@ void Grammar2::initTypeExpressions() {
    // TYPE_EXPR_CMD uses TYPE_ARGNAME_Q (which allows optional apostrophe)
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(LANGLE, QLANGLE, BANGLANGLE),
+         maybe(
          separated(
             all(
                maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),
                any(TYPE_ARGNAME_Q, forward(TYPE_EXPR_CMD))
-            ), COMMA), RANGLE) );
+            ), COMMA)),
+         RANGLE) );
 
    // TYPE_EXPR uses TYPE_NAME_Q (no apostrophes)
    TYPE_EXPR = group(Production::TYPE_EXPR,

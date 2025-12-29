@@ -163,6 +163,8 @@ namespace basis {
                 break;
             }
             if (!spElement->parse(tokens, &next, pIter, pLimit)) {
+                // Found separator but no following element - restore position and fail
+                *pIter = beforeSep;
                 return false;
             }
             if (*next) next = &((*next)->spNext);
