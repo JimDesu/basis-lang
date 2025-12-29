@@ -180,21 +180,21 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_RANGE, "["));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_RANGE, "]"));
 
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<^Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<[]Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<List[T]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<^[]Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<Int', String'>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int, String>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^Int>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[]Int>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<List[T]>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[]Int, String>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<:<Int>>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int', String'>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int, String>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<^Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<[]Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<List[T]'>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<^[]Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<<Int>>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<:<Int>>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int', []String>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<Int, String>", Production::TYPE_EXPR_CMD));
@@ -202,18 +202,18 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<[]Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<List[T]>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<^[]Int', String'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<<Int>>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<:<Int>>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<?<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "<>"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<>"));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<>"));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "<Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "<Int,>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int,>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "?<Int,>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "!<Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "<?Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "<!Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<?Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<!Int>"));
 
     // TYPE_EXPR: no apostrophes allowed in standalone typenames
     CHECK(testParse(grammar.TYPE_EXPR, "Int", Production::TYPE_EXPR));
@@ -236,33 +236,33 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR, "[5]^Int", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^[]^Int", Production::TYPE_EXPR));
     // TYPE_EXPR: apostrophes ARE allowed inside TYPE_EXPR_CMD
-    CHECK(testParse(grammar.TYPE_EXPR, "<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<Int', String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<List[T], Map[K, V]'>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<Int>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<Int', String>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<List[T], Map[K, V]'>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "?<Int>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "?<Int', String>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "!<Int>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "!<Int, String'>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "!<List[T]', Map[K, V]>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]<Int', String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]<Int>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^:<Int>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[]:<Int', String>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^[]:<Int>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^ ?<Int'>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "[]!<Int, String>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^[]?<Int'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<<Int>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<^Int', []String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^<^Int, []String'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "?<<Int>>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<:<Int>>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<^Int', []String>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^:<^Int, []String'>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "?<:<Int>>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "!<?<Int'>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<?<Int>, !<String>>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<?<Int>, !<String>>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^ ?<^Int', []String>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "[]!<^Int, []String'>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^[]List[T]", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "[]^Map[K, V]", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^^[]Int", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "[10][20]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "<>"));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<>"));
     CHECK(testParse(grammar.TYPE_EXPR, "?<>"));
     CHECK(testParse(grammar.TYPE_EXPR, "!<>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR, "?<List'[T], Map[K, V']>"));
@@ -295,7 +295,7 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias StringPtr: ^String", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrPtr: ^^Int", Production::DEF_ALIAS));
     // Apostrophes allowed in TYPE_EXPR_CMD within the type expression
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdType: <Int'>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdType: :<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeCmdType: ?<String', Int>", Production::DEF_ALIAS));
     // Apostrophes NOT allowed in alias name or standalone type
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias String': String"));
@@ -305,23 +305,23 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias FixedArray: [10]Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias SizedArray: [size]Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias Matrix: [][]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd: <Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd: :<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeInt: ?<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias FailInt: !<Int>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MultiCmd: <Int, String>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias MultiCmd: :<Int, String>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias ComplexType: ^[]List[T]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdArray: []<Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdArray: []:<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrArray: ^[]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias NestedCmd: <^[]Int, String>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias NestedCmd: :<^[]Int, String>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias DeepNest: ^[]?<List[T]>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt:\n Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]:\n ^[]Pair[K, V]", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias ComplexType:\n ^[]List[T]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n <Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt:\n Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: <>"));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: :<>"));
     // Apostrophes allowed in TYPE_EXPR (inside TYPE_EXPR_CMD) but NOT in alias name
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n <Int'>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeInt:\n ?<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias FailInt:\n !<Int'>", Production::DEF_ALIAS));
     // Apostrophes NOT allowed in alias name
@@ -362,11 +362,11 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[10]Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^[]List[T]", Production::DEF_CMD_PARMTYPE_NAME));
-    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "<>"));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<>"));
     // Apostrophes allowed inside TYPE_EXPR_CMD
-    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "<Int>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<Int>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "?<Int', String>", Production::DEF_CMD_PARMTYPE_NAME));
-    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^<Int'>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^:<Int'>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]?<Int, String'>", Production::DEF_CMD_PARMTYPE_NAME));
     // Apostrophes NOT allowed in standalone types
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "!<List[T']>", Production::DEF_CMD_PARMTYPE_NAME));
@@ -389,7 +389,7 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: List[U])", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(U: ^[]Int)", Production::DEF_CMD_PARMTYPE_VAR));
     // Apostrophes allowed in TYPE_EXPR_CMD within the type expression
-    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: <Int'>)", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: :<Int'>)", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(U: ?<String', Int>)", Production::DEF_CMD_PARMTYPE_VAR));
     // Apostrophes NOT allowed in TYPENAME or standalone type
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T': String)"));

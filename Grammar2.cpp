@@ -120,7 +120,7 @@ void Grammar2::initTypeExpressions() {
 
    // TYPE_EXPR_CMD uses TYPE_ARGNAME_Q (which allows optional apostrophe)
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
-         any(LANGLE, QLANGLE, BANGLANGLE),
+         any(COLANGLE, QLANGLE, BANGLANGLE),
          maybe(
          separated(
             all(
