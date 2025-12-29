@@ -343,42 +343,79 @@ TEST_CASE("Grammar2::test type alias definitions") {
 TEST_CASE("Grammar2::test command declarations") {
     Grammar2& grammar = getGrammar();
 
-    // DEF_CMD_PARMTYPE_NAME - just a typename
+    // DEF_CMD_PARMTYPE_NAME - full TYPE_EXPR
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Int", Production::DEF_CMD_PARMTYPE_NAME));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_NAME, "value"));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "String'", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "T'", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "List[T]", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Map'[K', V]", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^Int", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^String'", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]Int", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[10]Int'", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^[]List'[T']", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "<Int>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "?<Int', String>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "!<List[T']>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^<Int'>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]?<Int, String'>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "value"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "int"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "<>"));
 
     // DEF_CMD_PARM_NAME - just an identifier
     CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "value", Production::DEF_CMD_PARM_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "'value", Production::DEF_CMD_PARM_NAME));
-    CHECK(!testParse(grammar.DEF_CMD_PARM_NAME, "Value"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_NAME, "Value"));
 
-    // DEF_CMD_PARMTYPE_VAR - (TypeName: TypeName)
+    // DEF_CMD_PARMTYPE_VAR - (TYPENAME: TYPE_EXPR)
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String)", Production::DEF_CMD_PARMTYPE_VAR));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T: Int"));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)"));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)"));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)"));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int"));
-    CHECK(!testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)"));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T': String')", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: ^Int)", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T': []String')", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: List[U'])", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(U': ^[]Int')", Production::DEF_CMD_PARMTYPE_VAR));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T: Int"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(list: Int)"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: int)"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(^T': String)"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "([]T: Int)"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int)"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)"));
 
     // DEF_CMD_PARM_TYPE - type (name or var)
     CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "String", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "String'", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "^Int'", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "[]List[T']", Production::DEF_CMD_PARM_TYPE));
     CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "(T: Int)", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "(T': ^Int')", Production::DEF_CMD_PARM_TYPE));
+    CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "(U: []List[T'])", Production::DEF_CMD_PARM_TYPE));
 
     // DEF_CMD_PARM - type + name
     CHECK(testParse(grammar.DEF_CMD_PARM, "Int x", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "String name", Production::DEF_CMD_PARM));
-    CHECK(!testParse(grammar.DEF_CMD_PARM, "value x"));
-    CHECK(!testParse(grammar.DEF_CMD_PARM, "Int X"));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "String' name", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "^Int' ptr", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "[]List[T'] items", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "?<Int', String> cmd", Production::DEF_CMD_PARM));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "value x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "Int X"));
 
     // DEF_CMD_NAME - identifier
     CHECK(testParse(grammar.DEF_CMD_NAME, "doSomething", Production::DEF_CMD_NAME));
-    CHECK(!testParse(grammar.DEF_CMD_NAME, "DoSomething"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "DoSomething"));
 
     // DEF_CMD_RECEIVER - type + name
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget w", Production::DEF_CMD_RECEIVER));
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget 'w", Production::DEF_CMD_RECEIVER));
-    CHECK(!testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget' w", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "^Widget' ptr", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "[]Container[T'] items", Production::DEF_CMD_RECEIVER));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
     // DEF_CMD - full command definition
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt", Production::DEF_CMD));
@@ -399,6 +436,15 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T:Int) i, T j", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: ^Int' ptr", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: []String' items", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: List[T'] list", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget' w:: doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd ^Widget' ptr:: doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd []Container[T'] items:: process", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget' w:: ^Int' ptr, []String' items", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: (T': ^Int') x", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T': []String') x, T' y", Production::DEF_CMD));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int ?x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int !x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ?Int x"));
