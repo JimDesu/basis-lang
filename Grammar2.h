@@ -47,6 +47,7 @@ namespace basis {
         SPPF AMBANG;
         SPPF AMPERSAND;
         SPPF AMPHORA;
+        SPPF APOSTROPHE;
         SPPF ASTERISK;
         SPPF BANG;
         SPPF BANGLANGLE;
@@ -92,6 +93,7 @@ namespace basis {
         SPPF TYPE_EXPR_RANGE;
         SPPF TYPE_EXPR_CMD;
         SPPF TYPE_NAME_Q;
+        SPPF TYPE_ARGNAME_Q;
         SPPF TYPE_NAME_PARMS;
         SPPF TYPE_TYPEPARM_TYPE;
         SPPF TYPE_TYPEPARM_VALUE;

@@ -34,6 +34,7 @@ void Grammar2::initPunctuation() {
    AMBANG = match(Production::AMBANG, TokenType::AMBANG);
    AMPERSAND = match(Production::AMPERSAND, TokenType::AMPERSAND);
    AMPHORA = match(Production::AMPHORA, TokenType::AMPHORA);
+   APOSTROPHE = match(Production::APOSTROPHE, TokenType::APOSTROPHE);
    ASTERISK = match(Production::ASTERISK, TokenType::ASTERISK);
    BANG = match(Production::BANG, TokenType::BANG);
    BANGLANGLE = match(Production::BANGLANGLE, TokenType::BANGLANGLE);
@@ -102,6 +103,7 @@ void Grammar2::initTypeExpressions() {
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
 
+   // Regular type parameters (no apostrophe allowed)
    TYPE_TYPEPARM_TYPE = group(Production::TYPE_TYPEPARM_TYPE,
        all(TYPENAME, maybe(TYPENAME)) );
    TYPE_TYPEPARM_VALUE = group(Production::TYPE_TYPEPARM_VALUE,
@@ -112,9 +114,20 @@ void Grammar2::initTypeExpressions() {
    TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
        all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
 
+   // TYPE_ARGNAME_Q: typename with optional apostrophe suffix (for use in TYPE_EXPR_CMD)
+   TYPE_ARGNAME_Q = group(Production::TYPE_ARGNAME_Q,
+       all(TYPENAME, maybe(TYPE_NAME_PARMS), maybe(APOSTROPHE)) );
+
+   // TYPE_EXPR_CMD uses TYPE_ARGNAME_Q (which allows optional apostrophe)
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(LANGLE, QLANGLE, BANGLANGLE),
-         separated(forward(TYPE_EXPR), COMMA), RANGLE) );
+         separated(
+            all(
+               maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),
+               any(TYPE_ARGNAME_Q, forward(TYPE_EXPR_CMD))
+            ), COMMA), RANGLE) );
+
+   // TYPE_EXPR uses TYPE_NAME_Q (no apostrophes)
    TYPE_EXPR = group(Production::TYPE_EXPR,
       all(
          maybe(oneOrMore(any(TYPE_EXPR_PTR, TYPE_EXPR_RANGE))),

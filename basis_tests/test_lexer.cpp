@@ -164,34 +164,32 @@ TEST_CASE("Lexer::test identifier vs typename") {
     testSingleToken("'fOO", TokenType::IDENTIFIER);
     testSingleToken("'fooBar", TokenType::IDENTIFIER);
 
-    // Typenames: start with uppercase (no leading apostrophe allowed, optional trailing apostrophe)
+    // Typenames: start with uppercase
     testSingleToken("Foo", TokenType::TYPENAME);
     testSingleToken("FooBar", TokenType::TYPENAME);
     testSingleToken("Foo_Bar", TokenType::TYPENAME);
     testSingleToken("FOO", TokenType::TYPENAME);
     testSingleToken("F", TokenType::TYPENAME);
     testSingleToken("F123", TokenType::TYPENAME);
-    testSingleToken("Foo'", TokenType::TYPENAME);
-    testSingleToken("FooBar'", TokenType::TYPENAME);
-    testSingleToken("Foo_Bar'", TokenType::TYPENAME);
-    testSingleToken("FOO'", TokenType::TYPENAME);
-    testSingleToken("F'", TokenType::TYPENAME);
-    testSingleToken("F123'", TokenType::TYPENAME);
 
-    // Test that apostrophe+uppercase is NOT recognized as identifier
-    std::string input = "'Foo";
+    // Test that apostrophe is a separate token
+    std::string input = "Foo'";
     basis::Lexer lexer = lexInput(input);
-    CHECK_EQ(lexer.output.size(), 2);  // Should be apostrophe (punct) + Foo (typename)
-    CHECK_EQ(lexer.output.front()->type, TokenType::APOSTROPHE);
+    CHECK_EQ(lexer.output.size(), 2);  // Should be Foo (typename) + apostrophe (punct)
+    CHECK_EQ(lexer.output.front()->type, TokenType::TYPENAME);
+    CHECK_EQ(lexer.output.front()->text, "Foo");
     auto it = lexer.output.begin();
     ++it;
-    CHECK_EQ((*it)->type, TokenType::TYPENAME);
-    CHECK_EQ((*it)->text, "Foo");
+    CHECK_EQ((*it)->type, TokenType::APOSTROPHE);
+    CHECK_EQ((*it)->text, "'");
 
-    // Test that typename with trailing apostrophe includes the apostrophe in the text
-    std::string input2 = "Foo'";
+    // Test that apostrophe+uppercase is NOT recognized as identifier
+    std::string input2 = "'Foo";
     basis::Lexer lexer2 = lexInput(input2);
-    CHECK_EQ(lexer2.output.size(), 1);
-    CHECK_EQ(lexer2.output.front()->type, TokenType::TYPENAME);
-    CHECK_EQ(lexer2.output.front()->text, "Foo'");
+    CHECK_EQ(lexer2.output.size(), 2);  // Should be apostrophe (punct) + Foo (typename)
+    CHECK_EQ(lexer2.output.front()->type, TokenType::APOSTROPHE);
+    auto it2 = lexer2.output.begin();
+    ++it2;
+    CHECK_EQ((*it2)->type, TokenType::TYPENAME);
+    CHECK_EQ((*it2)->text, "Foo");
 }

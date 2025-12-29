@@ -179,15 +179,10 @@ bool Lexer::readNumeric() {
 }
 
 bool Lexer::readTypename() {
-    // read a typename (starts with uppercase, optional trailing apostrophe)
     spToken pToken = nextToken();
     pToken->text += readChar;
     pToken->type = TokenType::TYPENAME;
     while( input.good() && isIdentifierChar(input.peek()) && read() ) {
-        pToken->text += readChar;
-    }
-    // check for optional trailing apostrophe
-    if( input.good() && input.peek() == '\'' && read() ) {
         pToken->text += readChar;
     }
     return true;
