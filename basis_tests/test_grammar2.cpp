@@ -353,7 +353,6 @@ TEST_CASE("Grammar2::test type alias definitions") {
 TEST_CASE("Grammar2::test command declarations") {
     Grammar2& grammar = getGrammar();
 
-    // DEF_CMD_PARMTYPE_NAME - full TYPE_EXPR (no apostrophes in standalone types)
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "String", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "T", Production::DEF_CMD_PARMTYPE_NAME));
@@ -365,14 +364,12 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[10]Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^[]List[T]", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<>"));
-    // Apostrophes allowed inside TYPE_EXPR_CMD
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<Int>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "?<Int', String>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^:<Int'>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]?<Int, String'>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]"));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[8]"));
-    // Apostrophes NOT allowed in standalone types
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "!<List[T']>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "String'"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "T'"));
@@ -381,20 +378,16 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "int"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^"));
 
-    // DEF_CMD_PARM_NAME - just an identifier
     CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "value", Production::DEF_CMD_PARM_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "'value", Production::DEF_CMD_PARM_NAME));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_NAME, "Value"));
 
-    // DEF_CMD_PARMTYPE_VAR - (TYPENAME: TYPE_EXPR) - TYPENAME cannot have apostrophe
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String)", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: ^Int)", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: List[U])", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(U: ^[]Int)", Production::DEF_CMD_PARMTYPE_VAR));
-    // Apostrophes allowed in TYPE_EXPR_CMD within the type expression
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: :<Int'>)", Production::DEF_CMD_PARMTYPE_VAR));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(U: ?<String', Int>)", Production::DEF_CMD_PARMTYPE_VAR));
-    // Apostrophes NOT allowed in TYPENAME or standalone type
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T': String)"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T: String')"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T': []String')"));
@@ -407,7 +400,6 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "(T Int"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_VAR, "T Int)"));
 
-    // DEF_CMD_PARM_TYPE - type (name or var)
     CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "String", Production::DEF_CMD_PARM_TYPE));
     CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "^Int", Production::DEF_CMD_PARM_TYPE));
     CHECK(testParse(grammar.DEF_CMD_PARM_TYPE, "[]List[T]", Production::DEF_CMD_PARM_TYPE));
@@ -417,7 +409,6 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_TYPE, "String'"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_TYPE, "(T': ^Int)"));
 
-    // DEF_CMD_PARM - type + name
     CHECK(testParse(grammar.DEF_CMD_PARM, "Int x", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "String name", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "^Int ptr", Production::DEF_CMD_PARM));
@@ -427,11 +418,9 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "value x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "Int X"));
 
-    // DEF_CMD_NAME - identifier
     CHECK(testParse(grammar.DEF_CMD_NAME, "doSomething", Production::DEF_CMD_NAME));
     CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "DoSomething"));
 
-    // DEF_CMD_RECEIVER - type + name
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget w", Production::DEF_CMD_RECEIVER));
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Widget 'w", Production::DEF_CMD_RECEIVER));
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "^Widget ptr", Production::DEF_CMD_RECEIVER));
@@ -440,21 +429,16 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "Widget' w"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
-    // DEF_CMD - full command definition
-    // Basic commands with new order: name / imparms : parms -> retval
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd ?doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd !doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int 'x, String y", Production::DEF_CMD));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt -> result", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int 'x -> result", Production::DEF_CMD));
-    // Imparms now come after parms and are optional
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int ctx / Int ctx", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x / Int 'ctx", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x -> result / Int ctx", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD));
-    // With receivers
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: ?doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: !doIt", Production::DEF_CMD));
@@ -462,15 +446,13 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt: Int x -> result", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt: Int x -> result / Int ctx", Production::DEF_CMD));
-    // Constructors
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T:Int) i, T j", Production::DEF_CMD));
-    // Command types with apostrophes
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: ?<Int'> cmd", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: !<String', Int> result", Production::DEF_CMD));
-    // Invalid: apostrophes in wrong places
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt -> result", Production::DEF_CMD));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: <List[T']> items", Production::DEF_CMD));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ^Int' ptr"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: []String' items"));
@@ -482,13 +464,11 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: (T': ^Int) x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T': []String) x, T' y"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int ctx: (T': ^Int) x"));
-    // Invalid: modifiers in wrong places
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int ?x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int !x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ?Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: !Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i"));
-    // Invalid: incomplete syntax with new order (/ imparms : parms -> retval)
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt:"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt /"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / :"));
@@ -498,10 +478,8 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt : -> x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / x ->"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / -> x"));
-    // Invalid: wrong order (new order is : parms / imparms, old was / imparms : parms)
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int j: Int i"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int j: Int i -> result"));
-    // Invalid: constructors cannot have imparms or retval
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i -> Int j"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j -> i"));
