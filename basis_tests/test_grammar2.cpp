@@ -205,7 +205,7 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<>"));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<^>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<[8]^>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<r>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "Int>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int,>"));
@@ -491,5 +491,45 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i -> Int j"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i -> i"));
+
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic ?doIt: Int x / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic !doIt: Int x / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int 'x, String y / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int ptr / String ctx -> 'result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: []List[T] items / Int ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?<Int'> cmd / String ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: !<String', Int> result / Int ctx -> out", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: (T:Int) i, T j / String ctx -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt -> result"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x /"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result {"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result = x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int' ptr / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: []String' items / Int ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: List[T'] list / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget' w:: doIt: Int x / Int ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ^Widget' ptr:: doIt: Int x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic []Container[T'] items:: process: T item / Int ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: (T': ^Int) x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: (T': []String) x, T' y / Int ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int ?x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int !x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?Int x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: !Int x / String ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx ->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: / Int ctx -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x / Int ctx"));
 }
 

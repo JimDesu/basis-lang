@@ -8,7 +8,7 @@ Grammar2::Grammar2() {
     initPunctuation();
     initReservedWords();
     initEnumerations();
-    initSubTypes();
+    initDomainTypes();
     initRecordTypes();
     initClassTypes();
     initTypeExpressions();
@@ -89,7 +89,7 @@ void Grammar2::initEnumerations() {
        ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
 }
 
-void Grammar2::initSubTypes() {}
+void Grammar2::initDomainTypes() {}
 void Grammar2::initRecordTypes() {}
 void Grammar2::initObjectTypes() {}
 void Grammar2::initClassTypes() {}
@@ -172,17 +172,18 @@ void Grammar2::initCommandDefinitions() {
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
    // Top-level command definition
-   DEF_CMD = boundedGroup(Production::DEF_CMD,
-       COMMAND, any(
-          // constructor
-          all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
-             maybe(DEF_CMD_BODY)),
-          // virtual constructor
-          all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
-             maybe(DEF_CMD_BODY)),
-          // command / method
-          all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
-              maybe(DEF_CMD_BODY))  ));
+   DEF_CMD = boundedGroup(Production::DEF_CMD, any(
+       all(COMMAND, any(
+           // constructor
+           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
+               maybe(DEF_CMD_BODY)),
+           // virtual constructor
+           all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
+               maybe(DEF_CMD_BODY)),
+           // command / method
+           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
+                maybe(DEF_CMD_BODY)) )),
+       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL) ));
 }
 
 Grammar2& basis::getGrammar() {

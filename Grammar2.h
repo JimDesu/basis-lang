@@ -15,7 +15,7 @@ namespace basis {
         void initPunctuation();
         void initReservedWords();
         void initEnumerations();
-        void initSubTypes();
+        void initDomainTypes();
         void initRecordTypes();
         void initObjectTypes();
         void initClassTypes();
