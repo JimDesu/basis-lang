@@ -160,19 +160,6 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "Int[]"));
     CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "[T]"));
 
-    // TYPE_ARGNAME_Q: apostrophes optional (allows both with and without)
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "Int", Production::TYPE_ARGNAME_Q));
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "Int'", Production::TYPE_ARGNAME_Q));
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "String", Production::TYPE_ARGNAME_Q));
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "String'", Production::TYPE_ARGNAME_Q));
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "T", Production::TYPE_ARGNAME_Q));
-    CHECK(testParse(grammar.TYPE_ARGNAME_Q, "T'", Production::TYPE_ARGNAME_Q));
-    CHECK_FALSE(testParse(grammar.TYPE_ARGNAME_Q, "int"));
-    CHECK_FALSE(testParse(grammar.TYPE_ARGNAME_Q, "Int[]"));
-    CHECK_FALSE(testParse(grammar.TYPE_ARGNAME_Q, "int'"));
-    CHECK_FALSE(testParse(grammar.TYPE_ARGNAME_Q, "value"));
-    CHECK_FALSE(testParse(grammar.TYPE_ARGNAME_Q, "value'"));
-
     CHECK(testParse(grammar.TYPE_EXPR_PTR, "^", Production::TYPE_EXPR_PTR));
     CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[]", Production::TYPE_EXPR_RANGE));
     CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[10]", Production::TYPE_EXPR_RANGE));
@@ -194,6 +181,9 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<List[T]>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[]Int, String>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<:<Int>>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[]'>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[]'>", Production::TYPE_EXPR_CMD));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[8]'>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int', String'>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int>", Production::TYPE_EXPR_CMD));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int, String>", Production::TYPE_EXPR_CMD));

@@ -114,15 +114,12 @@ void Grammar2::initTypeExpressions() {
    TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
        all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
 
-   // TYPE_ARGNAME_Q: typename with optional apostrophe suffix (for use in TYPE_EXPR_CMD)
-   TYPE_ARGNAME_Q = group(Production::TYPE_ARGNAME_Q,
-       all(TYPENAME, maybe(TYPE_NAME_PARMS), maybe(APOSTROPHE)) );
-
-   TYPE_EXPR_CMDPARM = group(Production::TYPE_EXPR_CMDPARM, any(
-       TYPE_ARGNAME_Q,
-       forward(TYPE_EXPR_CMD),
-       all(TYPE_EXPR_PTR, forward(TYPE_EXPR_CMDPARM)),
-       all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR_CMDPARM))) ));
+   TYPE_EXPR_CMDPARM = group(Production::TYPE_EXPR_CMDPARM, all(
+      any(
+          TYPE_NAME_Q,
+          forward(TYPE_EXPR_CMD),
+          all(TYPE_EXPR_PTR, forward(TYPE_EXPR_CMDPARM)),
+          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR_CMDPARM))) ), maybe(APOSTROPHE) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
