@@ -204,6 +204,8 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<>"));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<>"));
     CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<^>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<[8]^>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "Int>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int,>"));
