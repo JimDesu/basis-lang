@@ -7,11 +7,11 @@ Grammar2::Grammar2() {
     initIdentifiers();
     initPunctuation();
     initReservedWords();
+    initTypeExpressions();
     initEnumerations();
     initDomainTypes();
     initRecordTypes();
     initClassTypes();
-    initTypeExpressions();
     initTypeAliases();
     initCommandBody();
     initCommandDefinitions();
@@ -79,25 +79,6 @@ void Grammar2::initReservedWords() {
    RECORD = match(Production::RECORD, TokenType::RECORD);
 }
 
-void Grammar2::initEnumerations() {
-   DEF_ENUM_ITEM_LIST = separated(
-       all(match(Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER), EQUALS, LITERAL),
-       COMMA);
-   DEF_ENUM_NAME2 = maybe(match(Production::DEF_ENUM_NAME2, TokenType::TYPENAME));
-   DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME1, TokenType::TYPENAME);
-   DEF_ENUM = boundedGroup(Production::DEF_ENUM,
-       ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
-}
-
-void Grammar2::initDomainTypes() {}
-void Grammar2::initRecordTypes() {}
-void Grammar2::initObjectTypes() {}
-void Grammar2::initClassTypes() {}
-
-void Grammar2::initCompoundTypes() {
-
-}
-
 void Grammar2::initTypeExpressions() {
    TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, CARAT  );
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
@@ -132,6 +113,30 @@ void Grammar2::initTypeExpressions() {
             TYPE_EXPR_CMD,
             all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
             all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR))) ));
+}
+
+void Grammar2::initEnumerations() {
+   DEF_ENUM_ITEM_LIST = separated(
+       all(match(Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER), EQUALS, LITERAL),
+       COMMA);
+   DEF_ENUM_NAME2 = maybe(match(Production::DEF_ENUM_NAME2, TokenType::TYPENAME));
+   DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME1, TokenType::TYPENAME);
+   DEF_ENUM = boundedGroup(Production::DEF_ENUM,
+       ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
+}
+
+void Grammar2::initDomainTypes() {
+    DEF_DOMAIN = boundedGroup(Production::DEF_DOMAIN,
+        all(DOMAIN, group(Production::DEF_DOMAIN_NAME, TYPENAME), COLON,
+            group(Production::DEF_DOMAIN_PARENT,
+               any(TYPENAME, all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
+}
+void Grammar2::initRecordTypes() {}
+void Grammar2::initObjectTypes() {}
+void Grammar2::initClassTypes() {}
+
+void Grammar2::initCompoundTypes() {
+
 }
 
 void Grammar2::initTypeAliases() {

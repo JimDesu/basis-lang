@@ -100,6 +100,8 @@ namespace basis {
 
         // Alias definition
         SPPF DEF_ALIAS;
+        // Domain definition
+        SPPF DEF_DOMAIN;
 
         // Command definitions
         SPPF DEF_CMD;

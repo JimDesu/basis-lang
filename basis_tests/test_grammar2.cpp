@@ -110,6 +110,27 @@ TEST_CASE("Grammar2::test parse enum definition") {
     CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
 }
 
+TEST_CASE("Grammar2::test domain type definitions") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyInt: Int", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain UserId: Int", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain Temperature: Float", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain FixedBuffer: [10]", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain DynamicArray: []", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyInt:\n Int", Production::DEF_DOMAIN));
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain SmallInt: []Int", Production::DEF_DOMAIN));
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain SizedArray: [size]", Production::DEF_DOMAIN));
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain ByteArray: [256]Byte", Production::DEF_DOMAIN));
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain SmallInt:\n []Int", Production::DEF_DOMAIN));
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain myInt: Int"));  // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt"));  // missing colon and parent
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt:"));  // missing parent
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain : Int"));  // missing name
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt: int"));  // lowercase parent
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt: ^Int"));  // pointer not allowed
+    CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt: List[T]"));  // parameterized type not allowed
+}
+
 TEST_CASE("Grammar2::test type expressions") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.TYPE_TYPEPARM_TYPE, "T", Production::TYPE_TYPEPARM_TYPE));
@@ -145,7 +166,6 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[t]"));
     CHECK_FALSE(testParse(grammar.TYPE_NAME_PARMS, "[T,]"));
 
-    // TYPE_NAME_Q: no apostrophes allowed
     CHECK(testParse(grammar.TYPE_NAME_Q, "Int", Production::TYPE_NAME_Q));
     CHECK(testParse(grammar.TYPE_NAME_Q, "String", Production::TYPE_NAME_Q));
     CHECK(testParse(grammar.TYPE_NAME_Q, "T", Production::TYPE_NAME_Q));
@@ -214,7 +234,6 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<?Int>"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<!Int>"));
 
-    // TYPE_EXPR: no apostrophes allowed in standalone typenames
     CHECK(testParse(grammar.TYPE_EXPR, "Int", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "String", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "T", Production::TYPE_EXPR));
@@ -234,7 +253,6 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK(testParse(grammar.TYPE_EXPR, "^[10]String", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "[5]^Int", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^[]^Int", Production::TYPE_EXPR));
-    // TYPE_EXPR: apostrophes ARE allowed inside TYPE_EXPR_CMD
     CHECK(testParse(grammar.TYPE_EXPR, ":<Int>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, ":<Int', String>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, ":<List[T], Map[K, V]'>", Production::TYPE_EXPR));
@@ -286,8 +304,6 @@ TEST_CASE("Grammar2::test type expressions") {
 
 TEST_CASE("Grammar2::test type alias definitions") {
     Grammar2& grammar = getGrammar();
-    // Alias name (TYPE_NAME_Q) cannot have apostrophes
-    // Alias type (TYPE_EXPR) can have apostrophes only inside TYPE_EXPR_CMD
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias T: U", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias List[T]: ^[]T", Production::DEF_ALIAS));
@@ -296,13 +312,8 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias StringPtr: ^String", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrPtr: ^^Int", Production::DEF_ALIAS));
-    // Apostrophes allowed in TYPE_EXPR_CMD within the type expression
     CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdType: :<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeCmdType: ?<String', Int>", Production::DEF_ALIAS));
-    // Apostrophes NOT allowed in alias name or standalone type
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias String': String"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias T': U'"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int'"));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntArray: []Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias FixedArray: [10]Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias SizedArray: [size]Int", Production::DEF_ALIAS));
@@ -322,12 +333,13 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt:\n Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: :<>"));
-    // Apostrophes allowed in TYPE_EXPR (inside TYPE_EXPR_CMD) but NOT in alias name
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeInt:\n ?<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias FailInt:\n !<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: []"));
-    // Apostrophes NOT allowed in alias name
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias String': String"));
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias T': U'"));
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int'"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType': ^[]List'[T']", Production::DEF_ALIAS));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias List'[T']:\n ^[]T"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias Map'[K', V']:\n ^[]Pair[K, V]"));

@@ -80,6 +80,10 @@ namespace basis {
 
         // -- type aliases
         DEF_ALIAS,
+        // -- domain definitions
+        DEF_DOMAIN,
+        DEF_DOMAIN_NAME,
+        DEF_DOMAIN_PARENT,
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_RECEIVERS,
