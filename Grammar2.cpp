@@ -95,6 +95,7 @@ void Grammar2::initTypeExpressions() {
    TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
        all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
 
+   // TODO TYPE_NAME_Q here doesn't allow for SomeType[T,4]; fix this
    TYPE_EXPR_CMDPARM = group(Production::TYPE_EXPR_CMDPARM, all(
       any(
           TYPE_NAME_Q,
