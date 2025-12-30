@@ -441,26 +441,36 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
     // DEF_CMD - full command definition
+    // Basic commands with new order: name / imparms : parms -> retval
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd ?doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd !doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int 'x, String y", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt -> result", Production::DEF_CMD));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt -> result", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int 'x -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt / Int ctx", Production::DEF_CMD));
+    // Imparms now come after parms and are optional
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int ctx / Int ctx", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x / Int 'ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x -> result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD));
+    // With receivers
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: ?doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: !doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button b:: doIt", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x / Int ctx -> 'result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w, Button 'b:: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: doIt: Int x -> result / Int ctx", Production::DEF_CMD));
+    // Constructors
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i, Int j", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T:Int) i, T j", Production::DEF_CMD));
+    // Command types with apostrophes
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: ?<Int'> cmd", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd doIt: !<String', Int> result", Production::DEF_CMD));
+    // Invalid: apostrophes in wrong places
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: <List[T']> items", Production::DEF_CMD));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ^Int' ptr"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: []String' items"));
@@ -471,19 +481,27 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget' w:: ^Int' ptr, []String' items"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: (T': ^Int) x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: (T': []String) x, T' y"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int ctx: (T': ^Int) x"));
+    // Invalid: modifiers in wrong places
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int ?x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: Int !x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: ?Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt: !Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget 'w, Button 'b:: Int i"));
+    // Invalid: incomplete syntax with new order (/ imparms : parms -> retval)
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt:"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt /"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt :/ Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / :"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int i:"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt : Int i -> T"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt -> T"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt : -> x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / x ->"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt :/->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / -> x"));
+    // Invalid: wrong order (new order is : parms / imparms, old was / imparms : parms)
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int j: Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd doIt / Int j: Int i -> result"));
+    // Invalid: constructors cannot have imparms or retval
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i -> Int j"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w: Int i / Int j -> i"));
@@ -492,44 +510,53 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i / Int j -> i"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd Widget w:: Int i -> i"));
 
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic ?doIt: Int x / Int ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic !doIt: Int x / Int ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int 'x, String y / Int ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int ptr / String ctx -> 'result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: []List[T] items / Int ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?<Int'> cmd / String ctx -> result", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: !<String', Int> result / Int ctx -> out", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: (T:Int) i, T j / String ctx -> result", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt"));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic ?doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic !doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic ?doIt: Int x -> result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic !doIt: Int x -> result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int 'x, String y -> result / Int 'ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int ptr -> 'result / String ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: []List[T] items -> result / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?<Int'> cmd -> result / String ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: !<String', Int> result -> out / Int ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: (T:Int) i, T j -> result / String ctx", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x, String y -> result", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx"));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt -> result"));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result"));
-    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x /"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result {"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx -> result = x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int' ptr / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: []String' items / Int ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: List[T'] list / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget' w:: doIt: Int x / Int ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ^Widget' ptr:: doIt: Int x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic []Container[T'] items:: process: T item / Int ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: (T': ^Int) x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: (T': []String) x, T' y / Int ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int ?x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int !x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?Int x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: !Int x / String ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / Int ctx ->"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: / Int ctx -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x / -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt / Int ctx"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt -> result"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x"));
+    CHECK(testParse(grammar.DEF_CMD, ".intrinsic doIt :Int x /Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result {"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result = x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x -> result {"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x -> result = x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ^Int' ptr -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: []String' items -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: List[T'] list -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / String ctx: (T': ^Int) x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: ^Int' ptr -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int ?x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int !x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: ?Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: !Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt:"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt /"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int ctx /"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x ->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt :Int x -> / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt -> / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: Int x -> result / :"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: -> result / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x -> result / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w, Button b:: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ^Widget ptr:: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic []Container[T] items:: process: T item -> result"));
 }
 

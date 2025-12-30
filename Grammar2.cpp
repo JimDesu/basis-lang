@@ -158,12 +158,12 @@ void Grammar2::initCommandDefinitions() {
 
    DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS,
        all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) );
-   DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
-      separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
       IDENTIFIER) );
+   DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
+      all(separated(DEF_CMD_PARM, COMMA),DEF_CMD_RETVAL) ));
 
    DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
    DEF_CMD_MAYFAIL = match(Production::DEF_CMD_MAYFAIL, TokenType::QMARK);
@@ -181,9 +181,9 @@ void Grammar2::initCommandDefinitions() {
            all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
                maybe(DEF_CMD_BODY)),
            // command / method
-           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL,
+           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS,
                 maybe(DEF_CMD_BODY)) )),
-       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS, DEF_CMD_RETVAL) ));
+       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ));
 }
 
 Grammar2& basis::getGrammar() {

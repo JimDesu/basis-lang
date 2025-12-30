@@ -77,6 +77,7 @@ namespace basis {
         // Try to match the first element (the prefix)
         if (!sequence[0]->parse(tokens, &next, pIter, pLimit)) {
             // Prefix not found - succeed without consuming anything
+            *dpspResult = next;
             return true;
         }
 
