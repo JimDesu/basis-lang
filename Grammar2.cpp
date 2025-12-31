@@ -84,33 +84,40 @@ void Grammar2::initTypeExpressions() {
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
 
-   // Regular type parameters (no apostrophe allowed)
-   TYPE_TYPEPARM_TYPE = group(Production::TYPE_TYPEPARM_TYPE,
-       all(TYPENAME, maybe(TYPENAME)) );
-   TYPE_TYPEPARM_VALUE = group(Production::TYPE_TYPEPARM_VALUE,
-       all(TYPENAME, IDENTIFIER) );
+   TYPE_ARG_TYPE = group(Production::TYPE_ARG_TYPE, forward( TYPE_NAME_Q ));
+   TYPE_ARG_VALUE = group(Production::TYPE_ARG_VALUE,
+       any(NUMBER, IDENTIFIER) );
    // n.b. ordering is important because of shared prefix
-   TYPE_NAME_PARMS = group(Production::TYPE_NAME_PARMS,
-       all(LBRACKET, separated(any(TYPE_TYPEPARM_VALUE, TYPE_TYPEPARM_TYPE), COMMA), RBRACKET) );
+   TYPE_NAME_ARGS = group(Production::TYPE_NAME_ARGS,
+       all(LBRACKET, separated(any(TYPE_ARG_VALUE, TYPE_ARG_TYPE), COMMA), RBRACKET) );
    TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
-       all(TYPENAME, maybe(TYPE_NAME_PARMS)) );
+       all(TYPENAME, maybe(TYPE_NAME_ARGS)) );
 
-   // TODO TYPE_NAME_Q here doesn't allow for SomeType[T,4]; fix this
-   TYPE_EXPR_CMDPARM = group(Production::TYPE_EXPR_CMDPARM, all(
+   TYPE_CMDEXPR_ARG = group(Production::TYPE_CMDEXPR_ARG, all(
       any(
           TYPE_NAME_Q,
           forward(TYPE_EXPR_CMD),
-          all(TYPE_EXPR_PTR, forward(TYPE_EXPR_CMDPARM)),
-          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR_CMDPARM))) ), maybe(APOSTROPHE) ));
+          all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG)),
+          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ), maybe(APOSTROPHE) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
-         maybe(separated(TYPE_EXPR_CMDPARM, COMMA)),
+         maybe(separated(TYPE_CMDEXPR_ARG, COMMA)),
          RANGLE) );
+
+   TYPEDEF_PARM_TYPE = group(Production::TYPEDEF_PARM_TYPE,
+       all(TYPE_NAME_Q, maybe(TYPENAME)) );
+   TYPEDEF_PARM_VALUE = group(Production::TYPEDEF_PARM_VALUE,
+       all(TYPENAME, IDENTIFIER) );
+   // n.b. ordering is important because of shared prefix
+   TYPEDEF_PARMS = group(Production::TYPEDEF_PARMS,
+       all(LBRACKET, separated(any(TYPEDEF_PARM_VALUE, TYPEDEF_PARM_TYPE), COMMA), RBRACKET) );
+   TYPEDEF_NAME_Q = group(Production::TYPEDEF_NAME_Q,
+       all(TYPENAME, maybe(TYPEDEF_PARMS)) );
 
    TYPE_EXPR = group(Production::TYPE_EXPR,
          any(
-            TYPE_NAME_Q,
+            TYPEDEF_NAME_Q,
             TYPE_EXPR_CMD,
             all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
             all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR))) ));
@@ -141,7 +148,7 @@ void Grammar2::initCompoundTypes() {
 }
 
 void Grammar2::initTypeAliases() {
-   DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPE_NAME_Q, COLON, TYPE_EXPR));
+   DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));
 }
 
 void Grammar2::initCommandBody() {

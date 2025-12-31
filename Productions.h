@@ -68,15 +68,19 @@ namespace basis {
         DEF_ENUM_ITEM_NAME,
         DEF_ENUM_ITEM_LIST,
         // -- type expressions
+        TYPEDEF_NAME_Q,
+        TYPEDEF_PARMS,
+        TYPEDEF_PARM_TYPE,
+        TYPEDEF_PARM_VALUE,
         TYPE_NAME_Q,
-        TYPE_NAME_PARMS,
-        TYPE_TYPEPARM_TYPE,
-        TYPE_TYPEPARM_VALUE,
+        TYPE_NAME_ARGS,
+        TYPE_ARG_TYPE,
+        TYPE_ARG_VALUE,
         TYPE_EXPR_PTR,
         TYPE_EXPR_RANGE,
         TYPE_EXPR,
         TYPE_EXPR_CMD,
-        TYPE_EXPR_CMDPARM,
+        TYPE_CMDEXPR_ARG,
 
         // -- type aliases
         DEF_ALIAS,
