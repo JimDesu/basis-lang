@@ -91,6 +91,7 @@ namespace basis {
         SPPF TYPE_EXPR;
         SPPF TYPE_EXPR_PTR;
         SPPF TYPE_EXPR_RANGE;
+        SPPF TYPE_EXPR_RANGE_FIXED;
         SPPF TYPE_EXPR_CMD;
         SPPF TYPE_CMDEXPR_ARG;
         SPPF TYPEDEF_NAME_Q;
@@ -101,6 +102,7 @@ namespace basis {
         SPPF TYPE_NAME_ARGS;
         SPPF TYPE_ARG_TYPE;
         SPPF TYPE_ARG_VALUE;
+        SPPF TYPE_EXPR_DOMAIN;
 
         // Alias definition
         SPPF DEF_ALIAS;

@@ -78,9 +78,11 @@ namespace basis {
         TYPE_ARG_VALUE,
         TYPE_EXPR_PTR,
         TYPE_EXPR_RANGE,
+        TYPE_EXPR_RANGE_FIXED,
         TYPE_EXPR,
         TYPE_EXPR_CMD,
         TYPE_CMDEXPR_ARG,
+        TYPE_EXPR_DOMAIN,
 
         // -- type aliases
         DEF_ALIAS,

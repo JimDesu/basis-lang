@@ -306,6 +306,62 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPE_EXPR, "<!Int>"));
 }
 
+TEST_CASE("Grammar2::test TYPE_EXPR_DOMAIN") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Float", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "T", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "List[T]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Map[K, V]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Array[10]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Container[T, U]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Matrix[Int]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[100]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]Int", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]String", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]Map[K, V]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]Container[T]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]Int", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[5][10][15]Int", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]Map[K, V]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[rows]Int", Production::TYPE_EXPR_DOMAIN));
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[rows][cols]Int", Production::TYPE_EXPR_DOMAIN));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^String"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^List[T]"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^^Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^[]Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]^Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^[10]Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]^Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ":<Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "?<Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "!<Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ":<Int, String>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "?<Int', String>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "!<List[T]>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]:<Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]?<String>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "Int'"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "String'"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "List[T]'"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Int'"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]String'"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "string"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "myType"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]string"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[Size]Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "["));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "]"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "Int[]"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Array[10]", Production::TYPE_EXPR_DOMAIN));
+}
+
 TEST_CASE("Grammar2::test type alias definitions") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: Int", Production::DEF_ALIAS));

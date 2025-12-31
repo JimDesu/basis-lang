@@ -83,6 +83,8 @@ void Grammar2::initTypeExpressions() {
    TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, CARAT  );
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
+   TYPE_EXPR_RANGE_FIXED = group(Production::TYPE_EXPR_RANGE,
+       all(LBRACKET,any(IDENTIFIER, NUMBER), RBRACKET) );
 
    TYPE_ARG_TYPE = group(Production::TYPE_ARG_TYPE, forward( TYPE_NAME_Q ));
    TYPE_ARG_VALUE = group(Production::TYPE_ARG_VALUE,
@@ -121,6 +123,9 @@ void Grammar2::initTypeExpressions() {
             TYPE_EXPR_CMD,
             all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
             all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR))) ));
+
+    TYPE_EXPR_DOMAIN = group(Production::TYPE_EXPR_DOMAIN,
+        any( TYPE_NAME_Q, all(TYPE_EXPR_RANGE_FIXED, maybe(forward(TYPE_EXPR_DOMAIN))) ));
 }
 
 void Grammar2::initEnumerations() {
