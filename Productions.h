@@ -90,6 +90,13 @@ namespace basis {
         DEF_DOMAIN,
         DEF_DOMAIN_NAME,
         DEF_DOMAIN_PARENT,
+        // -- record definitions
+        DEF_RECORD,
+        DEF_RECORD_NAME,
+        DEF_RECORD_FIELDS,
+        DEF_RECORD_FIELD,
+        DEF_RECORD_FIELD_NAME,
+        DEF_RECORD_FIELD_DOMAIN,
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_RECEIVERS,

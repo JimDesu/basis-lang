@@ -131,6 +131,103 @@ TEST_CASE("Grammar2::test domain type definitions") {
     CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt: List[T]"));  // parameterized type not allowed
 }
 
+TEST_CASE("Grammar2::test record type definitions") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_RECORD, ".record Person: String name", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Point3D: Int x, Int y, Int z", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Pair[T]: T first, T second", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Pair[T, U]: T first, U second", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Buffer[Int size]: [size]Byte data", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Matrix[Int rows, Int cols]: [rows][cols]Float values", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Array[T, Int size]: [size]T elements", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Container: List[Int] items", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Mapping: Map[String, Int] data", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Complex: List[Pair[String, Int]] entries", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Buffer: [256]Byte data", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Matrix4x4: [4][4]Float elements", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Entity: String name, [3]Float position, List[Component] components", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Point:\n Int x, Int y", Production::DEF_RECORD));
+
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record point: Int x"));  // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point"));  // missing colon and fields
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point:"));  // missing fields
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record : Int x"));  // missing name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point Int x"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: x"));  // missing field type
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int x,\nInt y"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Person: String name,\nInt age"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Node: ^Node next"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Handler: :<Int> callback"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Processor: ?<String'> handler"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Worker: !<Int', String> task"));
+    CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int' x"));
+}
+
+TEST_CASE("Grammar2::test record field parsing") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic field types
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "Int x", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "String name", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "Float value", Production::DEF_RECORD_FIELD));
+
+    // Parameterized field types
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "List[Int] items", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "Map[String, Int] data", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "Pair[T, U] pair", Production::DEF_RECORD_FIELD));
+
+    // Fixed-size array fields
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[3]Float vector", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[10]Int buffer", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[4][4]Float matrix", Production::DEF_RECORD_FIELD));
+
+    // Identifier-sized array fields
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[size]Byte data", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[width][height]Int grid", Production::DEF_RECORD_FIELD));
+
+    // Complex nested types
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[10]List[String] items", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, "[rows][cols]Matrix[Float] data", Production::DEF_RECORD_FIELD));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "x"));  // missing type
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "^Int ptr"));  // pointer not allowed
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, ":<Int> cmd"));  // command type not allowed
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int' x"));  // apostrophe not allowed
+}
+
+TEST_CASE("Grammar2::test record fields list parsing") {
+    Grammar2& grammar = getGrammar();
+
+    // Single field
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "Int x", Production::DEF_RECORD_FIELDS));
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "String name", Production::DEF_RECORD_FIELDS));
+
+    // Multiple fields
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "Int x, Int y", Production::DEF_RECORD_FIELDS));
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "String name, Int age, Float salary", Production::DEF_RECORD_FIELDS));
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "T first, U second", Production::DEF_RECORD_FIELDS));
+
+    // Complex field types
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "List[Int] items, Map[String, Int] data", Production::DEF_RECORD_FIELDS));
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "[3]Float position, [4]Float rotation", Production::DEF_RECORD_FIELDS));
+    CHECK(testParse(grammar.DEF_RECORD_FIELDS, "[size]Byte buffer, Int size, String name", Production::DEF_RECORD_FIELDS));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELDS, "Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELDS, "Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELDS, ""));  // empty
+}
+
 TEST_CASE("Grammar2::test type expressions") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "T", Production::TYPEDEF_PARM_TYPE));

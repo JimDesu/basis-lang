@@ -108,6 +108,13 @@ namespace basis {
         SPPF DEF_ALIAS;
         // Domain definition
         SPPF DEF_DOMAIN;
+        // Record definition
+        SPPF DEF_RECORD;
+        SPPF DEF_RECORD_NAME;
+        SPPF DEF_RECORD_FIELDS;
+        SPPF DEF_RECORD_FIELD;
+        SPPF DEF_RECORD_FIELD_NAME;
+        SPPF DEF_RECORD_FIELD_DOMAIN;
 
         // Command definitions
         SPPF DEF_CMD;

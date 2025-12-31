@@ -144,7 +144,16 @@ void Grammar2::initDomainTypes() {
             group(Production::DEF_DOMAIN_PARENT,
                any(TYPENAME, all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
 }
-void Grammar2::initRecordTypes() {}
+void Grammar2::initRecordTypes() {
+    DEF_RECORD_FIELD = group(Production::DEF_RECORD_FIELD,
+        all(group(Production::DEF_RECORD_FIELD_DOMAIN, TYPE_EXPR_DOMAIN),
+            group(Production::DEF_RECORD_FIELD_NAME, IDENTIFIER)) );
+     DEF_RECORD_FIELDS = group(Production::DEF_RECORD_FIELDS,
+        separated(DEF_RECORD_FIELD, COMMA) );
+     DEF_RECORD = boundedGroup(Production::DEF_RECORD,
+        all(RECORD, group(Production::DEF_RECORD_NAME, TYPEDEF_NAME_Q), COLON, DEF_RECORD_FIELDS) );
+}
+
 void Grammar2::initObjectTypes() {}
 void Grammar2::initClassTypes() {}
 
