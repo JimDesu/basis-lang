@@ -105,7 +105,10 @@ namespace basis {
         DEF_OBJECT_FIELD,
         DEF_OBJECT_FIELD_NAME,
         DEF_OBJECT_FIELD_TYPE,
-
+        // -- class definitions
+        DEF_CLASS,
+        DEF_CLASS_NAME,
+        DEF_CLASS_CMDS,
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_DECL,

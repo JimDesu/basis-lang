@@ -807,3 +807,58 @@ TEST_CASE("Grammar2::test object type definitions") {
     CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".Object Point: Int x"));  // wrong keyword case
     CHECK_FALSE(testParse(grammar.DEF_OBJECT, ". object Point: Int x"));  // wrong keyword case
 }
+
+TEST_CASE("Grammar2::test class definition parsing") {
+    Grammar2& grammar = getGrammar();
+
+    // indentation 1: First DEF_CMD_DECL on next line, all at same indentation
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass:\n"
+        "  .cmd doSomething: Int x -> result\n"
+        "  .cmd doOther: String s -> output",
+        Production::DEF_CLASS));
+
+    // indentation 2: First DEF_CMD_DECL on same line, subsequent at same indentation
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass: .cmd doSomething: Int x -> result\n"
+        "                .cmd doOther: String s -> output",
+        Production::DEF_CLASS));
+
+    // indentation 3: First DEF_CMD_DECL on same line, subsequent indented less (but still more than class start)
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass: .cmd doSomething: Int x -> result\n"
+        "  .cmd doOther: String s -> output",
+        Production::DEF_CLASS));
+
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w: Int x, Int y",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd Container c: Int capacity\n"
+        "  .cmd Container c:: Int size\n"
+        "  .cmd add: Int item -> result\n"
+        "  .cmd Widget w:: process: String s -> output / Int ctx",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Processor:\n"
+        "  .cmd Widget w:: process\n"
+        "  .cmd Widget w, Button b:: handle: Int x -> result",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd ?tryProcess: Int x -> result\n"
+        "  .cmd !mustFail: String s -> output",
+        Production::DEF_CLASS));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class myClass:\n  .cmd doIt"));  // lowercase class name
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass"));  // missing colon and commands
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:"));  // missing commands
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class : .cmd doIt"));  // missing class name
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass .cmd doIt"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, "class MyClass: .cmd doIt"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".Class MyClass: .cmd doIt"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:\n.cmd doIt"));  // command not indented
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass: .cmd doIt\n.cmd other"));  // second command not indented
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
+}

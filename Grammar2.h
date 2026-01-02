@@ -107,8 +107,10 @@ namespace basis {
 
         // Alias definition
         SPPF DEF_ALIAS;
+
         // Domain definition
         SPPF DEF_DOMAIN;
+
         // Record definition
         SPPF DEF_RECORD;
         SPPF DEF_RECORD_NAME;
@@ -116,6 +118,7 @@ namespace basis {
         SPPF DEF_RECORD_FIELD;
         SPPF DEF_RECORD_FIELD_NAME;
         SPPF DEF_RECORD_FIELD_DOMAIN;
+
         // Object definition
         SPPF DEF_OBJECT;
         SPPF DEF_OBJECT_NAME;
@@ -123,6 +126,11 @@ namespace basis {
         SPPF DEF_OBJECT_FIELD;
         SPPF DEF_OBJECT_FIELD_NAME;
         SPPF DEF_OBJECT_FIELD_TYPE;
+
+        // Class definition
+        SPPF DEF_CLASS;
+        SPPF DEF_CLASS_NAME;
+        SPPF DEF_CLASS_CMDS;
 
         // Command definitions
         SPPF DEF_CMD;

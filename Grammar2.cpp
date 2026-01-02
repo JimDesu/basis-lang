@@ -166,7 +166,6 @@ void Grammar2::initObjectTypes() {
         all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
 }
 
-void Grammar2::initClassTypes() {}
 void Grammar2::initInstanceDecls() {}
 
 void Grammar2::initTypeAliases() {
@@ -232,6 +231,12 @@ void Grammar2::initCommandDefinitions() {
                all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
             DEF_CMD_BODY ));
 
+}
+
+void Grammar2::initClassTypes() {
+    DEF_CLASS = boundedGroup(Production::DEF_CLASS,
+        all(CLASS, group(Production::DEF_CLASS_NAME, TYPENAME), COLON,
+            group(Production::DEF_CLASS_CMDS, oneOrMore( DEF_CMD_DECL )) ));
 }
 
 Grammar2& basis::getGrammar() {
