@@ -11,6 +11,7 @@ Grammar2::Grammar2() {
     initEnumerations();
     initDomainTypes();
     initRecordTypes();
+    initObjectTypes();
     initClassTypes();
     initTypeAliases();
     initCommandBody();
@@ -74,6 +75,7 @@ void Grammar2::initReservedWords() {
    COMMAND = match(Production::COMMAND, TokenType::COMMAND);
    DOMAIN = match(Production::DOMAIN, TokenType::DOMAIN);
    ENUMERATION = match(Production::ENUMERATION, TokenType::ENUMERATION);
+   INSTANCE = match(Production::INSTANCE, TokenType::INSTANCE);
    INTRINSIC = match(Production::INTRINSIC, TokenType::INTRINSIC);
    OBJECT = match(Production::OBJECT, TokenType::OBJECT);
    RECORD = match(Production::RECORD, TokenType::RECORD);
@@ -154,12 +156,18 @@ void Grammar2::initRecordTypes() {
         all(RECORD, group(Production::DEF_RECORD_NAME, TYPEDEF_NAME_Q), COLON, DEF_RECORD_FIELDS) );
 }
 
-void Grammar2::initObjectTypes() {}
-void Grammar2::initClassTypes() {}
-
-void Grammar2::initCompoundTypes() {
-
+void Grammar2::initObjectTypes() {
+    DEF_OBJECT_FIELD = group(Production::DEF_OBJECT_FIELD,
+        all(group(Production::DEF_OBJECT_FIELD_TYPE, TYPE_EXPR),
+            group(Production::DEF_OBJECT_FIELD_NAME, IDENTIFIER)) );
+    DEF_OBJECT_FIELDS = group(Production::DEF_OBJECT_FIELDS,
+       separated(DEF_OBJECT_FIELD, COMMA) );
+    DEF_OBJECT = boundedGroup(Production::DEF_OBJECT,
+        all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
 }
+
+void Grammar2::initClassTypes() {}
+void Grammar2::initInstanceDecls() {}
 
 void Grammar2::initTypeAliases() {
    DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));

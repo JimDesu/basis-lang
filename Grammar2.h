@@ -19,7 +19,7 @@ namespace basis {
         void initRecordTypes();
         void initObjectTypes();
         void initClassTypes();
-        void initCompoundTypes();
+        void initInstanceDecls();
         void initTypeExpressions();
         void initTypeAliases();
         void initCommandBody();
@@ -43,6 +43,7 @@ namespace basis {
         SPPF INTRINSIC;
         SPPF OBJECT;
         SPPF RECORD;
+        SPPF INSTANCE;
         // Punctuation
         SPPF AMBANG;
         SPPF AMPERSAND;
@@ -115,6 +116,13 @@ namespace basis {
         SPPF DEF_RECORD_FIELD;
         SPPF DEF_RECORD_FIELD_NAME;
         SPPF DEF_RECORD_FIELD_DOMAIN;
+        // Object definition
+        SPPF DEF_OBJECT;
+        SPPF DEF_OBJECT_NAME;
+        SPPF DEF_OBJECT_FIELDS;
+        SPPF DEF_OBJECT_FIELD;
+        SPPF DEF_OBJECT_FIELD_NAME;
+        SPPF DEF_OBJECT_FIELD_TYPE;
 
         // Command definitions
         SPPF DEF_CMD;

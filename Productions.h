@@ -19,6 +19,7 @@ namespace basis {
         COMMAND,
         DOMAIN,
         ENUMERATION,
+        INSTANCE,
         INTRINSIC,
         OBJECT,
         RECORD,
@@ -97,6 +98,14 @@ namespace basis {
         DEF_RECORD_FIELD,
         DEF_RECORD_FIELD_NAME,
         DEF_RECORD_FIELD_DOMAIN,
+        // -- object definitions
+        DEF_OBJECT,
+        DEF_OBJECT_NAME,
+        DEF_OBJECT_FIELDS,
+        DEF_OBJECT_FIELD,
+        DEF_OBJECT_FIELD_NAME,
+        DEF_OBJECT_FIELD_TYPE,
+
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_RECEIVERS,

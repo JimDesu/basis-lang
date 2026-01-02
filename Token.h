@@ -25,6 +25,7 @@ namespace basis {
         COMMAND,
         DOMAIN,
         ENUMERATION,
+        INSTANCE,
         INTRINSIC,
         OBJECT,
         RECORD,

@@ -128,6 +128,12 @@ TEST_CASE("Lexer::test lex single token negative test cases") {
     CHECK(lexInput(".cmda", false).output.empty());
     CHECK(lexInput(".cmd2", false).output.empty());
     CHECK(lexInput(".cmd_", false).output.empty());
+
+    // Test reserved words with wrong case (uppercase first letter after dot)
+    CHECK(lexInput(".Object", false).output.empty());
+    CHECK(lexInput(".Record", false).output.empty());
+    CHECK(lexInput(".Class", false).output.empty());
+    CHECK(lexInput(".Cmd", false).output.empty());
 }
 
 TEST_CASE("Lexer::test lex multiple tokens") {

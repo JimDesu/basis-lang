@@ -29,7 +29,8 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".enum", TokenType::ENUMERATION},
     {".intrinsic", TokenType::INTRINSIC},
     {".object", TokenType::OBJECT},
-    {".record", TokenType::RECORD}
+    {".record", TokenType::RECORD},
+    {".instance", TokenType::INSTANCE}
 };
 
 bool Lexer::read() {
@@ -92,7 +93,7 @@ bool Lexer::checkIdentifier() const {
 }
 
 bool Lexer::checkResWord() const {
-    return readChar == '.' && input.good() && isalpha(input.peek());
+    return readChar == '.' && input.good() && islower(input.peek());
 }
 
 bool Lexer::checkString() const {

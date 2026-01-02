@@ -3,6 +3,7 @@
 #include "../Grammar2.h"
 #include "../Lexer.h"
 #include <sstream>
+#include <iostream>
 
 using namespace basis;
 
@@ -10,21 +11,25 @@ namespace {
     // parser takes the token list by reference, so be sure to put the result onto the stack so
     // we don't end up wth a dangling reference problem (which caused a flaky test that took
     // forever to diagnose)
-    std::list<spToken> tokenize(const std::string& text) {
+    std::list<spToken> tokenize(const std::string& text, bool& success) {
         std::istringstream input(text);
         Lexer lexer(input, false);
-        lexer.scan();
+        success = lexer.scan();
         return lexer.output;
     }
 
     bool testParse(SPPF parseFn, const std::string& text) {
-        std::list<spToken> tokens = tokenize(text);
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
         Parser parser(tokens, parseFn);
         return parser.parse() && parser.allTokensConsumed();
     }
 
     bool testParse(SPPF parseFn, const std::string& text, Production expected) {
-        std::list<spToken> tokens = tokenize(text);
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
         Parser parser(tokens, parseFn);
         return parser.parse() && parser.allTokensConsumed()
             && parser.parseTree != nullptr && parser.parseTree->production == expected;
@@ -707,3 +712,98 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic []Container[T] items:: process: T item -> result"));
 }
 
+TEST_CASE("Grammar2::test object field parsing") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Int x", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "List[Int] items", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Map[String, Int] data", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[10]Int buffer", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[4][4]Float matrix", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[size]Byte data", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[width][height]Int grid", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]String strings", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^String strPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^List[T] listPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^^Int ptrPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^[]Int arrayPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]^Int ptrArray", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int> cmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<String> mayFailCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<Float> failCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<> voidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<> mayFailVoidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<> failVoidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int, String> multiCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^:<Int> cmdPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]:<String> cmdArray", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[5]^Int ptrArray", Production::DEF_OBJECT_FIELD));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "x"));  // missing type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int' x"));  // apostrophe not allowed in type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int x'"));  // apostrophe not allowed in field name
+}
+
+TEST_CASE("Grammar2::test object fields list parsing") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name, Int age, Float salary", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[Int] items, Map[String, Int] data", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[3]Float position, [4]Float rotation", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[size]Byte buffer, Int size, String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Node next, ^Node prev, Int data", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[]^String strPtrs, Int count", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<Int> callback, String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "?<String> loader, !<> cleanup", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<> action1, :<> action2, :<> action3", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Int ptr, []String names, :<> callback", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[T] items, ^Node next, ?<T> processor", Production::DEF_OBJECT_FIELDS));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ""));  // empty
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ",Int x"));  // leading comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,,Int y"));  // double comma
+}
+
+TEST_CASE("Grammar2::test object type definitions") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Point: Int x, Int y", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Node: T value, ^Node next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Wrapper: Int value", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object List[T]: T head, ^List[T] tail", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Map[K, V]: K key, V value, ^Map[K, V] next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object LinkedList: Int data, ^LinkedList next, ^LinkedList prev", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object RefCounter: ^Data ptr, Int count", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Vector3: [3]Float coords", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Matrix: [4][4]Float data", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object DynamicArray: []Int items, Int size, Int capacity", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Buffer: [size]Byte data, Int size", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Handler: :<> callback, String name", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Processor: ?<String> loader, :<Int> processor, !<> cleanup", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object EventListener: :<Event> handler, Int priority", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Complex: ^Int ptr, []String names, :<> callback, List[T] items", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object State: Map[String, Int] vars, []:<> actions, ^State next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Graph[T]: T value, []^Graph[T] neighbors, ?<T> validator", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Cache[K, V]: Map[K, V] data, :<V> loader, Int size", Production::DEF_OBJECT));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object point: Int x"));  // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point"));  // missing colon and fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point:"));  // missing fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object : Int x"));  // missing name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point Int x"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, "object Point: Int x"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x Int y"));  // missing comma between fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int' x"));  // apostrophe in type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x'"));  // apostrophe in field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: ^Int' ptr"));  // apostrophe in pointer type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,\nInt y"));  // newline in field list
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".Object Point: Int x"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ". object Point: Int x"));  // wrong keyword case
+}
