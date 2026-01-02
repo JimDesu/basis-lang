@@ -126,6 +126,8 @@ namespace basis {
 
         // Command definitions
         SPPF DEF_CMD;
+        SPPF DEF_CMD_DECL;
+        SPPF DEF_CMD_INTRINSIC;
         SPPF DEF_CMD_RECEIVERS;
         SPPF DEF_CMD_RECEIVER;
         SPPF DEF_CMD_NAME_SPEC;

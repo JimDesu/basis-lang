@@ -12,10 +12,10 @@ Grammar2::Grammar2() {
     initDomainTypes();
     initRecordTypes();
     initObjectTypes();
-    initClassTypes();
     initTypeAliases();
     initCommandBody();
     initCommandDefinitions();
+    initClassTypes();
 }
 
 void Grammar2::initLiterals() {
@@ -207,18 +207,31 @@ void Grammar2::initCommandDefinitions() {
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
    // Top-level command definition
-   DEF_CMD = boundedGroup(Production::DEF_CMD, any(
+   DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
        all(COMMAND, any(
            // constructor
-           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
-               maybe(DEF_CMD_BODY)),
+           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
            // virtual constructor
-           all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
-               maybe(DEF_CMD_BODY)),
+           all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA)),
            // command / method
-           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS,
-                maybe(DEF_CMD_BODY)) )),
+           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
+   DEF_CMD_INTRINSIC = boundedGroup(Production::DEF_CMD_INTRINSIC, any(
        all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ));
+
+   DEF_CMD = boundedGroup(Production::DEF_CMD,
+       all(
+           COMMAND,
+           any(
+               // constructor
+               all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
+                   maybe(DEF_CMD_BODY)),
+               // virtual constructor
+               all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
+                   maybe(DEF_CMD_BODY)),
+               // command / method
+               all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
+            DEF_CMD_BODY ));
+
 }
 
 Grammar2& basis::getGrammar() {

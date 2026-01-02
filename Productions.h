@@ -108,6 +108,8 @@ namespace basis {
 
         // -- command definitions/declarations
         DEF_CMD,
+        DEF_CMD_DECL,
+        DEF_CMD_INTRINSIC,
         DEF_CMD_RECEIVERS,
         DEF_CMD_RECEIVER,
         DEF_CMD_NAME_SPEC,
