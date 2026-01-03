@@ -16,6 +16,7 @@ Grammar2::Grammar2() {
     initCommandBody();
     initCommandDefinitions();
     initClassTypes();
+    initInstanceDecls();
 }
 
 void Grammar2::initLiterals() {
@@ -166,7 +167,13 @@ void Grammar2::initObjectTypes() {
         all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
 }
 
-void Grammar2::initInstanceDecls() {}
+void Grammar2::initInstanceDecls() {
+    DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
+    DEF_INSTANCE_TYPES = group(Production::DEF_INSTANCE_TYPES,
+        separated(DEF_INSTANCE_NAME, COMMA) );
+    DEF_INSTANCE = boundedGroup(Production::DEF_INSTANCE,
+        all(INSTANCE, DEF_INSTANCE_NAME, COLON, DEF_INSTANCE_TYPES) );
+}
 
 void Grammar2::initTypeAliases() {
    DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));

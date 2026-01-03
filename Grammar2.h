@@ -86,7 +86,10 @@ namespace basis {
         SPPF DEF_ENUM_NAME1;
         SPPF DEF_ENUM;
 
-        // Compound types
+        // Instance Declarations
+        SPPF DEF_INSTANCE;
+        SPPF DEF_INSTANCE_NAME;
+        SPPF DEF_INSTANCE_TYPES;
 
         // Type Expressions
         SPPF TYPE_EXPR;

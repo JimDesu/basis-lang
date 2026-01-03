@@ -862,3 +862,29 @@ TEST_CASE("Grammar2::test class definition parsing") {
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass: .cmd doIt\n.cmd other"));  // second command not indented
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
 }
+
+TEST_CASE("Grammar2::test instance declaration parsing") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface", Production::DEF_INSTANCE_TYPES));
+    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Comparable, Serializable, Hashable", Production::DEF_INSTANCE_TYPES));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "interface"));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1, interface2"));
+
+    CHECK(testParse(grammar.DEF_INSTANCE_NAME, "String", Production::DEF_INSTANCE_NAME));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_NAME, "string"));
+
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1, Interface2", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType:\n Interface", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1,\n Interface2", Production::DEF_INSTANCE));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance myType: Interface"));  // lowercase type name
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: interface"));  // lowercase interface name
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType"));  // missing colon and interfaces
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType:"));  // missing interfaces
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance : Interface"));  // missing type name
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType Interface"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, "instance MyType: Interface"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".Instance MyType: Interface"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1 Interface2"));  // missing comma
+}

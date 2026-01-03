@@ -109,6 +109,10 @@ namespace basis {
         DEF_CLASS,
         DEF_CLASS_NAME,
         DEF_CLASS_CMDS,
+        // -- instance declarations
+        DEF_INSTANCE,
+        DEF_INSTANCE_NAME,
+        DEF_INSTANCE_TYPES,
         // -- command definitions/declarations
         DEF_CMD,
         DEF_CMD_DECL,
