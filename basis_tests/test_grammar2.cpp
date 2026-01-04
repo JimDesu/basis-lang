@@ -284,6 +284,66 @@ TEST_CASE("Grammar2::test type expressions") {
     CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "Int[]"));
     CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "[T]"));
 
+    CHECK(testParse(grammar.TYPE_ARG_VALUE, "42", Production::TYPE_ARG_VALUE));
+    CHECK(testParse(grammar.TYPE_ARG_VALUE, "size", Production::TYPE_ARG_VALUE));
+    CHECK(testParse(grammar.TYPE_ARG_VALUE, "count", Production::TYPE_ARG_VALUE));
+    CHECK(testParse(grammar.TYPE_ARG_VALUE, "10", Production::TYPE_ARG_VALUE));
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "Size"));  // TYPENAME not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "Int"));   // TYPENAME not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "3.14"));  // DECIMAL not allowed
+
+    CHECK(testParse(grammar.TYPE_ARG_TYPE, "Int", Production::TYPE_ARG_TYPE));
+    CHECK(testParse(grammar.TYPE_ARG_TYPE, "String", Production::TYPE_ARG_TYPE));
+    CHECK(testParse(grammar.TYPE_ARG_TYPE, "T", Production::TYPE_ARG_TYPE));
+    CHECK(testParse(grammar.TYPE_ARG_TYPE, "List[Int]", Production::TYPE_ARG_TYPE));
+    CHECK(testParse(grammar.TYPE_ARG_TYPE, "Map[String, Int]", Production::TYPE_ARG_TYPE));
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "int"));    // identifier not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "value"));  // identifier not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "42"));     // NUMBER not allowed
+
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[10]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[size]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int, String]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T, U]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[10, 20]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[width, height]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int, 10]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T, size]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[String, count, Int]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[List[Int]]", Production::TYPE_NAME_ARGS));
+    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Map[K, V], 10]", Production::TYPE_NAME_ARGS));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "Int"));      // missing brackets
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[Int"));     // missing closing bracket
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "Int]"));     // missing opening bracket
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[]"));       // empty not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[Int,]"));   // trailing comma
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[,Int]"));   // leading comma
+
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Int", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "String", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "T", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "MyType", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "List[Int]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "List[T]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Array[10]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Buffer[size]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[String, Int]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[K, V]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Matrix[10, 20]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Grid[width, height]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Container[T, 100]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Tuple[Int, String, Float]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Nested[List[Int]]", Production::TYPE_NAME_Q));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Complex[Map[K, V], size]", Production::TYPE_NAME_Q));
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "int"));         // identifier not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "myType"));      // identifier not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "Int'"));        // apostrophe not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "List[]"));      // empty brackets not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "List[Int,]"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "[Int]"));       // missing typename
+
     CHECK(testParse(grammar.TYPE_EXPR_PTR, "^", Production::TYPE_EXPR_PTR));
     CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[]", Production::TYPE_EXPR_RANGE));
     CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[10]", Production::TYPE_EXPR_RANGE));

@@ -31,9 +31,11 @@ namespace basis {
         SPPF NUMBER;
         SPPF STRING;
         SPPF LITERAL;
+
         // Identifiers
         SPPF IDENTIFIER;
         SPPF TYPENAME;
+
         // Reserved words
         SPPF ALIAS;
         SPPF CLASS;
@@ -44,6 +46,7 @@ namespace basis {
         SPPF OBJECT;
         SPPF RECORD;
         SPPF INSTANCE;
+
         // Punctuation
         SPPF AMBANG;
         SPPF AMPERSAND;
@@ -80,6 +83,7 @@ namespace basis {
         SPPF RBRACKET;
         SPPF RPAREN;
         SPPF SLASH;
+
         // Enumerations
         SPPF DEF_ENUM_ITEM_LIST;
         SPPF DEF_ENUM_NAME2;
@@ -156,14 +160,11 @@ namespace basis {
 
         // Command Body
         SPPF DEF_CMD_BODY;
-        SPPF DEF_CMD_BODY_ITEM;
-        SPPF DEF_CMD_BODY_ITEM_NAME;
-        SPPF DEF_CMD_BODY_ITEM_EXPR;
-        SPPF DEF_CMD_BODY_ITEM_EXPR_INTR;
-        SPPF DEF_CMD_BODY_ITEM_TYPE;
-        SPPF DEF_CMD_BODY_ITEMS;
-        SPPF DEF_CMD_BODY_ITEM_LIST;
+        SPPF CALL_CONSTRUCTOR;
+        SPPF CALL_VCONSTRUCTOR;
+        SPPF CALL_COMMAND;
 
+        // Expressions
 
         // top-level parse function
         SPPF COMPILATION_UNIT;

@@ -13,10 +13,10 @@ Grammar2::Grammar2() {
     initRecordTypes();
     initObjectTypes();
     initTypeAliases();
-    initCommandBody();
     initCommandDefinitions();
     initClassTypes();
     initInstanceDecls();
+    initCommandBody();
 }
 
 void Grammar2::initLiterals() {
@@ -179,11 +179,6 @@ void Grammar2::initTypeAliases() {
    DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));
 }
 
-void Grammar2::initCommandBody() {
-   // TODO
-   DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::LBRACE);
-}
-
 void Grammar2::initCommandDefinitions() {
    DEF_CMD_PARMTYPE_NAME = group(Production::DEF_CMD_PARMTYPE_NAME, TYPE_EXPR);
    DEF_CMD_PARMTYPE_VAR = group(Production::DEF_CMD_PARMTYPE_VAR,
@@ -244,6 +239,11 @@ void Grammar2::initClassTypes() {
     DEF_CLASS = boundedGroup(Production::DEF_CLASS,
         all(CLASS, group(Production::DEF_CLASS_NAME, TYPENAME), COLON,
             group(Production::DEF_CLASS_CMDS, oneOrMore( DEF_CMD_DECL )) ));
+}
+
+void Grammar2::initCommandBody() {
+   // TODO
+   DEF_CMD_BODY = match(Production::DEF_CMD_BODY, TokenType::EQUALS);
 }
 
 Grammar2& basis::getGrammar() {
