@@ -133,6 +133,11 @@ namespace basis {
         DEF_CMD_RETVAL,
         // -- command body
         DEF_CMD_BODY,
+        CALL_CONSTRUCTOR,
+        CALL_VCONSTRUCTOR,
+        CALL_COMMAND,
+        CALL_VCOMMAND,
+        CALL_ASSIGNMENT
     };
 }
 
