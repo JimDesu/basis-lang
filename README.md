@@ -181,6 +181,7 @@ Control flow in Basis is determined by some other markers.
 | Marker | Read As |Usage |
 |--------|-------|-------|
 |   ?    | "when" | Attempts a command group.  If the first such command fails, execution proceeds normally after the group. |
+| ?? ? | "when" | Multi-level when group.  On failure, execution proceeds following the ??; on success, it proceeds to the next command following the ?.  This is useful for structured looping.|
 |   ?-   | "unless" | Execute the command group only if the first command fails. |
 |   ?:   | "select" | Attempts the next command.  If the command fails, execution proceeds normally.  If the command succeeds, this exits the indentation level. |
 |   -    | "else" | If the previous item at the same indentation level is "?" and that command fails, then the command(s) indented from here are executed. |
