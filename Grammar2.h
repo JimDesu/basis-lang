@@ -93,6 +93,7 @@ namespace basis {
         // Instance Declarations
         SPPF DEF_INSTANCE;
         SPPF DEF_INSTANCE_NAME;
+        SPPF DEF_INSTANCE_DELEGATE;
         SPPF DEF_INSTANCE_TYPES;
 
         // Type Expressions

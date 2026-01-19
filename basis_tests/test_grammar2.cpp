@@ -925,18 +925,38 @@ TEST_CASE("Grammar2::test class definition parsing") {
 
 TEST_CASE("Grammar2::test instance declaration parsing") {
     Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_INSTANCE_NAME, "String", Production::DEF_INSTANCE_NAME));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_NAME, "string"));  // lowercase
+
     CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface", Production::DEF_INSTANCE_TYPES));
     CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Comparable, Serializable, Hashable", Production::DEF_INSTANCE_TYPES));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "interface"));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1, interface2"));
-
-    CHECK(testParse(grammar.DEF_INSTANCE_NAME, "String", Production::DEF_INSTANCE_NAME));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_NAME, "string"));
+    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(delegate)", Production::DEF_INSTANCE_TYPES));
+    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1(field1), Interface2(field2), Interface3(field3)", Production::DEF_INSTANCE_TYPES));
+    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Comparable(cmp), Serializable, Hashable(hash)", Production::DEF_INSTANCE_TYPES));
+    CHECK(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field)", Production::DEF_INSTANCE_DELEGATE));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(Field)"));  // typename not allowed
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "field"));  // missing parens
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field"));  // missing closing paren
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "field)"));  // missing opening paren
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "()"));  // empty parens
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field1, field2)"));  // multiple identifiers
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "interface"));  // lowercase
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1, interface2"));  // lowercase in list
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(Field)"));  // typename in delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface()"));  // empty delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(field1, field2)"));  // multiple fields in delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(123)"));  // number in delegate
 
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1, Interface2", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType:\n Interface", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1,\n Interface2", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(delegate)", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Clickable(handler)", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Container: Iterable, Serializable(writer)", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Proxy: Interface1(field1), Interface2(field2), Interface3(field3)", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Wrapper:\n Comparable(cmp)", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Adapter: Interface1(field1),\n Interface2(field2)", Production::DEF_INSTANCE));
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance myType: Interface"));  // lowercase type name
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: interface"));  // lowercase interface name
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType"));  // missing colon and interfaces
@@ -947,4 +967,12 @@ TEST_CASE("Grammar2::test instance declaration parsing") {
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".Instance MyType: Interface"));  // wrong keyword case
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface,"));  // trailing comma
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1 Interface2"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(Field)"));  // typename in delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface()"));  // empty delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(field1, field2)"));  // multiple fields in delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(123)"));  // number in delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface delegate"));  // missing parens
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(delegate"));  // missing closing paren
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface delegate)"));  // missing opening paren
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType(delegate): Interface"));  // delegate on type name not allowed
 }

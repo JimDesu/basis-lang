@@ -168,9 +168,11 @@ void Grammar2::initObjectTypes() {
 }
 
 void Grammar2::initInstanceDecls() {
-    DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
+    DEF_INSTANCE_DELEGATE = group(Production::DEF_INSTANCE_DELEGATE,
+        all(LPAREN, IDENTIFIER, RPAREN) );
     DEF_INSTANCE_TYPES = group(Production::DEF_INSTANCE_TYPES,
-        separated(DEF_INSTANCE_NAME, COMMA) );
+        separated(all(DEF_INSTANCE_NAME, maybe(DEF_INSTANCE_DELEGATE)), COMMA) );
+    DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
     DEF_INSTANCE = boundedGroup(Production::DEF_INSTANCE,
         all(INSTANCE, DEF_INSTANCE_NAME, COLON, DEF_INSTANCE_TYPES) );
 }

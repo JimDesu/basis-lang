@@ -112,6 +112,7 @@ namespace basis {
         // -- instance declarations
         DEF_INSTANCE,
         DEF_INSTANCE_NAME,
+        DEF_INSTANCE_DELEGATE,
         DEF_INSTANCE_TYPES,
         // -- command definitions/declarations
         DEF_CMD,
