@@ -58,7 +58,13 @@ namespace basis {
 
     bool Maybe::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                       itToken* pIter, const Token* pLimit) const {
-        spfn->parse(tokens, dpspResult, pIter, pLimit);
+        itToken start = *pIter;
+        spParseTree* next = *dpspResult;
+        if (spfn->parse(tokens, &next, pIter, pLimit)) {
+            *dpspResult = next;
+        } else {
+            *pIter = start;
+        }
         return true;
     }
 
@@ -183,6 +189,7 @@ namespace basis {
 
     bool Bound::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                      itToken* pIter, const Token* pLimit) const {
+        if (atLimit(tokens, pIter, pLimit)) return false;
         const Token* boundLimit = (*pIter)->get()->bound ? (*pIter)->get()->bound.get() : nullptr;
         return spfn->parse(tokens, dpspResult, pIter, boundLimit);
     }

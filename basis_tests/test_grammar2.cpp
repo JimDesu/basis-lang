@@ -979,11 +979,9 @@ TEST_CASE("Grammar2::test instance declaration parsing") {
 
 TEST_CASE("Grammar2::test command body parsing") {
     Grammar2& grammar = getGrammar();
-
     // CALL_CONSTRUCTOR positive tests
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x, y", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "List[Int]: item", Production::CALL_CONSTRUCTOR));
-
     // CALL_CONSTRUCTOR negative tests
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget: X"));  // uppercase identifier
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "widget: x"));  // lowercase typename
@@ -1008,6 +1006,17 @@ TEST_CASE("Grammar2::test command body parsing") {
 
     // CALL_VCOMMAND negative tests
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method: x"));  // uppercase receiver
+
+    // CALL_ASSIGNMENT positive tests
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Widget: x, y", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#value <- Handler:: callback", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "# output <- process: item", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- obj:: method: x", Production::CALL_ASSIGNMENT));
+
+    // CALL_ASSIGNMENT negative tests
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "Result <- Widget: x"));  // uppercase target
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result -> Widget: x"));  // wrong arrow
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result Widget: x"));  // missing arrow
 
     // DEF_CMD_BODY positive tests
     CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y", Production::DEF_CMD_BODY));

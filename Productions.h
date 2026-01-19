@@ -138,7 +138,9 @@ namespace basis {
         CALL_VCONSTRUCTOR,
         CALL_COMMAND,
         CALL_VCOMMAND,
-        CALL_ASSIGNMENT
+        CALL_ASSIGNMENT,
+        CALL_IDENTIFIER,
+        ALLOC_IDENTIFIER
     };
 }
 

@@ -171,7 +171,7 @@ void Grammar2::initInstanceDecls() {
     DEF_INSTANCE_DELEGATE = group(Production::DEF_INSTANCE_DELEGATE,
         all(LPAREN, IDENTIFIER, RPAREN) );
     DEF_INSTANCE_TYPES = group(Production::DEF_INSTANCE_TYPES,
-        separated(all(DEF_INSTANCE_NAME, maybe(DEF_INSTANCE_DELEGATE)), COMMA) );
+        separated(all(TYPENAME, maybe(DEF_INSTANCE_DELEGATE)), COMMA) );
     DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
     DEF_INSTANCE = boundedGroup(Production::DEF_INSTANCE,
         all(INSTANCE, DEF_INSTANCE_NAME, COLON, DEF_INSTANCE_TYPES) );
@@ -227,13 +227,13 @@ void Grammar2::initCommandDefinitions() {
            any(
                // constructor
                all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
-                   maybe(DEF_CMD_BODY)),
+                   maybe(forward(DEF_CMD_BODY))),
                // virtual constructor
                all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
-                   maybe(DEF_CMD_BODY)),
+                   maybe(forward(DEF_CMD_BODY))),
                // command / method
                all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
-            DEF_CMD_BODY ));
+            forward(DEF_CMD_BODY) ));
 
 }
 
@@ -245,25 +245,29 @@ void Grammar2::initClassTypes() {
 
 void Grammar2::initCommandBody() {
     // TODO extend these with expressions, assignments, blocks/loops
+    CALL_IDENTIFIER = any(
+            group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
+            IDENTIFIER );
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
-        all(TYPE_NAME_Q, COLON, separated(IDENTIFIER, COMMA)) );
+        all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
     CALL_VCONSTRUCTOR = boundedGroup(Production::CALL_VCONSTRUCTOR,
-        all(TYPE_NAME_Q, DCOLON, separated(IDENTIFIER, COMMA)) );
+        all(TYPE_NAME_Q, DCOLON, separated(CALL_IDENTIFIER, COMMA)) );
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, COLON, separated(IDENTIFIER, COMMA)) );
+        all(IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
-        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON, separated(IDENTIFIER, COMMA)) );
+        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON,
+            separated(CALL_IDENTIFIER, COMMA)) );
     SUBCALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
-        all(TYPE_NAME_Q, COLON, separated(IDENTIFIER, COMMA)) );
+        all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
     SUBCALL_VCONSTRUCTOR = boundedGroup(Production::CALL_VCONSTRUCTOR,
-        all(TYPE_NAME_Q, DCOLON, separated(IDENTIFIER, COMMA)) );
+        all(TYPE_NAME_Q, DCOLON, separated(CALL_IDENTIFIER, COMMA)) );
     SUBCALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, COLON, separated(IDENTIFIER, COMMA)) );
+        all(IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
     SUBCALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
-        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON, separated(IDENTIFIER, COMMA)) );
+        all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
     SUB_CALL = any(SUBCALL_CONSTRUCTOR, SUBCALL_VCONSTRUCTOR, SUBCALL_COMMAND, SUBCALL_VCOMMAND);
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(IDENTIFIER, LARROW, SUB_CALL) );
+        all(CALL_IDENTIFIER, LARROW, SUB_CALL) );
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
         discard(TokenType::EQUALS), any(CALL_CONSTRUCTOR, CALL_VCONSTRUCTOR, CALL_COMMAND, CALL_VCOMMAND)) );
 }
