@@ -56,6 +56,7 @@ namespace basis {
         SPPF BANG;
         SPPF BANGLANGLE;
         SPPF CARAT;
+        // TODO remove
         SPPF CARATQ;
         SPPF COMMA;
         SPPF COLON;
@@ -162,15 +163,21 @@ namespace basis {
 
         // Command Body
         SPPF DEF_CMD_BODY;
+        SPPF CALL_GROUP;
+        SPPF CALL_INVOKE;
         SPPF CALL_CONSTRUCTOR;
         SPPF CALL_COMMAND;
         SPPF CALL_VCOMMAND;
         SPPF CALL_ASSIGNMENT;
+        SPPF CALL_EXPRESSION;
         SPPF CALL_IDENTIFIER;
+        SPPF CALL_PARAMETER;
         SPPF SUB_CALL;
         SPPF SUBCALL_CONSTRUCTOR;
         SPPF SUBCALL_COMMAND;
         SPPF SUBCALL_VCOMMAND;
+        SPPF BLOCK_HEADER;
+        SPPF BLOCK;
 
         // Expressions
 

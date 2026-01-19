@@ -249,31 +249,52 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    // TODO extend these with expressions, assignments, blocks/loops
+    // TODO: lbrace vs lparen exprs
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );
-    CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
-        all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
-    CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA)))) );
-    CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
-        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON,
-            separated(CALL_IDENTIFIER, COMMA)) );
+    CALL_PARAMETER = group(Production::CALL_PARAMETER, any( CALL_IDENTIFIER, forward(CALL_EXPRESSION)) );
 
-    SUBCALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
-        all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
-    SUBCALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA)))) );
-    SUBCALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
+    SUBCALL_CONSTRUCTOR = group(Production::CALL_CONSTRUCTOR,
+        all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
+    SUBCALL_COMMAND = group(Production::CALL_COMMAND,
+        all(IDENTIFIER, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
+    SUBCALL_VCOMMAND = group(Production::CALL_VCOMMAND,
         all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
-            maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA))) ));
+            maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
+    CALL_EXPRESSION = group(Production::CALL_EXPRESSION, all(LPAREN, SUB_CALL, RPAREN) );
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW, SUB_CALL) );
+        all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION,SUB_CALL)) );
+
+    CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
+        all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
+    CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
+        all(IDENTIFIER, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
+    CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
+        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
+            maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
+
+    CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
+    CALL_GROUP = group(Production::CALL_GROUP,
+        oneOrMore(any(CALL_INVOKE, forward(BLOCK))) );
+    // TODO extend DO_RECOVER_SPEC with fail type
+    BLOCK_HEADER = group(Production::BLOCK_HEADER,
+        any(group(Production::DO_WHEN_MULTI, DQMARK),
+            group(Production::DO_WHEN, QMARK),
+            group(Production::DO_WHEN_FAIL, QMINUS),
+            group(Production::DO_ELSE, MINUS),
+            group(Production::DO_UNLESS, BANG),
+            group(Production::DO_BLOCK, PERCENT),
+            group(Production::DO_REWIND, CARAT),
+            group(Production::DO_RECOVER, PIPE),
+            group(Production::DO_RECOVER_SPEC, PIPECOL),
+            group(Production::ON_EXIT, AMPHORA),
+            group(Production::ON_EXIT_FAIL, AMBANG) ));
+    BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, CALL_GROUP) );
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
-        discard(TokenType::EQUALS), any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND)) );
+        discard(TokenType::EQUALS), CALL_GROUP) );
 }
 
 Grammar2& basis::getGrammar() {

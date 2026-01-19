@@ -135,15 +135,30 @@ namespace basis {
         DEF_CMD_RETVAL,
         // -- command body
         DEF_CMD_BODY,
+        CALL_GROUP,
         CALL_CONSTRUCTOR,
         CALL_COMMAND,
         CALL_VCOMMAND,
         CALL_ASSIGNMENT,
+        CALL_EXPRESSION,
+        CALL_PARAMETER,
         CALL_IDENTIFIER,
         ALLOC_IDENTIFIER,
         // -- stack effect
         ON_EXIT,
-        ON_EXIT_FAIL
+        ON_EXIT_FAIL,
+        DO_WHEN,
+        DO_WHEN_MULTI,
+        DO_WHEN_FAIL,
+        DO_WHEN_SELECT,
+        DO_ELSE,
+        DO_UNLESS,
+        DO_BLOCK,
+        DO_REWIND,
+        DO_RECOVER,
+        DO_RECOVER_SPEC,
+        BLOCK_HEADER
+
     };
 }
 
