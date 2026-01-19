@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "RollbackGuard.h"
 #include "ParseObject.h"
 #include "Token.h"
 

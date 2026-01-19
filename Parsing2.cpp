@@ -58,12 +58,11 @@ namespace basis {
 
     bool Maybe::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                       itToken* pIter, const Token* pLimit) const {
-        itToken start = *pIter;
+        RollbackGuard<itToken> guard(pIter);
         spParseTree* next = *dpspResult;
         if (spfn->parse(tokens, &next, pIter, pLimit)) {
             *dpspResult = next;
-        } else {
-            *pIter = start;
+            guard.commit();
         }
         return true;
     }
@@ -77,13 +76,14 @@ namespace basis {
                        itToken* pIter, const Token* pLimit) const {
         if (sequence.empty()) return true;
 
-        itToken start = *pIter;
+        RollbackGuard<itToken> guard(pIter);
         spParseTree* next = *dpspResult;
 
         // Try to match the first element (the prefix)
         if (!sequence[0]->parse(tokens, &next, pIter, pLimit)) {
             // Prefix not found - succeed without consuming anything
             *dpspResult = next;
+            guard.commit();
             return true;
         }
 
@@ -92,12 +92,12 @@ namespace basis {
         for (size_t i = 1; i < sequence.size(); ++i) {
             if (!sequence[i]->parse(tokens, &next, pIter, pLimit)) {
                 // Failed after prefix matched - restore position and fail
-                *pIter = start;
                 return false;
             }
             if (*next) next = &((*next)->spNext);
         }
         *dpspResult = next;
+        guard.commit();
         return true;
     }
 
@@ -108,12 +108,13 @@ namespace basis {
 
     bool Any::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                    itToken* pIter, const Token* pLimit) const {
-        itToken start = *pIter;
+        RollbackGuard<itToken> guard(pIter);
         for (const SPPF& alt : alternatives) {
             if (alt->parse(tokens, dpspResult, pIter, pLimit)) {
+                guard.commit();
                 return true;
             }
-            *pIter = start;
+            guard.restore();
         }
         return false;
     }
@@ -123,6 +124,7 @@ namespace basis {
 
     bool All::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                    itToken* pIter, const Token* pLimit) const {
+        RollbackGuard<itToken> guard(pIter);
         spParseTree* next = *dpspResult;
         for (const SPPF& fn : sequence) {
             if (!fn->parse(tokens, &next, pIter, pLimit)) {
@@ -131,6 +133,7 @@ namespace basis {
             if (*next) next = &((*next)->spNext);
         }
         *dpspResult = next;
+        guard.commit();
         return true;
     }
 
@@ -165,15 +168,15 @@ namespace basis {
         spParseTree* next = *dpspResult;
         if (*next) next = &((*next)->spNext);
         while (true) {
-            itToken beforeSep = *pIter;
+            RollbackGuard<itToken> guard(pIter);
             if (!spSeparator->parse(tokens, &next, pIter, pLimit)) {
                 break;
             }
             if (!spElement->parse(tokens, &next, pIter, pLimit)) {
                 // Found separator but no following element - restore position and fail
-                *pIter = beforeSep;
                 return false;
             }
+            guard.commit();
             if (*next) next = &((*next)->spNext);
         }
         *dpspResult = next;
@@ -201,10 +204,12 @@ namespace basis {
 
     bool Group::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                      itToken* pIter, const Token* pLimit) const {
+        RollbackGuard<itToken> guard(pIter);
         spParseTree* target = *dpspResult;
         (*target) = std::make_shared<ParseTree>(prod);
         spParseTree* down = &(*target)->spDown;
         if (spfn->parse(tokens, &down, pIter, pLimit)) {
+            guard.commit();
             return true;
         }
         target->reset();
