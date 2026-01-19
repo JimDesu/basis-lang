@@ -87,6 +87,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("?<", TokenType::QLANGLE);
     testSingleToken("?", TokenType::QMARK);
     testSingleToken("?-", TokenType::QMINUS);
+    testSingleToken("??", TokenType::DQMARK);
     testSingleToken(">", TokenType::RANGLE);
     testSingleToken("->", TokenType::RARROW);
     testSingleToken("}", TokenType::RBRACE);

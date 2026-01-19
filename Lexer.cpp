@@ -398,6 +398,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::QMINUS;
+        } else if ( input.good() && input.peek() == '?' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::DQMARK;
         } else {
             pToken->type = TokenType::QMARK;
         }

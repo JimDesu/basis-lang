@@ -45,6 +45,7 @@ void Grammar2::initPunctuation() {
    COMMA = match(Production::COMMA, TokenType::COMMA);
    COLON = match(Production::COLON, TokenType::COLON);
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);
+   DQMARK = match(Production::DQMARK, TokenType::DQMARK);
    DCOLON = match(Production::DCOLON, TokenType::DCOLON);
    EQUALS = match(Production::EQUALS, TokenType::EQUALS);
    LANGLE = match(Production::LANGLE, TokenType::LANGLE);

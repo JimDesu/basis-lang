@@ -96,6 +96,7 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.QLANGLE, "?<", Production::QLANGLE));
     CHECK(testParse(grammar.QMARK, "?", Production::QMARK));
     CHECK(testParse(grammar.QMINUS, "?-", Production::QMINUS));
+    CHECK(testParse(grammar.DQMARK, "??", Production::DQMARK));
     CHECK(testParse(grammar.RANGLE, ">", Production::RANGLE));
     CHECK(testParse(grammar.RARROW, "->", Production::RARROW));
     CHECK(testParse(grammar.RBRACE, "}", Production::RBRACE));
