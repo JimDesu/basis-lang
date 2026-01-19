@@ -265,7 +265,8 @@ void Grammar2::initCommandBody() {
     SUBCALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
         all(IDENTIFIER, maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA)))) );
     SUBCALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
-        all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
+        all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
+            maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
