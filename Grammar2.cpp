@@ -212,10 +212,14 @@ void Grammar2::initCommandDefinitions() {
    // Top-level command definition
    DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
        all(COMMAND, any(
+           // destructor
+           all(group(Production::ON_EXIT, AMPHORA),DEF_CMD_RECEIVER, COLON,
+               separated(DEF_CMD_PARM, COMMA)),
+           // failure handler
+           all(group(Production::ON_EXIT_FAIL, AMBANG), DEF_CMD_RECEIVER, COLON,
+               separated(DEF_CMD_PARM, COMMA)),
            // constructor
            all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
-           // virtual constructor
-           all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA)),
            // command / method
            all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
    DEF_CMD_INTRINSIC = boundedGroup(Production::DEF_CMD_INTRINSIC, any(
@@ -226,11 +230,11 @@ void Grammar2::initCommandDefinitions() {
            COMMAND,
            any(
                // constructor
-               all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA),
-                   maybe(forward(DEF_CMD_BODY))),
-               // virtual constructor
-               all(DEF_CMD_RECEIVER, DCOLON, separated(DEF_CMD_PARM, COMMA),
-                   maybe(forward(DEF_CMD_BODY))),
+               all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
+               // destructor
+               all(group(Production::ON_EXIT, AMPHORA), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
+               // failure handler
+               all(group(Production::ON_EXIT_FAIL, AMBANG), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
                // command / method
                all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
             forward(DEF_CMD_BODY) ));
@@ -250,26 +254,24 @@ void Grammar2::initCommandBody() {
             IDENTIFIER );
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
-    CALL_VCONSTRUCTOR = boundedGroup(Production::CALL_VCONSTRUCTOR,
-        all(TYPE_NAME_Q, DCOLON, separated(CALL_IDENTIFIER, COMMA)) );
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
+        all(IDENTIFIER, maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA)))) );
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
         all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON,
             separated(CALL_IDENTIFIER, COMMA)) );
+
     SUBCALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_IDENTIFIER, COMMA)) );
-    SUBCALL_VCONSTRUCTOR = boundedGroup(Production::CALL_VCONSTRUCTOR,
-        all(TYPE_NAME_Q, DCOLON, separated(CALL_IDENTIFIER, COMMA)) );
     SUBCALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
+        all(IDENTIFIER, maybe(all(COLON, separated(CALL_IDENTIFIER, COMMA)))) );
     SUBCALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
         all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER, COLON, separated(CALL_IDENTIFIER, COMMA)) );
-    SUB_CALL = any(SUBCALL_CONSTRUCTOR, SUBCALL_VCONSTRUCTOR, SUBCALL_COMMAND, SUBCALL_VCOMMAND);
+    SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
+
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(CALL_IDENTIFIER, LARROW, SUB_CALL) );
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
-        discard(TokenType::EQUALS), any(CALL_CONSTRUCTOR, CALL_VCONSTRUCTOR, CALL_COMMAND, CALL_VCOMMAND)) );
+        discard(TokenType::EQUALS), any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND)) );
 }
 
 Grammar2& basis::getGrammar() {

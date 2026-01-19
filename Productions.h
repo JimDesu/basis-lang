@@ -135,12 +135,14 @@ namespace basis {
         // -- command body
         DEF_CMD_BODY,
         CALL_CONSTRUCTOR,
-        CALL_VCONSTRUCTOR,
         CALL_COMMAND,
         CALL_VCOMMAND,
         CALL_ASSIGNMENT,
         CALL_IDENTIFIER,
-        ALLOC_IDENTIFIER
+        ALLOC_IDENTIFIER,
+        // -- stack effect
+        ON_EXIT,
+        ON_EXIT_FAIL
     };
 }
 
