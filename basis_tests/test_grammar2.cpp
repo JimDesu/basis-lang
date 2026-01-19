@@ -976,3 +976,46 @@ TEST_CASE("Grammar2::test instance declaration parsing") {
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface delegate)"));  // missing opening paren
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType(delegate): Interface"));  // delegate on type name not allowed
 }
+
+TEST_CASE("Grammar2::test command body parsing") {
+    Grammar2& grammar = getGrammar();
+
+    // CALL_CONSTRUCTOR positive tests
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x, y", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "List[Int]: item", Production::CALL_CONSTRUCTOR));
+
+    // CALL_CONSTRUCTOR negative tests
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget: X"));  // uppercase identifier
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "widget: x"));  // lowercase typename
+
+    // CALL_VCONSTRUCTOR positive tests
+    CHECK(testParse(grammar.CALL_VCONSTRUCTOR, "Widget:: x, y", Production::CALL_VCONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_VCONSTRUCTOR, "Handler:: callback", Production::CALL_VCONSTRUCTOR));
+
+    // CALL_VCONSTRUCTOR negative tests
+    CHECK_FALSE(testParse(grammar.CALL_VCONSTRUCTOR, "Widget:: X"));  // uppercase identifier
+
+    // CALL_COMMAND positive tests
+    CHECK(testParse(grammar.CALL_COMMAND, "doSomething: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: item", Production::CALL_COMMAND));
+
+    // CALL_COMMAND negative tests
+    CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
+
+    // CALL_VCOMMAND positive tests
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: x, y", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: item", Production::CALL_VCOMMAND));
+
+    // CALL_VCOMMAND negative tests
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method: x"));  // uppercase receiver
+
+    // DEF_CMD_BODY positive tests
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget:: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= obj:: method: x", Production::DEF_CMD_BODY));
+
+    // DEF_CMD_BODY negative tests
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
+}
