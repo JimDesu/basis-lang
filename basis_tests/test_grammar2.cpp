@@ -1049,47 +1049,411 @@ TEST_CASE("Grammar2::test full command definitions with bodies") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! doIt: String error = logError: error"));
 }
 
-TEST_CASE("Grammar2::test command body parsing") {
+TEST_CASE("Grammar2::test CALL_IDENTIFIER") {
     Grammar2& grammar = getGrammar();
-    // CALL_CONSTRUCTOR positive tests
+
+    // Basic identifier
+    CHECK(testParse(grammar.CALL_IDENTIFIER, "x", Production::IDENTIFIER));
+    CHECK(testParse(grammar.CALL_IDENTIFIER, "result", Production::IDENTIFIER));
+    CHECK(testParse(grammar.CALL_IDENTIFIER, "'value", Production::IDENTIFIER));
+
+    // Allocation identifier (with #)
+    CHECK(testParse(grammar.CALL_IDENTIFIER, "#temp", Production::ALLOC_IDENTIFIER));
+    CHECK(testParse(grammar.CALL_IDENTIFIER, "#output", Production::ALLOC_IDENTIFIER));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Result"));  // uppercase not allowed
+    CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Widget"));  // typename not allowed
+}
+
+TEST_CASE("Grammar2::test CALL_PARAMETER") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple identifier parameters
+    CHECK(testParse(grammar.CALL_PARAMETER, "x", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "value", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "'result", Production::CALL_PARAMETER));
+
+    // Allocation identifier parameters
+    CHECK(testParse(grammar.CALL_PARAMETER, "#temp", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "#output", Production::CALL_PARAMETER));
+
+    // Expression parameters (nested calls)
+    CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: x, y)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "(process: item)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "(obj:: method: x)", Production::CALL_PARAMETER));
+}
+
+TEST_CASE("Grammar2::test CALL_CONSTRUCTOR") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic constructor calls
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x, y", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: size", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Point: x, y, z", Production::CALL_CONSTRUCTOR));
+
+    // Parameterized type constructors
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "List[Int]: item", Production::CALL_CONSTRUCTOR));
-    // CALL_CONSTRUCTOR negative tests
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Map[String, Int]: key, value", Production::CALL_CONSTRUCTOR));
+
+    // Constructor with allocation identifiers
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: #x, #y", Production::CALL_CONSTRUCTOR));
+
+    // Constructor with expression parameters
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Point: x, y), z", Production::CALL_CONSTRUCTOR));
+
+    // Negative tests
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget: X"));  // uppercase identifier
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "widget: x"));  // lowercase typename
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget x"));  // missing colon
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget:"));  // missing parameters
+}
 
-    // CALL_COMMAND positive tests
+TEST_CASE("Grammar2::test CALL_COMMAND") {
+    Grammar2& grammar = getGrammar();
+
+    // Command with parameters
     CHECK(testParse(grammar.CALL_COMMAND, "doSomething: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: item", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "calculate: a, b, c", Production::CALL_COMMAND));
 
-    // CALL_COMMAND negative tests
+    // Command without parameters
+    CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "execute", Production::CALL_COMMAND));
+
+    // Command with allocation identifiers
+    CHECK(testParse(grammar.CALL_COMMAND, "process: #temp, value", Production::CALL_COMMAND));
+
+    // Command with expression parameters
+    CHECK(testParse(grammar.CALL_COMMAND, "process: (Widget: x, y)", Production::CALL_COMMAND));
+
+    // Negative tests
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
+    CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
+}
 
-    // CALL_VCOMMAND positive tests
+TEST_CASE("Grammar2::test CALL_VCOMMAND") {
+    Grammar2& grammar = getGrammar();
+
+    // Single receiver
     CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: x, y", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "widget:: process: item", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method", Production::CALL_VCOMMAND));
+
+    // Multiple receivers
     CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: item", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "x, y, z:: process: data", Production::CALL_VCOMMAND));
 
-    // CALL_VCOMMAND negative tests
+    // Receivers with allocation identifiers
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "#obj:: method: x", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "a, #b:: handle: item", Production::CALL_VCOMMAND));
+
+    // Method with expression parameters
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: (Widget: x, y)", Production::CALL_VCOMMAND));
+
+    // Negative tests
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method: x"));  // uppercase receiver
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj:: Method: x"));  // uppercase method name
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method: x"));  // single colon instead of double
+}
 
-    // CALL_ASSIGNMENT positive tests
+TEST_CASE("Grammar2::test CALL_EXPRESSION") {
+    Grammar2& grammar = getGrammar();
+
+    // Constructor expressions
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(List[Int]: item)", Production::CALL_EXPRESSION));
+
+    // Command expressions
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(process: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt)", Production::CALL_EXPRESSION));
+
+    // Virtual command expressions
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(obj:: method: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(a, b:: handle: item)", Production::CALL_EXPRESSION));
+
+    // Nested expressions
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x"));  // missing parentheses
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(Widget: x"));  // missing closing paren
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
+}
+
+TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
+    Grammar2& grammar = getGrammar();
+
+    // Assignment from constructor
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Widget: x, y", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "# output <- process: item", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- obj:: method: x", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#data <- obj:: method: x", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "container <- List[Int]: item", Production::CALL_ASSIGNMENT));
 
-    // CALL_ASSIGNMENT negative tests
+    // Assignment from command
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- process: item", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- doIt", Production::CALL_ASSIGNMENT));
+
+    // Assignment from virtual command
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- obj:: method: x", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- a, b:: handle: item", Production::CALL_ASSIGNMENT));
+
+    // Assignment from expression
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
+
+    // Allocation identifier assignments
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#output <- process: item", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#data <- obj:: method: x", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
+
+    // Negative tests
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "Result <- Widget: x"));  // uppercase target
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result -> Widget: x"));  // wrong arrow
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result Widget: x"));  // missing arrow
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "<- Widget: x"));  // missing target
+}
 
-    // DEF_CMD_BODY positive tests
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt ", Production::DEF_CMD_BODY));
+TEST_CASE("Grammar2::test CALL_INVOKE") {
+    Grammar2& grammar = getGrammar();
+
+    // Constructor invocations
+    CHECK(testParse(grammar.CALL_INVOKE, "Widget: x, y", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_INVOKE, "List[Int]: item", Production::CALL_CONSTRUCTOR));
+
+    // Command invocations
+    CHECK(testParse(grammar.CALL_INVOKE, "doSomething: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_INVOKE, "process", Production::CALL_COMMAND));
+
+    // Virtual command invocations
+    CHECK(testParse(grammar.CALL_INVOKE, "obj:: method: x, y", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_INVOKE, "a, b:: handle", Production::CALL_VCOMMAND));
+}
+
+TEST_CASE("Grammar2::test CALL_GROUP") {
+    Grammar2& grammar = getGrammar();
+
+    // Single invocation
+    CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "obj:: method: x", Production::CALL_GROUP));
+
+    // Multiple invocations on same line
+    CHECK(testParse(grammar.CALL_GROUP, "doIt process: x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y doIt", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "init process: data cleanup", Production::CALL_GROUP));
+
+    // Multiple invocations across lines
+    CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\ndoIt\ncleanup", Production::CALL_GROUP));
+
+    // Mixed invocation types
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x doIt obj:: method: y", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::test BLOCK_HEADER") {
+    Grammar2& grammar = getGrammar();
+
+    // Conditional blocks
+    CHECK(testParse(grammar.BLOCK_HEADER, "?", Production::BLOCK_HEADER));  // DO_WHEN
+    CHECK(testParse(grammar.BLOCK_HEADER, "??", Production::BLOCK_HEADER));  // DO_WHEN_MULTI
+    CHECK(testParse(grammar.BLOCK_HEADER, "?-", Production::BLOCK_HEADER));  // DO_WHEN_FAIL
+    CHECK(testParse(grammar.BLOCK_HEADER, "!", Production::BLOCK_HEADER));  // DO_UNLESS
+    CHECK(testParse(grammar.BLOCK_HEADER, "-", Production::BLOCK_HEADER));  // DO_ELSE
+
+    // Control flow blocks
+    CHECK(testParse(grammar.BLOCK_HEADER, "%", Production::BLOCK_HEADER));  // DO_BLOCK
+    CHECK(testParse(grammar.BLOCK_HEADER, "^", Production::BLOCK_HEADER));  // DO_REWIND
+
+    // Error handling blocks
+    CHECK(testParse(grammar.BLOCK_HEADER, "|", Production::BLOCK_HEADER));  // DO_RECOVER
+    CHECK(testParse(grammar.BLOCK_HEADER, "|:", Production::BLOCK_HEADER));  // DO_RECOVER_SPEC
+
+    // Cleanup blocks
+    CHECK(testParse(grammar.BLOCK_HEADER, "@", Production::BLOCK_HEADER));  // ON_EXIT
+    CHECK(testParse(grammar.BLOCK_HEADER, "@!", Production::BLOCK_HEADER));  // ON_EXIT_FAIL
+}
+
+TEST_CASE("Grammar2::test BLOCK") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple conditional blocks
+    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "?? process: x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "?- cleanup", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "! abort", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "- fallback", Production::DO_BLOCK));
+
+    // Control flow blocks
+    CHECK(testParse(grammar.BLOCK, "% execute", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "^ retry", Production::DO_BLOCK));
+
+    // Error handling blocks
+    CHECK(testParse(grammar.BLOCK, "| recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "|: handleError: code", Production::DO_BLOCK));
+
+    // Cleanup blocks
+    CHECK(testParse(grammar.BLOCK, "@ cleanup: resource", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "@! handleFailure: error", Production::DO_BLOCK));
+
+    // Blocks with multiple invocations
+    CHECK(testParse(grammar.BLOCK, "? doIt process: x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "% init\n process: data\n cleanup", Production::DO_BLOCK));
+
+    // Blocks with constructor calls
+    CHECK(testParse(grammar.BLOCK, "? Widget: x, y", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "% Container: size doIt", Production::DO_BLOCK));
+
+    // Blocks with virtual commands
+    CHECK(testParse(grammar.BLOCK, "? obj:: method: x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| a, b:: recover: error", Production::DO_BLOCK));
+}
+
+TEST_CASE("Grammar2::test DEF_CMD_BODY") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple command bodies
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x", Production::DEF_CMD_BODY));
+
+    // Constructor bodies
     CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y", Production::DEF_CMD_BODY));
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt: x", Production::DEF_CMD_BODY));
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= obj:: method: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= List[Int]: item", Production::DEF_CMD_BODY));
 
-    // DEF_CMD_BODY negative tests
+    // Virtual command bodies
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= obj:: method: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= a, b:: handle: item", Production::DEF_CMD_BODY));
+
+    // Bodies with multiple invocations
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init process: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y doIt", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init\nprocess: data\ncleanup", Production::DEF_CMD_BODY));
+
+    // Bodies with blocks
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= ? doIt", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init ? process: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= % execute cleanup", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt | recover: error", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x @ cleanup: resource", Production::DEF_CMD_BODY));
+
+    // Complex bodies with nested structures
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init ? Widget: x, y - fallback", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= % doIt process: x | recover", Production::DEF_CMD_BODY));
+
+    // Negative tests
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
+}
+
+TEST_CASE("Grammar2::test command body integration - complex scenarios") {
+    Grammar2& grammar = getGrammar();
+
+    // Nested expressions in parameters
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Point: x, y), (Size: w, h)", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: (transform: data), (validate: input)", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: (Widget: x, y), z", Production::CALL_VCOMMAND));
+
+    // Allocation identifiers in various contexts
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: #x, #y", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: #temp, value", Production::CALL_COMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "#obj, #widget:: method: #data", Production::CALL_VCOMMAND));
+
+    // Complex call groups with mixed invocation types
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\nobj:: init\nprocess: data", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Container: size doIt obj:: method: x cleanup", Production::CALL_GROUP));
+
+    // Nested blocks
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init ? doIt - fallback", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= % process: x ? validate - error", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt | recover @ cleanup", Production::DEF_CMD_BODY));
+
+    // Blocks with multiple invocations and nested structures
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= ? Widget: x, y obj:: init - Container: size fallback", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? process: data\n- error: msg\n@ cleanup: resource", Production::DEF_CMD_BODY));
+
+    // Assignment in call groups (note: assignments are bounded, so they're top-level invocations)
+    CHECK_FALSE(testParse(grammar.CALL_GROUP, "result <- Widget: x, y\nprocess: result", Production::CALL_GROUP));
+    CHECK_FALSE(testParse(grammar.CALL_GROUP, "#temp <- doIt\nprocess: #temp", Production::CALL_GROUP));
+
+    // Complex parameterized types in constructors
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Map[String, List[Int]]: key, values", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container[Widget[T]]: (Widget[Int]: x)", Production::CALL_CONSTRUCTOR));
+}
+
+TEST_CASE("Grammar2::test command body edge cases") {
+    Grammar2& grammar = getGrammar();
+
+    // Commands without parameters
+    CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method", Production::CALL_VCOMMAND));
+
+    // Single parameter
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: x", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: x", Production::CALL_VCOMMAND));
+
+    // Many parameters
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: a, b, c, d, e", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: a, b, c, d, e", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: a, b, c, d, e", Production::CALL_VCOMMAND));
+
+    // Multiple receivers in virtual commands
+    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b, c, d:: method: x", Production::CALL_VCOMMAND));
+
+    // Deeply nested expressions
+    CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: (Point: (Value: x)))", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
+
+    // Mixed allocation and regular identifiers
+    CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "a, #b, c:: method: x, #y", Production::CALL_VCOMMAND));
+
+    // All block header types in sequence
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init ? success - failure | recover @ cleanup @! onFail", Production::DEF_CMD_BODY));
+
+    // Empty-looking but valid constructs
+    CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
+    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
+}
+
+TEST_CASE("Grammar2::test command body negative cases") {
+    Grammar2& grammar = getGrammar();
+
+    // Invalid identifier cases
+    CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Widget"));  // typename
+    CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "123"));  // number
+
+    // Invalid constructor cases
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "widget: x"));  // lowercase typename
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget"));  // missing colon and params
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget:"));  // missing params
+    CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, ": x"));  // missing typename
+
+    // Invalid command cases
+    CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoIt"));  // uppercase
+    CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
+
+    // Invalid virtual command cases
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method"));  // uppercase receiver
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj:: Method"));  // uppercase method
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method"));  // single colon
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, ":: method"));  // missing receiver
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj::"));  // missing method
+
+    // Invalid assignment cases
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "Result <- doIt"));  // uppercase target
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result -> doIt"));  // wrong arrow
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result doIt"));  // missing arrow
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "<- doIt"));  // missing target
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <-"));  // missing source
+
+    // Invalid expression cases
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "doIt"));  // missing parens
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(doIt"));  // missing close paren
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "doIt)"));  // missing open paren
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "()"));  // empty expression
+
+    // Invalid body cases
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "="));  // missing call group
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call group (whitespace only)
 }
