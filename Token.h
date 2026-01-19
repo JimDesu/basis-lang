@@ -38,7 +38,6 @@ namespace basis {
         BANG,
         BANGLANGLE,
         CARAT,
-        CARATQ,
         COMMA,
         COLON,
         COLANGLE,

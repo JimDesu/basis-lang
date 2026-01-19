@@ -75,7 +75,6 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.BANG, "!", Production::BANG));
     CHECK(testParse(grammar.BANGLANGLE, "!<", Production::BANGLANGLE));
     CHECK(testParse(grammar.CARAT, "^", Production::CARAT));
-    CHECK(testParse(grammar.CARATQ, "^?", Production::CARATQ));
     CHECK(testParse(grammar.COMMA, ",", Production::COMMA));
     CHECK(testParse(grammar.COLON, ":", Production::COLON));
     CHECK(testParse(grammar.COLANGLE, ":<", Production::COLANGLE));

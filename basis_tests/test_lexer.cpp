@@ -66,7 +66,6 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("!", TokenType::BANG);
     testSingleToken("!<", TokenType::BANGLANGLE);
     testSingleToken("^", TokenType::CARAT);
-    testSingleToken("^?", TokenType::CARATQ);
     testSingleToken(",", TokenType::COMMA);
     testSingleToken("::", TokenType::DCOLON);
     testSingleToken(":<", TokenType::COLANGLE);

@@ -322,13 +322,7 @@ bool Lexer::readPunct() {
         }
         break;
     case '^':
-        if ( input.good() && input.peek() == '?' ) {
-            read();
-            pToken->text += readChar;
-            pToken->type = TokenType::CARATQ;
-        } else {
-            pToken->type = TokenType::CARAT;
-        }
+        pToken->type = TokenType::CARAT;
         break;
     case ',':
         pToken->type = TokenType::COMMA;

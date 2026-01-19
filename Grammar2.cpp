@@ -41,7 +41,6 @@ void Grammar2::initPunctuation() {
    BANG = match(Production::BANG, TokenType::BANG);
    BANGLANGLE = match(Production::BANGLANGLE, TokenType::BANGLANGLE);
    CARAT = match(Production::CARAT, TokenType::CARAT);
-   CARATQ = match(Production::CARATQ, TokenType::CARATQ);
    COMMA = match(Production::COMMA, TokenType::COMMA);
    COLON = match(Production::COLON, TokenType::COLON);
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);

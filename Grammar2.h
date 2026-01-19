@@ -56,8 +56,6 @@ namespace basis {
         SPPF BANG;
         SPPF BANGLANGLE;
         SPPF CARAT;
-        // TODO remove
-        SPPF CARATQ;
         SPPF COMMA;
         SPPF COLON;
         SPPF COLANGLE;
