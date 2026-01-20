@@ -20,6 +20,8 @@ namespace basis {
         virtual bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                           itToken* pIter, const Token* pLimit) const = 0;
         static bool atLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit);
+        static const Token* getBoundLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit);
+        static spParseTree* createGroupNode(Production prod, spParseTree** dpspResult);
     };
 
     using SPPF = std::shared_ptr<ParseFn>;
@@ -172,7 +174,8 @@ namespace basis {
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
-        SPPF spfn;
+        Production prod;
+        std::vector<SPPF> sequence;
     };
 
     template<typename... Args>

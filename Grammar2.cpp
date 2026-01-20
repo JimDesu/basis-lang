@@ -210,6 +210,7 @@ void Grammar2::initCommandDefinitions() {
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
    // Top-level command definition
+    //TODO: add unit tests for this
    DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
        all(COMMAND, any(
            // destructor
@@ -248,7 +249,7 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    // TODO: lbrace vs lparen exprs
+    // TODO: lbrace vs lparen exprs, operators, and other expression stuff
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );

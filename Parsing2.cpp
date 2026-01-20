@@ -2,9 +2,20 @@
 
 namespace basis {
 
-    // ParseFn static helper
+    // ParseFn static helpers
     bool ParseFn::atLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit) {
         return (*pIter) == tokens.cend() || (pLimit != nullptr && (*pIter)->get() == pLimit);
+    }
+
+    const Token* ParseFn::getBoundLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit) {
+        if (atLimit(tokens, pIter, pLimit)) return nullptr;
+        return (*pIter)->get()->bound ? (*pIter)->get()->bound.get() : nullptr;
+    }
+
+    spParseTree* ParseFn::createGroupNode(Production prod, spParseTree** dpspResult) {
+        spParseTree* target = *dpspResult;
+        (*target) = std::make_shared<ParseTree>(prod);
+        return &(*target)->spDown;
     }
 
     // Parsing2 implementation
@@ -219,11 +230,25 @@ namespace basis {
 
     // BoundedGroup implementation
     BoundedGroup::BoundedGroup(Production prod, std::vector<SPPF> sequence)
-        : spfn(group(prod, bound(std::make_shared<All>(sequence)))) {}
+        : prod(prod), sequence(sequence) {}
 
     bool BoundedGroup::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                             itToken* pIter, const Token* pLimit) const {
-        return spfn->parse(tokens, dpspResult, pIter, pLimit);
+        if (atLimit(tokens, pIter, pLimit)) return false;
+        const Token* boundLimit = getBoundLimit(tokens, pIter, pLimit);
+
+        RollbackGuard<itToken> guard(pIter);
+        spParseTree* down = createGroupNode(prod, dpspResult);
+
+        All allParser(sequence);
+        if (allParser.parse(tokens, &down, pIter, boundLimit) &&
+            atLimit(tokens, pIter, boundLimit)) {
+            guard.commit();
+            return true;
+        }
+
+        (*dpspResult)->reset();
+        return false;
     }
 
     // Forward implementation
