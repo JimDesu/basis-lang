@@ -664,83 +664,83 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "Widget' w"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd ?doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd !doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int x", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int 'x, String y", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int 'x -> result", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int ctx / Int ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int x / Int 'ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w:: doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w:: ?doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w:: !doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w, Button b:: doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w, Button 'b:: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w:: doIt: Int x -> result", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w:: doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: Int i, Int j", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: ?<Int'> cmd", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: !<String', Int> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl ?doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl !doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int 'x, String y", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int 'x -> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int ctx / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x / Int 'ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: ?doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: !doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w, Button b:: doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w, Button 'b:: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt: Int x -> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i, Int j", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ?<Int'> cmd", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: !<String', Int> result", Production::DEF_CMD_DECL));
 
     // Destructor tests (using @ AMPHORA)
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @ Widget w: Int x", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @ Widget w: Int x, Int y", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @ Container c: String name", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @ Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @ Resource r: ?<Int'> cmd", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w: Int x", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w: Int x, Int y", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Container c: String name", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Resource r: ?<Int'> cmd", Production::DEF_CMD_DECL));
 
     // Failure handler tests (using @! AMBANG)
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @! Widget w: Int x", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @! Widget w: Int x, Int y", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @! Container c: String error", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @! Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".cmd @! Resource r: !<String', Int> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w: Int x", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w: Int x, Int y", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Container c: String error", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Resource r: !<String', Int> result", Production::DEF_CMD_DECL));
 
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt -> result", Production::DEF_CMD_DECL));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: ^Int' ptr"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: []String' items"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: List[T'] list"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget' w:: doIt"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd ^Widget' ptr:: doIt"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd []Container[T'] items:: process"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget' w:: ^Int' ptr, []String' items"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: (T': ^Int) x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / Int ctx: (T': ^Int) x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int ?x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: Int !x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: ?Int x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt: !Int x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget 'w, Button 'b:: Int i"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt:"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt /"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / :"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / Int i:"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt : Int i -> T"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt -> T"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt : -> x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / x ->"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / -> x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / Int j: Int i"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd doIt / Int j: Int i -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: Int i / Int j"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: Int i -> Int j"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: Int i / Int j -> i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt -> result", Production::DEF_CMD_DECL));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ^Int' ptr"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: []String' items"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: List[T'] list"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget' w:: doIt"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl ^Widget' ptr:: doIt"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl []Container[T'] items:: process"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget' w:: ^Int' ptr, []String' items"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: (T': ^Int) x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / Int ctx: (T': ^Int) x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int ?x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int !x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ?Int x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: !Int x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget 'w, Button 'b:: Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt:"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt /"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / :"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / Int i:"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt : Int i -> T"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt -> T"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt : -> x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / x ->"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / -> x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / Int j: Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / Int j: Int i -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i / Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i -> Int j"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i / Int j -> i"));
 
     // Destructor negative tests
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @ doIt: Int x -> result"));  // destructor needs receiver
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @ Widget w"));  // destructor needs parameters
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: @ Int x"));  // @ in wrong position
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @ Widget' w: Int x"));  // receiver can't have apostrophe
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ doIt: Int x -> result"));  // destructor needs receiver
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w"));  // destructor needs parameters
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: @ Int x"));  // @ in wrong position
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget' w: Int x"));  // receiver can't have apostrophe
 
     // Failure handler negative tests
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @! Widget w:: Int i"));  // failure handler can't use ::
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @! doIt: Int x -> result"));  // failure handler needs receiver
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @! Widget w"));  // failure handler needs parameters
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd Widget w: @! Int x"));  // @! in wrong position
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".cmd @! Widget' w: Int x"));  // receiver can't have apostrophe
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w:: Int i"));  // failure handler can't use ::
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! doIt: Int x -> result"));  // failure handler needs receiver
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w"));  // failure handler needs parameters
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: @! Int x"));  // @! in wrong position
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget' w: Int x"));  // receiver can't have apostrophe
 
     CHECK(testParse(grammar.DEF_CMD_INTRINSIC, ".intrinsic doIt"));
     CHECK(testParse(grammar.DEF_CMD_INTRINSIC, ".intrinsic doIt: Int x -> result", Production::DEF_CMD_INTRINSIC));
@@ -891,65 +891,159 @@ TEST_CASE("Grammar2::test object type definitions") {
 TEST_CASE("Grammar2::test class definition parsing") {
     Grammar2& grammar = getGrammar();
 
-    // indentation 1: First DEF_CMD_DECL on next line, all at same indentation
     CHECK(testParse(grammar.DEF_CLASS,
         ".class MyClass:\n"
-        "  .cmd doSomething: Int x -> result\n"
-        "  .cmd doOther: String s -> output",
+        "  .decl doSomething: Int x -> result\n"
+        "  .decl doOther: String s -> output",
         Production::DEF_CLASS));
-
-    // indentation 2: First DEF_CMD_DECL on same line, subsequent at same indentation
     CHECK(testParse(grammar.DEF_CLASS,
-        ".class MyClass: .cmd doSomething: Int x -> result\n"
-        "                .cmd doOther: String s -> output",
+        ".class MyClass: .decl doSomething: Int x -> result\n"
+        "                .decl doOther: String s -> output",
         Production::DEF_CLASS));
-
-    // indentation 3: First DEF_CMD_DECL on same line, subsequent indented less (but still more than class start)
     CHECK(testParse(grammar.DEF_CLASS,
-        ".class MyClass: .cmd doSomething: Int x -> result\n"
-        "  .cmd doOther: String s -> output",
+        ".class MyClass: .decl doSomething: Int x -> result\n"
+        "  .decl doOther: String s -> output",
         Production::DEF_CLASS));
-
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
-        "  .cmd Widget w: Int x, Int y",
+        "  .decl Widget w: Int x, Int y",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Container:\n"
-        "  .cmd Container c: Int capacity\n"
-        "  .cmd add: Int item -> result\n"
-        "  .cmd Widget w:: process: String s -> output / Int ctx",
+        "  .decl Container c: Int capacity\n"
+        "  .decl add: Int item -> result\n"
+        "  .decl Widget w:: process: String s -> output / Int ctx",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Processor:\n"
-        "  .cmd Widget w, Button b:: handle: Int x -> result",
+        "  .decl Widget w, Button b:: handle: Int x -> result",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Handler:\n"
-        "  .cmd ?tryProcess: Int x -> result\n"
-        "  .cmd !mustFail: String s -> output",
+        "  .decl ?tryProcess: Int x -> result\n"
+        "  .decl !mustFail: String s -> output",
         Production::DEF_CLASS));
-
-    // Class with destructor
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Resource:\n"
-        "  .cmd Resource r: String name\n"
-        "  .cmd @ Resource r: Int code",
+        "  .decl Resource r: String name\n"
+        "  .decl @ Resource r: Int code",
         Production::DEF_CLASS));
-
-    // Class with failure handler
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Transaction:\n"
-        "  .cmd Transaction t: Int id\n"
-        "  .cmd @! Transaction t: String error",
+        "  .decl Transaction t: Int id\n"
+        "  .decl @! Transaction t: String error",
         Production::DEF_CLASS));
-
-    // Class with constructor, destructor, and failure handler
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Connection:\n"
-        "  .cmd Connection c: String host, Int port\n"
-        "  .cmd @ Connection c: Int timeout\n"
-        "  .cmd @! Connection c: String reason",
+        "  .decl Connection c: String host, Int port\n"
+        "  .decl @ Connection c: Int timeout\n"
+        "  .decl @! Connection c: String reason",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt = process",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt: Int x -> result = process: x",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd add: Int item = items:: append: item",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd process: String data -> result = validate: data\n     result <- transform: data",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd process: Int x -> result = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd ?tryProcess: String data -> result = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd !mustFail: Int code = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y\n"
+        "  .cmd doIt = process",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .decl Container c: Int capacity\n"
+        "  .cmd add: Int item = items:: append: item\n"
+        "  .decl remove: Int index -> result",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .decl Handler h: String name\n"
+        "  .cmd process: String data = validate: data\n"
+        "  .cmd cleanup = _\n"
+        "  .decl @ Handler h: Int code",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w: Int x, Int y = init: x, y",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd Container c: Int capacity = allocate: capacity",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Resource:\n"
+        "  .cmd Resource r: String name = acquire: name\n"
+        "  .cmd @ Resource r: Int code = release: code",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Connection:\n"
+        "  .cmd @ Connection c: Int timeout = disconnect\n    cleanup",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Transaction:\n"
+        "  .cmd Transaction t: Int id = begin: id\n"
+        "  .cmd @! Transaction t: String error = rollback: error",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Connection:\n"
+        "  .cmd @! Connection c: String reason = logError: reason\n    notify",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w:: render = draw: w",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd Container c:: process: Int x -> result = validate: x\n    result <- transform: x",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd Widget w, Button b:: handle: Int x = w:: update: x\n    b:: click",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y\n"
+        "  .cmd doIt = process\n"
+        "  .cmd ?tryIt: Int x -> result = validate: x\n"
+        "  .decl !mustFail: String s -> output\n"
+        "  .cmd cleanup = _\n"
+        "  .cmd @ Widget w: Int code = release: code\n"
+        "  .decl @! Widget w: String error",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w: Int x = _\n"
+        "  .cmd @ Widget w: Int code = _\n"
+        "  .cmd @! Widget w: String error = _\n"
+        "  .cmd Widget w:: method = _\n"
+        "  .cmd process: Int x -> result = _",
         Production::DEF_CLASS));
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class myClass:\n  .cmd doIt"));  // lowercase class name
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass"));  // missing colon and commands
@@ -961,6 +1055,8 @@ TEST_CASE("Grammar2::test class definition parsing") {
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:\n.cmd doIt"));  // command not indented
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass: .cmd doIt\n.cmd other"));  // second command not indented
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt ="));  // missing body after equals
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt _"));  // missing equals before body
 }
 
 TEST_CASE("Grammar2::test instance declaration parsing") {
@@ -1220,6 +1316,11 @@ TEST_CASE("Grammar2::test DEF_CMD_BODY") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x\n@ cleanup: resource", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? Widget: x, y\n- fallback", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= % doIt\nprocess: x\n| recover", Production::DEF_CMD_BODY));
+
+    // Test "= _" (empty body) syntax
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= _", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_EMPTY, "_", Production::DEF_CMD_EMPTY));
+
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals

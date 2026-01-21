@@ -23,6 +23,7 @@ namespace basis {
         ALIAS,
         CLASS,
         COMMAND,
+        DECLARE,
         DOMAIN,
         ENUMERATION,
         INSTANCE,

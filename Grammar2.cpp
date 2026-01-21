@@ -75,6 +75,7 @@ void Grammar2::initReservedWords() {
    ALIAS = match(Production::ALIAS, TokenType::ALIAS);
    CLASS = match(Production::CLASS, TokenType::CLASS);
    COMMAND = match(Production::COMMAND, TokenType::COMMAND);
+   DECLARE = match(Production::DECLARE, TokenType::DECLARE);
    DOMAIN = match(Production::DOMAIN, TokenType::DOMAIN);
    ENUMERATION = match(Production::ENUMERATION, TokenType::ENUMERATION);
    INSTANCE = match(Production::INSTANCE, TokenType::INSTANCE);
@@ -213,7 +214,7 @@ void Grammar2::initCommandDefinitions() {
    // Top-level command definition
     //TODO: add unit tests for this
    DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
-       all(COMMAND, any(
+       all(DECLARE, any(
            // destructor
            all(group(Production::ON_EXIT, AMPHORA),DEF_CMD_RECEIVER, COLON,
                separated(DEF_CMD_PARM, COMMA)),
@@ -246,7 +247,7 @@ void Grammar2::initCommandDefinitions() {
 void Grammar2::initClassTypes() {
     DEF_CLASS = boundedGroup(Production::DEF_CLASS,
         all(CLASS, group(Production::DEF_CLASS_NAME, TYPENAME), COLON,
-            group(Production::DEF_CLASS_CMDS, oneOrMore( DEF_CMD_DECL )) ));
+            group(Production::DEF_CLASS_CMDS, oneOrMore( any(DEF_CMD_DECL,DEF_CMD))) ));
 }
 
 void Grammar2::initCommandBody() {
@@ -254,9 +255,12 @@ void Grammar2::initCommandBody() {
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );
+
+    CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
+        any( CALL_IDENTIFIER, forward(CALL_EXPRESSION), forward(CALL_QUOTE) ) );
     CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
     CALL_PARAMETER = group(Production::CALL_PARAMETER,
-        any( CALL_PARM_EMPTY, CALL_IDENTIFIER, forward(CALL_EXPRESSION), forward(CALL_QUOTE)) );
+        any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     SUBCALL_CONSTRUCTOR = group(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
@@ -298,8 +302,9 @@ void Grammar2::initCommandBody() {
             group(Production::ON_EXIT, AMPHORA),
             group(Production::ON_EXIT_FAIL, AMBANG) ));
     BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, CALL_GROUP) );
+    DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
-        discard(TokenType::EQUALS), CALL_GROUP) );
+        discard(TokenType::EQUALS), any(DEF_CMD_EMPTY, CALL_GROUP) ));
 }
 
 Grammar2& basis::getGrammar() {

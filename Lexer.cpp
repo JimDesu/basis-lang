@@ -25,6 +25,7 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".alias", TokenType::ALIAS},
     {".class", TokenType::CLASS},
     {".cmd", TokenType::COMMAND},
+    {".decl", TokenType::DECLARE},
     {".domain", TokenType::DOMAIN},
     {".enum", TokenType::ENUMERATION},
     {".intrinsic", TokenType::INTRINSIC},

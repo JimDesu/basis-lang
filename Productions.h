@@ -17,6 +17,7 @@ namespace basis {
         ALIAS,
         CLASS,
         COMMAND,
+        DECLARE,
         DOMAIN,
         ENUMERATION,
         INSTANCE,
@@ -135,6 +136,7 @@ namespace basis {
         DEF_CMD_RETVAL,
         // -- command body
         DEF_CMD_BODY,
+        DEF_CMD_EMPTY,
         CALL_GROUP,
         CALL_CONSTRUCTOR,
         CALL_COMMAND,
@@ -144,6 +146,7 @@ namespace basis {
         CALL_QUOTE,
         CALL_PARAMETER,
         CALL_PARM_EMPTY,
+        CALL_PARM_EXPR,
         CALL_IDENTIFIER,
         ALLOC_IDENTIFIER,
         // -- stack effect

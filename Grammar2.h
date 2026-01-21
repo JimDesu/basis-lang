@@ -40,6 +40,7 @@ namespace basis {
         SPPF ALIAS;
         SPPF CLASS;
         SPPF COMMAND;
+        SPPF DECLARE;
         SPPF DOMAIN;
         SPPF ENUMERATION;
         SPPF INTRINSIC;
@@ -162,6 +163,7 @@ namespace basis {
 
         // Command Body
         SPPF DEF_CMD_BODY;
+        SPPF DEF_CMD_EMPTY;
         SPPF CALL_GROUP;
         SPPF CALL_INVOKE;
         SPPF CALL_CONSTRUCTOR;
@@ -172,6 +174,7 @@ namespace basis {
         SPPF CALL_QUOTE;
         SPPF CALL_IDENTIFIER;
         SPPF CALL_PARAMETER;
+        SPPF CALL_PARM_EXPR;
         SPPF CALL_PARM_EMPTY;
         SPPF SUB_CALL;
         SPPF SUBCALL_CONSTRUCTOR;
