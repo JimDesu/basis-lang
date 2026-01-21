@@ -59,6 +59,7 @@ namespace basis {
         RBRACKET,
         RPAREN,
         SLASH,
+        UNDERSCORE,
         // ----- regular productions -----
         LITERAL,
         // -- enumerations
@@ -140,7 +141,9 @@ namespace basis {
         CALL_VCOMMAND,
         CALL_ASSIGNMENT,
         CALL_EXPRESSION,
+        CALL_QUOTE,
         CALL_PARAMETER,
+        CALL_PARM_EMPTY,
         CALL_IDENTIFIER,
         ALLOC_IDENTIFIER,
         // -- stack effect

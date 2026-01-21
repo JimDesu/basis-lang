@@ -83,6 +83,7 @@ namespace basis {
         SPPF RBRACKET;
         SPPF RPAREN;
         SPPF SLASH;
+        SPPF UNDERSCORE;
 
         // Enumerations
         SPPF DEF_ENUM_ITEM_LIST;
@@ -168,8 +169,10 @@ namespace basis {
         SPPF CALL_VCOMMAND;
         SPPF CALL_ASSIGNMENT;
         SPPF CALL_EXPRESSION;
+        SPPF CALL_QUOTE;
         SPPF CALL_IDENTIFIER;
         SPPF CALL_PARAMETER;
+        SPPF CALL_PARM_EMPTY;
         SPPF SUB_CALL;
         SPPF SUBCALL_CONSTRUCTOR;
         SPPF SUBCALL_COMMAND;

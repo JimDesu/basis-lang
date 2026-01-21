@@ -93,6 +93,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("]", TokenType::RBRACKET);
     testSingleToken(")", TokenType::RPAREN);
     testSingleToken("/", TokenType::SLASH);
+    testSingleToken("_", TokenType::UNDERSCORE);
     testSingleToken(".cmd foobar", TokenType::COMMAND);
     testSingleToken(".class foobar", TokenType::CLASS);
     testSingleToken(".domain foobar", TokenType::DOMAIN);

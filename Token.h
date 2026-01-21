@@ -65,6 +65,7 @@ namespace basis {
         RBRACKET,
         RPAREN,
         SLASH,
+        UNDERSCORE,
     };
 
     class Token {

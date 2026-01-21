@@ -68,6 +68,7 @@ void Grammar2::initPunctuation() {
    RBRACKET = match(Production::RBRACKET, TokenType::RBRACKET);
    RPAREN = match(Production::RPAREN, TokenType::RPAREN);
    SLASH = match(Production::SLASH, TokenType::SLASH);
+   UNDERSCORE = match(Production::UNDERSCORE, TokenType::UNDERSCORE);
 }
 
 void Grammar2::initReservedWords() {
@@ -249,11 +250,13 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    // TODO: lbrace vs lparen exprs, operators, and other expression stuff
+    // TODO: operators, and other expression stuff
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );
-    CALL_PARAMETER = group(Production::CALL_PARAMETER, any( CALL_IDENTIFIER, forward(CALL_EXPRESSION)) );
+    CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
+    CALL_PARAMETER = group(Production::CALL_PARAMETER,
+        any( CALL_PARM_EMPTY, CALL_IDENTIFIER, forward(CALL_EXPRESSION), forward(CALL_QUOTE)) );
 
     SUBCALL_CONSTRUCTOR = group(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
@@ -265,8 +268,10 @@ void Grammar2::initCommandBody() {
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, all(LPAREN, SUB_CALL, RPAREN) );
+
+    CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION,SUB_CALL)) );
+        all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION, CALL_QUOTE, SUB_CALL)) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
@@ -278,7 +283,7 @@ void Grammar2::initCommandBody() {
 
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
     CALL_GROUP = group(Production::CALL_GROUP,
-        oneOrMore(any(CALL_INVOKE, forward(BLOCK))) );
+        oneOrMore(any(CALL_ASSIGNMENT, CALL_INVOKE, forward(BLOCK))) );
     // TODO extend DO_RECOVER_SPEC with fail type
     BLOCK_HEADER = group(Production::BLOCK_HEADER,
         any(group(Production::DO_WHEN_MULTI, DQMARK),

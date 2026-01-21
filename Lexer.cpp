@@ -415,6 +415,9 @@ bool Lexer::readPunct() {
     case '/':
         pToken->type = TokenType::SLASH;
         break;
+    case '_':
+        pToken->type = TokenType::UNDERSCORE;
+        break;
     default:
         writeError("invalid punctuation", pToken.get());
         output.pop_back(); // Remove the invalid token from output
