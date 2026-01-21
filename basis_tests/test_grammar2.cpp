@@ -1316,11 +1316,8 @@ TEST_CASE("Grammar2::test DEF_CMD_BODY") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x\n@ cleanup: resource", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? Widget: x, y\n- fallback", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= % doIt\nprocess: x\n| recover", Production::DEF_CMD_BODY));
-
-    // Test "= _" (empty body) syntax
     CHECK(testParse(grammar.DEF_CMD_BODY, "= _", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_EMPTY, "_", Production::DEF_CMD_EMPTY));
-
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals

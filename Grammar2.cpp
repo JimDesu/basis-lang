@@ -252,6 +252,7 @@ void Grammar2::initClassTypes() {
 
 void Grammar2::initCommandBody() {
     // TODO: operators, and other expression stuff
+    // TODO: the expression definition is too tangled -- fix this before proceeding to operators etc.
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );
@@ -274,6 +275,9 @@ void Grammar2::initCommandBody() {
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, all(LPAREN, SUB_CALL, RPAREN) );
 
     CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
+
+    //CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
+        //all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION, CALL_QUOTE, SUB_CALL)) );
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION, CALL_QUOTE, SUB_CALL)) );
 
