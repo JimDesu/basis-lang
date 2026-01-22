@@ -251,14 +251,14 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    // TODO: operators, and other expression stuff
-    // TODO: the expression definition is too tangled -- fix this before proceeding to operators etc.
+    // TODO: suffix operators
+    // TODO: clean up the definitions
     CALL_IDENTIFIER = any(
             group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
             IDENTIFIER );
 
     CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
-        any( CALL_IDENTIFIER, forward(CALL_EXPRESSION), forward(CALL_QUOTE) ) );
+        any( CALL_IDENTIFIER, forward(CALL_EXPRESSION) ) );
     CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
     CALL_PARAMETER = group(Production::CALL_PARAMETER,
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
@@ -272,14 +272,20 @@ void Grammar2::initCommandBody() {
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
+    CALL_OPERATOR = group(Production::CALL_OPERATOR,
+        any(PLUS, MINUS, ASTERISK, SLASH, PIPE ) );
     CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
-        any( all(LPAREN, forward(CALL_EXPRESSION), RPAREN),
-                     all(LPAREN, SUB_CALL, RPAREN),
-                     CALL_QUOTE ) );
+        all(any( IDENTIFIER,
+                         all(LPAREN, forward(CALL_EXPRESSION), RPAREN),
+                         all(LPAREN, SUB_CALL, RPAREN),
+                         CALL_QUOTE ),
+                     maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPRESSION)))) ));
 
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW, any( SUB_CALL, CALL_EXPRESSION )) );
+        all(CALL_IDENTIFIER, LARROW,
+            any( SUB_CALL, CALL_EXPRESSION )),
+            maybe(oneOrMore(all(CALL_OPERATOR, any(SUB_CALL,CALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );

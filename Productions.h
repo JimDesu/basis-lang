@@ -143,6 +143,7 @@ namespace basis {
         CALL_VCOMMAND,
         CALL_ASSIGNMENT,
         CALL_EXPRESSION,
+        CALL_OPERATOR,
         CALL_QUOTE,
         CALL_PARAMETER,
         CALL_PARM_EMPTY,
