@@ -1436,6 +1436,7 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: {process: item}, _", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- {Widget: x, y}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- {process: data}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ((({process: data})))", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- {obj:: method: x}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- {doIt}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: {Widget: x, y}", Production::DEF_CMD_BODY));
@@ -1454,4 +1455,5 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "Widget: x, y}"));  // missing opening brace
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "{}"));  // empty quote
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "{ }"));  // whitespace only
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "handler <- ((({process: data}))"));
 }

@@ -272,14 +272,14 @@ void Grammar2::initCommandBody() {
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
-    CALL_EXPRESSION = group(Production::CALL_EXPRESSION, all(LPAREN, SUB_CALL, RPAREN) );
-
     CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
+    CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
+        any( all(LPAREN, forward(CALL_EXPRESSION), RPAREN),
+                     all(LPAREN, SUB_CALL, RPAREN),
+                     CALL_QUOTE ) );
 
-    //CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        //all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION, CALL_QUOTE, SUB_CALL)) );
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW, any(CALL_EXPRESSION, CALL_QUOTE, SUB_CALL)) );
+        all(CALL_IDENTIFIER, LARROW, any( SUB_CALL, CALL_EXPRESSION )) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
