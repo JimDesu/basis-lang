@@ -1339,7 +1339,6 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "(obj:: method: x)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(a, b:: handle: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x"));  // missing parentheses
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(Widget: x"));  // missing closing paren
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
@@ -1347,6 +1346,7 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
 TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     Grammar2& grammar = getGrammar();
 
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Widget: x, y", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "container <- (List[Int]: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
@@ -1597,23 +1597,19 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_OPERATOR, "-", Production::CALL_OPERATOR));
     CHECK(testParse(grammar.CALL_OPERATOR, "*", Production::CALL_OPERATOR));
     CHECK(testParse(grammar.CALL_OPERATOR, "/", Production::CALL_OPERATOR));
-    CHECK(testParse(grammar.CALL_OPERATOR, "|", Production::CALL_OPERATOR));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a + b", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "x - y", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "m * n", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "p / q", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a | b", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a + b + c", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "x - y - z", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a * b * c * d", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "p / q / r", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a | b | c", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a + b * c", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "x - y / z", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a * b + c * d", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "p / q - r / s", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a + b - c * d / e", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x | y + z", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * c", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "x * (y + z)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * (c - d)", Production::CALL_EXPRESSION));
@@ -1632,6 +1628,7 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "product <- m * n", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#quotient <- p / q", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "combined <- a | b", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- f:a,b | g:b,c | 0", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "sum <- a + b + c", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "diff <- x - y - z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- a * b / c + d", Production::CALL_ASSIGNMENT));

@@ -269,7 +269,7 @@ void Grammar2::initCommandBody() {
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(PLUS, MINUS, ASTERISK, SLASH, PIPE) );
+        any(PLUS, MINUS, ASTERISK, SLASH) );
     CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
@@ -282,20 +282,18 @@ void Grammar2::initCommandBody() {
         maybe(CALL_EXPR_ADDR) );
     CALL_EXPR_TERM = all(
         any( LITERAL,
-             IDENTIFIER,
-             all(LPAREN, SUB_CALL, RPAREN),
+             //IDENTIFIER,
+             //all(LPAREN, SUB_CALL, RPAREN),
+             SUB_CALL,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
 
-    //TODO: fix by adding | here and getting it out of the regular operators
-    // a <- (f:a,b,c | g: b,c | 0)
-    // this will mean re-doing the parenthetic structure a bit
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
-            any( CALL_EXPRESSION )),
+            all( CALL_EXPRESSION, maybe(oneOrMore(all(PIPE, CALL_EXPRESSION))) ) ),
             maybe(oneOrMore(all(CALL_OPERATOR, any(SUB_CALL,CALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
