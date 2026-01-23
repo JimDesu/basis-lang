@@ -85,7 +85,7 @@ void Grammar2::initReservedWords() {
 }
 
 void Grammar2::initTypeExpressions() {
-   TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, CARAT  );
+   TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, oneOrMore(CARAT)  );
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
    TYPE_EXPR_RANGE_FIXED = group(Production::TYPE_EXPR_RANGE,
@@ -251,11 +251,7 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    // TODO: suffix operators
-    // TODO: clean up the definitions
-    CALL_IDENTIFIER = any(
-            group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)),
-            IDENTIFIER );
+    CALL_IDENTIFIER = any( group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)) );
 
     CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
         any( CALL_IDENTIFIER, forward(CALL_EXPRESSION) ) );
@@ -268,23 +264,36 @@ void Grammar2::initCommandBody() {
     SUBCALL_COMMAND = group(Production::CALL_COMMAND,
         all(IDENTIFIER, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     SUBCALL_VCOMMAND = group(Production::CALL_VCOMMAND,
-        all(separated(CALL_IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
+        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(PLUS, MINUS, ASTERISK, SLASH, PIPE ) );
+        any(PLUS, MINUS, ASTERISK, SLASH, PIPE) );
     CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
-    CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
-        all(any( IDENTIFIER,
-                         all(LPAREN, forward(CALL_EXPRESSION), RPAREN),
-                         all(LPAREN, SUB_CALL, RPAREN),
-                         CALL_QUOTE ),
-                     maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPRESSION)))) ));
+    CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
+    CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
+    CALL_EXPR_INDEX = group(Production::CALL_EXPR_INDEX, all(
+        LBRACKET,
+        all(forward(CALL_EXPRESSION), maybe(all(COMMA, forward(CALL_EXPRESSION)))),
+        RBRACKET ));
+    CALL_EXPR_SUFFIX = all(
+        maybe(oneOrMore(any(CALL_EXPR_DEREF, CALL_EXPR_INDEX))),
+        maybe(CALL_EXPR_ADDR) );
+    CALL_EXPR_TERM = all(
+        any( LITERAL,
+             IDENTIFIER,
+             all(LPAREN, SUB_CALL, RPAREN),
+             all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
+        maybe(CALL_EXPR_SUFFIX) );
+    CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
+        CALL_QUOTE,
+        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
 
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW,
-            any( SUB_CALL, CALL_EXPRESSION )),
+        all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
+            //any( SUB_CALL, CALL_EXPRESSION )),
+            any( CALL_EXPRESSION )),
             maybe(oneOrMore(all(CALL_OPERATOR, any(SUB_CALL,CALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
