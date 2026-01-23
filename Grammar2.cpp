@@ -292,9 +292,9 @@ void Grammar2::initCommandBody() {
 
     //TODO: fix by adding | here and getting it out of the regular operators
     // a <- (f:a,b,c | g: b,c | 0)
+    // this will mean re-doing the parenthetic structure a bit
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
-            //any( SUB_CALL, CALL_EXPRESSION )),
             any( CALL_EXPRESSION )),
             maybe(oneOrMore(all(CALL_OPERATOR, any(SUB_CALL,CALL_EXPRESSION)))) );
 
