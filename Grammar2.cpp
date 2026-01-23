@@ -290,6 +290,8 @@ void Grammar2::initCommandBody() {
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
 
+    //TODO: fix by adding | here and getting it out of the regular operators
+    // a <- (f:a,b,c | g: b,c | 0)
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
             //any( SUB_CALL, CALL_EXPRESSION )),
