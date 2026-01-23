@@ -282,11 +282,10 @@ void Grammar2::initCommandBody() {
         maybe(CALL_EXPR_ADDR) );
     CALL_EXPR_TERM = all(
         any( LITERAL,
-             //IDENTIFIER,
-             //all(LPAREN, SUB_CALL, RPAREN),
              SUB_CALL,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
+    // TODO deref enums
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
