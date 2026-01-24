@@ -70,6 +70,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("::", TokenType::DCOLON);
     testSingleToken(":<", TokenType::COLANGLE);
     testSingleToken(":", TokenType::COLON);
+    testSingleToken("$", TokenType::DOLLAR);
     testSingleToken("=", TokenType::EQUALS);
     testSingleToken("<", TokenType::LANGLE);
     testSingleToken("<-", TokenType::LARROW);
@@ -79,7 +80,6 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("-", TokenType::MINUS);
     testSingleToken("%", TokenType::PERCENT);
     testSingleToken("|", TokenType::PIPE);
-    testSingleToken("|:", TokenType::PIPECOL);
     testSingleToken("+", TokenType::PLUS);
     testSingleToken("#", TokenType::POUND);
     testSingleToken("?:", TokenType::QCOLON);

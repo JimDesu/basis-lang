@@ -61,6 +61,7 @@ namespace basis {
         SPPF COLON;
         SPPF COLANGLE;
         SPPF DCOLON;
+        SPPF DOLLAR;
         SPPF EQUALS;
         SPPF LANGLE;
         SPPF LARROW;
@@ -178,6 +179,7 @@ namespace basis {
         SPPF CALL_EXPR_DEREF;
         SPPF CALL_OPERATOR;
         SPPF CALL_QUOTE;
+        SPPF CALL_CMD_TARGET;
         SPPF CALL_IDENTIFIER;
         SPPF CALL_PARAMETER;
         SPPF CALL_PARM_EXPR;
@@ -186,6 +188,7 @@ namespace basis {
         SPPF SUBCALL_CONSTRUCTOR;
         SPPF SUBCALL_COMMAND;
         SPPF SUBCALL_VCOMMAND;
+        SPPF RECOVER_SPEC;
         SPPF BLOCK_HEADER;
         SPPF BLOCK;
 

@@ -46,6 +46,7 @@ void Grammar2::initPunctuation() {
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);
    DQMARK = match(Production::DQMARK, TokenType::DQMARK);
    DCOLON = match(Production::DCOLON, TokenType::DCOLON);
+   DOLLAR = match(Production::DOLLAR, TokenType::DOLLAR);
    EQUALS = match(Production::EQUALS, TokenType::EQUALS);
    LANGLE = match(Production::LANGLE, TokenType::LANGLE);
    LARROW = match(Production::LARROW, TokenType::LARROW);
@@ -55,7 +56,6 @@ void Grammar2::initPunctuation() {
    MINUS = match(Production::MINUS, TokenType::MINUS);
    PERCENT = match(Production::PERCENT, TokenType::PERCENT);
    PIPE = match(Production::PIPE, TokenType::PIPE);
-   PIPECOL = match(Production::PIPECOL, TokenType::PIPECOL);
    PLUS = match(Production::PLUS, TokenType::PLUS);
    POUND = match(Production::POUND, TokenType::POUND);
    QCOLON = match(Production::QCOLON, TokenType::QCOLON);
@@ -262,7 +262,7 @@ void Grammar2::initCommandBody() {
     SUBCALL_CONSTRUCTOR = group(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
     SUBCALL_COMMAND = group(Production::CALL_COMMAND,
-        all(IDENTIFIER, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
+        all(forward(CALL_CMD_TARGET), maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     SUBCALL_VCOMMAND = group(Production::CALL_VCOMMAND,
         all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
@@ -270,7 +270,15 @@ void Grammar2::initCommandBody() {
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
         any(PLUS, MINUS, ASTERISK, SLASH) );
-    CALL_QUOTE = group(Production::CALL_QUOTE, all(LBRACE, SUB_CALL, RBRACE) );
+    //TODO: this doesn't work -- reconsider how to
+    //  extend wth ? and - markers for failure blocks
+    //  extend with command literals
+    CALL_QUOTE = group(Production::CALL_QUOTE, all(
+            LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE ));
+    CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
+            group(Production::CALL_QUOTED, all(DOLLAR, CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(DOLLAR, IDENTIFIER)),
+            IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
     CALL_EXPR_INDEX = group(Production::CALL_EXPR_INDEX, all(
@@ -282,10 +290,10 @@ void Grammar2::initCommandBody() {
         maybe(CALL_EXPR_ADDR) );
     CALL_EXPR_TERM = all(
         any( LITERAL,
+             group(Production::ENUM_DEREF, all(TYPENAME, LBRACKET, IDENTIFIER, RBRACKET)),
              SUB_CALL,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
-    // TODO deref enums
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
@@ -298,7 +306,7 @@ void Grammar2::initCommandBody() {
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
-        all(IDENTIFIER, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
+        all(CALL_CMD_TARGET, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
         all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
@@ -306,7 +314,8 @@ void Grammar2::initCommandBody() {
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_INVOKE, forward(BLOCK))) );
-    // TODO extend DO_RECOVER_SPEC with fail type
+    RECOVER_SPEC = group(Production::RECOVER_SPEC,
+        any(all(TYPE_NAME_Q, IDENTIFIER  ), CALL_EXPR_TERM) );
     BLOCK_HEADER = group(Production::BLOCK_HEADER,
         any(group(Production::DO_WHEN_MULTI, DQMARK),
             group(Production::DO_WHEN, QMARK),
@@ -315,8 +324,8 @@ void Grammar2::initCommandBody() {
             group(Production::DO_UNLESS, BANG),
             group(Production::DO_BLOCK, PERCENT),
             group(Production::DO_REWIND, CARAT),
+            group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RANGLE)),
             group(Production::DO_RECOVER, PIPE),
-            group(Production::DO_RECOVER_SPEC, PIPECOL),
             group(Production::ON_EXIT, AMPHORA),
             group(Production::ON_EXIT_FAIL, AMBANG) ));
     BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, CALL_GROUP) );

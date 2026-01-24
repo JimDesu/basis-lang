@@ -37,6 +37,7 @@ namespace basis {
         COLON,
         COLANGLE,
         DCOLON,
+        DOLLAR,
         EQUALS,
         LANGLE,
         LARROW,
@@ -46,7 +47,6 @@ namespace basis {
         MINUS,
         PERCENT,
         PIPE,
-        PIPECOL,
         PLUS,
         POUND,
         QCOLON,
@@ -148,10 +148,12 @@ namespace basis {
         CALL_EXPR_INDEX,
         CALL_OPERATOR,
         CALL_QUOTE,
+        CALL_CMD_TARGET,
         CALL_PARAMETER,
         CALL_PARM_EMPTY,
         CALL_PARM_EXPR,
         CALL_IDENTIFIER,
+        CALL_QUOTED,
         ALLOC_IDENTIFIER,
         // -- stack effect
         ON_EXIT,
@@ -166,7 +168,9 @@ namespace basis {
         DO_REWIND,
         DO_RECOVER,
         DO_RECOVER_SPEC,
-        BLOCK_HEADER
+        RECOVER_SPEC,
+        BLOCK_HEADER,
+        ENUM_DEREF
 
     };
 }

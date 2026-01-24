@@ -80,6 +80,7 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.COLON, ":", Production::COLON));
     CHECK(testParse(grammar.COLANGLE, ":<", Production::COLANGLE));
     CHECK(testParse(grammar.DCOLON, "::", Production::DCOLON));
+    CHECK(testParse(grammar.DOLLAR, "$", Production::DOLLAR));
     CHECK(testParse(grammar.EQUALS, "=", Production::EQUALS));
     CHECK(testParse(grammar.LANGLE, "<", Production::LANGLE));
     CHECK(testParse(grammar.LARROW, "<-", Production::LARROW));
@@ -89,7 +90,6 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.MINUS, "-", Production::MINUS));
     CHECK(testParse(grammar.PERCENT, "%", Production::PERCENT));
     CHECK(testParse(grammar.PIPE, "|", Production::PIPE));
-    CHECK(testParse(grammar.PIPECOL, "|:", Production::PIPECOL));
     CHECK(testParse(grammar.PLUS, "+", Production::PLUS));
     CHECK(testParse(grammar.POUND, "#", Production::POUND));
     CHECK(testParse(grammar.QCOLON, "?:", Production::QCOLON));
@@ -1146,6 +1146,10 @@ TEST_CASE("Grammar2::test CALL_PARAMETERS") {
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: x, y)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(process: item)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(obj:: method: x)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "($handler: x)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "($callback)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt}: data)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "(${Widget: x, y})", Production::CALL_PARAMETER));
 }
 
 TEST_CASE("Grammar2::test CALL_CONSTRUCTOR") {
@@ -1172,6 +1176,12 @@ TEST_CASE("Grammar2::test CALL_COMMAND") {
     CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: #temp, value", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: (Widget: x, y), z", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "$handler: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "$callback", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "$processor: item", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${doIt}: x", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${obj:: method}: data", Production::CALL_COMMAND));
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "doSomething: x y", Production::CALL_COMMAND));
@@ -1339,6 +1349,10 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "(obj:: method: x)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(a, b:: handle: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "($handler: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "($callback)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(${doIt}: data)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(${Widget: x, y})", Production::CALL_EXPRESSION));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(Widget: x"));  // missing closing paren
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
@@ -1353,6 +1367,10 @@ TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- fibx", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- (obj:: method: x)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (a, b:: handle: item)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ($callback)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- ($processor: data)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (${doIt}: x, y)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- (${Widget: x, y})", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#output <- (process: item)", Production::CALL_ASSIGNMENT));
@@ -1388,6 +1406,9 @@ TEST_CASE("Grammar2::test CALL_GROUP") {
     CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\ndoIt\ncleanup", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x\ndoIt\nobj:: method: y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "$handler: x\n$callback", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "${doIt}\n${process: data}", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "init\n$handler: x\ncleanup", Production::CALL_GROUP));
 }
 
 TEST_CASE("Grammar2::test BLOCK_HEADER") {
@@ -1401,7 +1422,6 @@ TEST_CASE("Grammar2::test BLOCK_HEADER") {
     CHECK(testParse(grammar.BLOCK_HEADER, "%", Production::BLOCK_HEADER));  // DO_BLOCK
     CHECK(testParse(grammar.BLOCK_HEADER, "^", Production::BLOCK_HEADER));  // DO_REWIND
     CHECK(testParse(grammar.BLOCK_HEADER, "|", Production::BLOCK_HEADER));  // DO_RECOVER
-    CHECK(testParse(grammar.BLOCK_HEADER, "|:", Production::BLOCK_HEADER));  // DO_RECOVER_SPEC
     CHECK(testParse(grammar.BLOCK_HEADER, "@", Production::BLOCK_HEADER));  // ON_EXIT
     CHECK(testParse(grammar.BLOCK_HEADER, "@!", Production::BLOCK_HEADER));  // ON_EXIT_FAIL
 }
@@ -1417,7 +1437,10 @@ TEST_CASE("Grammar2::test BLOCK") {
     CHECK(testParse(grammar.BLOCK, "% execute", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "^ retry", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "| recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "|: handleError: code", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| Failtype f> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| Failtype[T] f> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| \"fish\"> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| FailTypes[error] > recover", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "@ cleanup: resource", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "@! handleFailure: error", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? doIt\n process: x", Production::DO_BLOCK));
@@ -1476,6 +1499,10 @@ TEST_CASE("Grammar2::test command body integration - complex scenarios") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container[Widget[T]]: (Widget[Int]: x)", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_GROUP, "result <- (Widget: x, y)\nprocess: result", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "#temp <- doIt\nprocess: #temp", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_COMMAND, "$handler: ($processor: data)", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}: result", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ($callback)", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Processor: (${doIt}: x)", Production::CALL_CONSTRUCTOR));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "#obj, #widget:: method: #data", Production::CALL_VCOMMAND));
 }
 
@@ -1494,6 +1521,10 @@ TEST_CASE("Grammar2::test command body edge cases") {
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: (Point: (Value: x)))", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "$handler: a, b, c, d, e", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${process: data}: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_PARAMETER, "($handler)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt})", Production::CALL_PARAMETER));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "a, #b, c:: method: x, #y", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? success\n- failure\n| recover\n@ cleanup\n@! onFail", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));

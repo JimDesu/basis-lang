@@ -341,6 +341,9 @@ bool Lexer::readPunct() {
             pToken->type = TokenType::COLON;
         }
         break;
+    case '$':
+        pToken->type = TokenType::DOLLAR;
+        break;
     case '=':
         pToken->type = TokenType::EQUALS;
         break;
@@ -366,13 +369,7 @@ bool Lexer::readPunct() {
         }
         break;
     case '|':
-        if ( input.good() && input.peek() == ':' ) {
-            read();
-            pToken->text += readChar;
-            pToken->type = TokenType::PIPECOL;
-        } else {
-            pToken->type = TokenType::PIPE;
-        }
+        pToken->type = TokenType::PIPE;
         break;
     case '+':
         pToken->type = TokenType::PLUS;
