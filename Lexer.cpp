@@ -318,6 +318,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::BANGLANGLE;
+        } else if ( input.good() && input.peek() == '{' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::BANGBRACE;
         } else {
             pToken->type = TokenType::BANG;
         }
@@ -337,6 +341,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::COLANGLE;
+        } else if( input.good() && input.peek() == '{' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::COLBRACE;
         } else {
             pToken->type = TokenType::COLON;
         }
@@ -394,6 +402,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::DQMARK;
+        } else if ( input.good() && input.peek() == '{' ) {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::QBRACE;
         } else {
             pToken->type = TokenType::QMARK;
         }

@@ -39,11 +39,13 @@ void Grammar2::initPunctuation() {
    APOSTROPHE = match(Production::APOSTROPHE, TokenType::APOSTROPHE);
    ASTERISK = match(Production::ASTERISK, TokenType::ASTERISK);
    BANG = match(Production::BANG, TokenType::BANG);
+   BANGBRACE = match(Production::BANGBRACE, TokenType::BANGBRACE);
    BANGLANGLE = match(Production::BANGLANGLE, TokenType::BANGLANGLE);
    CARAT = match(Production::CARAT, TokenType::CARAT);
    COMMA = match(Production::COMMA, TokenType::COMMA);
    COLON = match(Production::COLON, TokenType::COLON);
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);
+   COLBRACE = match(Production::COLBRACE, TokenType::COLBRACE);
    DQMARK = match(Production::DQMARK, TokenType::DQMARK);
    DCOLON = match(Production::DCOLON, TokenType::DCOLON);
    DOLLAR = match(Production::DOLLAR, TokenType::DOLLAR);
@@ -58,6 +60,7 @@ void Grammar2::initPunctuation() {
    PIPE = match(Production::PIPE, TokenType::PIPE);
    PLUS = match(Production::PLUS, TokenType::PLUS);
    POUND = match(Production::POUND, TokenType::POUND);
+   QBRACE = match(Production::QBRACE, TokenType::QBRACE);
    QCOLON = match(Production::QCOLON, TokenType::QCOLON);
    QLANGLE = match(Production::QLANGLE, TokenType::QLANGLE);
    QMARK = match(Production::QMARK, TokenType::QMARK);
@@ -270,11 +273,15 @@ void Grammar2::initCommandBody() {
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
         any(PLUS, MINUS, ASTERISK, SLASH) );
-    //TODO: this doesn't work -- reconsider how to
-    //  extend wth ? and - markers for failure blocks
-    //  extend with command literals
-    CALL_QUOTE = group(Production::CALL_QUOTE, all(
-            LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE ));
+    CALL_BLOCKQUOTE = any(
+        group(Production::CALL_BLOCK_NOFAIL, all(COLBRACE, maybe(forward(CALL_GROUP)), RBRACE)),
+        group(Production::CALL_BLOCK_FAIL, all(BANGBRACE, maybe(forward(CALL_GROUP)), RBRACE)),
+        group(Production::CALL_BLOCK_MAYFAIL, all(QBRACE, maybe(forward(CALL_GROUP)), RBRACE)) );
+
+    CALL_QUOTE = group(Production::CALL_QUOTE, any(
+        all(LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE ),
+        CALL_BLOCKQUOTE ));
+
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
             group(Production::CALL_QUOTED, all(DOLLAR, CALL_QUOTE)),
             group(Production::CALL_QUOTED, all(DOLLAR, IDENTIFIER)),
@@ -294,6 +301,8 @@ void Grammar2::initCommandBody() {
              SUB_CALL,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
+    // TODO command literals
+    // TODO % subgroup
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));

@@ -64,11 +64,13 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("@!", TokenType::AMBANG);
     testSingleToken("*", TokenType::ASTERISK);
     testSingleToken("!", TokenType::BANG);
+    testSingleToken("!{", TokenType::BANGBRACE);
     testSingleToken("!<", TokenType::BANGLANGLE);
     testSingleToken("^", TokenType::CARAT);
     testSingleToken(",", TokenType::COMMA);
     testSingleToken("::", TokenType::DCOLON);
     testSingleToken(":<", TokenType::COLANGLE);
+    testSingleToken(":{", TokenType::COLBRACE);
     testSingleToken(":", TokenType::COLON);
     testSingleToken("$", TokenType::DOLLAR);
     testSingleToken("=", TokenType::EQUALS);
@@ -82,6 +84,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("|", TokenType::PIPE);
     testSingleToken("+", TokenType::PLUS);
     testSingleToken("#", TokenType::POUND);
+    testSingleToken("?{", TokenType::QBRACE);
     testSingleToken("?:", TokenType::QCOLON);
     testSingleToken("?<", TokenType::QLANGLE);
     testSingleToken("?", TokenType::QMARK);

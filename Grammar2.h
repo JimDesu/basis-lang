@@ -55,11 +55,13 @@ namespace basis {
         SPPF APOSTROPHE;
         SPPF ASTERISK;
         SPPF BANG;
+        SPPF BANGBRACE;
         SPPF BANGLANGLE;
         SPPF CARAT;
         SPPF COMMA;
         SPPF COLON;
         SPPF COLANGLE;
+        SPPF COLBRACE;
         SPPF DCOLON;
         SPPF DOLLAR;
         SPPF EQUALS;
@@ -74,6 +76,7 @@ namespace basis {
         SPPF PIPECOL;
         SPPF PLUS;
         SPPF POUND;
+        SPPF QBRACE;
         SPPF QCOLON;
         SPPF QLANGLE;
         SPPF QMARK;
@@ -179,6 +182,7 @@ namespace basis {
         SPPF CALL_EXPR_DEREF;
         SPPF CALL_OPERATOR;
         SPPF CALL_QUOTE;
+        SPPF CALL_BLOCKQUOTE;
         SPPF CALL_CMD_TARGET;
         SPPF CALL_IDENTIFIER;
         SPPF CALL_PARAMETER;

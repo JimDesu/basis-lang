@@ -241,10 +241,11 @@ namespace basis {
         spParseTree* down = createGroupNode(prod, dpspResult);
 
         All allParser(sequence);
-        if (allParser.parse(tokens, &down, pIter, boundLimit) &&
-            atLimit(tokens, pIter, boundLimit)) {
-            guard.commit();
-            return true;
+        if (allParser.parse(tokens, &down, pIter, boundLimit)) {
+            if (boundLimit == nullptr || atLimit(tokens, pIter, boundLimit)) {
+                guard.commit();
+                return true;
+            }
         }
 
         (*dpspResult)->reset();

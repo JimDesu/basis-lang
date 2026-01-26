@@ -74,11 +74,13 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.AMPHORA, "@", Production::AMPHORA));
     CHECK(testParse(grammar.ASTERISK, "*", Production::ASTERISK));
     CHECK(testParse(grammar.BANG, "!", Production::BANG));
+    CHECK(testParse(grammar.BANGBRACE, "!{", Production::BANGBRACE));
     CHECK(testParse(grammar.BANGLANGLE, "!<", Production::BANGLANGLE));
     CHECK(testParse(grammar.CARAT, "^", Production::CARAT));
     CHECK(testParse(grammar.COMMA, ",", Production::COMMA));
     CHECK(testParse(grammar.COLON, ":", Production::COLON));
     CHECK(testParse(grammar.COLANGLE, ":<", Production::COLANGLE));
+    CHECK(testParse(grammar.COLBRACE, ":{", Production::COLBRACE));
     CHECK(testParse(grammar.DCOLON, "::", Production::DCOLON));
     CHECK(testParse(grammar.DOLLAR, "$", Production::DOLLAR));
     CHECK(testParse(grammar.EQUALS, "=", Production::EQUALS));
@@ -92,6 +94,7 @@ TEST_CASE("Grammar2::test parse punctuation") {
     CHECK(testParse(grammar.PIPE, "|", Production::PIPE));
     CHECK(testParse(grammar.PLUS, "+", Production::PLUS));
     CHECK(testParse(grammar.POUND, "#", Production::POUND));
+    CHECK(testParse(grammar.QBRACE, "?{", Production::QBRACE));
     CHECK(testParse(grammar.QCOLON, "?:", Production::QCOLON));
     CHECK(testParse(grammar.QLANGLE, "?<", Production::QLANGLE));
     CHECK(testParse(grammar.QMARK, "?", Production::QMARK));
@@ -1477,7 +1480,6 @@ TEST_CASE("Grammar2::test DEF_CMD_BODY") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
-    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= init\nprocess: data\n cleanup", Production::DEF_CMD_BODY));
 }
 
 TEST_CASE("Grammar2::test command body integration - complex scenarios") {
@@ -1699,3 +1701,49 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <- + a"));  // prefix operator
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <- a +"));  // missing right operand
 }
+
+TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{doIt}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{process: x}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{Widget: x, y}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{init\n process: data\n cleanup}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{result <- a + b}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{obj:: method: x, y}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{doIt}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{process: x}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{Widget: x, y}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{init\n process: data\n cleanup}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{result <- a + b}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{obj:: method: x, y}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{doIt}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{process: x}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{Widget: x, y}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n process: data\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{result <- a + b}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{obj:: method: x, y}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{? doIt\n - fallback}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{% init\n  process: x}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{| recover: error}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{result <- process: x\n value <- calculate: y}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{Widget: x, y\n process: widget}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n obj:: method: x\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: :{doIt}", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: !{process: x}, size", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ?{Widget: x, y}", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: :{init\n cleanup}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "execute: !{doIt}, context", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "handle: ?{obj:: method: x}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: :{Widget: x, y}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: !{process: item}, data", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, ":{doIt"));
+    CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "!{process: x"));
+    CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "?{Widget: x, y"));
+    CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "{doIt}"));  // regular braces, not blockquote
+    CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "doIt}"));  // missing opening
+}
+
