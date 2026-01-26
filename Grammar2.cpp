@@ -273,11 +273,14 @@ void Grammar2::initCommandBody() {
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
         any(PLUS, MINUS, ASTERISK, SLASH) );
-    CALL_BLOCKQUOTE = any(
-        group(Production::CALL_BLOCK_NOFAIL, all(COLBRACE, maybe(forward(CALL_GROUP)), RBRACE)),
-        group(Production::CALL_BLOCK_FAIL, all(BANGBRACE, maybe(forward(CALL_GROUP)), RBRACE)),
-        group(Production::CALL_BLOCK_MAYFAIL, all(QBRACE, maybe(forward(CALL_GROUP)), RBRACE)) );
 
+    CALL_BLOCKQUOTE = any(
+        group(Production::CALL_BLOCK_NOFAIL,
+            all(COLBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+        group(Production::CALL_BLOCK_FAIL,
+            all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+        group(Production::CALL_BLOCK_MAYFAIL,
+            all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
     CALL_QUOTE = group(Production::CALL_QUOTE, any(
         all(LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE ),
         CALL_BLOCKQUOTE ));
@@ -302,7 +305,6 @@ void Grammar2::initCommandBody() {
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     // TODO command literals
-    // TODO % subgroup
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));

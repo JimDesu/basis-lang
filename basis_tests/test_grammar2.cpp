@@ -1729,9 +1729,9 @@ TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{result <- process: x\n value <- calculate: y}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{Widget: x, y\n process: widget}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n obj:: method: x\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{}", Production::CALL_BLOCK_NOFAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{}", Production::CALL_BLOCK_MAYFAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{_}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{_}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{_}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: :{doIt}", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: !{process: x}, size", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ?{Widget: x, y}", Production::CALL_CONSTRUCTOR));
