@@ -159,6 +159,7 @@ namespace basis {
         CALL_QUOTED,
         CALL_BLOCK_NOFAIL,
         CALL_BLOCK_FAIL,
+        CALL_CMD_LITERAL,
         CALL_BLOCK_MAYFAIL,
         ALLOC_IDENTIFIER,
         // -- stack effect

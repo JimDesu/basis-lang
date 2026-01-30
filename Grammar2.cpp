@@ -205,8 +205,9 @@ void Grammar2::initCommandDefinitions() {
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
       IDENTIFIER) );
+   DEF_CMD_PARM_LIST = separated(DEF_CMD_PARM, COMMA);
    DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
-      all(separated(DEF_CMD_PARM, COMMA),DEF_CMD_RETVAL) ));
+      all(DEF_CMD_PARM_LIST, DEF_CMD_RETVAL) ));
 
    DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
    DEF_CMD_MAYFAIL = match(Production::DEF_CMD_MAYFAIL, TokenType::QMARK);
@@ -214,8 +215,8 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_NAME_SPEC = group(Production::DEF_CMD_NAME_SPEC,
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
+    //TODO: stack-effect functions cannot take arguments
    // Top-level command definition
-    //TODO: add unit tests for this
    DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
        all(DECLARE, any(
            // destructor
@@ -281,13 +282,12 @@ void Grammar2::initCommandBody() {
             all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
         group(Production::CALL_BLOCK_MAYFAIL,
             all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
-    CALL_QUOTE = group(Production::CALL_QUOTE, any(
-        all(LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE ),
-        CALL_BLOCKQUOTE ));
+    CALL_SUBQUOTE = all(LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE );
+    CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(DOLLAR, CALL_QUOTE)),
-            group(Production::CALL_QUOTED, all(DOLLAR, IDENTIFIER)),
+            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)),CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)), IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
@@ -304,8 +304,10 @@ void Grammar2::initCommandBody() {
              SUB_CALL,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
-    // TODO command literals
+    CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
+        any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, CALL_SUBQUOTE ));
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
+        CALL_CMD_LITERAL,
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
 

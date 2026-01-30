@@ -1360,6 +1360,76 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
 
+TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<String name>{Container: name}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<Int value>{List[Int]: value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String data>{Map[String, Int]: data, count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int count>{Array[8]: count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{process: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<String name>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<Int value>{calculate: value, value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<String data>{validate: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{obj:: method: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name>{a, b:: handle: name}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{widget:: process}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, String y>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int a, Int b, Int c>{calculate: a, b, c}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{process: name, count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int x, String y, Int z>{obj:: method: x, y, z}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<^Int ptr>{process: ptr}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<[]Int items>{calculate: items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<[8]Int buffer>{validate: buffer}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<List[T] list>{Widget: list}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<^[]Int data>{process: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Map[String, Int] map>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<(T: Int) value>{process: value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<(T: String) data>{Widget: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<(U: List[T]) items>{calculate: items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, ^String ptr, []Int items>{process: x, ptr, items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, (T: Int) value>{Widget: name, value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<List[T] list, Int count, ^Int ptr>{obj:: method: list, count, ptr}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{%process: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{%doIt\n                            cleanup}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{%Widget: value\n              finalize}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ?<String name>{process: name}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- !<Int a, Int b>{calculate: a, b}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- :<^Int ptr, String name>{obj:: method: ptr, name}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- ?<List[T] items>{doIt}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: :<Int x>{Widget: x, y}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "execute: ?<String name>{doIt}, context", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "handle: !<Int a, Int b>{calculate: a, b}, :<String s>{validate: s}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: ?<Int x>{process: x}, z", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: :<Int a, String b>{Widget: a, b}, !<Int c>{doIt}", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: !<String name>{process: name}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: :<Int x, Int y>{Widget: x, y}, ?<String s>{validate: s}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: (:<Int x>{Widget: x, y})", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (?<String name>{doIt}), (!<Int value>{process: value})", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (:<Int a, Int b>{calculate: a, b})", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y} + value", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "sum <- ?<String s>{process: s} * count", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a, Int b>{calculate: a, b} - offset", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y} | ?<String s>{process: s}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a>{doIt} | :<String s>{validate: s} | ?<Int x>{finalize}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<>{process: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<>{obj:: method: x}", Production::CALL_ASSIGNMENT));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<x>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int X>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{}"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{ }"));
+}
+
+
 TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     Grammar2& grammar = getGrammar();
 
@@ -1524,6 +1594,9 @@ TEST_CASE("Grammar2::test command body edge cases") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "$handler: a, b, c, d, e", Production::CALL_COMMAND));
+    // n.b. these two are syntactically valid but semantically wrong as stack effect commands cannot accept arguments
+    CHECK(testParse(grammar.CALL_COMMAND, "$@handler: a, b, c, d, e", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "$@!handler: a, b, c, d, e", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${process: data}: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_PARAMETER, "($handler)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt})", Production::CALL_PARAMETER));
