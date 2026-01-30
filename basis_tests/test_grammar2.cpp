@@ -1425,8 +1425,6 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int>{Widget: x, y}"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<x>{Widget: x, y}"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int X>{Widget: x, y}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{ }"));
 }
 
 
@@ -1691,8 +1689,6 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "Widget: x, y"));  // missing braces
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "{Widget: x, y"));  // missing closing brace
     CHECK_FALSE(testParse(grammar.CALL_QUOTE, "Widget: x, y}"));  // missing opening brace
-    CHECK_FALSE(testParse(grammar.CALL_QUOTE, "{}"));  // empty quote
-    CHECK_FALSE(testParse(grammar.CALL_QUOTE, "{ }"));  // whitespace only
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "handler <- ((({process: data}))"));
 }
 

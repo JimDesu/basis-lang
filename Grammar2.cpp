@@ -282,7 +282,7 @@ void Grammar2::initCommandBody() {
             all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
         group(Production::CALL_BLOCK_MAYFAIL,
             all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
-    CALL_SUBQUOTE = all(LBRACE, any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL ), RBRACE );
+    CALL_SUBQUOTE = all(LBRACE, maybe(any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL)), RBRACE );
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
