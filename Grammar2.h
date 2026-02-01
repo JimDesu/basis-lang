@@ -29,6 +29,7 @@ namespace basis {
         // Literals
         SPPF DECIMAL;
         SPPF HEXNUMBER;
+        SPPF BINARY;
         SPPF NUMBER;
         SPPF STRING;
         SPPF LITERAL;

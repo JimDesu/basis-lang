@@ -14,6 +14,7 @@ namespace basis {
         // literals
         DECIMAL,
         HEXNUMBER,
+        BINARY,
         NUMBER,
         STRING,
         // identifiers

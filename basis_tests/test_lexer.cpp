@@ -54,6 +54,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("1234", TokenType::NUMBER);
     testSingleToken("1234.5678", TokenType::DECIMAL);
     testSingleToken("0x1234", TokenType::HEXNUMBER);
+    testSingleToken("0b00000100", TokenType::BINARY);
     testSingleToken("fOObAR", TokenType::IDENTIFIER);
     testSingleToken("'foobar", TokenType::IDENTIFIER);
     testSingleToken("Foobar", TokenType::TYPENAME);
@@ -221,4 +222,39 @@ TEST_CASE("Lexer::test numbers with underscores") {
     // Invalid cases: underscore not between digits
     CHECK(lexInput("12_.0", false).output.empty());
     CHECK(lexInput("-0._5", false).output.empty());
+}
+
+TEST_CASE("Lexer::test binary literals") {
+    testSingleToken("0b00000000", TokenType::BINARY);
+    testSingleToken("0b11111111", TokenType::BINARY);
+    testSingleToken("0b00000100", TokenType::BINARY);
+    testSingleToken("0b0000010000000001", TokenType::BINARY);
+    testSingleToken("0b1010101011001100", TokenType::BINARY);
+    testSingleToken("0b000000000000000000000000", TokenType::BINARY);
+    testSingleToken("0b0000_0100", TokenType::BINARY);
+    testSingleToken("0b00000100_00000001", TokenType::BINARY);
+    testSingleToken("0b1010_1010_1100_1100", TokenType::BINARY);
+    testSingleToken("0b0000_0000_0000_0000_0000_0000", TokenType::BINARY);
+
+    CHECK(lexInput("0b0010", false).output.empty());
+    CHECK(lexInput("0b010", false).output.empty());
+    CHECK(lexInput("0b1", false).output.empty());
+    CHECK(lexInput("0b0000001", false).output.empty());
+    CHECK(lexInput("0b000000100", false).output.empty());
+    CHECK(lexInput("0b00000012", false).output.empty());
+    CHECK(lexInput("0b0000001a", false).output.empty());
+    CHECK(lexInput("0b_00000000", false).output.empty());
+    CHECK(lexInput("0b00000000_", false).output.empty());
+    CHECK(lexInput("0b0000__0000", false).output.empty());
+}
+
+TEST_CASE("Lexer::test hex literals with underscores") {
+    testSingleToken("0x12_34", TokenType::HEXNUMBER);
+    testSingleToken("0xAB_CD_EF", TokenType::HEXNUMBER);
+    testSingleToken("0x00_11_22_33", TokenType::HEXNUMBER);
+    testSingleToken("0xDE_AD_BE_EF", TokenType::HEXNUMBER);
+
+    CHECK(lexInput("0x_1234", false).output.empty());
+    CHECK(lexInput("0x1234_", false).output.empty());
+    CHECK(lexInput("0x12__34", false).output.empty());
 }

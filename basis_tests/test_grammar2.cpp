@@ -39,12 +39,16 @@ namespace {
 TEST_CASE("Grammar2::test parse literals") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DECIMAL, "3.14", Production::DECIMAL));
-    CHECK(testParse(grammar.HEXNUMBER, "0x1234", Production::HEXNUMBER));
+    CHECK(testParse(grammar.HEXNUMBER, "0x1_234", Production::HEXNUMBER));
+    CHECK(testParse(grammar.BINARY, "0b000_00100", Production::BINARY));
+    CHECK(testParse(grammar.BINARY, "0b0000010000000001", Production::BINARY));
     CHECK(testParse(grammar.NUMBER, "1234", Production::NUMBER));
     CHECK(testParse(grammar.NUMBER, "-1234", Production::NUMBER));
     CHECK(testParse(grammar.STRING, "\"foo\\n\\\"bar's\"", Production::STRING));
     CHECK_FALSE(testParse(grammar.DECIMAL, "3.14.56"));
     CHECK_FALSE(testParse(grammar.HEXNUMBER, "0x12345"));
+    CHECK_FALSE(testParse(grammar.BINARY, "0b0010"));
+    CHECK_FALSE(testParse(grammar.BINARY, "0b000000100"));
     CHECK_FALSE(testParse(grammar.NUMBER, "1234.56"));
     CHECK_FALSE(testParse(grammar.STRING, "\"foo\nbar\""));
 }

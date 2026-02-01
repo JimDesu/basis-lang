@@ -79,6 +79,10 @@ bool Lexer::checkHex() const {
     return readChar == '0' && input.good() && input.peek() == 'x';
 }
 
+bool Lexer::checkBinary() const {
+    return readChar == '0' && input.good() && input.peek() == 'b';
+}
+
 bool Lexer::checkNumeric() const {
     if ( isdigit(readChar) ) return true;
     return readChar == '-' && input.good() && isdigit(input.peek());
@@ -139,7 +143,23 @@ bool Lexer::readHex() {
         pToken->columnNumber -= 1; // correct for the extra 'x' character
         pToken->type = TokenType::HEXNUMBER;
         size_t hexDigitCount = 0;
-        while( input.good() && isxdigit(input.peek()) && read() ) {
+        while( input.good() && (isxdigit(input.peek()) || input.peek() == '_') ) {
+            if( input.peek() == '_' ) {
+                // underscore must be preceded and followed by a hex digit
+                if( !isxdigit(readChar) ) {
+                    output.pop_back();
+                    writeError("invalid hex value: underscore must follow a hex digit", pToken.get());
+                    return false;
+                }
+                read(); // consume the underscore
+                if( !input.good() || !isxdigit(input.peek()) ) {
+                    output.pop_back();
+                    writeError("invalid hex value: underscore must be followed by a hex digit", pToken.get());
+                    return false;
+                }
+                pToken->text += readChar; // add the underscore
+            }
+            read();
             pToken->text += readChar;
             hexDigitCount++;
         }
@@ -147,6 +167,44 @@ bool Lexer::readHex() {
         if( hexDigitCount % 2 != 0 ) {
             output.pop_back(); // Remove the invalid token from output
             writeError("invalid hex value", pToken.get());
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool Lexer::readBinary() {
+    // read binary literals (0b followed by multiples of 8 binary digits)
+    if( read()) {
+        spToken pToken = nextToken();
+        pToken->columnNumber -= 1; // correct for the extra 'b' character
+        pToken->type = TokenType::BINARY;
+        size_t binaryDigitCount = 0;
+        while( input.good() && (input.peek() == '0' || input.peek() == '1' || input.peek() == '_') ) {
+            if( input.peek() == '_' ) {
+                // underscore must be preceded and followed by a binary digit
+                if( readChar != '0' && readChar != '1' ) {
+                    output.pop_back();
+                    writeError("invalid binary value: underscore must follow a binary digit", pToken.get());
+                    return false;
+                }
+                read(); // consume the underscore
+                if( !input.good() || (input.peek() != '0' && input.peek() != '1') ) {
+                    output.pop_back();
+                    writeError("invalid binary value: underscore must be followed by a binary digit", pToken.get());
+                    return false;
+                }
+                pToken->text += readChar; // add the underscore
+            }
+            read();
+            pToken->text += readChar;
+            binaryDigitCount++;
+        }
+        // ensure we read a multiple of 8 digits so we have whole bytes
+        if( binaryDigitCount % 8 != 0 ) {
+            output.pop_back(); // Remove the invalid token from output
+            writeError("invalid binary value", pToken.get());
             return false;
         }
         return true;

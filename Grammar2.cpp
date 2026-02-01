@@ -22,9 +22,10 @@ Grammar2::Grammar2() {
 void Grammar2::initLiterals() {
    DECIMAL = match(Production::DECIMAL, TokenType::DECIMAL);
    HEXNUMBER = match(Production::HEXNUMBER, TokenType::HEXNUMBER);
+   BINARY = match(Production::BINARY, TokenType::BINARY);
    NUMBER = match(Production::NUMBER, TokenType::NUMBER);
    STRING = match(Production::STRING, TokenType::STRING);
-   LITERAL = any(DECIMAL, HEXNUMBER, NUMBER, STRING);
+   LITERAL = any(DECIMAL, HEXNUMBER, BINARY, NUMBER, STRING);
 }
 
 void Grammar2::initIdentifiers() {
