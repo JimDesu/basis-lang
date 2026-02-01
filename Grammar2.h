@@ -24,6 +24,7 @@ namespace basis {
         void initTypeAliases();
         void initCommandBody();
         void initCommandDefinitions();
+        void initCompilationUnit();
 
         // Literals
         SPPF DECIMAL;
@@ -44,8 +45,10 @@ namespace basis {
         SPPF DOMAIN;
         SPPF ENUMERATION;
         SPPF INTRINSIC;
+        SPPF MODULE;
         SPPF OBJECT;
         SPPF RECORD;
+        SPPF TEST;
         SPPF INSTANCE;
 
         // Punctuation

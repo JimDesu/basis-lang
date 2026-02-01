@@ -22,8 +22,10 @@ namespace basis {
         ENUMERATION,
         INSTANCE,
         INTRINSIC,
+        MODULE,
         OBJECT,
         RECORD,
+        TEST,
         // punctuation
         AMBANG,
         AMPERSAND,

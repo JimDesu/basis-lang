@@ -63,8 +63,10 @@ TEST_CASE("Grammar2::test parse reserved words") {
     CHECK(testParse(grammar.DOMAIN, ".domain", Production::DOMAIN));
     CHECK(testParse(grammar.ENUMERATION, ".enum", Production::ENUMERATION));
     CHECK(testParse(grammar.INTRINSIC, ".intrinsic", Production::INTRINSIC));
+    CHECK(testParse(grammar.MODULE, ".module", Production::MODULE));
     CHECK(testParse(grammar.OBJECT, ".object", Production::OBJECT));
     CHECK(testParse(grammar.RECORD, ".record", Production::RECORD));
+    CHECK(testParse(grammar.TEST, ".test", Production::TEST));
 }
 
 TEST_CASE("Grammar2::test parse punctuation") {

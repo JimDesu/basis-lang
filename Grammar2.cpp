@@ -83,8 +83,10 @@ void Grammar2::initReservedWords() {
    ENUMERATION = match(Production::ENUMERATION, TokenType::ENUMERATION);
    INSTANCE = match(Production::INSTANCE, TokenType::INSTANCE);
    INTRINSIC = match(Production::INTRINSIC, TokenType::INTRINSIC);
+   MODULE = match(Production::MODULE, TokenType::MODULE);
    OBJECT = match(Production::OBJECT, TokenType::OBJECT);
    RECORD = match(Production::RECORD, TokenType::RECORD);
+   TEST = match(Production::TEST, TokenType::TEST);
 }
 
 void Grammar2::initTypeExpressions() {
@@ -215,8 +217,6 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_NAME_SPEC = group(Production::DEF_CMD_NAME_SPEC,
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
-    //TODO: stack-effect functions cannot take arguments
-   // Top-level command definition
    DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
        all(DECLARE, any(
            // destructor
@@ -345,6 +345,10 @@ void Grammar2::initCommandBody() {
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
         discard(TokenType::EQUALS), any(DEF_CMD_EMPTY, CALL_GROUP) ));
+}
+
+void Grammar2::initCompilationUnit() {
+
 }
 
 Grammar2& basis::getGrammar() {

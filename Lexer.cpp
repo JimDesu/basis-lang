@@ -29,8 +29,10 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".domain", TokenType::DOMAIN},
     {".enum", TokenType::ENUMERATION},
     {".intrinsic", TokenType::INTRINSIC},
+    {".module", TokenType::MODULE},
     {".object", TokenType::OBJECT},
     {".record", TokenType::RECORD},
+    {".test", TokenType::TEST},
     {".instance", TokenType::INSTANCE}
 };
 
@@ -156,7 +158,22 @@ bool Lexer::readNumeric() {
     // read numerics
     spToken pToken = nextToken();
     pToken->text += readChar;
-    while( input.good() && isdigit(input.peek()) ){
+    while( input.good() && (isdigit(input.peek()) || input.peek() == '_') ){
+        if( input.peek() == '_' ) {
+            // underscore must be preceded and followed by a digit
+            if( !isdigit(readChar) ) {
+                output.pop_back();
+                writeError("invalid number: underscore must follow a digit", pToken.get());
+                return false;
+            }
+            read(); // consume the underscore
+            if( !input.good() || !isdigit(input.peek()) ) {
+                output.pop_back();
+                writeError("invalid number: underscore must be followed by a digit", pToken.get());
+                return false;
+            }
+            pToken->text += readChar; // add the underscore
+        }
         read();
         pToken->text += readChar;
     }
@@ -164,7 +181,23 @@ bool Lexer::readNumeric() {
         // this is a decimal; get the rest of it
         pToken->text += readChar;
         pToken->type = TokenType::DECIMAL;
-        while( input.good() && isdigit(input.peek()) && read()){
+        while( input.good() && (isdigit(input.peek()) || input.peek() == '_') ){
+            if( input.peek() == '_' ) {
+                // underscore must be preceded and followed by a digit
+                if( !isdigit(readChar) ) {
+                    output.pop_back();
+                    writeError("invalid decimal: underscore must follow a digit", pToken.get());
+                    return false;
+                }
+                read(); // consume the underscore
+                if( !input.good() || !isdigit(input.peek()) ) {
+                    output.pop_back();
+                    writeError("invalid decimal: underscore must be followed by a digit", pToken.get());
+                    return false;
+                }
+                pToken->text += readChar; // add the underscore
+            }
+            read();
             pToken->text += readChar;
         }
     } else {

@@ -102,8 +102,10 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken(".domain foobar", TokenType::DOMAIN);
     testSingleToken(".enum foobar", TokenType::ENUMERATION);
     testSingleToken(".intrinsic foobar", TokenType::INTRINSIC);
+    testSingleToken(".module foobar", TokenType::MODULE);
     testSingleToken(".object foobar", TokenType::OBJECT);
     testSingleToken(".record foobar", TokenType::RECORD);
+    testSingleToken(".test foobar", TokenType::TEST);
 }
 
 TEST_CASE("Lexer::test lex single token negative test cases") {
@@ -202,4 +204,21 @@ TEST_CASE("Lexer::test identifier vs typename") {
     ++it2;
     CHECK_EQ((*it2)->type, TokenType::TYPENAME);
     CHECK_EQ((*it2)->text, "Foo");
+}
+
+TEST_CASE("Lexer::test numbers with underscores") {
+    testSingleToken("23_000", TokenType::NUMBER);
+    testSingleToken("1_000", TokenType::NUMBER);
+    testSingleToken("-1_20", TokenType::NUMBER);
+    testSingleToken("1_000_000", TokenType::NUMBER);
+    testSingleToken("12_34_56", TokenType::NUMBER);
+    testSingleToken("1_000.0_23", TokenType::DECIMAL);
+    testSingleToken("12_34.56_78", TokenType::DECIMAL);
+    testSingleToken("1.2_3", TokenType::DECIMAL);
+    testSingleToken("1_2.3", TokenType::DECIMAL);
+    testSingleToken("-1_000.5_00", TokenType::DECIMAL);
+
+    // Invalid cases: underscore not between digits
+    CHECK(lexInput("12_.0", false).output.empty());
+    CHECK(lexInput("-0._5", false).output.empty());
 }
