@@ -17,6 +17,7 @@ namespace basis {
         void initEnumerations();
         void initModuleTypes();
         void initProgramDefinitions();
+        void initTestDefinitions();
         void initImports();
         void initDomainTypes();
         void initRecordTypes();
@@ -140,6 +141,9 @@ namespace basis {
 
         // Program definition
         SPPF DEF_PROGRAM;
+
+        // Test definition
+        SPPF DEF_TEST;
 
         // Import definition
         SPPF DEF_IMPORT;

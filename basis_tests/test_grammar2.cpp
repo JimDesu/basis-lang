@@ -162,6 +162,20 @@ TEST_CASE("Grammar2::test program definitions") {
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program = Main"));  // typename instead of identifier
 }
 
+TEST_CASE("Grammar2::test test definitions") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_TEST, ".test \"simple test\" = doSomething", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"test with params\" = run: arg1, arg2", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"complex test\" = setup\n    validate: data", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"constructor test\" = Widget: 10, 20", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"assignment test\" = result <- compute: x", Production::DEF_TEST));
+    CHECK_FALSE(testParse(grammar.DEF_TEST, ".test simple = doSomething"));  // missing quotes on string
+    CHECK_FALSE(testParse(grammar.DEF_TEST, ".test \"test\" doSomething"));  // missing equals
+    CHECK_FALSE(testParse(grammar.DEF_TEST, ".test \"test\" ="));  // missing call group
+    CHECK_FALSE(testParse(grammar.DEF_TEST, "test \"test\" = doSomething"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_TEST, ".test = doSomething"));  // missing string literal
+}
+
 TEST_CASE("Grammar2::test import definitions") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_IMPORT, ".import \"file.basis\"", Production::DEF_IMPORT));

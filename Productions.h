@@ -104,6 +104,8 @@ namespace basis {
         DEF_MODULE_NAME,
         // -- program definitions
         DEF_PROGRAM,
+        // -- test definitions
+        DEF_TEST,
         // -- import definitions
         DEF_IMPORT,
         DEF_IMPORT_FILE,

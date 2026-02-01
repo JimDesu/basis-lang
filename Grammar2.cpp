@@ -20,6 +20,7 @@ Grammar2::Grammar2() {
     initInstanceDecls();
     initCommandBody();
     initProgramDefinitions();
+    initTestDefinitions();
 }
 
 void Grammar2::initLiterals() {
@@ -174,6 +175,11 @@ void Grammar2::initModuleTypes() {
 void Grammar2::initProgramDefinitions() {
     DEF_PROGRAM = boundedGroup(Production::DEF_PROGRAM,
         all(PROGRAM, EQUALS, SUBCALL_COMMAND));
+}
+
+void Grammar2::initTestDefinitions() {
+    DEF_TEST = boundedGroup(Production::DEF_TEST,
+        all(TEST, STRING, EQUALS, CALL_GROUP));
 }
 
 void Grammar2::initImports() {
