@@ -28,12 +28,13 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".decl", TokenType::DECLARE},
     {".domain", TokenType::DOMAIN},
     {".enum", TokenType::ENUMERATION},
+    {".import", TokenType::IMPORT},
+    {".instance", TokenType::INSTANCE},
     {".intrinsic", TokenType::INTRINSIC},
     {".module", TokenType::MODULE},
     {".object", TokenType::OBJECT},
     {".record", TokenType::RECORD},
-    {".test", TokenType::TEST},
-    {".instance", TokenType::INSTANCE}
+    {".test", TokenType::TEST}
 };
 
 bool Lexer::read() {

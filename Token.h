@@ -27,6 +27,7 @@ namespace basis {
         DECLARE,
         DOMAIN,
         ENUMERATION,
+        IMPORT,
         INSTANCE,
         INTRINSIC,
         MODULE,

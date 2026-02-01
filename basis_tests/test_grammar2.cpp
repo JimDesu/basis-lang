@@ -76,6 +76,7 @@ TEST_CASE("Grammar2::test parse reserved words") {
     CHECK(testParse(grammar.COMMAND, ".cmd", Production::COMMAND));
     CHECK(testParse(grammar.DOMAIN, ".domain", Production::DOMAIN));
     CHECK(testParse(grammar.ENUMERATION, ".enum", Production::ENUMERATION));
+    CHECK(testParse(grammar.IMPORT, ".import", Production::IMPORT));
     CHECK(testParse(grammar.INTRINSIC, ".intrinsic", Production::INTRINSIC));
     CHECK(testParse(grammar.MODULE, ".module", Production::MODULE));
     CHECK(testParse(grammar.OBJECT, ".object", Production::OBJECT));
@@ -147,6 +148,28 @@ TEST_CASE("Grammar2::test module definitions") {
     CHECK_FALSE(testParse(grammar.DEF_MODULE, "module MyModule"));  // missing dot
     CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module 123"));  // numeric name
     CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module my_module"));  // identifier instead of typename
+}
+
+TEST_CASE("Grammar2::test import definitions") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_IMPORT, ".import \"file.basis\"", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Module", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import MyLib:Utils", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import A:B", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Prefix:A::B::C", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Std::Collections", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import A::B::C", Production::DEF_IMPORT));
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import"));  // missing argument
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, "import Module"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import module"));  // lowercase identifier
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import 123"));  // numeric
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A:B:C"));  // single colon can only appear once
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A::B:C::D"));  // parses as A::B with leftover :C::D
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Std::Core:Collections"));  // parses as Std::Core with leftover :Collections
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import :Module"));  // colon without prefix
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Prefix:"));  // colon without typename
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import \"file.basis\" extra"));  // extra content
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Module extra"));  // extra content
 }
 
 TEST_CASE("Grammar2::test domain type definitions") {

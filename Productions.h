@@ -23,6 +23,7 @@ namespace basis {
         DECLARE,
         DOMAIN,
         ENUMERATION,
+        IMPORT,
         INSTANCE,
         INTRINSIC,
         MODULE,
@@ -100,6 +101,10 @@ namespace basis {
         // -- module definitions
         DEF_MODULE,
         DEF_MODULE_NAME,
+        // -- import definitions
+        DEF_IMPORT,
+        DEF_IMPORT_FILE,
+        DEF_IMPORT_STANDARD,
         // -- domain definitions
         DEF_DOMAIN,
         DEF_DOMAIN_NAME,

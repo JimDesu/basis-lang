@@ -16,6 +16,7 @@ namespace basis {
         void initReservedWords();
         void initEnumerations();
         void initModuleTypes();
+        void initImports();
         void initDomainTypes();
         void initRecordTypes();
         void initObjectTypes();
@@ -38,6 +39,7 @@ namespace basis {
         // Identifiers
         SPPF IDENTIFIER;
         SPPF TYPENAME;
+        SPPF TYPENAME_UNQUALIFIED;
         SPPF QUALIFIED_IDENTIFIER;
         SPPF QUALIFIED_TYPENAME;
 
@@ -48,12 +50,13 @@ namespace basis {
         SPPF DECLARE;
         SPPF DOMAIN;
         SPPF ENUMERATION;
+        SPPF IMPORT;
+        SPPF INSTANCE;
         SPPF INTRINSIC;
         SPPF MODULE;
         SPPF OBJECT;
         SPPF RECORD;
         SPPF TEST;
-        SPPF INSTANCE;
 
         // Punctuation
         SPPF AMBANG;
@@ -132,6 +135,11 @@ namespace basis {
         // Module definition
         SPPF DEF_MODULE;
         SPPF DEF_MODULE_NAME;
+
+        // Import definition
+        SPPF DEF_IMPORT;
+        SPPF DEF_IMPORT_FILE;
+        SPPF DEF_IMPORT_STANDARD;
 
         // Domain definition
         SPPF DEF_DOMAIN;

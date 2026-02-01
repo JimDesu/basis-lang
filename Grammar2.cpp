@@ -10,6 +10,7 @@ Grammar2::Grammar2() {
     initTypeExpressions();
     initEnumerations();
     initModuleTypes();
+    initImports();
     initDomainTypes();
     initRecordTypes();
     initObjectTypes();
@@ -40,7 +41,8 @@ void Grammar2::initIdentifiers() {
            match(Production::DCOLON, TokenType::DCOLON))),
            match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
 
-   TYPENAME = any(QUALIFIED_TYPENAME, match(Production::TYPENAME, TokenType::TYPENAME));
+   TYPENAME_UNQUALIFIED = match(Production::TYPENAME, TokenType::TYPENAME);
+   TYPENAME = any(QUALIFIED_TYPENAME, TYPENAME_UNQUALIFIED);
    IDENTIFIER = any(QUALIFIED_IDENTIFIER, match(Production::IDENTIFIER, TokenType::IDENTIFIER));
 }
 
@@ -93,6 +95,7 @@ void Grammar2::initReservedWords() {
    DECLARE = match(Production::DECLARE, TokenType::DECLARE);
    DOMAIN = match(Production::DOMAIN, TokenType::DOMAIN);
    ENUMERATION = match(Production::ENUMERATION, TokenType::ENUMERATION);
+   IMPORT = match(Production::IMPORT, TokenType::IMPORT);
    INSTANCE = match(Production::INSTANCE, TokenType::INSTANCE);
    INTRINSIC = match(Production::INTRINSIC, TokenType::INTRINSIC);
    MODULE = match(Production::MODULE, TokenType::MODULE);
@@ -164,6 +167,16 @@ void Grammar2::initModuleTypes() {
     DEF_MODULE_NAME = group(Production::DEF_MODULE_NAME, TYPENAME);
     DEF_MODULE = boundedGroup(Production::DEF_MODULE,
         all(MODULE, DEF_MODULE_NAME));
+}
+
+void Grammar2::initImports() {
+    DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, STRING);
+
+    DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD,
+        all(maybe(all(TYPENAME_UNQUALIFIED, COLON)), TYPENAME));
+
+    DEF_IMPORT = boundedGroup(Production::DEF_IMPORT,
+        all(IMPORT, any(DEF_IMPORT_FILE, DEF_IMPORT_STANDARD)));
 }
 
 void Grammar2::initDomainTypes() {
