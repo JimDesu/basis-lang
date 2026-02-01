@@ -32,6 +32,7 @@ namespace basis {
         INTRINSIC,
         MODULE,
         OBJECT,
+        PROGRAM,
         RECORD,
         TEST,
         // punctuation

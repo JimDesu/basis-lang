@@ -28,6 +28,7 @@ namespace basis {
         INTRINSIC,
         MODULE,
         OBJECT,
+        PROGRAM,
         RECORD,
         TEST,
         // punctuation
@@ -101,6 +102,8 @@ namespace basis {
         // -- module definitions
         DEF_MODULE,
         DEF_MODULE_NAME,
+        // -- program definitions
+        DEF_PROGRAM,
         // -- import definitions
         DEF_IMPORT,
         DEF_IMPORT_FILE,

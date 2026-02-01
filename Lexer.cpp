@@ -33,6 +33,7 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".intrinsic", TokenType::INTRINSIC},
     {".module", TokenType::MODULE},
     {".object", TokenType::OBJECT},
+    {".program", TokenType::PROGRAM},
     {".record", TokenType::RECORD},
     {".test", TokenType::TEST}
 };

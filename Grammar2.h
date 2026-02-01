@@ -16,6 +16,7 @@ namespace basis {
         void initReservedWords();
         void initEnumerations();
         void initModuleTypes();
+        void initProgramDefinitions();
         void initImports();
         void initDomainTypes();
         void initRecordTypes();
@@ -55,6 +56,7 @@ namespace basis {
         SPPF INTRINSIC;
         SPPF MODULE;
         SPPF OBJECT;
+        SPPF PROGRAM;
         SPPF RECORD;
         SPPF TEST;
 
@@ -135,6 +137,9 @@ namespace basis {
         // Module definition
         SPPF DEF_MODULE;
         SPPF DEF_MODULE_NAME;
+
+        // Program definition
+        SPPF DEF_PROGRAM;
 
         // Import definition
         SPPF DEF_IMPORT;

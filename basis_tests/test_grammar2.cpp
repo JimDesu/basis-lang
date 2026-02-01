@@ -80,6 +80,7 @@ TEST_CASE("Grammar2::test parse reserved words") {
     CHECK(testParse(grammar.INTRINSIC, ".intrinsic", Production::INTRINSIC));
     CHECK(testParse(grammar.MODULE, ".module", Production::MODULE));
     CHECK(testParse(grammar.OBJECT, ".object", Production::OBJECT));
+    CHECK(testParse(grammar.PROGRAM, ".program", Production::PROGRAM));
     CHECK(testParse(grammar.RECORD, ".record", Production::RECORD));
     CHECK(testParse(grammar.TEST, ".test", Production::TEST));
 }
@@ -148,6 +149,17 @@ TEST_CASE("Grammar2::test module definitions") {
     CHECK_FALSE(testParse(grammar.DEF_MODULE, "module MyModule"));  // missing dot
     CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module 123"));  // numeric name
     CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module my_module"));  // identifier instead of typename
+}
+
+TEST_CASE("Grammar2::test program definitions") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program = main", Production::DEF_PROGRAM));
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program = start: arg1, arg2", Production::DEF_PROGRAM));
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program = run: config", Production::DEF_PROGRAM));
+    CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program main"));  // missing equals
+    CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program ="));  // missing command
+    CHECK_FALSE(testParse(grammar.DEF_PROGRAM, "program = main"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program = Main"));  // typename instead of identifier
 }
 
 TEST_CASE("Grammar2::test import definitions") {

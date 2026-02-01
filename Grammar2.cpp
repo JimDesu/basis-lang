@@ -19,6 +19,7 @@ Grammar2::Grammar2() {
     initClassTypes();
     initInstanceDecls();
     initCommandBody();
+    initProgramDefinitions();
 }
 
 void Grammar2::initLiterals() {
@@ -100,6 +101,7 @@ void Grammar2::initReservedWords() {
    INTRINSIC = match(Production::INTRINSIC, TokenType::INTRINSIC);
    MODULE = match(Production::MODULE, TokenType::MODULE);
    OBJECT = match(Production::OBJECT, TokenType::OBJECT);
+   PROGRAM = match(Production::PROGRAM, TokenType::PROGRAM);
    RECORD = match(Production::RECORD, TokenType::RECORD);
    TEST = match(Production::TEST, TokenType::TEST);
 }
@@ -167,6 +169,11 @@ void Grammar2::initModuleTypes() {
     DEF_MODULE_NAME = group(Production::DEF_MODULE_NAME, TYPENAME);
     DEF_MODULE = boundedGroup(Production::DEF_MODULE,
         all(MODULE, DEF_MODULE_NAME));
+}
+
+void Grammar2::initProgramDefinitions() {
+    DEF_PROGRAM = boundedGroup(Production::DEF_PROGRAM,
+        all(PROGRAM, EQUALS, SUBCALL_COMMAND));
 }
 
 void Grammar2::initImports() {
