@@ -57,6 +57,16 @@ TEST_CASE("Grammar2::test parse identifiers") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.IDENTIFIER, "foobar", Production::IDENTIFIER));
     CHECK(testParse(grammar.TYPENAME, "Foobar", Production::TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "Namespace::Type", Production::QUALIFIED_TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "Std::Collections::List", Production::QUALIFIED_TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "A::B::C::D::Type", Production::QUALIFIED_TYPENAME));
+    CHECK(testParse(grammar.IDENTIFIER, "Module::identifier", Production::QUALIFIED_IDENTIFIER));
+    CHECK(testParse(grammar.IDENTIFIER, "Std::IO::println", Production::QUALIFIED_IDENTIFIER));
+    CHECK(testParse(grammar.IDENTIFIER, "A::B::C::method", Production::QUALIFIED_IDENTIFIER));
+    CHECK_FALSE(testParse(grammar.TYPENAME, "namespace::Type"));  // lowercase namespace
+    CHECK_FALSE(testParse(grammar.IDENTIFIER, "module::identifier"));  // lowercase module
+    CHECK_FALSE(testParse(grammar.TYPENAME, "Namespace::type"));  // lowercase final component
+    CHECK_FALSE(testParse(grammar.IDENTIFIER, "Module::Identifier"));  // uppercase final component
 }
 
 TEST_CASE("Grammar2::test parse reserved words") {
@@ -134,6 +144,8 @@ TEST_CASE("Grammar2::test domain type definitions") {
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain FixedBuffer: [10]", Production::DEF_DOMAIN));
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain DynamicArray: []", Production::DEF_DOMAIN));
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyInt:\n Int", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyType: Std::Int", Production::DEF_DOMAIN));
+    CHECK(testParse(grammar.DEF_DOMAIN, ".domain UserId: Database::Types::Id", Production::DEF_DOMAIN));
     CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain SmallInt: []Int", Production::DEF_DOMAIN));
     CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain SizedArray: [size]", Production::DEF_DOMAIN));
     CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain ByteArray: [256]Byte", Production::DEF_DOMAIN));
@@ -164,7 +176,10 @@ TEST_CASE("Grammar2::test record type definitions") {
     CHECK(testParse(grammar.DEF_RECORD, ".record Matrix4x4: [4][4]Float elements", Production::DEF_RECORD));
     CHECK(testParse(grammar.DEF_RECORD, ".record Entity: String name, [3]Float position, List[Component] components", Production::DEF_RECORD));
     CHECK(testParse(grammar.DEF_RECORD, ".record Point:\n Int x, Int y", Production::DEF_RECORD));
-
+    CHECK(testParse(grammar.DEF_RECORD, ".record Person: Std::String name", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Point: Graphics::Int x, Graphics::Int y", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Container: Std::Collections::List[T] items", Production::DEF_RECORD));
+    CHECK(testParse(grammar.DEF_RECORD, ".record Entity: UI::Widget widget, Database::Id id", Production::DEF_RECORD));
     CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record point: Int x"));  // lowercase name
     CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point"));  // missing colon and fields
     CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point:"));  // missing fields
@@ -545,6 +560,10 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias StringPtr: ^String", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrPtr: ^^Int", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyType: Std::Int", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias List[T]: ^[]Collections::Node[T]", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias WidgetPtr: ^UI::Widget", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]: ^[]Std::Collections::Pair[K, V]", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdType: :<Int'>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeCmdType: ?<String', Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntArray: []Int", Production::DEF_ALIAS));
@@ -608,6 +627,12 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[10]Int", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^[]List[T]", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Std::String", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Collections::List[T]", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^Namespace::Type", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]Module::Item", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[10]Pkg::Array", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^[]Std::Collections::List[A::B::Type]", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<>"));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, ":<Int>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "?<Int', String>", Production::DEF_CMD_PARMTYPE_NAME));
@@ -659,6 +684,10 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARM, "^Int ptr", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "[]List[T] items", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "?<Int', String> cmd", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "Std::String text", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "Collections::List[T] items", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "^Namespace::Type ptr", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, "[]Module::Item array", Production::DEF_CMD_PARM));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "String' name"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "value x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "Int X"));
@@ -671,6 +700,10 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "^Widget ptr", Production::DEF_CMD_RECEIVER));
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "[]Container[T] items", Production::DEF_CMD_RECEIVER));
     CHECK(testParse(grammar.DEF_CMD_RECEIVER, "?<Widget'> cmd", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "UI::Widget w", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "Std::Collections::Container[T] items", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "^Namespace::Type ptr", Production::DEF_CMD_RECEIVER));
+    CHECK(testParse(grammar.DEF_CMD_RECEIVER, "[]Module::Item array", Production::DEF_CMD_RECEIVER));
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "Widget' w"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_RECEIVER, "widget w"));
 
@@ -684,13 +717,21 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x / Int 'ctx", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int x, String y -> result / Int ctx, String s", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: ?doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: !doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w, Button b:: doIt", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w, Button 'b:: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt: Int x -> result", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w:: doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: ?doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: !doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w, Button b):: doIt", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w, Button 'b):: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: doIt: Int x -> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
+
+    // Test qualified typenames in command declarations
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (UI::Widget w):: render", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Std::Collections::List[T] items):: process", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Namespace::Type param -> result", Production::DEF_CMD_DECL));
+    // syntactically but not semantically valid
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl process: Module::Item x -> Module::result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (UI::Widget w):: handle: IO::Event e -> UI::response / Std::Context ctx", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i, Int j", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ?<Int'> cmd", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: !<String', Int> result", Production::DEF_CMD_DECL));
@@ -713,17 +754,17 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ^Int' ptr"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: []String' items"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: List[T'] list"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget' w:: doIt"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl ^Widget' ptr:: doIt"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl []Container[T'] items:: process"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget' w:: ^Int' ptr, []String' items"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl (Widget' w):: doIt"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl (^Widget' ptr):: doIt"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl ([]Container[T'] items):: process"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl (Widget' w):: ^Int' ptr, []String' items"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: (T': ^Int) x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / Int ctx: (T': ^Int) x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int ?x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Int !x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ?Int x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: !Int x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget 'w, Button 'b:: Int i"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl (Widget 'w, Button 'b):: Int i"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt:"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt /"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt / :"));
@@ -746,7 +787,7 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget' w: Int x"));  // receiver can't have apostrophe
 
     // Failure handler negative tests
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w:: Int i"));  // failure handler can't use ::
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! (Widget w):: Int i"));  // failure handler can't use ::
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! doIt: Int x -> result"));  // failure handler needs receiver
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w"));  // failure handler needs parameters
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: @! Int x"));  // @! in wrong position
@@ -795,11 +836,11 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt: -> result / Int ctx"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x -> result"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic doIt / Int ctx: Int x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w:: doIt: Int x -> result / Int ctx"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic Widget w, Button b:: doIt: Int x -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ^Widget ptr:: doIt: Int x -> result"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic []Container[T] items:: process: T item -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic (Widget w):: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic (Widget w):: doIt: Int x -> result / Int ctx"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic (Widget w, Button b):: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic (^Widget ptr):: doIt: Int x -> result"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ([]Container[T] items):: process: T item -> result"));
 }
 
 TEST_CASE("Grammar2::test object field parsing") {
@@ -922,11 +963,11 @@ TEST_CASE("Grammar2::test class definition parsing") {
         ".class Container:\n"
         "  .decl Container c: Int capacity\n"
         "  .decl add: Int item -> result\n"
-        "  .decl Widget w:: process: String s -> output / Int ctx",
+        "  .decl (Widget w):: process: String s -> output / Int ctx",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Processor:\n"
-        "  .decl Widget w, Button b:: handle: Int x -> result",
+        "  .decl (Widget w, Button b):: handle: Int x -> result",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Handler:\n"
@@ -959,7 +1000,7 @@ TEST_CASE("Grammar2::test class definition parsing") {
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Container:\n"
-        "  .cmd add: Int item = items:: append: item",
+        "  .cmd add: Int item = (items):: append: item",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Handler:\n"
@@ -989,7 +1030,7 @@ TEST_CASE("Grammar2::test class definition parsing") {
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Container:\n"
         "  .decl Container c: Int capacity\n"
-        "  .cmd add: Int item = items:: append: item\n"
+        "  .cmd add: Int item = (items):: append: item\n"
         "  .decl remove: Int index -> result",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
@@ -1027,15 +1068,15 @@ TEST_CASE("Grammar2::test class definition parsing") {
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
-        "  .cmd Widget w:: render = draw: w",
+        "  .cmd (Widget w):: render = draw: w",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Container:\n"
-        "  .cmd Container c:: process: Int x -> result = validate: x\n    result <- (transform: x)",
+        "  .cmd (Container c):: process: Int x -> result = validate: x\n    result <- (transform: x)",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Handler:\n"
-        "  .cmd Widget w, Button b:: handle: Int x = w:: update: x\n    b:: click",
+        "  .cmd (Widget w, Button b):: handle: Int x = (w):: update: x\n    (b):: click",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
@@ -1052,7 +1093,7 @@ TEST_CASE("Grammar2::test class definition parsing") {
         "  .cmd Widget w: Int x = _\n"
         "  .cmd @ Widget w: Int code = _\n"
         "  .cmd @! Widget w: String error = _\n"
-        "  .cmd Widget w:: method = _\n"
+        "  .cmd (Widget w):: method = _\n"
         "  .cmd process: Int x -> result = _",
         Production::DEF_CLASS));
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class myClass:\n  .cmd doIt"));  // lowercase class name
@@ -1132,8 +1173,8 @@ TEST_CASE("Grammar2::test full command definitions with bodies") {
     CHECK(testParse(grammar.DEF_CMD, ".cmd @ Resource r: String name, Int id = doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd @! Widget w: String error = doIt", Production::DEF_CMD));
     CHECK(testParse(grammar.DEF_CMD, ".cmd @! Transaction t: Int code, String msg = doIt", Production::DEF_CMD));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @ Widget w:: Int x = cleanup: x"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! Widget w:: String error = logError: error"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @ (Widget w):: Int x = cleanup: x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! (Widget w):: String error = logError: error"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @ doIt: Int x = cleanup: x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! doIt: String error = logError: error"));
 }
@@ -1154,7 +1195,7 @@ TEST_CASE("Grammar2::test CALL_PARAMETERS") {
     CHECK(testParse(grammar.CALL_PARAMETER, "#temp", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: x, y)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(process: item)", Production::CALL_PARAMETER));
-    CHECK(testParse(grammar.CALL_PARAMETER, "(obj:: method: x)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "((obj):: method: x)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "($handler: x)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "($callback)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt}: data)", Production::CALL_PARAMETER));
@@ -1171,6 +1212,11 @@ TEST_CASE("Grammar2::test CALL_CONSTRUCTOR") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Map[String, Int]: key, value", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: #x, #y", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Point: x, y), z", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "UI::Widget: x, y", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Std::Collections::List[T]: item", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Graphics::Point: x, y, z", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "A::B::C::Type: value", Production::CALL_CONSTRUCTOR));
+    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "UI::Widget: (Graphics::Point: x, y), z", Production::CALL_CONSTRUCTOR));
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget: X"));  // uppercase identifier
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "widget: x"));  // lowercase typename
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget x"));  // missing colon
@@ -1190,7 +1236,10 @@ TEST_CASE("Grammar2::test CALL_COMMAND") {
     CHECK(testParse(grammar.CALL_COMMAND, "$processor: item", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${doIt}: x", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${obj:: method}: data", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "${(obj):: method}: data", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "Module::function: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "A::B::C::method", Production::CALL_COMMAND));
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "doSomething: x y", Production::CALL_COMMAND));
@@ -1199,16 +1248,16 @@ TEST_CASE("Grammar2::test CALL_COMMAND") {
 TEST_CASE("Grammar2::test CALL_VCOMMAND") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: x, y", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "widget:: process: item", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: item", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "x, y, z:: process: data", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: (Widget: x, y)", Production::CALL_VCOMMAND));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "#obj:: method: x", Production::CALL_VCOMMAND));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "a, #b:: handle: item", Production::CALL_VCOMMAND));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method: x"));  // uppercase receiver
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj:: Method: x"));  // uppercase method name
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: x, y", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(widget):: process: item", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b):: handle: item", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(x, y, z):: process: data", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: (Widget: x, y)", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj):: method: x", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b):: handle: item", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(Obj):: method: x"));  // uppercase receiver
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(obj):: Method: x"));  // uppercase method name
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method: x"));  // single colon instead of double
 }
 
@@ -1355,8 +1404,8 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "(process: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "someVariable", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(obj:: method: x)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(a, b:: handle: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "((obj):: method: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "((a, b):: handle: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "($handler: x)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "($callback)", Production::CALL_EXPRESSION));
@@ -1378,13 +1427,13 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<String name>{doIt}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "?<Int value>{calculate: value, value}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "!<String data>{validate: data}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{obj:: method: x}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name>{a, b:: handle: name}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{widget:: process}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{(obj):: method: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name>{(a, b):: handle: name}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{(widget):: process}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, String y>{Widget: x, y}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int a, Int b, Int c>{calculate: a, b, c}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{process: name, count}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int x, String y, Int z>{obj:: method: x, y, z}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int x, String y, Int z>{(obj):: method: x, y, z}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<^Int ptr>{process: ptr}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<[]Int items>{calculate: items}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<[8]Int buffer>{validate: buffer}", Production::CALL_EXPRESSION));
@@ -1396,22 +1445,22 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "!<(U: List[T]) items>{calculate: items}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, ^String ptr, []Int items>{process: x, ptr, items}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, (T: Int) value>{Widget: name, value}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<List[T] list, Int count, ^Int ptr>{obj:: method: list, count, ptr}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "!<List[T] list, Int count, ^Int ptr>{(obj):: method: list, count, ptr}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{%process: x}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{%doIt\n                            cleanup}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{%Widget: value\n              finalize}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ?<String name>{process: name}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- !<Int a, Int b>{calculate: a, b}", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- :<^Int ptr, String name>{obj:: method: ptr, name}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- :<^Int ptr, String name>{(obj):: method: ptr, name}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- ?<List[T] items>{doIt}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_COMMAND, "process: :<Int x>{Widget: x, y}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "execute: ?<String name>{doIt}, context", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "handle: !<Int a, Int b>{calculate: a, b}, :<String s>{validate: s}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: ?<Int x>{process: x}, z", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: :<Int a, String b>{Widget: a, b}, !<Int c>{doIt}", Production::CALL_CONSTRUCTOR));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: !<String name>{process: name}", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: :<Int x, Int y>{Widget: x, y}, ?<String s>{validate: s}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: !<String name>{process: name}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b):: handle: :<Int x, Int y>{Widget: x, y}, ?<String s>{validate: s}", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: (:<Int x>{Widget: x, y})", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (?<String name>{doIt}), (!<Int value>{process: value})", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (:<Int a, Int b>{calculate: a, b})", Production::CALL_ASSIGNMENT));
@@ -1423,7 +1472,7 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<>{Widget: x, y}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "?<>{process: data}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "!<>{doIt}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<>{obj:: method: x}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<>{(obj):: method: x}", Production::CALL_ASSIGNMENT));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x{Widget: x, y}"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y"));
@@ -1442,8 +1491,12 @@ TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "container <- (List[Int]: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- fibx", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- (obj:: method: x)", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (a, b:: handle: item)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- ((obj):: method: x)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- ((a, b):: handle: item)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "widget <- UI::Widget: x, y", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "list <- Std::Collections::List[T]: item", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Module::function: param", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- A::B::C::process: data", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ($callback)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- ($processor: data)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (${doIt}: x, y)", Production::CALL_ASSIGNMENT));
@@ -1451,7 +1504,7 @@ TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#output <- (process: item)", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#data <- (obj:: method: x)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "#data <- ((obj):: method: x)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "Result <- (Widget: x)"));  // uppercase target
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result -> (Widget: x)"));  // wrong arrow
@@ -1466,8 +1519,8 @@ TEST_CASE("Grammar2::test CALL_INVOKE") {
     CHECK(testParse(grammar.CALL_INVOKE, "List[Int]: item", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_INVOKE, "doSomething: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_INVOKE, "process", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_INVOKE, "obj:: method: x, y", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_INVOKE, "a, b:: handle", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_INVOKE, "(obj):: method: x, y", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_INVOKE, "(a, b):: handle", Production::CALL_VCOMMAND));
 }
 
 TEST_CASE("Grammar2::test CALL_GROUP") {
@@ -1475,14 +1528,14 @@ TEST_CASE("Grammar2::test CALL_GROUP") {
 
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y", Production::CALL_GROUP));
-    CHECK(testParse(grammar.CALL_GROUP, "obj:: method: x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(obj):: method: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y \ndoIt", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "init\nprocess: data\ncleanup", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\ndoIt\ncleanup", Production::CALL_GROUP));
-    CHECK(testParse(grammar.CALL_GROUP, "Widget: x\ndoIt\nobj:: method: y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x\ndoIt\n(obj):: method: y", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "$handler: x\n$callback", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "${doIt}\n${process: data}", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "init\n$handler: x\ncleanup", Production::CALL_GROUP));
@@ -1524,8 +1577,8 @@ TEST_CASE("Grammar2::test BLOCK") {
     CHECK(testParse(grammar.BLOCK, "% init\n process: data\n cleanup", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? Widget: x, y", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "% Container: size\n doIt", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? obj:: method: x", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| a, b:: recover: error", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? (obj):: method: x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| (a, b):: recover: error", Production::DO_BLOCK));
     CHECK_FALSE(testParse(grammar.BLOCK, "% init\nprocess: data\ncleanup", Production::DO_BLOCK));
     CHECK_FALSE(testParse(grammar.BLOCK, "% Container: size\ndoIt", Production::DO_BLOCK));
 }
@@ -1537,8 +1590,8 @@ TEST_CASE("Grammar2::test DEF_CMD_BODY") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= List[Int]: item", Production::DEF_CMD_BODY));
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= obj:: method: x", Production::DEF_CMD_BODY));
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= a, b:: handle: item", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= (obj):: method: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= (a, b):: handle: item", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n process: x", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y\ndoIt", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\nprocess: data\ncleanup", Production::DEF_CMD_BODY));
@@ -1561,15 +1614,15 @@ TEST_CASE("Grammar2::test command body integration - complex scenarios") {
 
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Point: x, y), (Size: w, h)", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: (transform: data), (validate: input)", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: (Widget: x, y), z", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: (Widget: x, y), z", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: #x, #y", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: #temp, value", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\nobj:: init\nprocess: data", Production::CALL_GROUP));
-    CHECK(testParse(grammar.CALL_GROUP, "Container: size\ndoIt\nobj:: method: x\ncleanup", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\n(obj):: init\nprocess: data", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Container: size\ndoIt\n(obj):: method: x\ncleanup", Production::CALL_GROUP));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? doIt\n- fallback", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= % process: x\n? validate\n- error", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt\n| recover\n@ cleanup", Production::DEF_CMD_BODY));
-    CHECK(testParse(grammar.DEF_CMD_BODY, "= ? Widget: x, y\nobj:: init\n- Container: size\nfallback", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= ? Widget: x, y\n(obj):: init\n- Container: size\nfallback", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? process: data\n- error: msg\n@ cleanup: resource", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Map[String, List[Int]]: key, values", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container[Widget[T]]: (Widget[Int]: x)", Production::CALL_CONSTRUCTOR));
@@ -1579,21 +1632,21 @@ TEST_CASE("Grammar2::test command body integration - complex scenarios") {
     CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}: result", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ($callback)", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Processor: (${doIt}: x)", Production::CALL_CONSTRUCTOR));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "#obj, #widget:: method: #data", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj, #widget):: method: #data", Production::CALL_VCOMMAND));
 }
 
 TEST_CASE("Grammar2::test command body edge cases") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: x", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: x", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: a, b, c, d, e", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: a, b, c, d, e", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: a, b, c, d, e", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b, c, d:: method: x", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: a, b, c, d, e", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b, c, d):: method: x", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: (Point: (Value: x)))", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
@@ -1604,7 +1657,7 @@ TEST_CASE("Grammar2::test command body edge cases") {
     CHECK(testParse(grammar.CALL_COMMAND, "${process: data}: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_PARAMETER, "($handler)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt})", Production::CALL_PARAMETER));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "a, #b, c:: method: x, #y", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b, c):: method: x, #y", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? success\n- failure\n| recover\n@ cleanup\n@! onFail", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
     CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
@@ -1621,8 +1674,8 @@ TEST_CASE("Grammar2::test command body negative cases") {
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, ": x"));  // missing typename
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoIt"));  // uppercase
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "Obj:: method"));  // uppercase receiver
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj:: Method"));  // uppercase method
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(Obj):: method"));  // uppercase receiver
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(obj):: Method"));  // uppercase method
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method"));  // single colon
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, ":: method"));  // missing receiver
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj::"));  // missing method
@@ -1650,17 +1703,17 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK(testParse(grammar.CALL_QUOTE, "{doIt}", Production::CALL_QUOTE));
     CHECK(testParse(grammar.CALL_QUOTE, "{process: item}", Production::CALL_QUOTE));
     CHECK(testParse(grammar.CALL_QUOTE, "{calculate: a, b, c}", Production::CALL_QUOTE));
-    CHECK(testParse(grammar.CALL_QUOTE, "{obj:: method: x}", Production::CALL_QUOTE));
-    CHECK(testParse(grammar.CALL_QUOTE, "{a, b:: handle: item}", Production::CALL_QUOTE));
-    CHECK(testParse(grammar.CALL_QUOTE, "{widget:: process}", Production::CALL_QUOTE));
+    CHECK(testParse(grammar.CALL_QUOTE, "{(obj):: method: x}", Production::CALL_QUOTE));
+    CHECK(testParse(grammar.CALL_QUOTE, "{(a, b):: handle: item}", Production::CALL_QUOTE));
+    CHECK(testParse(grammar.CALL_QUOTE, "{(widget):: process}", Production::CALL_QUOTE));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: {Point: x, y}, z", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: {doIt}, size", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: {process: data}", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: {Widget: x, y}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "execute: {doIt}, context", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "handle: {obj:: method: x}", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: {Widget: x, y}", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: {process: item}, data", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "handle: {(obj):: method: x}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: {Widget: x, y}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b):: handle: {process: item}, data", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: _, y", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x, _", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: _, _", Production::CALL_CONSTRUCTOR));
@@ -1669,17 +1722,17 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK(testParse(grammar.CALL_COMMAND, "process: _, item", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: item, _", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "calculate: _, _, result", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: _", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: _, x", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: x, _, z", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: _", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: _, x", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b):: handle: x, _, z", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: {Point: x, y}, _", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: _, {doIt}", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: _, {Widget: x, y}, data", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: {process: item}, _", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: {process: item}, _", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- {Widget: x, y}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- {process: data}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ((({process: data})))", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- {obj:: method: x}", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "callback <- {(obj):: method: x}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- {doIt}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: {Widget: x, y}", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= handler <- {doIt}", Production::DEF_CMD_BODY));
@@ -1729,8 +1782,12 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y) + z", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "a + (process: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt) * (calculate: x)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(obj:: method: x) + y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + (b, c:: handle: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "((obj):: method: x) + y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a + ((b, c):: handle: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "Module::value + x", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a * Std::Math::pi", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "Module::function: x, y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(UI::Widget: x, y) + offset", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- a + b", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- x - y", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "product <- m * n", Production::CALL_ASSIGNMENT));
@@ -1744,7 +1801,7 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y) + z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- (process: item) * factor", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (doIt) + offset", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- (obj:: method: x) - base", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "data <- ((obj):: method: x) - base", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (a + b) * c", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- x + (y * z)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (a + b) / (c - d)", Production::CALL_ASSIGNMENT));
@@ -1785,25 +1842,25 @@ TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{Widget: x, y}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{init\n process: data\n cleanup}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{result <- a + b}", Production::CALL_BLOCK_NOFAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{obj:: method: x, y}", Production::CALL_BLOCK_NOFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{(obj):: method: x, y}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{doIt}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{process: x}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{Widget: x, y}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{init\n process: data\n cleanup}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{result <- a + b}", Production::CALL_BLOCK_FAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{obj:: method: x, y}", Production::CALL_BLOCK_FAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{(obj):: method: x, y}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{doIt}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{process: x}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{Widget: x, y}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n process: data\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{result <- a + b}", Production::CALL_BLOCK_MAYFAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{obj:: method: x, y}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{(obj):: method: x, y}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{? doIt\n - fallback}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{% init\n  process: x}", Production::CALL_BLOCK_FAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{| recover: error}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{result <- process: x\n value <- calculate: y}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{Widget: x, y\n process: widget}", Production::CALL_BLOCK_FAIL));
-    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n obj:: method: x\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
+    CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{init\n (obj):: method: x\n cleanup}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{_}", Production::CALL_BLOCK_NOFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "?{_}", Production::CALL_BLOCK_MAYFAIL));
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, "!{_}", Production::CALL_BLOCK_FAIL));
@@ -1812,9 +1869,9 @@ TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ?{Widget: x, y}", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: :{init\n cleanup}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "execute: !{doIt}, context", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "handle: ?{obj:: method: x}", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "obj:: method: :{Widget: x, y}", Production::CALL_VCOMMAND));
-    CHECK(testParse(grammar.CALL_VCOMMAND, "a, b:: handle: !{process: item}, data", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "handle: ?{(obj):: method: x}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: :{Widget: x, y}", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_VCOMMAND, "(a, b):: handle: !{process: item}, data", Production::CALL_VCOMMAND));
     CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, ":{doIt"));
     CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "!{process: x"));
     CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "?{Widget: x, y"));

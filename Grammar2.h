@@ -37,6 +37,8 @@ namespace basis {
         // Identifiers
         SPPF IDENTIFIER;
         SPPF TYPENAME;
+        SPPF QUALIFIED_IDENTIFIER;
+        SPPF QUALIFIED_TYPENAME;
 
         // Reserved words
         SPPF ALIAS;

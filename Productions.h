@@ -14,6 +14,8 @@ namespace basis {
         // identifiers
         IDENTIFIER,
         TYPENAME,
+        QUALIFIED_IDENTIFIER,
+        QUALIFIED_TYPENAME,
         // reserved words
         ALIAS,
         CLASS,

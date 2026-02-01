@@ -29,8 +29,18 @@ void Grammar2::initLiterals() {
 }
 
 void Grammar2::initIdentifiers() {
-   IDENTIFIER = match(Production::IDENTIFIER, TokenType::IDENTIFIER);
-   TYPENAME = match(Production::TYPENAME, TokenType::TYPENAME);
+   QUALIFIED_TYPENAME = group(Production::QUALIFIED_TYPENAME,
+       all(oneOrMore(all(match(Production::TYPENAME, TokenType::TYPENAME),
+           match(Production::DCOLON, TokenType::DCOLON))),
+           match(Production::TYPENAME, TokenType::TYPENAME)));
+
+   QUALIFIED_IDENTIFIER = group(Production::QUALIFIED_IDENTIFIER,
+       all(oneOrMore(all(match(Production::TYPENAME, TokenType::TYPENAME),
+           match(Production::DCOLON, TokenType::DCOLON))),
+           match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
+
+   TYPENAME = any(QUALIFIED_TYPENAME, match(Production::TYPENAME, TokenType::TYPENAME));
+   IDENTIFIER = any(QUALIFIED_IDENTIFIER, match(Production::IDENTIFIER, TokenType::IDENTIFIER));
 }
 
 void Grammar2::initPunctuation() {
@@ -203,7 +213,7 @@ void Grammar2::initCommandDefinitions() {
       all(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARM_NAME) );
 
    DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS,
-       all(separated(DEF_CMD_RECEIVER, COMMA), DCOLON) );
+       all(LPAREN, separated(DEF_CMD_RECEIVER, COMMA), RPAREN, DCOLON) );
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
@@ -269,7 +279,7 @@ void Grammar2::initCommandBody() {
     SUBCALL_COMMAND = group(Production::CALL_COMMAND,
         all(forward(CALL_CMD_TARGET), maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     SUBCALL_VCOMMAND = group(Production::CALL_VCOMMAND,
-        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
+        all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
 
@@ -322,7 +332,7 @@ void Grammar2::initCommandBody() {
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
         all(CALL_CMD_TARGET, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
-        all(separated(IDENTIFIER, COMMA), DCOLON, IDENTIFIER,
+        all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
 
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
