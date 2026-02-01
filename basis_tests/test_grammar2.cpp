@@ -136,6 +136,19 @@ TEST_CASE("Grammar2::test parse enum definition") {
     CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
 }
 
+TEST_CASE("Grammar2::test module definitions") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_MODULE, ".module MyModule", Production::DEF_MODULE));
+    CHECK(testParse(grammar.DEF_MODULE, ".module Std::Collections", Production::DEF_MODULE));
+    CHECK(testParse(grammar.DEF_MODULE, ".module A::B::C", Production::DEF_MODULE));
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module"));  // missing name
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module MyModule:"));  // extra colon
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module MyModule: Int"));  // extra content
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, "module MyModule"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module 123"));  // numeric name
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module my_module"));  // identifier instead of typename
+}
+
 TEST_CASE("Grammar2::test domain type definitions") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyInt: Int", Production::DEF_DOMAIN));

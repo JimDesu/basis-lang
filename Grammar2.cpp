@@ -9,6 +9,7 @@ Grammar2::Grammar2() {
     initReservedWords();
     initTypeExpressions();
     initEnumerations();
+    initModuleTypes();
     initDomainTypes();
     initRecordTypes();
     initObjectTypes();
@@ -157,6 +158,12 @@ void Grammar2::initEnumerations() {
    DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME1, TokenType::TYPENAME);
    DEF_ENUM = boundedGroup(Production::DEF_ENUM,
        ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
+}
+
+void Grammar2::initModuleTypes() {
+    DEF_MODULE_NAME = group(Production::DEF_MODULE_NAME, TYPENAME);
+    DEF_MODULE = boundedGroup(Production::DEF_MODULE,
+        all(MODULE, DEF_MODULE_NAME));
 }
 
 void Grammar2::initDomainTypes() {

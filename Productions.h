@@ -97,6 +97,9 @@ namespace basis {
 
         // -- type aliases
         DEF_ALIAS,
+        // -- module definitions
+        DEF_MODULE,
+        DEF_MODULE_NAME,
         // -- domain definitions
         DEF_DOMAIN,
         DEF_DOMAIN_NAME,

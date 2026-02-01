@@ -15,6 +15,7 @@ namespace basis {
         void initPunctuation();
         void initReservedWords();
         void initEnumerations();
+        void initModuleTypes();
         void initDomainTypes();
         void initRecordTypes();
         void initObjectTypes();
@@ -127,6 +128,10 @@ namespace basis {
 
         // Alias definition
         SPPF DEF_ALIAS;
+
+        // Module definition
+        SPPF DEF_MODULE;
+        SPPF DEF_MODULE_NAME;
 
         // Domain definition
         SPPF DEF_DOMAIN;
