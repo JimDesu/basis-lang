@@ -724,6 +724,12 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w, Button 'b):: doIt: Int x -> 'result / Int ctx", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: doIt: Int x -> result", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: doIt: Int x -> result / Int ctx", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: method -> w", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Container c):: getSize -> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w, Button b):: combine -> w", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Handler h):: ?tryGet -> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Processor p):: !mustProcess -> output", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Widget w):: getValue -> result / Int ctx", Production::DEF_CMD_DECL));
 
     // Test qualified typenames in command declarations
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (UI::Widget w):: render", Production::DEF_CMD_DECL));
@@ -1079,6 +1085,18 @@ TEST_CASE("Grammar2::test class definition parsing") {
         "  .cmd (Widget w, Button b):: handle: Int x = (w):: update: x\n    (b):: click",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd (Container c):: getSize -> result = (c):: computeSize",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd (Widget w):: getValue -> w = (w):: extract",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd (Handler h, Context ctx):: ?tryGet -> result = (h):: attempt: ctx",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
         "  .decl Widget w: Int x, Int y\n"
         "  .cmd doIt = process\n"
@@ -1108,6 +1126,10 @@ TEST_CASE("Grammar2::test class definition parsing") {
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt ="));  // missing body after equals
     CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt _"));  // missing equals before body
+    // Regular commands (without receivers) cannot have return value without parameters
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt -> result = process"));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Handler:\n  .cmd ?tryIt -> output = attempt"));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Processor:\n  .cmd !mustFail -> result = fail"));
 }
 
 TEST_CASE("Grammar2::test instance declaration parsing") {

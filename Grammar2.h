@@ -163,6 +163,7 @@ namespace basis {
         SPPF DEF_CMD_FAILS;
         SPPF DEF_CMD_MAYFAIL;
         SPPF DEF_CMD_PARMS;
+        SPPF DEF_CMD_VPARMS;
         SPPF DEF_CMD_PARM_LIST;
         SPPF DEF_CMD_PARM;
         SPPF DEF_CMD_PARMTYPE_NAME;

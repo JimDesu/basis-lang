@@ -219,8 +219,15 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
       IDENTIFIER) );
    DEF_CMD_PARM_LIST = separated(DEF_CMD_PARM, COMMA);
+   // For regular commands - requires parameters if return value is present
    DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,
-      all(DEF_CMD_PARM_LIST, DEF_CMD_RETVAL) ));
+      all(DEF_CMD_PARM_LIST, maybe(DEF_CMD_RETVAL)) ));
+   // For VCOMMAND - allows return value without parameters (receivers act as implicit parameters)
+   DEF_CMD_VPARMS = all(
+      maybe(prefix(COLON, group(Production::DEF_CMD_PARMS,
+         DEF_CMD_PARM_LIST))),
+      maybe(DEF_CMD_RETVAL)
+   );
 
    DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
    DEF_CMD_MAYFAIL = match(Production::DEF_CMD_MAYFAIL, TokenType::QMARK);
@@ -238,10 +245,12 @@ void Grammar2::initCommandDefinitions() {
                separated(DEF_CMD_PARM, COMMA)),
            // constructor
            all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
-           // command / method
-           all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
-   DEF_CMD_INTRINSIC = boundedGroup(Production::DEF_CMD_INTRINSIC, any(
-       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ));
+           // VCOMMAND - with receivers, allows -> result without params
+           all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
+           // Regular command - without receivers, requires params for -> result
+           all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
+   DEF_CMD_INTRINSIC = boundedGroup(Production::DEF_CMD_INTRINSIC,
+       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) );
 
    DEF_CMD = boundedGroup(Production::DEF_CMD,
        all(
@@ -253,8 +262,10 @@ void Grammar2::initCommandDefinitions() {
                all(group(Production::ON_EXIT, AMPHORA), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
                // failure handler
                all(group(Production::ON_EXIT_FAIL, AMBANG), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
-               // command / method
-               all(maybe(DEF_CMD_RECEIVERS), DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
+               // VCOMMAND - with receivers, allows -> result without params
+               all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
+               // Regular command - without receivers, requires params for -> result
+               all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
             forward(DEF_CMD_BODY) ));
 
 }
