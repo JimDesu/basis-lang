@@ -1334,11 +1334,11 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " | recover: error\n"
         " | Error e> handleError: e\n"
         " @ cleanup: resource\n"
+        " a <- :{ % doIt\n"
+        "       }\n"
+        " execute: { % doIt\n"
+        "          }\n"
         " @! onFailure: error\n"
-        // TODO diagnose the indentation scoping that causes anything following this to fail.
-        " execute: {%doIt}\n"
-        /*
-        */
         , Production::DEF_CMD));
 }
 

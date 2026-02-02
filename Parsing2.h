@@ -21,10 +21,13 @@ namespace basis {
     public:
         virtual ~ParseFn() = default;
         virtual bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                          itToken* pIter, const Token* pLimit) const = 0;
+                          itToken* pIter, const Token* pLimit,
+                          itToken* pFurthest, const ParseFn** ppFurthestParser) const = 0;
         static bool atLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit);
         static const Token* getBoundLimit(const std::list<spToken>& tokens, itToken* pIter, const Token* pLimit);
         static spParseTree* createGroupNode(Production prod, spParseTree** dpspResult);
+        static void updateFurthest(const std::list<spToken>& tokens, itToken* pIter,
+                                   itToken* pFurthest, const ParseFn** ppFurthestParser, const ParseFn* pThis);
     };
 
     using SPPF = std::shared_ptr<ParseFn>;
@@ -44,6 +47,8 @@ namespace basis {
         const std::list<spToken>& tokens;
         SPPF spfn;
         itToken finalPosition;
+        itToken furthestPosition;
+        const ParseFn* furthestParser;
     };
 
     // Discard combinator - matches a token type but doesn't create parse tree node
@@ -51,7 +56,8 @@ namespace basis {
     public:
         explicit Discard(TokenType type);
         bool parse(const std::list<spToken>& tokens, spParseTree** _unused,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         TokenType type;
     };
@@ -62,7 +68,8 @@ namespace basis {
     public:
         Match(Production prod, TokenType type);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         Production prod;
         TokenType type;
@@ -74,7 +81,8 @@ namespace basis {
     public:
         explicit Maybe(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         SPPF spfn;
     };
@@ -85,7 +93,8 @@ namespace basis {
     public:
         explicit Prefix(std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         std::vector<SPPF> sequence;
     };
@@ -100,7 +109,8 @@ namespace basis {
     public:
         explicit Any(std::vector<SPPF> alternatives);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         std::vector<SPPF> alternatives;
     };
@@ -115,7 +125,8 @@ namespace basis {
     public:
         explicit All(std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         std::vector<SPPF> sequence;
     };
@@ -130,7 +141,8 @@ namespace basis {
     public:
         explicit OneOrMore(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         SPPF spfn;
     };
@@ -141,7 +153,8 @@ namespace basis {
     public:
         Separated(SPPF spElement, SPPF spSeparator);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         SPPF spElement;
         SPPF spSeparator;
@@ -153,7 +166,8 @@ namespace basis {
     public:
         explicit Bound(SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         SPPF spfn;
     };
@@ -164,7 +178,8 @@ namespace basis {
     public:
         Group(Production prod, SPPF spParseFn);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         Production prod;
         SPPF spfn;
@@ -176,7 +191,8 @@ namespace basis {
     public:
         BoundedGroup(bool isStrict, Production prod, std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         bool isStrict;
         Production prod;
@@ -198,7 +214,8 @@ namespace basis {
     public:
         explicit Forward(const SPPF& spfnRef);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
-                  itToken* pIter, const Token* pLimit) const override;
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         const SPPF& spfnRef;
     };
