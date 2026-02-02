@@ -1326,6 +1326,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " - fallback: y\n"
         " ?? multiCheck: x\n"
         " ! unless: y\n"
+        " a <- :{ % doIt }\n"
         " % block\n"
         "   call: x,y\n"
         "   % nested: a,b\n"
@@ -1334,10 +1335,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " | recover: error\n"
         " | Error e> handleError: e\n"
         " @ cleanup: resource\n"
-        " a <- :{ % doIt\n"
-        "       }\n"
-        " execute: { % doIt\n"
-        "          }\n"
+        " execute: { doIt }\n"
         " @! onFailure: error\n"
         , Production::DEF_CMD));
 }
@@ -1634,7 +1632,9 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "!<>{doIt}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<>{(obj):: method: x}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{%process: x}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{%doIt\n                            cleanup}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION,
+        "?<String name, Int count>{%doIt\n"
+                "                           cleanup}", Production::CALL_EXPRESSION));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x{Widget: x, y}"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y"));

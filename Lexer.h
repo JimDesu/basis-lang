@@ -58,6 +58,7 @@ namespace basis {
             bool readString();
             bool checkPunct() const;
             bool readPunct();
+            void bindBrace();
     };
 }
 

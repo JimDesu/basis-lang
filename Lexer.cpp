@@ -61,7 +61,9 @@ spToken Lexer::nextToken() {
     pToken->columnNumber = columnNumber;
     // handle indent-based scope bounding
     while (!indents.empty() && indents.top()->columnNumber >= pToken->columnNumber) {
-        indents.top()->bound = pToken;
+        if ( !indents.top()->bound ) {
+            indents.top()->bound = pToken;
+        }
         indents.pop();
     }
     indents.push(pToken);
@@ -375,6 +377,34 @@ bool Lexer::readString() {
     return true;
 }
 
+void Lexer::bindBrace() {
+    // Check if output list has at least one token and the last token is RBRACE
+    if (output.empty() || output.back()->type != TokenType::RBRACE) {
+        return;
+    }
+
+    // Get the RBRACE token that will be used as the bound
+    spToken rbrace = output.back();
+
+    // Iterate through the output list in reverse order, starting from second-to-last
+    auto it = output.rbegin();
+    ++it; // Skip the RBRACE itself
+
+    for (; it != output.rend(); ++it) {
+        spToken currentToken = *it;
+        if (currentToken->bound) {
+            return;
+        }
+        if (currentToken->type == TokenType::LBRACE ||
+            currentToken->type == TokenType::BANGBRACE ||
+            currentToken->type == TokenType::COLBRACE ||
+            currentToken->type == TokenType::QBRACE) {
+            return;
+        }
+        currentToken->bound = rbrace;
+    }
+}
+
 bool Lexer::readPunct() {
     spToken pToken = nextToken();
     pToken->text += readChar;
@@ -508,6 +538,7 @@ bool Lexer::readPunct() {
         break;
     case '}':
         pToken->type = TokenType::RBRACE;
+        bindBrace();
         break;
     case ']':
         pToken->type = TokenType::RBRACKET;

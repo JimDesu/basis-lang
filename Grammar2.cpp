@@ -339,10 +339,7 @@ void Grammar2::initCommandBody() {
             all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)),
         group(Production::CALL_BLOCK_MAYFAIL,
             all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)) );
-    CALL_SUBQUOTE = all(
-        LBRACE,
-        maybe(any(boundedGroup(Production::DO_BLOCK, all(PERCENT, forward(CALL_GROUP))), SUB_CALL) ),
-        RBRACE );
+    CALL_SUBQUOTE = all( LBRACE, maybe( SUB_CALL ), RBRACE );
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
@@ -365,7 +362,7 @@ void Grammar2::initCommandBody() {
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
-        any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, CALL_SUBQUOTE ));
+        any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, LBRACE, forward(CALL_GROUP), RBRACE ));
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_CMD_LITERAL,
         CALL_QUOTE,
