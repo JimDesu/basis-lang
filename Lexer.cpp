@@ -405,6 +405,26 @@ void Lexer::bindBrace() {
     }
 }
 
+void Lexer::bindParen() {
+    // Check if output list has at least one token and the last token is RPAREN
+    if (output.empty() || output.back()->type != TokenType::RPAREN) {
+        return;
+    }
+    // Get the RPAREN token that will be used as the bound
+    spToken rparen = output.back();
+    // Iterate through the output list in reverse order, starting from second-to-last
+    auto it = output.rbegin();
+    ++it; // Skip the RPAREN itself
+
+    for (; it != output.rend(); ++it) {
+        spToken currentToken = *it;
+        if (currentToken->bound || currentToken->type == TokenType::LPAREN) {
+            return;
+        }
+        currentToken->bound = rparen;
+    }
+}
+
 bool Lexer::readPunct() {
     spToken pToken = nextToken();
     pToken->text += readChar;
@@ -545,6 +565,7 @@ bool Lexer::readPunct() {
         break;
     case ')':
         pToken->type = TokenType::RPAREN;
+        bindParen();
         break;
     case '/':
         pToken->type = TokenType::SLASH;

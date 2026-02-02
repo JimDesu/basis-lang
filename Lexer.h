@@ -59,6 +59,7 @@ namespace basis {
             bool checkPunct() const;
             bool readPunct();
             void bindBrace();
+            void bindParen();
     };
 }
 
