@@ -2,6 +2,9 @@
 #define PARSER2_H
 
 #include <list>
+#include <iostream>
+#include <string>
+#include <sstream>
 #include <memory>
 #include <vector>
 
@@ -33,6 +36,7 @@ namespace basis {
         bool parse();
         // test support; will not be used at runtime
         bool allTokensConsumed() const;
+        std::string getError() const;
 
         spParseTree parseTree;
 

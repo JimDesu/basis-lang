@@ -32,6 +32,19 @@ namespace basis {
         return finalPosition == tokens.cend();
     }
 
+    std::string Parser::getError() const {
+        std::stringstream ss;
+        ss << "(" << finalPosition->get()->lineNumber << ":"
+           << finalPosition->get()->columnNumber << ")" << finalPosition->get()->text;
+        if ( finalPosition->get()->bound ) {
+            ss << " -> ( " << finalPosition->get()->bound->lineNumber << ":"
+               << finalPosition->get()->bound->columnNumber << ")"
+               << finalPosition->get()->bound->text;
+        }
+        ss << std::endl;
+        return ss.str();
+    }
+
     // Discard implementation
     Discard::Discard(TokenType type) : type(type) {}
 

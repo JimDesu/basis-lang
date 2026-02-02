@@ -34,6 +34,17 @@ namespace {
         return parser.parse() && parser.allTokensConsumed()
             && parser.parseTree != nullptr && parser.parseTree->production == expected;
     }
+
+    bool debugTestParse(SPPF parseFn, const std::string& text, Production expected) {
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
+        Parser parser(tokens, parseFn);
+        if (parser.parse() && parser.allTokensConsumed()
+            && parser.parseTree != nullptr && parser.parseTree->production == expected) return true;
+        std::cerr << parser.getError();
+        return false;
+    }
 }
 
 TEST_CASE("Grammar2::test parse literals") {
@@ -609,7 +620,7 @@ TEST_CASE("Grammar2::test TYPE_EXPR_DOMAIN") {
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "["));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "]"));
     CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "Int[]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Array[10]", Production::TYPE_EXPR_DOMAIN));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Array[10]"));
 }
 
 TEST_CASE("Grammar2::test type alias definitions") {
@@ -654,7 +665,7 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias String': String"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias T': U'"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int'"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType': ^[]List'[T']", Production::DEF_ALIAS));
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType': ^[]List'[T']"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias List'[T']:\n ^[]T"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias Map'[K', V']:\n ^[]Pair[K, V]"));
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType':\n ^[]List[T]"));
@@ -702,7 +713,7 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]?<Int, String'>", Production::DEF_CMD_PARMTYPE_NAME));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[]"));
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "[8]"));
-    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "!<List[T']>", Production::DEF_CMD_PARMTYPE_NAME));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "!<List[T']>"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "String'"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "T'"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "^Int'"));
@@ -818,7 +829,7 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Resource r: !<String', Int> result", Production::DEF_CMD_DECL));
 
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt -> result", Production::DEF_CMD_DECL));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt -> result"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ^Int' ptr"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: []String' items"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: List[T'] list"));
@@ -1263,6 +1274,74 @@ TEST_CASE("Grammar2::test full command definitions with bodies") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! doIt: String error = logError: error"));
 }
 
+TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
+    Grammar2& grammar = getGrammar();
+
+    // Single command definition containing all permissible syntax variations in its body
+    CHECK(debugTestParse(grammar.DEF_CMD,
+        ".cmd process: Int x, String y -> result / ^Context ctx = "
+        " init: x\n"
+        " Widget: x, y\n"
+        " Container[Int]: x\n"
+        " Std::Collections::List[String]: y\n"
+        " (w):: method\n"
+        " (w, b):: combine: x, y\n"
+        " simple\n"
+        " Qualified::command: x\n"
+        " withParams: x, y\n"
+        " ? mayfail: x\n"
+        " !mustSucceed: y\n"
+        " #temp <- getValue: x\n"
+        " result <- compute: x, y\n"
+        " #alloc <- allocate\n"
+        " temp <- (obj):: process: x\n"
+        " value <- Widget: x, y\n"
+        " data <- Std::String: y\n"
+        " handler <- {process: x}\n"
+        " callback <- {Widget: x, y}\n"
+        " quoted <- {(obj):: method}\n"
+        " cmd <- :<Int 'a> {doIt}\n"
+        " process: _\n"
+        " handle: x, _, y\n"
+        " sum <- x + y\n"
+        " product <- x * y\n"
+        " expr <- (x + y) * result\n"
+        " ptr <- value^\n"
+        " addr <- value&\n"
+        " item <- array[x]\n"
+        " elem <- matrix[x, y]\n"
+        " literal <- 42\n"
+        " text <- \"hello\"\n"
+        " hex <- 0x1234_5678\n"
+        " enumVal <- Status[ok]\n"
+        " nested <- (((x + y)))\n"
+        " $handler: x\n"
+        " $ @ cleanup: x\n"
+        " $ @ identifier\n"
+        " $@!onFail: x\n"
+        " $ {process: x}: y\n"
+        " process: ($handler)\n"
+        " ? validate: x\n"
+        "   call: x\n"
+        " - fallback: y\n"
+        " ?? multiCheck: x\n"
+        " ! unless: y\n"
+        " % block\n"
+        "   call: x,y\n"
+        "   % nested: a,b\n"
+        "     nested: c,d\n"
+        " ^ rewind\n"
+        " | recover: error\n"
+        " | Error e> handleError: e\n"
+        " @ cleanup: resource\n"
+        " @! onFailure: error\n"
+        // TODO diagnose the indentation scoping that causes anything following this to fail.
+        " execute: {%doIt}\n"
+        /*
+        */
+        , Production::DEF_CMD));
+}
+
 TEST_CASE("Grammar2::test CALL_IDENTIFIER") {
     Grammar2& grammar = getGrammar();
 
@@ -1339,7 +1418,7 @@ TEST_CASE("Grammar2::test CALL_VCOMMAND") {
     CHECK(testParse(grammar.CALL_VCOMMAND, "(x, y, z):: process: data", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: (Widget: x, y)", Production::CALL_VCOMMAND));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj):: method: x", Production::CALL_VCOMMAND));
-    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b):: handle: item", Production::CALL_VCOMMAND));
+    CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b):: handle: item"));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(Obj):: method: x"));  // uppercase receiver
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(obj):: Method: x"));  // uppercase method name
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method: x"));  // single colon instead of double
@@ -1662,8 +1741,8 @@ TEST_CASE("Grammar2::test BLOCK") {
     CHECK(testParse(grammar.BLOCK, "% Container: size\n doIt", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? (obj):: method: x", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "| (a, b):: recover: error", Production::DO_BLOCK));
-    CHECK_FALSE(testParse(grammar.BLOCK, "% init\nprocess: data\ncleanup", Production::DO_BLOCK));
-    CHECK_FALSE(testParse(grammar.BLOCK, "% Container: size\ndoIt", Production::DO_BLOCK));
+    CHECK_FALSE(testParse(grammar.BLOCK, "% init\nprocess: data\ncleanup"));
+    CHECK_FALSE(testParse(grammar.BLOCK, "% Container: size\ndoIt"));
 }
 
 TEST_CASE("Grammar2::test DEF_CMD_BODY") {
@@ -2027,8 +2106,7 @@ TEST_CASE("Grammar2::test COMPILATION_UNIT - module and imports") {
     CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
         ".module MyModule\n"
         "  .import \"file1.basis\"\n"
-        "  .import \"file2.basis\"",
-        Production::COMPILATION_UNIT));
+        "  .import \"file2.basis\""));
 }
 
 TEST_CASE("Grammar2::test COMPILATION_UNIT - module, imports, and definitions") {
@@ -2206,8 +2284,7 @@ TEST_CASE("Grammar2::test COMPILATION_UNIT - indentation variations") {
         ".module MyModule\n"
         "    .import \"utils.basis\"\n"
         "    .alias MyInt: Int\n"
-        "    .domain UserId: Int",
-        Production::COMPILATION_UNIT));
+        "    .domain UserId: Int"));
 }
 
 TEST_CASE("Grammar2::test COMPILATION_UNIT - with complex class definitions") {
@@ -2502,8 +2579,7 @@ TEST_CASE("Grammar2::test COMPILATION_UNIT - edge cases with whitespace and newl
         ".module MyModule\n"
         "  .import \"file.basis\"\n"
         "    .alias MyInt: Int\n"
-        "      .domain UserId: Int",
-        Production::COMPILATION_UNIT));
+        "      .domain UserId: Int"));
 }
 
 TEST_CASE("Grammar2::test COMPILATION_UNIT - all 13 definition types together") {
