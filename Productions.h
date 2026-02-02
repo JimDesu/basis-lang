@@ -195,7 +195,9 @@ namespace basis {
         DO_RECOVER_SPEC,
         RECOVER_SPEC,
         BLOCK_HEADER,
-        ENUM_DEREF
+        ENUM_DEREF,
+        // -- compilation unit
+        COMPILATION_UNIT
 
     };
 }

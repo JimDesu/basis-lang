@@ -21,6 +21,7 @@ Grammar2::Grammar2() {
     initCommandBody();
     initProgramDefinitions();
     initTestDefinitions();
+    initCompilationUnit();
 }
 
 void Grammar2::initLiterals() {
@@ -162,23 +163,22 @@ void Grammar2::initEnumerations() {
        COMMA);
    DEF_ENUM_NAME2 = maybe(match(Production::DEF_ENUM_NAME2, TokenType::TYPENAME));
    DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME1, TokenType::TYPENAME);
-   DEF_ENUM = boundedGroup(Production::DEF_ENUM,
+   DEF_ENUM = exclusiveGroup(Production::DEF_ENUM,
        ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
 }
 
 void Grammar2::initModuleTypes() {
     DEF_MODULE_NAME = group(Production::DEF_MODULE_NAME, TYPENAME);
-    DEF_MODULE = boundedGroup(Production::DEF_MODULE,
-        all(MODULE, DEF_MODULE_NAME));
+    DEF_MODULE = exclusiveGroup(Production::DEF_MODULE, all(MODULE, DEF_MODULE_NAME));
 }
 
 void Grammar2::initProgramDefinitions() {
-    DEF_PROGRAM = boundedGroup(Production::DEF_PROGRAM,
+    DEF_PROGRAM = exclusiveGroup(Production::DEF_PROGRAM,
         all(PROGRAM, EQUALS, SUBCALL_COMMAND));
 }
 
 void Grammar2::initTestDefinitions() {
-    DEF_TEST = boundedGroup(Production::DEF_TEST,
+    DEF_TEST = exclusiveGroup(Production::DEF_TEST,
         all(TEST, STRING, EQUALS, CALL_GROUP));
 }
 
@@ -188,12 +188,12 @@ void Grammar2::initImports() {
     DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD,
         all(maybe(all(TYPENAME_UNQUALIFIED, COLON)), TYPENAME));
 
-    DEF_IMPORT = boundedGroup(Production::DEF_IMPORT,
+    DEF_IMPORT = exclusiveGroup(Production::DEF_IMPORT,
         all(IMPORT, any(DEF_IMPORT_FILE, DEF_IMPORT_STANDARD)));
 }
 
 void Grammar2::initDomainTypes() {
-    DEF_DOMAIN = boundedGroup(Production::DEF_DOMAIN,
+    DEF_DOMAIN = exclusiveGroup(Production::DEF_DOMAIN,
         all(DOMAIN, group(Production::DEF_DOMAIN_NAME, TYPENAME), COLON,
             group(Production::DEF_DOMAIN_PARENT,
                any(TYPENAME, all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
@@ -204,7 +204,7 @@ void Grammar2::initRecordTypes() {
             group(Production::DEF_RECORD_FIELD_NAME, IDENTIFIER)) );
      DEF_RECORD_FIELDS = group(Production::DEF_RECORD_FIELDS,
         separated(DEF_RECORD_FIELD, COMMA) );
-     DEF_RECORD = boundedGroup(Production::DEF_RECORD,
+     DEF_RECORD = exclusiveGroup(Production::DEF_RECORD,
         all(RECORD, group(Production::DEF_RECORD_NAME, TYPEDEF_NAME_Q), COLON, DEF_RECORD_FIELDS) );
 }
 
@@ -214,7 +214,7 @@ void Grammar2::initObjectTypes() {
             group(Production::DEF_OBJECT_FIELD_NAME, IDENTIFIER)) );
     DEF_OBJECT_FIELDS = group(Production::DEF_OBJECT_FIELDS,
        separated(DEF_OBJECT_FIELD, COMMA) );
-    DEF_OBJECT = boundedGroup(Production::DEF_OBJECT,
+    DEF_OBJECT = exclusiveGroup(Production::DEF_OBJECT,
         all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
 }
 
@@ -224,12 +224,12 @@ void Grammar2::initInstanceDecls() {
     DEF_INSTANCE_TYPES = group(Production::DEF_INSTANCE_TYPES,
         separated(all(TYPENAME, maybe(DEF_INSTANCE_DELEGATE)), COMMA) );
     DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
-    DEF_INSTANCE = boundedGroup(Production::DEF_INSTANCE,
+    DEF_INSTANCE = exclusiveGroup(Production::DEF_INSTANCE,
         all(INSTANCE, DEF_INSTANCE_NAME, COLON, DEF_INSTANCE_TYPES) );
 }
 
 void Grammar2::initTypeAliases() {
-   DEF_ALIAS = boundedGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));
+   DEF_ALIAS = exclusiveGroup(Production::DEF_ALIAS, all(ALIAS, TYPEDEF_NAME_Q, COLON, TYPE_EXPR));
 }
 
 void Grammar2::initCommandDefinitions() {
@@ -268,7 +268,7 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_NAME_SPEC = group(Production::DEF_CMD_NAME_SPEC,
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
-   DEF_CMD_DECL = group(Production::DEF_CMD_DECL,
+   DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL,
        all(DECLARE, any(
            // destructor
            all(group(Production::ON_EXIT, AMPHORA),DEF_CMD_RECEIVER, COLON,
@@ -282,10 +282,10 @@ void Grammar2::initCommandDefinitions() {
            all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
            // Regular command - without receivers, requires params for -> result
            all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
-   DEF_CMD_INTRINSIC = boundedGroup(Production::DEF_CMD_INTRINSIC,
+   DEF_CMD_INTRINSIC = exclusiveGroup(Production::DEF_CMD_INTRINSIC,
        all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) );
 
-   DEF_CMD = boundedGroup(Production::DEF_CMD,
+   DEF_CMD = exclusiveGroup(Production::DEF_CMD,
        all(
            COMMAND,
            any(
@@ -304,7 +304,7 @@ void Grammar2::initCommandDefinitions() {
 }
 
 void Grammar2::initClassTypes() {
-    DEF_CLASS = boundedGroup(Production::DEF_CLASS,
+    DEF_CLASS = exclusiveGroup(Production::DEF_CLASS,
         all(CLASS, group(Production::DEF_CLASS_NAME, TYPENAME), COLON,
             group(Production::DEF_CLASS_CMDS, oneOrMore( any(DEF_CMD_DECL,DEF_CMD))) ));
 }
@@ -326,18 +326,23 @@ void Grammar2::initCommandBody() {
         all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
+    SUBCALL_GROUP = group(Production::CALL_GROUP,
+        oneOrMore(any(forward(CALL_ASSIGNMENT), SUB_CALL, forward(BLOCK))) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
         any(PLUS, MINUS, ASTERISK, SLASH) );
 
     CALL_BLOCKQUOTE = any(
         group(Production::CALL_BLOCK_NOFAIL,
-            all(COLBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+            all(COLBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)),
         group(Production::CALL_BLOCK_FAIL,
-            all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+            all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)),
         group(Production::CALL_BLOCK_MAYFAIL,
-            all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
-    CALL_SUBQUOTE = all(LBRACE, maybe(any( bound(all(PERCENT, forward(CALL_GROUP))), SUB_CALL)), RBRACE );
+            all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)) );
+    CALL_SUBQUOTE = all(
+        LBRACE,
+        maybe(any(boundedGroup(Production::DO_BLOCK, all(PERCENT, forward(CALL_GROUP))), SUB_CALL) ),
+        RBRACE );
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
@@ -403,7 +408,22 @@ void Grammar2::initCommandBody() {
 }
 
 void Grammar2::initCompilationUnit() {
-
+    COMPILATION_UNIT = group(Production::COMPILATION_UNIT, all(
+        maybe(DEF_MODULE),
+        maybe(oneOrMore(DEF_IMPORT)),
+        maybe(oneOrMore(any(
+            DEF_ALIAS,
+            DEF_CLASS,
+            DEF_CMD,
+            DEF_CMD_DECL,
+            DEF_CMD_INTRINSIC,
+            DEF_DOMAIN,
+            DEF_ENUM,
+            DEF_INSTANCE,
+            DEF_OBJECT,
+            DEF_PROGRAM,
+            DEF_RECORD,
+            DEF_TEST )))));
 }
 
 Grammar2& basis::getGrammar() {

@@ -229,8 +229,8 @@ namespace basis {
     SPPF group(Production prod, SPPF parseFn) { return std::make_shared<Group>(prod, parseFn); }
 
     // BoundedGroup implementation
-    BoundedGroup::BoundedGroup(Production prod, std::vector<SPPF> sequence)
-        : prod(prod), sequence(sequence) {}
+    BoundedGroup::BoundedGroup(bool isStrict, Production prod, std::vector<SPPF> sequence)
+        : isStrict(isStrict), prod(prod), sequence(sequence) {}
 
     bool BoundedGroup::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                             itToken* pIter, const Token* pLimit) const {
@@ -241,11 +241,10 @@ namespace basis {
         spParseTree* down = createGroupNode(prod, dpspResult);
 
         All allParser(sequence);
-        if (allParser.parse(tokens, &down, pIter, boundLimit)) {
-            if (boundLimit == nullptr || atLimit(tokens, pIter, boundLimit)) {
-                guard.commit();
-                return true;
-            }
+        if ( allParser.parse(tokens, &down, pIter, boundLimit) &&
+             (!isStrict && boundLimit == nullptr || atLimit(tokens, pIter, boundLimit))) {
+            guard.commit();
+            return true;
         }
 
         (*dpspResult)->reset();

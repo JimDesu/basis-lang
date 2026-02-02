@@ -170,17 +170,23 @@ namespace basis {
     // BoundedGroup combinator - Group with Bound applied to sequence
     class BoundedGroup : public ParseFn {
     public:
-        BoundedGroup(Production prod, std::vector<SPPF> sequence);
+        BoundedGroup(bool isStrict, Production prod, std::vector<SPPF> sequence);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit) const override;
     private:
+        bool isStrict;
         Production prod;
         std::vector<SPPF> sequence;
     };
 
     template<typename... Args>
     inline SPPF boundedGroup(Production prod, const Args&... args) {
-        return std::make_shared<BoundedGroup>(prod, std::vector<SPPF>{args...});
+        return std::make_shared<BoundedGroup>(false, prod, std::vector<SPPF>{args...});
+    }
+
+    template<typename... Args>
+    inline SPPF exclusiveGroup(Production prod, const Args&... args) {
+        return std::make_shared<BoundedGroup>(true, prod, std::vector<SPPF>{args...});
     }
 
     // Forward combinator - for forward/circular initialization dependencies
