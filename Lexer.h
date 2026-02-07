@@ -12,7 +12,7 @@ namespace basis {
     class Lexer {
         public:
             explicit Lexer(std::istream& inputStream, bool emit = true) : emitErrors(emit),
-                output(), input(inputStream), indents(), lineNumber(1), columnNumber(0),readChar(0),
+                output(), input(inputStream), indents(), parenStack(), braceStack(), bracketStack(), lineNumber(1), columnNumber(0),readChar(0),
                 checks{ &checkComment, &checkWhitespace, &checkHex, &checkBinary, &checkNumeric,
                     &checkTypename, &checkIdentifier, &checkResWord, &checkString, &checkPunct },
                 reads { &readComment, &readWhitespace, &readHex, &readBinary, &readNumeric,
@@ -27,7 +27,10 @@ namespace basis {
             const static std::map<std::string, TokenType> resWords;
             constexpr static int fnCount{ 10 };
             std::istream& input;
-            std::stack<spToken> indents;
+            std::list<spToken> indents;
+            std::stack<spToken> parenStack;
+            std::stack<spToken> braceStack;
+            std::stack<spToken> bracketStack;
             size_t lineNumber;
             size_t columnNumber;
             char readChar;
@@ -58,8 +61,7 @@ namespace basis {
             bool readString();
             bool checkPunct() const;
             bool readPunct();
-            void bindBrace();
-            void bindParen();
+            void bindDelimiters(std::stack<spToken>& delimiterStack, spToken closingToken);
     };
 }
 

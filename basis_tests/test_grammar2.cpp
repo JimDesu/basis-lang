@@ -2029,7 +2029,8 @@ TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: :{doIt}", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Container: !{process: x}, size", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: ?{Widget: x, y}", Production::CALL_CONSTRUCTOR));
-    CHECK(testParse(grammar.CALL_COMMAND, "process: :{init\n cleanup}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "process: :{init\n"
+                                                  "           cleanup}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "execute: !{doIt}, context", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "handle: ?{(obj):: method: x}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: :{Widget: x, y}", Production::CALL_VCOMMAND));

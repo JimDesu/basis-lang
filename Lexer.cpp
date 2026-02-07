@@ -60,13 +60,13 @@ spToken Lexer::nextToken() {
     pToken->lineNumber = lineNumber;
     pToken->columnNumber = columnNumber;
     // handle indent-based scope bounding
-    while (!indents.empty() && indents.top()->columnNumber >= pToken->columnNumber) {
-        if ( !indents.top()->bound ) {
-            indents.top()->bound = pToken;
+    while (!indents.empty() && indents.back()->columnNumber >= pToken->columnNumber) {
+        if ( !indents.back()->bound ) {
+            indents.back()->bound = pToken;
         }
-        indents.pop();
+        indents.pop_back();
     }
-    indents.push(pToken);
+    indents.push_back(pToken);
     // done
     return pToken;
 }
@@ -377,52 +377,17 @@ bool Lexer::readString() {
     return true;
 }
 
-void Lexer::bindBrace() {
-    // Check if output list has at least one token and the last token is RBRACE
-    if (output.empty() || output.back()->type != TokenType::RBRACE) {
-        return;
-    }
-
-    // Get the RBRACE token that will be used as the bound
-    spToken rbrace = output.back();
-
-    // Iterate through the output list in reverse order, starting from second-to-last
-    auto it = output.rbegin();
-    ++it; // Skip the RBRACE itself
-
-    for (; it != output.rend(); ++it) {
+void Lexer::bindDelimiters(std::stack<spToken>& delimiterStack, spToken closingToken) {
+    if (delimiterStack.empty()) return;
+    spToken openingToken = delimiterStack.top();
+    auto it = indents.rbegin();
+    if ( *it == closingToken ) ++it;
+    for (; it != indents.rend(); ++it) {
         spToken currentToken = *it;
-        if (currentToken->bound) {
-            return;
-        }
-        if (currentToken->type == TokenType::LBRACE ||
-            currentToken->type == TokenType::BANGBRACE ||
-            currentToken->type == TokenType::COLBRACE ||
-            currentToken->type == TokenType::QBRACE) {
-            return;
-        }
-        currentToken->bound = rbrace;
+        if (currentToken == openingToken) break;
+        if (!currentToken->bound) currentToken->bound = closingToken;
     }
-}
-
-void Lexer::bindParen() {
-    // Check if output list has at least one token and the last token is RPAREN
-    if (output.empty() || output.back()->type != TokenType::RPAREN) {
-        return;
-    }
-    // Get the RPAREN token that will be used as the bound
-    spToken rparen = output.back();
-    // Iterate through the output list in reverse order, starting from second-to-last
-    auto it = output.rbegin();
-    ++it; // Skip the RPAREN itself
-
-    for (; it != output.rend(); ++it) {
-        spToken currentToken = *it;
-        if (currentToken->bound || currentToken->type == TokenType::LPAREN) {
-            return;
-        }
-        currentToken->bound = rparen;
-    }
+    delimiterStack.pop();
 }
 
 bool Lexer::readPunct() {
@@ -465,6 +430,7 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::BANGBRACE;
+            braceStack.push(pToken);
         } else {
             pToken->type = TokenType::BANG;
         }
@@ -488,6 +454,7 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::COLBRACE;
+            braceStack.push(pToken);
         } else {
             pToken->type = TokenType::COLON;
         }
@@ -500,15 +467,18 @@ bool Lexer::readPunct() {
         break;
     case '{':
         pToken->type = TokenType::LBRACE;
+        braceStack.push(pToken);
         break;
     case '[':
         pToken->type = TokenType::LBRACKET;
+        bracketStack.push(pToken);
         break;
     case '%':
         pToken->type = TokenType::PERCENT;
         break;
     case '(':
         pToken->type = TokenType::LPAREN;
+        parenStack.push(pToken);
         break;
     case '-':
         if ( input.good() && input.peek() == '>') {
@@ -549,6 +519,7 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::QBRACE;
+            braceStack.push(pToken);
         } else {
             pToken->type = TokenType::QMARK;
         }
@@ -558,14 +529,15 @@ bool Lexer::readPunct() {
         break;
     case '}':
         pToken->type = TokenType::RBRACE;
-        bindBrace();
+        bindDelimiters(braceStack, pToken);
         break;
     case ']':
         pToken->type = TokenType::RBRACKET;
+        bindDelimiters(bracketStack, pToken);
         break;
     case ')':
         pToken->type = TokenType::RPAREN;
-        bindParen();
+        bindDelimiters(parenStack, pToken);
         break;
     case '/':
         pToken->type = TokenType::SLASH;
