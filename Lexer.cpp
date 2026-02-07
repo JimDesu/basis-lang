@@ -380,12 +380,11 @@ bool Lexer::readString() {
 void Lexer::bindDelimiters(std::stack<spToken>& delimiterStack, spToken closingToken) {
     if (delimiterStack.empty()) return;
     spToken openingToken = delimiterStack.top();
-    auto it = indents.rbegin();
-    if ( *it == closingToken ) ++it;
-    for (; it != indents.rend(); ++it) {
+    for (auto it = indents.rbegin(); it != indents.rend(); ++it) {
         spToken currentToken = *it;
-        if (currentToken == openingToken) break;
-        if (!currentToken->bound) currentToken->bound = closingToken;
+        if ( currentToken == closingToken ) continue;
+        if ( currentToken == openingToken ) break;
+        if ( !currentToken->bound ) currentToken->bound = closingToken;
     }
     delimiterStack.pop();
 }
