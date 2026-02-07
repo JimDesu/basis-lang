@@ -1540,6 +1540,8 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - in assignments") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "addr <- (data)[2]", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "addr <- (data)[\n"
+                                                     "               2]", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "addr <- data&", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "ref <- (x + y)&", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- arr[0]", Production::CALL_ASSIGNMENT));
@@ -1555,6 +1557,8 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - in assignments") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "addr <- ptr^[0]&", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- ptr1^ + ptr2^", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "sum <- ptr^[0] * ptr^[1]", Production::CALL_ASSIGNMENT));
+    CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "addr <- (data)[\n"
+                                                           "              2]" ));
 }
 
 TEST_CASE("Grammar2::test CALL_EXPRESSION") {
