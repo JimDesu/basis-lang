@@ -151,15 +151,16 @@ namespace basis {
     // Separated combinator - separated list (element, separator, element, ...)
     class Separated : public ParseFn {
     public:
-        Separated(SPPF spElement, SPPF spSeparator);
+        Separated(SPPF spElement, SPPF spSeparator, bool optionalSeparator = true);
         bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                   itToken* pIter, const Token* pLimit,
                   itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
     private:
         SPPF spElement;
         SPPF spSeparator;
+        bool optionalSeparator;
     };
-    SPPF separated(SPPF element, SPPF separator);
+    SPPF separated(SPPF element, SPPF separator, bool optionalSeparator = true);
 
     // Bound combinator - uses token's bound as limit
     class Bound : public ParseFn {

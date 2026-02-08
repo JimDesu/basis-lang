@@ -4,8 +4,8 @@ using namespace basis;
 
 Grammar2::Grammar2() {
     initLiterals();
-    initIdentifiers();
     initPunctuation();
+    initIdentifiers();
     initReservedWords();
     initTypeExpressions();
     initEnumerations();
@@ -34,19 +34,14 @@ void Grammar2::initLiterals() {
 }
 
 void Grammar2::initIdentifiers() {
-   QUALIFIED_TYPENAME = group(Production::QUALIFIED_TYPENAME,
-       all(oneOrMore(all(match(Production::TYPENAME, TokenType::TYPENAME),
-           match(Production::DCOLON, TokenType::DCOLON))),
-           match(Production::TYPENAME, TokenType::TYPENAME)));
-
-   QUALIFIED_IDENTIFIER = group(Production::QUALIFIED_IDENTIFIER,
-       all(oneOrMore(all(match(Production::TYPENAME, TokenType::TYPENAME),
-           match(Production::DCOLON, TokenType::DCOLON))),
-           match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
-
+   QUALIFIED_TYPENAME = group(Production::QUALIFIED_TYPENAME,separated(
+       match(Production::TYPENAME, TokenType::TYPENAME), DCOLON, false ));
    TYPENAME_UNQUALIFIED = match(Production::TYPENAME, TokenType::TYPENAME);
    TYPENAME = any(QUALIFIED_TYPENAME, TYPENAME_UNQUALIFIED);
-   IDENTIFIER = any(QUALIFIED_IDENTIFIER, match(Production::IDENTIFIER, TokenType::IDENTIFIER));
+
+   IDENTIFIER = group(Production::IDENTIFIER, all(
+       maybe(oneOrMore(all(TYPENAME_UNQUALIFIED, DCOLON))),
+       match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
 }
 
 void Grammar2::initPunctuation() {
@@ -223,7 +218,7 @@ void Grammar2::initInstanceDecls() {
         all(LPAREN, IDENTIFIER, RPAREN) );
     DEF_INSTANCE_TYPES = group(Production::DEF_INSTANCE_TYPES,
         separated(all(TYPENAME, maybe(DEF_INSTANCE_DELEGATE)), COMMA) );
-    DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPENAME);
+    DEF_INSTANCE_NAME = group(Production::DEF_INSTANCE_NAME, TYPEDEF_NAME_Q);
     DEF_INSTANCE = exclusiveGroup(Production::DEF_INSTANCE,
         all(INSTANCE, DEF_INSTANCE_NAME, COLON, DEF_INSTANCE_TYPES) );
 }

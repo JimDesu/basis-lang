@@ -64,109 +64,585 @@ namespace {
     }
 }
 
-TEST_CASE("Grammar2::test parse literals") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - empty and minimal") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.DECIMAL, "3.14", Production::DECIMAL));
-    CHECK(testParse(grammar.HEXNUMBER, "0x1_234", Production::HEXNUMBER));
-    CHECK(testParse(grammar.BINARY, "0b000_00100", Production::BINARY));
-    CHECK(testParse(grammar.BINARY, "0b0000010000000001", Production::BINARY));
-    CHECK(testParse(grammar.NUMBER, "1234", Production::NUMBER));
-    CHECK(testParse(grammar.NUMBER, "-1234", Production::NUMBER));
-    CHECK(testParse(grammar.STRING, "\"foo\\n\\\"bar's\"", Production::STRING));
-    CHECK_FALSE(testParse(grammar.DECIMAL, "3.14.56"));
-    CHECK_FALSE(testParse(grammar.HEXNUMBER, "0x12345"));
-    CHECK_FALSE(testParse(grammar.BINARY, "0b0010"));
-    CHECK_FALSE(testParse(grammar.BINARY, "0b000000100"));
-    CHECK_FALSE(testParse(grammar.NUMBER, "1234.56"));
-    CHECK_FALSE(testParse(grammar.STRING, "\"foo\nbar\""));
+
+    // Empty compilation unit (all parts optional)
+    CHECK(testParse(grammar.COMPILATION_UNIT, "", Production::COMPILATION_UNIT));
+
+    // Just a module
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".module MyModule", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".module Std::Collections", Production::COMPILATION_UNIT));
+
+    // Just imports
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".import \"file.basis\"", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".import \"file1.basis\"\n"
+        ".import \"file2.basis\"",
+        Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".import Module1\n"
+        ".import Module2\n"
+        ".import Std:Core",
+        Production::COMPILATION_UNIT));
+
+    // Just definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".alias MyInt: Int", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".domain UserId: Int", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".enum Fish: sockeye = 0, salmon = 1", Production::COMPILATION_UNIT));
 }
 
-TEST_CASE("Grammar2::test parse identifiers") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - module and imports") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.IDENTIFIER, "foobar", Production::IDENTIFIER));
-    CHECK(testParse(grammar.TYPENAME, "Foobar", Production::TYPENAME));
-    CHECK(testParse(grammar.TYPENAME, "Namespace::Type", Production::QUALIFIED_TYPENAME));
-    CHECK(testParse(grammar.TYPENAME, "Std::Collections::List", Production::QUALIFIED_TYPENAME));
-    CHECK(testParse(grammar.TYPENAME, "A::B::C::D::Type", Production::QUALIFIED_TYPENAME));
-    CHECK(testParse(grammar.IDENTIFIER, "Module::identifier", Production::QUALIFIED_IDENTIFIER));
-    CHECK(testParse(grammar.IDENTIFIER, "Std::IO::println", Production::QUALIFIED_IDENTIFIER));
-    CHECK(testParse(grammar.IDENTIFIER, "A::B::C::method", Production::QUALIFIED_IDENTIFIER));
-    CHECK_FALSE(testParse(grammar.TYPENAME, "namespace::Type"));  // lowercase namespace
-    CHECK_FALSE(testParse(grammar.IDENTIFIER, "module::identifier"));  // lowercase module
-    CHECK_FALSE(testParse(grammar.TYPENAME, "Namespace::type"));  // lowercase final component
-    CHECK_FALSE(testParse(grammar.IDENTIFIER, "Module::Identifier"));  // uppercase final component
+
+    // Module followed by imports
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"file1.basis\"\n"
+        ".import \"file2.basis\"\n"
+        ".import Std:Core",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Std::Collections\n"
+        ".import Std:Core\n"
+        ".import Std:Memory",
+        Production::COMPILATION_UNIT));
+
+    // Module with indented imports (boundedGroup rule)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"file1.basis\"\n"
+        ".import \"file2.basis\"",
+        Production::COMPILATION_UNIT));
+
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        "  .import \"file1.basis\"\n"
+        "  .import \"file2.basis\""));
 }
 
-TEST_CASE("Grammar2::test parse reserved words") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - module, imports, and definitions") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.ALIAS, ".alias", Production::ALIAS));
-    CHECK(testParse(grammar.CLASS, ".class", Production::CLASS));
-    CHECK(testParse(grammar.COMMAND, ".cmd", Production::COMMAND));
-    CHECK(testParse(grammar.DOMAIN, ".domain", Production::DOMAIN));
-    CHECK(testParse(grammar.ENUMERATION, ".enum", Production::ENUMERATION));
-    CHECK(testParse(grammar.IMPORT, ".import", Production::IMPORT));
-    CHECK(testParse(grammar.INTRINSIC, ".intrinsic", Production::INTRINSIC));
-    CHECK(testParse(grammar.MODULE, ".module", Production::MODULE));
-    CHECK(testParse(grammar.OBJECT, ".object", Production::OBJECT));
-    CHECK(testParse(grammar.PROGRAM, ".program", Production::PROGRAM));
-    CHECK(testParse(grammar.RECORD, ".record", Production::RECORD));
-    CHECK(testParse(grammar.TEST, ".test", Production::TEST));
+
+    // Module, imports, and a single definition
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"\n"
+        ".alias MyInt: Int",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import Std:Core\n"
+        ".domain UserId: Int",
+        Production::COMPILATION_UNIT));
+
+    // Module, imports, and multiple definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"\n"
+        ".alias MyInt: Int\n"
+        ".domain UserId: Int\n"
+        ".enum Status: active = 0, inactive = 1",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"\n"
+        ".alias MyInt: Int\n"
+        ".domain UserId: Int",
+        Production::COMPILATION_UNIT));
 }
 
-TEST_CASE("Grammar2::test parse punctuation") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - all definition types") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.AMBANG, "@!", Production::AMBANG));
-    CHECK(testParse(grammar.AMPERSAND, "&", Production::AMPERSAND));
-    CHECK(testParse(grammar.AMPHORA, "@", Production::AMPHORA));
-    CHECK(testParse(grammar.ASTERISK, "*", Production::ASTERISK));
-    CHECK(testParse(grammar.BANG, "!", Production::BANG));
-    CHECK(testParse(grammar.BANGBRACE, "!{", Production::BANGBRACE));
-    CHECK(testParse(grammar.BANGLANGLE, "!<", Production::BANGLANGLE));
-    CHECK(testParse(grammar.CARAT, "^", Production::CARAT));
-    CHECK(testParse(grammar.COMMA, ",", Production::COMMA));
-    CHECK(testParse(grammar.COLON, ":", Production::COLON));
-    CHECK(testParse(grammar.COLANGLE, ":<", Production::COLANGLE));
-    CHECK(testParse(grammar.COLBRACE, ":{", Production::COLBRACE));
-    CHECK(testParse(grammar.DCOLON, "::", Production::DCOLON));
-    CHECK(testParse(grammar.DOLLAR, "$", Production::DOLLAR));
-    CHECK(testParse(grammar.EQUALS, "=", Production::EQUALS));
-    CHECK(testParse(grammar.LANGLE, "<", Production::LANGLE));
-    CHECK(testParse(grammar.LARROW, "<-", Production::LARROW));
-    CHECK(testParse(grammar.LBRACE, "{", Production::LBRACE));
-    CHECK(testParse(grammar.LBRACKET, "[", Production::LBRACKET));
-    CHECK(testParse(grammar.LPAREN, "(", Production::LPAREN));
-    CHECK(testParse(grammar.MINUS, "-", Production::MINUS));
-    CHECK(testParse(grammar.PERCENT, "%", Production::PERCENT));
-    CHECK(testParse(grammar.PIPE, "|", Production::PIPE));
-    CHECK(testParse(grammar.PLUS, "+", Production::PLUS));
-    CHECK(testParse(grammar.POUND, "#", Production::POUND));
-    CHECK(testParse(grammar.QBRACE, "?{", Production::QBRACE));
-    CHECK(testParse(grammar.QCOLON, "?:", Production::QCOLON));
-    CHECK(testParse(grammar.QLANGLE, "?<", Production::QLANGLE));
-    CHECK(testParse(grammar.QMARK, "?", Production::QMARK));
-    CHECK(testParse(grammar.QMINUS, "?-", Production::QMINUS));
-    CHECK(testParse(grammar.DQMARK, "??", Production::DQMARK));
-    CHECK(testParse(grammar.RANGLE, ">", Production::RANGLE));
-    CHECK(testParse(grammar.RARROW, "->", Production::RARROW));
-    CHECK(testParse(grammar.RBRACE, "}", Production::RBRACE));
-    CHECK(testParse(grammar.RBRACKET, "]", Production::RBRACKET));
-    CHECK(testParse(grammar.RPAREN, ")", Production::RPAREN));
-    CHECK(testParse(grammar.SLASH, "/", Production::SLASH));
-    CHECK(testParse(grammar.UNDERSCORE, "_", Production::UNDERSCORE));
+
+    // Test with all types of definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"base.basis\"\n"
+        ".alias MyInt: Int\n"
+        ".domain UserId: Int\n"
+        ".enum Status: active = 0, inactive = 1\n"
+        ".record Point: Int x, Int y\n"
+        ".object Node: Int value, ^Node next\n"
+        ".instance MyType: Interface\n"
+        ".test \"simple test\" = doSomething\n"
+        ".program = main",
+        Production::COMPILATION_UNIT));
+
+    // Test with class containing commands
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import Std:Core\n"
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y\n"
+        "  .cmd doIt = process",
+        Production::COMPILATION_UNIT));
+
+    // Test with standalone command definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".cmd doSomething: Int x -> result = process: x\n"
+        ".decl helper: String s -> output\n"
+        ".intrinsic native: Int x",
+        Production::COMPILATION_UNIT));
 }
 
-TEST_CASE("Grammar2::test parse enum definition") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - imports and definitions without module") {
     Grammar2& grammar = getGrammar();
-    // untyped enumeration
-    CHECK(testParse(grammar.DEF_ENUM, ".enum Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
-    // enumeration with a type
-    CHECK(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
-    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum A B fish: sockeye = 0, salmon = 1"));
-    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye= 0,\nsalmon = 1"));
-    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
+
+    // Imports followed by definitions (no module)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".import \"utils.basis\"\n"
+        ".alias MyInt: Int",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".import Std:Core\n"
+        ".import Std:IO\n"
+        ".domain UserId: Int\n"
+        ".record User: UserId id, String name",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".import \"base.basis\"\n"
+        ".enum Color: red = 0, green = 1, blue = 2\n"
+        ".alias ColorCode: Int\n"
+        ".test \"color test\" = validateColor",
+        Production::COMPILATION_UNIT));
 }
 
-TEST_CASE("Grammar2::test module definitions") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - complex multi-definition files") {
+    Grammar2& grammar = getGrammar();
+
+    // Multiple records and objects
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Graphics\n"
+        ".import Std:Math\n"
+        ".record Point: Int x, Int y\n"
+        ".record Vector: Int dx, Int dy\n"
+        ".object Shape: Point origin, Int size\n"
+        ".object Circle: Point center, Int radius",
+        Production::COMPILATION_UNIT));
+
+    // Multiple enums and aliases
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Types\n"
+        ".enum Status: active = 0, inactive = 1\n"
+        ".enum Priority: low = 0, medium = 1, high = 2\n"
+        ".alias StatusCode: Int\n"
+        ".alias PriorityLevel: Int",
+        Production::COMPILATION_UNIT));
+
+    // Mix of all definition types in order
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyApp\n"
+        ".import \"base.basis\"\n"
+        ".import Std:Core\n"
+        ".alias UserId: Int\n"
+        ".domain SessionId: Int\n"
+        ".enum Role: admin = 0, user = 1\n"
+        ".record User: UserId id, String name\n"
+        ".object Session: SessionId id, User user\n"
+        ".class UserManager:\n"
+        "    .decl create: User u -> result\n"
+        ".instance User: Serializable\n"
+        ".cmd authenticate: String username -> result = validate: username\n"
+        ".decl logout: SessionId sid\n"
+        ".intrinsic hashPassword: String pwd\n"
+        ".test \"user creation\" = testCreate\n"
+        ".program = main",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - definitions only (no module or imports)") {
+    Grammar2& grammar = getGrammar();
+
+    // Multiple definitions without module or imports
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".alias MyInt: Int\n"
+        ".domain UserId: Int\n"
+        ".enum Status: active = 0, inactive = 1",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".record Point: Int x, Int y\n"
+        ".object Node: Int value, ^Node next\n"
+        ".class Widget:\n"
+        "  .decl Widget w: Int x",
+        Production::COMPILATION_UNIT));
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".cmd doSomething: Int x -> result = process: x\n"
+        ".decl helper: String s -> output\n"
+        ".intrinsic native: Int x\n"
+        ".test \"test\" = run\n"
+        ".program = main",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - indentation variations") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"utils.basis\"\n"
+        ".alias MyInt: Int",
+        Production::COMPILATION_UNIT));
+
+    // Definitions indented more than module
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        "    .import \"utils.basis\"\n"
+        "    .alias MyInt: Int\n"
+        "    .domain UserId: Int"));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - with complex class definitions") {
+    Grammar2& grammar = getGrammar();
+
+    // Class with multiple commands and declarations
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".class Widget:\n"
+        "    .decl Widget w: Int x, Int y\n"
+        "    .cmd doIt = process\n"
+        "    .cmd render = draw\n"
+        "    .decl update: Int delta\n"
+        "    .cmd @ Widget w: Int code = cleanup: code",
+        Production::COMPILATION_UNIT));
+
+    // Multiple classes
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module UI\n"
+        ".import Graphics:Core\n"
+        ".class Widget:\n"
+        "    .decl Widget w: Int x, Int y\n"
+        ".class Button:\n"
+        "    .decl Button b: String label\n"
+        "    .cmd click = handleClick\n"
+        ".class Container:\n"
+        "    .decl Container c: Int capacity",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - with test and program definitions") {
+    Grammar2& grammar = getGrammar();
+
+    // Multiple tests
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Tests\n"
+        ".test \"test 1\" = run1\n"
+        ".test \"test 2\" = run2\n"
+        ".test \"test 3\" = run3",
+        Production::COMPILATION_UNIT));
+
+    // Tests with other definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyApp\n"
+        ".alias MyInt: Int\n"
+        ".cmd helper: Int x -> result = process: x\n"
+        ".test \"helper test\" = testHelper: 42\n"
+        ".program = main",
+        Production::COMPILATION_UNIT));
+
+    // Program at the end
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyApp\n"
+        ".import Std:Core\n"
+        ".cmd initialize = setup\n"
+        ".cmd run: []String args = execute: args\n"
+        ".program = run: args",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - order variations") {
+    Grammar2& grammar = getGrammar();
+
+    // Definitions can appear in any order (except module must be first, imports before definitions)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"base.basis\"\n"
+        ".enum Status: active = 0\n"
+        ".alias MyInt: Int\n"
+        ".record Point: Int x, Int y\n"
+        ".domain UserId: Int\n"
+        ".object Node: Int value",
+        Production::COMPILATION_UNIT));
+
+    // Commands and declarations mixed
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".cmd doIt = process\n"
+        ".decl helper: Int x\n"
+        ".intrinsic native: String s\n"
+        ".cmd other = run\n"
+        ".decl another: Int y",
+        Production::COMPILATION_UNIT));
+
+    // Classes, instances, tests mixed
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".class Widget:\n"
+        "    .decl Widget w: Int x\n"
+        ".instance Widget: Interface\n"
+        ".test \"test\" = run\n"
+        ".class Button:\n"
+        "    .decl Button b: String label\n"
+        ".test \"another test\" = run2",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - single definition types") {
+    Grammar2& grammar = getGrammar();
+
+    // Just one alias
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".alias MyInt: Int", Production::COMPILATION_UNIT));
+
+    // Just one class
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x",
+        Production::COMPILATION_UNIT));
+
+    // Just one command
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".cmd doIt = process", Production::COMPILATION_UNIT));
+
+    // Just one declaration
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".decl helper: Int x -> result", Production::COMPILATION_UNIT));
+
+    // Just one intrinsic
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".intrinsic native: String s", Production::COMPILATION_UNIT));
+
+    // Just one domain
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".domain UserId: Int", Production::COMPILATION_UNIT));
+
+    // Just one enum
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".enum Status: active = 0", Production::COMPILATION_UNIT));
+
+    // Just one record
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".record Point: Int x, Int y", Production::COMPILATION_UNIT));
+
+    // Just one object
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".object Node: Int value", Production::COMPILATION_UNIT));
+
+    // Just one instance
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".instance MyType: Interface", Production::COMPILATION_UNIT));
+
+    // Just one test
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".test \"test\" = run", Production::COMPILATION_UNIT));
+
+    // Just one program
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".program = main", Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - module only variations") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple module name
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".module MyModule", Production::COMPILATION_UNIT));
+
+    // Qualified module name
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".module Std::Collections::List", Production::COMPILATION_UNIT));
+
+    // Module with just imports (no definitions)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".import \"file.basis\"\n"
+        ".import Std:Core",
+        Production::COMPILATION_UNIT));
+
+    // Module with just definitions (no imports)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        ".alias MyInt: Int\n"
+        ".domain UserId: Int",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - negative tests") {
+    Grammar2& grammar = getGrammar();
+
+    // Invalid module syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".module myModule"));  // lowercase module name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "module MyModule"));  // missing dot
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Module MyModule"));  // wrong case
+
+    // Invalid import syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".import file.basis"));  // missing quotes
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "import \"file.basis\""));  // missing dot
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Import \"file.basis\""));  // wrong case
+
+    // Invalid definition syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".alias myInt: Int"));  // lowercase type name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".domain userId: Int"));  // lowercase domain name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".enum status: active = 0"));  // lowercase enum name
+
+    // Invalid class syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".class widget:\n"
+        "  .decl Widget w: Int x"));  // lowercase class name
+
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".class Widget:\n"
+        ".decl Widget w: Int x"));  // declaration not indented
+
+    // Invalid record/object syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".record point: Int x"));  // lowercase record name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".object node: Int value"));  // lowercase object name
+
+    // Invalid instance syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".instance myType: Interface"));  // lowercase type name
+
+    // Invalid command syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".cmd DoIt = process"));  // uppercase command name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".decl Helper: Int x"));  // uppercase declaration name
+
+    // Invalid test syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".test test = run"));  // missing quotes
+
+    // Invalid program syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "program = main"));  // missing dot
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Program = main"));  // wrong case
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - realistic file examples") {
+    Grammar2& grammar = getGrammar();
+
+    // Realistic utility module
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Std::Utils\n"
+        ".import Std:Core\n"
+        ".alias StringList: List[String]\n"
+        ".cmd join: StringList items, String separator -> result = _\n"
+        ".cmd split: String text, String delimiter -> result = _\n"
+        ".test \"join test\" = testJoin\n"
+        ".test \"split test\" = testSplit",
+        Production::COMPILATION_UNIT));
+
+    // Realistic data model module
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module App::Models\n"
+        ".import Std:Core\n"
+        ".domain UserId: Int\n"
+        ".domain SessionId: Int\n"
+        ".enum UserRole: admin = 0, user = 1, guest = 2\n"
+        ".record User: UserId id, String name, String email, UserRole role\n"
+        ".record Session: SessionId id, UserId userId, Int timestamp\n"
+        ".object UserManager: List[User] users\n"
+        ".instance User: Serializable, Comparable",
+        Production::COMPILATION_UNIT));
+
+    // Realistic service module with classes
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module App::Services\n"
+        ".import App:Models\n"
+        ".import Std:Core\n"
+        ".class AuthService:\n"
+        "    .decl AuthService s: String secret\n"
+        "    .cmd login: String username, String password -> result = authenticate: username, password\n"
+        "    .cmd logout: SessionId sid = invalidate: sid\n"
+        "    .decl validateToken: String token -> result\n"
+        ".class UserService:\n"
+        "    .decl UserService s: UserManager manager\n"
+        "    .cmd createUser: String name, String email -> result = (manager):: add: name, email\n"
+        "    .cmd getUser: UserId id -> result = (manager):: find: id\n"
+        ".test \"auth test\" = testAuth\n"
+        ".test \"user test\" = testUser",
+        Production::COMPILATION_UNIT));
+
+    // Realistic main program module
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module App::Main\n"
+        ".import App:Services\n"
+        ".import App:Models\n"
+        ".import Std:Core\n"
+        ".import Std:IO\n"
+        ".cmd initialize = setupDatabase\n    loadConfig\n"
+        ".cmd run: []String args = initialize\n    startServer: args\n"
+        ".program = run: args",
+        Production::COMPILATION_UNIT));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - edge cases with whitespace and newlines") {
+    Grammar2& grammar = getGrammar();
+
+    // Multiple newlines between definitions
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        "\n"
+        ".import \"file.basis\"\n"
+        "\n"
+        "\n"
+        ".alias MyInt: Int",
+        Production::COMPILATION_UNIT));
+
+    // Definitions with varying indentation levels
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".module MyModule\n"
+        "  .import \"file.basis\"\n"
+        "    .alias MyInt: Int\n"
+        "      .domain UserId: Int"));
+}
+
+TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
+    Grammar2& grammar = getGrammar();
+
+    // Comprehensive test with all 13 definition types that begin with reserved words
+    // (excluding MODULE and IMPORT which have their own sections)
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".module Comprehensive\n"
+        ".import Std:Core\n"
+        ".alias MyInt: Int\n"
+        ".class Widget:\n"
+        "    .decl Widget w: Int x\n"
+        ".cmd doSomething: Int x -> result = process: x\n"
+        ".decl helper: String s -> output\n"
+        ".intrinsic native: Int x\n"
+        ".domain UserId: Int\n"
+        ".enum Status: active = 0, inactive = 1\n"
+        ".instance Widget: Interface\n"
+        ".object Node: Int value\n"
+        ".program = main\n"
+        ".record Point: Int x, Int y\n"
+        ".test \"comprehensive test\" = run",
+        Production::COMPILATION_UNIT));
+
+    // Same but without module and imports
+    CHECK(testParse(grammar.COMPILATION_UNIT,
+        ".alias MyInt: Int\n"
+        ".class Widget:\n"
+        "  .decl Widget w: Int x\n"
+        ".cmd doSomething: Int x -> result = process: x\n"
+        ".decl helper: String s -> output\n"
+        ".intrinsic native: Int x\n"
+        ".domain UserId: Int\n"
+        ".enum Status: active = 0, inactive = 1\n"
+        ".instance Widget: Interface\n"
+        ".object Node: Int value\n"
+        ".program = main\n"
+        ".record Point: Int x, Int y\n"
+        ".test \"comprehensive test\" = run",
+        Production::COMPILATION_UNIT));
+}
+
+// =============================================================================
+// DEF_MODULE - Module Definitions (initModuleTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_MODULE") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_MODULE, ".module MyModule", Production::DEF_MODULE));
     CHECK(testParse(grammar.DEF_MODULE, ".module Std::Collections", Production::DEF_MODULE));
@@ -179,7 +655,34 @@ TEST_CASE("Grammar2::test module definitions") {
     CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module my_module"));  // identifier instead of typename
 }
 
-TEST_CASE("Grammar2::test program definitions") {
+// =============================================================================
+// DEF_IMPORT - Import Definitions (initImports)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_IMPORT") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_IMPORT, ".import \"file.basis\"", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Module", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import MyLib:Utils", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import A:B", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Prefix:A::B::C", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import Std::Collections", Production::DEF_IMPORT));
+    CHECK(testParse(grammar.DEF_IMPORT, ".import A::B::C", Production::DEF_IMPORT));
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import"));  // missing argument CHECK_FALSE(testParse(grammar.DEF_IMPORT, "import Module"));  // missing dot CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import module"));  // lowercase identifier CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import 123"));  // numeric
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A:B:C"));  // single colon can only appear once
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A::B:C::D"));  // parses as A::B with leftover :C::D
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Std::Core:Collections"));  // parses as Std::Core with leftover :Collections
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import :Module"));  // colon without prefix
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Prefix:"));  // colon without typename
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import \"file.basis\" extra"));  // extra content
+    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Module extra"));  // extra content
+}
+
+// =============================================================================
+// DEF_PROGRAM - Program Definitions (initProgramDefinitions)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_PROGRAM") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_PROGRAM, ".program = main", Production::DEF_PROGRAM));
     CHECK(testParse(grammar.DEF_PROGRAM, ".program = start: arg1, arg2", Production::DEF_PROGRAM));
@@ -190,7 +693,11 @@ TEST_CASE("Grammar2::test program definitions") {
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program = Main"));  // typename instead of identifier
 }
 
-TEST_CASE("Grammar2::test test definitions") {
+// =============================================================================
+// DEF_TEST - Test Definitions (initTestDefinitions)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_TEST") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_TEST, ".test \"simple test\" = doSomething", Production::DEF_TEST));
     CHECK(testParse(grammar.DEF_TEST, ".test \"test with params\" = run: arg1, arg2", Production::DEF_TEST));
@@ -204,29 +711,217 @@ TEST_CASE("Grammar2::test test definitions") {
     CHECK_FALSE(testParse(grammar.DEF_TEST, ".test = doSomething"));  // missing string literal
 }
 
-TEST_CASE("Grammar2::test import definitions") {
+// =============================================================================
+// DEF_CLASS - Class Definitions (initClassTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_CLASS") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.DEF_IMPORT, ".import \"file.basis\"", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import Module", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import MyLib:Utils", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import A:B", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import Prefix:A::B::C", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import Std::Collections", Production::DEF_IMPORT));
-    CHECK(testParse(grammar.DEF_IMPORT, ".import A::B::C", Production::DEF_IMPORT));
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import"));  // missing argument
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, "import Module"));  // missing dot
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import module"));  // lowercase identifier
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import 123"));  // numeric
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A:B:C"));  // single colon can only appear once
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import A::B:C::D"));  // parses as A::B with leftover :C::D
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Std::Core:Collections"));  // parses as Std::Core with leftover :Collections
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import :Module"));  // colon without prefix
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Prefix:"));  // colon without typename
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import \"file.basis\" extra"));  // extra content
-    CHECK_FALSE(testParse(grammar.DEF_IMPORT, ".import Module extra"));  // extra content
+
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass:\n"
+        "  .decl doSomething: Int x -> result\n"
+        "  .decl doOther: String s -> output",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass: .decl doSomething: Int x -> result\n"
+        "                .decl doOther: String s -> output",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class MyClass: .decl doSomething: Int x -> result\n"
+        "  .decl doOther: String s -> output",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .decl Container c: Int capacity\n"
+        "  .decl add: Int item -> result\n"
+        "  .decl (Widget w):: process: String s -> output / Int ctx",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Processor:\n"
+        "  .decl (Widget w, Button b):: handle: Int x -> result",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .decl ?tryProcess: Int x -> result\n"
+        "  .decl !mustFail: String s -> output",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Resource:\n"
+        "  .decl Resource r: String name\n"
+        "  .decl @ Resource r: Int code",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Transaction:\n"
+        "  .decl Transaction t: Int id\n"
+        "  .decl @! Transaction t: String error",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Connection:\n"
+        "  .decl Connection c: String host, Int port\n"
+        "  .decl @ Connection c: Int timeout\n"
+        "  .decl @! Connection c: String reason",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt = process",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt: Int x -> result = process: x",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd add: Int item = (items):: append: item",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd process: String data -> result = validate: data\n     result <- (transform: data)",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd doIt = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd process: Int x -> result = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd ?tryProcess: String data -> result = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd !mustFail: Int code = _",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y\n"
+        "  .cmd doIt = process",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .decl Container c: Int capacity\n"
+        "  .cmd add: Int item = (items):: append: item\n"
+        "  .decl remove: Int index -> result",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .decl Handler h: String name\n"
+        "  .cmd process: String data = validate: data\n"
+        "  .cmd cleanup = _\n"
+        "  .decl @ Handler h: Int code",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w: Int x, Int y = init: x, y",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd Container c: Int capacity = allocate: capacity",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Resource:\n"
+        "  .cmd Resource r: String name = acquire: name\n"
+        "  .cmd @ Resource r: Int code = release: code",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Connection:\n"
+        "  .cmd @ Connection c: Int timeout = disconnect\n    cleanup",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Transaction:\n"
+        "  .cmd Transaction t: Int id = begin: id\n"
+        "  .cmd @! Transaction t: String error = rollback: error",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Connection:\n"
+        "  .cmd @! Connection c: String reason = logError: reason\n    notify",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd (Widget w):: render = draw: w",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd (Container c):: process: Int x -> result = validate: x\n    result <- (transform: x)",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd (Widget w, Button b):: handle: Int x = (w):: update: x\n    (b):: click",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Container:\n"
+        "  .cmd (Container c):: getSize -> result = (c):: computeSize",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd (Widget w):: getValue -> w = (w):: extract",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Handler:\n"
+        "  .cmd (Handler h, Context ctx):: ?tryGet -> result = (h):: attempt: ctx",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .decl Widget w: Int x, Int y\n"
+        "  .cmd doIt = process\n"
+        "  .cmd ?tryIt: Int x -> result = validate: x\n"
+        "  .decl !mustFail: String s -> output\n"
+        "  .cmd cleanup = _\n"
+        "  .cmd @ Widget w: Int code = release: code\n"
+        "  .decl @! Widget w: String error",
+        Production::DEF_CLASS));
+    CHECK(testParse(grammar.DEF_CLASS,
+        ".class Widget:\n"
+        "  .cmd Widget w: Int x = _\n"
+        "  .cmd @ Widget w: Int code = _\n"
+        "  .cmd @! Widget w: String error = _\n"
+        "  .cmd (Widget w):: method = _\n"
+        "  .cmd process: Int x -> result = _",
+        Production::DEF_CLASS));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class myClass:\n  .cmd doIt"));  // lowercase class name
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass"));  // missing colon and commands
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:"));  // missing commands
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class : .cmd doIt"));  // missing class name
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass .cmd doIt"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, "class MyClass: .cmd doIt"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".Class MyClass: .cmd doIt"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:\n.cmd doIt"));  // command not indented
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass: .cmd doIt\n.cmd other"));  // second command not indented
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt ="));  // missing body after equals
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt _"));  // missing equals before body
+    // Regular commands (without receivers) cannot have return value without parameters
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt -> result = process"));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Handler:\n  .cmd ?tryIt -> output = attempt"));
+    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Processor:\n  .cmd !mustFail -> result = fail"));
 }
 
-TEST_CASE("Grammar2::test domain type definitions") {
+// =============================================================================
+// DEF_ENUM - Enumeration Definitions (initEnumerations)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_ENUM") {
+    Grammar2& grammar = getGrammar();
+    // untyped enumeration
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
+    // enumeration with a type
+    CHECK(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1", Production::DEF_ENUM));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum A B fish: sockeye = 0, salmon = 1"));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye= 0,\nsalmon = 1"));
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
+}
+
+// =============================================================================
+// DEF_DOMAIN - Domain Type Definitions (initDomainTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_DOMAIN") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain MyInt: Int", Production::DEF_DOMAIN));
     CHECK(testParse(grammar.DEF_DOMAIN, ".domain UserId: Int", Production::DEF_DOMAIN));
@@ -249,7 +944,11 @@ TEST_CASE("Grammar2::test domain type definitions") {
     CHECK_FALSE(testParse(grammar.DEF_DOMAIN, ".domain MyInt: List[T]"));  // parameterized type not allowed
 }
 
-TEST_CASE("Grammar2::test record type definitions") {
+// =============================================================================
+// DEF_RECORD - Record Type Definitions (initRecordTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_RECORD") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.DEF_RECORD, ".record Person: String name", Production::DEF_RECORD));
@@ -290,7 +989,7 @@ TEST_CASE("Grammar2::test record type definitions") {
     CHECK_FALSE(testParse(grammar.DEF_RECORD, ".record Point: Int' x"));
 }
 
-TEST_CASE("Grammar2::test record field parsing") {
+TEST_CASE("Grammar2::DEF_RECORD_FIELD") {
     Grammar2& grammar = getGrammar();
 
     // Basic field types
@@ -326,7 +1025,7 @@ TEST_CASE("Grammar2::test record field parsing") {
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int' x"));  // apostrophe not allowed
 }
 
-TEST_CASE("Grammar2::test record fields list parsing") {
+TEST_CASE("Grammar2::DEF_RECORD_FIELDS") {
     Grammar2& grammar = getGrammar();
 
     // Single field
@@ -349,298 +1048,111 @@ TEST_CASE("Grammar2::test record fields list parsing") {
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELDS, ""));  // empty
 }
 
-TEST_CASE("Grammar2::test type expressions") {
-    Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "T", Production::TYPEDEF_PARM_TYPE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "T U", Production::TYPEDEF_PARM_TYPE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "String", Production::TYPEDEF_PARM_TYPE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "List[T] Element", Production::TYPEDEF_PARM_TYPE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "List[4] Element", Production::TYPEDEF_PARM_TYPE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_TYPE, "List[T,4] Element", Production::TYPEDEF_PARM_TYPE));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_TYPE, "t"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_TYPE, "T'"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_TYPE, "T value"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_TYPE, "T U V"));
+// =============================================================================
+// DEF_OBJECT - Object Type Definitions (initObjectTypes)
+// =============================================================================
 
-    CHECK(testParse(grammar.TYPEDEF_PARM_VALUE, "T value", Production::TYPEDEF_PARM_VALUE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_VALUE, "String name", Production::TYPEDEF_PARM_VALUE));
-    CHECK(testParse(grammar.TYPEDEF_PARM_VALUE, "Int count", Production::TYPEDEF_PARM_VALUE));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_VALUE, "T"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_VALUE, "t value"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_VALUE, "T Value"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_VALUE, "value T"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARM_VALUE, "T' value"));
-
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T, U]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T U]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T value]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T, U value]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T U, V value]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[T, U, V]", Production::TYPEDEF_PARMS));
-    CHECK(testParse(grammar.TYPEDEF_PARMS, "[String name, Int count]", Production::TYPEDEF_PARMS));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "T"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "[T"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "T]"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "[]"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "[t]"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_PARMS, "[T,]"));
-
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "Int", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "String", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "T", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "List[T]", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "Map[K, V]", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "Container[T U]", Production::TYPEDEF_NAME_Q));
-    CHECK(testParse(grammar.TYPEDEF_NAME_Q, "Dict[String key, Int value]", Production::TYPEDEF_NAME_Q));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "int"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "value"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "Int'"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "T'"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "Int[]"));
-    CHECK_FALSE(testParse(grammar.TYPEDEF_NAME_Q, "[T]"));
-
-    CHECK(testParse(grammar.TYPE_ARG_VALUE, "42", Production::TYPE_ARG_VALUE));
-    CHECK(testParse(grammar.TYPE_ARG_VALUE, "size", Production::TYPE_ARG_VALUE));
-    CHECK(testParse(grammar.TYPE_ARG_VALUE, "count", Production::TYPE_ARG_VALUE));
-    CHECK(testParse(grammar.TYPE_ARG_VALUE, "10", Production::TYPE_ARG_VALUE));
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "Size"));  // TYPENAME not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "Int"));   // TYPENAME not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_VALUE, "3.14"));  // DECIMAL not allowed
-
-    CHECK(testParse(grammar.TYPE_ARG_TYPE, "Int", Production::TYPE_ARG_TYPE));
-    CHECK(testParse(grammar.TYPE_ARG_TYPE, "String", Production::TYPE_ARG_TYPE));
-    CHECK(testParse(grammar.TYPE_ARG_TYPE, "T", Production::TYPE_ARG_TYPE));
-    CHECK(testParse(grammar.TYPE_ARG_TYPE, "List[Int]", Production::TYPE_ARG_TYPE));
-    CHECK(testParse(grammar.TYPE_ARG_TYPE, "Map[String, Int]", Production::TYPE_ARG_TYPE));
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "int"));    // identifier not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "value"));  // identifier not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_ARG_TYPE, "42"));     // NUMBER not allowed
-
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[10]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[size]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int, String]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T, U]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[10, 20]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[width, height]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Int, 10]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[T, size]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[String, count, Int]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[List[Int]]", Production::TYPE_NAME_ARGS));
-    CHECK(testParse(grammar.TYPE_NAME_ARGS, "[Map[K, V], 10]", Production::TYPE_NAME_ARGS));
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "Int"));      // missing brackets
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[Int"));     // missing closing bracket
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "Int]"));     // missing opening bracket
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[]"));       // empty not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[Int,]"));   // trailing comma
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_ARGS, "[,Int]"));   // leading comma
-
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Int", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "String", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "T", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "MyType", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "List[Int]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "List[T]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Array[10]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Buffer[size]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[String, Int]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[K, V]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Matrix[10, 20]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Grid[width, height]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Container[T, 100]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Tuple[Int, String, Float]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Nested[List[Int]]", Production::TYPE_NAME_Q));
-    CHECK(testParse(grammar.TYPE_NAME_Q, "Complex[Map[K, V], size]", Production::TYPE_NAME_Q));
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "int"));         // identifier not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "myType"));      // identifier not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "Int'"));        // apostrophe not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "List[]"));      // empty brackets not allowed
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "List[Int,]"));  // trailing comma
-    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "[Int]"));       // missing typename
-
-    CHECK(testParse(grammar.TYPE_EXPR_PTR, "^", Production::TYPE_EXPR_PTR));
-    CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[]", Production::TYPE_EXPR_RANGE));
-    CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[10]", Production::TYPE_EXPR_RANGE));
-    CHECK(testParse(grammar.TYPE_EXPR_RANGE, "[size]", Production::TYPE_EXPR_RANGE));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_RANGE, "[Size]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_RANGE, "["));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_RANGE, "]"));
-
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[8]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[][8]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[8][]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[8][]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[8]^[]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[]Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<List[T]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[]Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<:<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<[]'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[]'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^[8]'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int', String'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<^Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<[]Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<List[T]'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<^[]Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<:<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int', []String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<Int, String>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<^Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<[]Int>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<List[T]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<List[4]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<List[T,4]>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<^[]Int', String'>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<:<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<?<Int>>", Production::TYPE_EXPR_CMD));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<>"));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<>"));
-    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<^>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<r>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int,>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "?<Int,>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "!<Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<?Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<!Int>"));
-
-    CHECK(testParse(grammar.TYPE_EXPR, "Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "String", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "T", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "List[T]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "Map[K, V]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "Dict[String key, Int value]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^List[T]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[10]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[size]String", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]List[T]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]^Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^^Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[][]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[10]String", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[5]^Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]^Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<Int', String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<List[T], Map[K, V]'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "?<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "?<Int', String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "!<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "!<Int, String'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "!<List[T]', Map[K, V]>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^:<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]:<Int', String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]:<Int>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^ ?<Int'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]!<Int, String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]?<Int'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<:<Int>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<^Int', []String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^:<^Int, []String'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "?<:<Int>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "!<?<Int'>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<?<Int>, !<String>>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^ ?<^Int', []String>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]!<^Int, []String'>", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^[]List[T]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]^Map[K, V]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "^^[]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[10][20]Int", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[10][20]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[][20]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, "[10][]", Production::TYPE_EXPR));
-    CHECK(testParse(grammar.TYPE_EXPR, ":<>"));
-    CHECK(testParse(grammar.TYPE_EXPR, "?<>"));
-    CHECK(testParse(grammar.TYPE_EXPR, "!<>"));
-    CHECK(testParse(grammar.TYPE_EXPR, "[]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "?<List'[T], Map[K, V']>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "T'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "Int'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "List'[T']"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "^Int'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "[]String'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "value"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "^"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "Int[]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "Int^"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "[T]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "<?Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "<!Int>"));
-}
-
-TEST_CASE("Grammar2::test TYPE_EXPR_DOMAIN") {
+TEST_CASE("Grammar2::DEF_OBJECT_FIELD") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Float", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "T", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "List[T]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Map[K, V]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Array[10]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Container[T, U]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Matrix[Int]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[100]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]Int", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]String", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]Map[K, V]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]Container[T]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]Int", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[5][10][15]Int", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]Map[K, V]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10][20]", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[rows]Int", Production::TYPE_EXPR_DOMAIN));
-    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[rows][cols]Int", Production::TYPE_EXPR_DOMAIN));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^String"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^List[T]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^^Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^[]Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]^Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^[10]Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]^Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ":<Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "?<Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "!<Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ":<Int, String>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "?<Int', String>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "!<List[T]>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]:<Int>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]?<String>"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "Int'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "String'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "List[T]'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Int'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]String'"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "string"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "myType"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]string"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[Size]Int"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "["));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "Int[]"));
-    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Array[10]"));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Int x", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "List[Int] items", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Map[String, Int] data", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[10]Int buffer", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[4][4]Float matrix", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[size]Byte data", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[width][height]Int grid", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]String strings", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^String strPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^List[T] listPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^^Int ptrPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^[]Int arrayPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]^Int ptrArray", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int> cmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<String> mayFailCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<Float> failCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<> voidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<> mayFailVoidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<> failVoidCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int, String> multiCmd", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^:<Int> cmdPtr", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]:<String> cmdArray", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[5]^Int ptrArray", Production::DEF_OBJECT_FIELD));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "x"));  // missing type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int' x"));  // apostrophe not allowed in type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int x'"));  // apostrophe not allowed in field name
 }
 
-TEST_CASE("Grammar2::test type alias definitions") {
+TEST_CASE("Grammar2::DEF_OBJECT_FIELDS") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name, Int age, Float salary", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[Int] items, Map[String, Int] data", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[3]Float position, [4]Float rotation", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[size]Byte buffer, Int size, String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Node next, ^Node prev, Int data", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[]^String strPtrs, Int count", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<Int> callback, String name", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "?<String> loader, !<> cleanup", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<> action1, :<> action2, :<> action3", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Int ptr, []String names, :<> callback", Production::DEF_OBJECT_FIELDS));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[T] items, ^Node next, ?<T> processor", Production::DEF_OBJECT_FIELDS));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ""));  // empty
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ",Int x"));  // leading comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,,Int y"));  // double comma
+}
+
+TEST_CASE("Grammar2::DEF_OBJECT") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Point: Int x, Int y", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Node: T value, ^Node next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Wrapper: Int value", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object List[T]: T head, ^List[T] tail", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Map[K, V]: K key, V value, ^Map[K, V] next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object LinkedList: Int data, ^LinkedList next, ^LinkedList prev", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object RefCounter: ^Data ptr, Int count", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Vector3: [3]Float coords", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Matrix: [4][4]Float data", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object DynamicArray: []Int items, Int size, Int capacity", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Buffer: [size]Byte data, Int size", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Handler: :<> callback, String name", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Processor: ?<String> loader, :<Int> processor, !<> cleanup", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object EventListener: :<Event> handler, Int priority", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Complex: ^Int ptr, []String names, :<> callback, List[T] items", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object State: Map[String, Int] vars, []:<> actions, ^State next", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Graph[T]: T value, []^Graph[T] neighbors, ?<T> validator", Production::DEF_OBJECT));
+    CHECK(testParse(grammar.DEF_OBJECT, ".object Cache[K, V]: Map[K, V] data, :<V> loader, Int size", Production::DEF_OBJECT));
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object point: Int x"));  // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point"));  // missing colon and fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point:"));  // missing fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object : Int x"));  // missing name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point Int x"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, "object Point: Int x"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: int x"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int X"));  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int"));  // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x Int y"));  // missing comma between fields
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int' x"));  // apostrophe in type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x'"));  // apostrophe in field name
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: ^Int' ptr"));  // apostrophe in pointer type
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,\nInt y"));  // newline in field list
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".Object Point: Int x"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ". object Point: Int x"));  // wrong keyword case
+}
+
+// =============================================================================
+// DEF_ALIAS - Type Alias Definitions (initTypeAliases)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_ALIAS") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: Int", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias T: U", Production::DEF_ALIAS));
@@ -648,63 +1160,55 @@ TEST_CASE("Grammar2::test type alias definitions") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]: ^[]Pair[K, V]", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias Dict[String key, Int value]: ^[]Entry", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias StringPtr: ^String", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrPtr: ^^Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyType: Std::Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias List[T]: ^[]Collections::Node[T]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias WidgetPtr: ^UI::Widget", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]: ^[]Std::Collections::Pair[K, V]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdType: :<Int'>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeCmdType: ?<String', Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias IntArray: []Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias FixedArray: [10]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias SizedArray: [size]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias Matrix: [][]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd: :<Int>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeInt: ?<Int>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias FailInt: !<Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Matrix: [4][4]Float", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Callback: :<Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias MayFail: ?<String>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Fail: !<Float>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias VoidCmd: :<>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias MultiCmd: :<Int, String>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias ComplexType: ^[]List[T]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdArray: []:<Int>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias PtrArray: ^[]Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias NestedCmd: :<^[]Int, String>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias DeepNest: ^[]?<List[T]>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt:\n Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]:\n ^[]Pair[K, V]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias ComplexType:\n ^[]List[T]", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt:\n Int", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: :<>"));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias IntCmd:\n :<Int'>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MaybeInt:\n ?<Int'>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias FailInt:\n !<Int'>", Production::DEF_ALIAS));
-    CHECK(testParse(grammar.DEF_ALIAS, ".alias MyInt: []"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias String': String"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias T': U'"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias IntPtr: ^Int'"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType': ^[]List'[T']"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias List'[T']:\n ^[]T"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias Map'[K', V']:\n ^[]Pair[K, V]"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType':\n ^[]List[T]"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias IntCmd':\n <Int>"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt':\n Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt:"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias : Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, "MyInt: Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias myInt: Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias 123: Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias 'MyInt: Int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt: int"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt: ^"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt:\nInt"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias List[T]:\n^[]T"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias Map[K, V]:\nPair[K, V]"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias ComplexType:\n ^[]List[T']"));
-    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias DeepNest:\n ^[]?<List'[T']>"));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdPtr: ^:<Int>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdArray: []:<String>", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Complex: ^[]:<Int>", Production::DEF_ALIAS));
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias myInt: Int"));  // lowercase alias name
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt Int"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt:"));  // missing type
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias : Int"));  // missing alias name
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, "alias MyInt: Int"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".Alias MyInt: Int"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt: int"));  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt': Int"));  // apostrophe in alias name
+    CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt: Int'"));  // apostrophe in type
 }
 
-TEST_CASE("Grammar2::test command declarations") {
+// =============================================================================
+// DEF_INSTANCE - Instance Declarations (initInstanceDecls)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_INSTANCE") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Serializable", Production::DEF_INSTANCE));
+    CHECK(debugTestParse(grammar.DEF_INSTANCE, ".instance List[T]: Iterable", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Map[K, V]: Container", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance User: Serializable, Comparable", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Node: Printable, Hashable, Cloneable", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance List[T]: Iterable, Serializable", Production::DEF_INSTANCE));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance widget: Interface"));  // lowercase type name
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget interface"));  // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget:"));  // missing interface
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance : Interface"));  // missing type name
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, "instance Widget: Interface"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".Instance Widget: Interface"));  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget: interface"));  // lowercase interface
+}
+
+// =============================================================================
+// DEF_CMD, DEF_CMD_DECL, DEF_CMD_INTRINSIC - Command Definitions (initCommandDefinitions)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_CMD_PARMTYPE_NAME") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.DEF_CMD_PARMTYPE_NAME, "Int", Production::DEF_CMD_PARMTYPE_NAME));
@@ -939,344 +1443,7 @@ TEST_CASE("Grammar2::test command declarations") {
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".intrinsic ([]Container[T] items):: process: T item -> result"));
 }
 
-TEST_CASE("Grammar2::test object field parsing") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Int x", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "List[Int] items", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "Map[String, Int] data", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[10]Int buffer", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[4][4]Float matrix", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[size]Byte data", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[width][height]Int grid", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]String strings", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^String strPtr", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^List[T] listPtr", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^^Int ptrPtr", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^[]Int arrayPtr", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]^Int ptrArray", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int> cmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<String> mayFailCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<Float> failCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<> voidCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "?<> mayFailVoidCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "!<> failVoidCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ":<Int, String> multiCmd", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^:<Int> cmdPtr", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]:<String> cmdArray", Production::DEF_OBJECT_FIELD));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[5]^Int ptrArray", Production::DEF_OBJECT_FIELD));
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "int x"));  // lowercase type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int X"));  // uppercase field name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int"));  // missing field name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "x"));  // missing type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int' x"));  // apostrophe not allowed in type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int x'"));  // apostrophe not allowed in field name
-}
-
-TEST_CASE("Grammar2::test object fields list parsing") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "String name, Int age, Float salary", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[Int] items, Map[String, Int] data", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[3]Float position, [4]Float rotation", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[size]Byte buffer, Int size, String name", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Node next, ^Node prev, Int data", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "[]^String strPtrs, Int count", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<Int> callback, String name", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "?<String> loader, !<> cleanup", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, ":<> action1, :<> action2, :<> action3", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "^Int ptr, []String names, :<> callback", Production::DEF_OBJECT_FIELDS));
-    CHECK(testParse(grammar.DEF_OBJECT_FIELDS, "List[T] items, ^Node next, ?<T> processor", Production::DEF_OBJECT_FIELDS));
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,"));  // trailing comma
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x Int y"));  // missing comma
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ""));  // empty
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, ",Int x"));  // leading comma
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELDS, "Int x,,Int y"));  // double comma
-}
-
-TEST_CASE("Grammar2::test object type definitions") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Point: Int x, Int y", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Node: T value, ^Node next", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Wrapper: Int value", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object List[T]: T head, ^List[T] tail", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Map[K, V]: K key, V value, ^Map[K, V] next", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object LinkedList: Int data, ^LinkedList next, ^LinkedList prev", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object RefCounter: ^Data ptr, Int count", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Vector3: [3]Float coords", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Matrix: [4][4]Float data", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object DynamicArray: []Int items, Int size, Int capacity", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Buffer: [size]Byte data, Int size", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Handler: :<> callback, String name", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Processor: ?<String> loader, :<Int> processor, !<> cleanup", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object EventListener: :<Event> handler, Int priority", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Complex: ^Int ptr, []String names, :<> callback, List[T] items", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object State: Map[String, Int] vars, []:<> actions, ^State next", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Graph[T]: T value, []^Graph[T] neighbors, ?<T> validator", Production::DEF_OBJECT));
-    CHECK(testParse(grammar.DEF_OBJECT, ".object Cache[K, V]: Map[K, V] data, :<V> loader, Int size", Production::DEF_OBJECT));
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object point: Int x"));  // lowercase name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point"));  // missing colon and fields
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point:"));  // missing fields
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object : Int x"));  // missing name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point Int x"));  // missing colon
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, "object Point: Int x"));  // missing dot
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: int x"));  // lowercase type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int X"));  // uppercase field name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int"));  // missing field name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,"));  // trailing comma
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x Int y"));  // missing comma between fields
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int' x"));  // apostrophe in type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x'"));  // apostrophe in field name
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: ^Int' ptr"));  // apostrophe in pointer type
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,\nInt y"));  // newline in field list
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".Object Point: Int x"));  // wrong keyword case
-    CHECK_FALSE(testParse(grammar.DEF_OBJECT, ". object Point: Int x"));  // wrong keyword case
-}
-
-TEST_CASE("Grammar2::test class definition parsing") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class MyClass:\n"
-        "  .decl doSomething: Int x -> result\n"
-        "  .decl doOther: String s -> output",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class MyClass: .decl doSomething: Int x -> result\n"
-        "                .decl doOther: String s -> output",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class MyClass: .decl doSomething: Int x -> result\n"
-        "  .decl doOther: String s -> output",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .decl Widget w: Int x, Int y",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .decl Container c: Int capacity\n"
-        "  .decl add: Int item -> result\n"
-        "  .decl (Widget w):: process: String s -> output / Int ctx",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Processor:\n"
-        "  .decl (Widget w, Button b):: handle: Int x -> result",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .decl ?tryProcess: Int x -> result\n"
-        "  .decl !mustFail: String s -> output",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Resource:\n"
-        "  .decl Resource r: String name\n"
-        "  .decl @ Resource r: Int code",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Transaction:\n"
-        "  .decl Transaction t: Int id\n"
-        "  .decl @! Transaction t: String error",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Connection:\n"
-        "  .decl Connection c: String host, Int port\n"
-        "  .decl @ Connection c: Int timeout\n"
-        "  .decl @! Connection c: String reason",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd doIt = process",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd doIt: Int x -> result = process: x",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .cmd add: Int item = (items):: append: item",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .cmd process: String data -> result = validate: data\n     result <- (transform: data)",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd doIt = _",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd process: Int x -> result = _",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .cmd ?tryProcess: String data -> result = _",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .cmd !mustFail: Int code = _",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .decl Widget w: Int x, Int y\n"
-        "  .cmd doIt = process",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .decl Container c: Int capacity\n"
-        "  .cmd add: Int item = (items):: append: item\n"
-        "  .decl remove: Int index -> result",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .decl Handler h: String name\n"
-        "  .cmd process: String data = validate: data\n"
-        "  .cmd cleanup = _\n"
-        "  .decl @ Handler h: Int code",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd Widget w: Int x, Int y = init: x, y",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .cmd Container c: Int capacity = allocate: capacity",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Resource:\n"
-        "  .cmd Resource r: String name = acquire: name\n"
-        "  .cmd @ Resource r: Int code = release: code",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Connection:\n"
-        "  .cmd @ Connection c: Int timeout = disconnect\n    cleanup",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Transaction:\n"
-        "  .cmd Transaction t: Int id = begin: id\n"
-        "  .cmd @! Transaction t: String error = rollback: error",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Connection:\n"
-        "  .cmd @! Connection c: String reason = logError: reason\n    notify",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd (Widget w):: render = draw: w",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .cmd (Container c):: process: Int x -> result = validate: x\n    result <- (transform: x)",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .cmd (Widget w, Button b):: handle: Int x = (w):: update: x\n    (b):: click",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Container:\n"
-        "  .cmd (Container c):: getSize -> result = (c):: computeSize",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd (Widget w):: getValue -> w = (w):: extract",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Handler:\n"
-        "  .cmd (Handler h, Context ctx):: ?tryGet -> result = (h):: attempt: ctx",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .decl Widget w: Int x, Int y\n"
-        "  .cmd doIt = process\n"
-        "  .cmd ?tryIt: Int x -> result = validate: x\n"
-        "  .decl !mustFail: String s -> output\n"
-        "  .cmd cleanup = _\n"
-        "  .cmd @ Widget w: Int code = release: code\n"
-        "  .decl @! Widget w: String error",
-        Production::DEF_CLASS));
-    CHECK(testParse(grammar.DEF_CLASS,
-        ".class Widget:\n"
-        "  .cmd Widget w: Int x = _\n"
-        "  .cmd @ Widget w: Int code = _\n"
-        "  .cmd @! Widget w: String error = _\n"
-        "  .cmd (Widget w):: method = _\n"
-        "  .cmd process: Int x -> result = _",
-        Production::DEF_CLASS));
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class myClass:\n  .cmd doIt"));  // lowercase class name
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass"));  // missing colon and commands
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:"));  // missing commands
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class : .cmd doIt"));  // missing class name
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass .cmd doIt"));  // missing colon
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, "class MyClass: .cmd doIt"));  // missing dot
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".Class MyClass: .cmd doIt"));  // wrong keyword case
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass:\n.cmd doIt"));  // command not indented
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class MyClass: .cmd doIt\n.cmd other"));  // second command not indented
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class List[T]:\n  .cmd add: T item -> result"));  // parameterized class name not allowed
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt ="));  // missing body after equals
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt _"));  // missing equals before body
-    // Regular commands (without receivers) cannot have return value without parameters
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Widget:\n  .cmd doIt -> result = process"));
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Handler:\n  .cmd ?tryIt -> output = attempt"));
-    CHECK_FALSE(testParse(grammar.DEF_CLASS, ".class Processor:\n  .cmd !mustFail -> result = fail"));
-}
-
-TEST_CASE("Grammar2::test instance declaration parsing") {
-    Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.DEF_INSTANCE_NAME, "String", Production::DEF_INSTANCE_NAME));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_NAME, "string"));  // lowercase
-
-    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface", Production::DEF_INSTANCE_TYPES));
-    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Comparable, Serializable, Hashable", Production::DEF_INSTANCE_TYPES));
-    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(delegate)", Production::DEF_INSTANCE_TYPES));
-    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1(field1), Interface2(field2), Interface3(field3)", Production::DEF_INSTANCE_TYPES));
-    CHECK(testParse(grammar.DEF_INSTANCE_TYPES, "Comparable(cmp), Serializable, Hashable(hash)", Production::DEF_INSTANCE_TYPES));
-    CHECK(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field)", Production::DEF_INSTANCE_DELEGATE));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(Field)"));  // typename not allowed
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "field"));  // missing parens
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field"));  // missing closing paren
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "field)"));  // missing opening paren
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "()"));  // empty parens
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_DELEGATE, "(field1, field2)"));  // multiple identifiers
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "interface"));  // lowercase
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface1, interface2"));  // lowercase in list
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(Field)"));  // typename in delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface()"));  // empty delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(field1, field2)"));  // multiple fields in delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE_TYPES, "Interface(123)"));  // number in delegate
-
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1, Interface2", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType:\n Interface", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1,\n Interface2", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(delegate)", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Clickable(handler)", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Container: Iterable, Serializable(writer)", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Proxy: Interface1(field1), Interface2(field2), Interface3(field3)", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Wrapper:\n Comparable(cmp)", Production::DEF_INSTANCE));
-    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Adapter: Interface1(field1),\n Interface2(field2)", Production::DEF_INSTANCE));
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance myType: Interface"));  // lowercase type name
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: interface"));  // lowercase interface name
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType"));  // missing colon and interfaces
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType:"));  // missing interfaces
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance : Interface"));  // missing type name
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType Interface"));  // missing colon
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, "instance MyType: Interface"));  // missing dot
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".Instance MyType: Interface"));  // wrong keyword case
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface,"));  // trailing comma
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface1 Interface2"));  // missing comma
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(Field)"));  // typename in delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface()"));  // empty delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(field1, field2)"));  // multiple fields in delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(123)"));  // number in delegate
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface delegate"));  // missing parens
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface(delegate"));  // missing closing paren
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType: Interface delegate)"));  // missing opening paren
-    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance MyType(delegate): Interface"));  // delegate on type name not allowed
-}
-
-TEST_CASE("Grammar2::test full command definitions with bodies") {
+TEST_CASE("Grammar2::DEF_CMD - full commands with bodies") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.DEF_CMD, ".cmd Container c: Int size = Container: size", Production::DEF_CMD));
@@ -1357,14 +1524,18 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         , Production::DEF_CMD));
 }
 
-TEST_CASE("Grammar2::test CALL_IDENTIFIER") {
+// =============================================================================
+// DEF_CMD_BODY - Command Body Components (initCommandBody)
+// =============================================================================
+
+TEST_CASE("Grammar2::CALL_IDENTIFIER") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_IDENTIFIER, "#temp", Production::ALLOC_IDENTIFIER));
     CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Widget"));  // typename not allowed
 }
 
-TEST_CASE("Grammar2::test CALL_PARAMETERS") {
+TEST_CASE("Grammar2::CALL_PARAMETERS") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_PARAMETER, "x", Production::CALL_PARAMETER));
@@ -1379,7 +1550,7 @@ TEST_CASE("Grammar2::test CALL_PARAMETERS") {
     CHECK(testParse(grammar.CALL_PARAMETER, "(${Widget: x, y})", Production::CALL_PARAMETER));
 }
 
-TEST_CASE("Grammar2::test CALL_CONSTRUCTOR") {
+TEST_CASE("Grammar2::CALL_CONSTRUCTOR") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: x, y", Production::CALL_CONSTRUCTOR));
@@ -1400,7 +1571,7 @@ TEST_CASE("Grammar2::test CALL_CONSTRUCTOR") {
     CHECK_FALSE(testParse(grammar.CALL_CONSTRUCTOR, "Widget:"));  // missing parameters
 }
 
-TEST_CASE("Grammar2::test CALL_COMMAND") {
+TEST_CASE("Grammar2::CALL_COMMAND") {
     Grammar2& grammar = getGrammar();
     CHECK(testParse(grammar.CALL_COMMAND, "doSomething: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: item", Production::CALL_COMMAND));
@@ -1415,14 +1586,14 @@ TEST_CASE("Grammar2::test CALL_COMMAND") {
     CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${(obj):: method}: data", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "Module::function: x, y", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
+    CHECK(debugTestParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "A::B::C::method", Production::CALL_COMMAND));
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "doSomething: x y", Production::CALL_COMMAND));
 }
 
-TEST_CASE("Grammar2::test CALL_VCOMMAND") {
+TEST_CASE("Grammar2::CALL_VCOMMAND") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_VCOMMAND, "(obj):: method: x, y", Production::CALL_VCOMMAND));
@@ -1438,7 +1609,7 @@ TEST_CASE("Grammar2::test CALL_VCOMMAND") {
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method: x"));  // single colon instead of double
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - dereference operator") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - dereference operator") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^", Production::CALL_EXPRESSION));
@@ -1455,7 +1626,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - dereference operator") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "ptr1^ * ptr2^", Production::CALL_EXPRESSION));
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - address-of operator") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - address-of operator") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "x&", Production::CALL_EXPRESSION));
@@ -1472,7 +1643,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - address-of operator") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "x& * y&", Production::CALL_EXPRESSION));
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - array indexing") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - array indexing") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "data[i]&", Production::CALL_EXPRESSION));
@@ -1503,7 +1674,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - array indexing") {
     CHECK(testParse(grammar.CALL_EXPRESSION, "matrix[i, j] - offset", Production::CALL_EXPRESSION));
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - combined operations") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - combined operations") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i][j][k] + data[x][y]", Production::CALL_EXPRESSION));
@@ -1532,7 +1703,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - combined operations") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr[,]"));  // missing expressions
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - ordering rules") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - ordering rules") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "x^", Production::CALL_EXPRESSION));
@@ -1552,7 +1723,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - ordering rules") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "x&&"));
 }
 
-TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - in assignments") {
+TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - in assignments") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "addr <- (data)[2]", Production::CALL_ASSIGNMENT));
@@ -1577,7 +1748,7 @@ TEST_CASE("Grammar2::test CALL_EXPR_SUFFIX - in assignments") {
                                                            "              2]" ));
 }
 
-TEST_CASE("Grammar2::test CALL_EXPRESSION") {
+TEST_CASE("Grammar2::CALL_EXPRESSION") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, "((Widget: x, y))", Production::CALL_EXPRESSION));
@@ -1596,7 +1767,7 @@ TEST_CASE("Grammar2::test CALL_EXPRESSION") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
 
-TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
+TEST_CASE("Grammar2::CALL_CMD_LITERAL") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y}", Production::CALL_EXPRESSION));
@@ -1665,7 +1836,7 @@ TEST_CASE("Grammar2::test CALL_CMD_LITERAL") {
 }
 
 
-TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
+TEST_CASE("Grammar2::CALL_ASSIGNMENT") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Widget: x, y", Production::CALL_ASSIGNMENT));
@@ -1694,7 +1865,7 @@ TEST_CASE("Grammar2::test CALL_ASSIGNMENT") {
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "<- (Widget: x)"));  // missing target
 }
 
-TEST_CASE("Grammar2::test CALL_INVOKE") {
+TEST_CASE("Grammar2::CALL_INVOKE") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_INVOKE, "Widget: x, y", Production::CALL_CONSTRUCTOR));
@@ -1705,7 +1876,7 @@ TEST_CASE("Grammar2::test CALL_INVOKE") {
     CHECK(testParse(grammar.CALL_INVOKE, "(a, b):: handle", Production::CALL_VCOMMAND));
 }
 
-TEST_CASE("Grammar2::test CALL_GROUP") {
+TEST_CASE("Grammar2::CALL_GROUP") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
@@ -1723,7 +1894,7 @@ TEST_CASE("Grammar2::test CALL_GROUP") {
     CHECK(testParse(grammar.CALL_GROUP, "init\n$handler: x\ncleanup", Production::CALL_GROUP));
 }
 
-TEST_CASE("Grammar2::test BLOCK_HEADER") {
+TEST_CASE("Grammar2::BLOCK_HEADER") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.BLOCK_HEADER, "?", Production::BLOCK_HEADER));  // DO_WHEN
@@ -1738,7 +1909,7 @@ TEST_CASE("Grammar2::test BLOCK_HEADER") {
     CHECK(testParse(grammar.BLOCK_HEADER, "@!", Production::BLOCK_HEADER));  // ON_EXIT_FAIL
 }
 
-TEST_CASE("Grammar2::test BLOCK") {
+TEST_CASE("Grammar2::BLOCK") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
@@ -1765,7 +1936,7 @@ TEST_CASE("Grammar2::test BLOCK") {
     CHECK_FALSE(testParse(grammar.BLOCK, "% Container: size\ndoIt"));
 }
 
-TEST_CASE("Grammar2::test DEF_CMD_BODY") {
+TEST_CASE("Grammar2::DEF_CMD_BODY") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt", Production::DEF_CMD_BODY));
@@ -1791,7 +1962,7 @@ TEST_CASE("Grammar2::test DEF_CMD_BODY") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
 }
 
-TEST_CASE("Grammar2::test command body integration - complex scenarios") {
+TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Point: x, y), (Size: w, h)", Production::CALL_CONSTRUCTOR));
@@ -1817,7 +1988,7 @@ TEST_CASE("Grammar2::test command body integration - complex scenarios") {
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj, #widget):: method: #data", Production::CALL_VCOMMAND));
 }
 
-TEST_CASE("Grammar2::test command body edge cases") {
+TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
@@ -1845,7 +2016,7 @@ TEST_CASE("Grammar2::test command body edge cases") {
     CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
 }
 
-TEST_CASE("Grammar2::test command body negative cases") {
+TEST_CASE("Grammar2::DEF_CMD_BODY - negative cases") {
     Grammar2& grammar = getGrammar();
 
     CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Widget"));  // typename
@@ -1874,7 +2045,7 @@ TEST_CASE("Grammar2::test command body negative cases") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call group (whitespace only)
 }
 
-TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
+TEST_CASE("Grammar2::CALL_PARM_EMPTY and CALL_QUOTE") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_PARAMETER, "_", Production::CALL_PARAMETER));
@@ -1933,7 +2104,7 @@ TEST_CASE("Grammar2::test CALL_PARM_EMPTY and CALL_QUOTE") {
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "handler <- ((({process: data}))"));
 }
 
-TEST_CASE("Grammar2::test CALL_OPERATOR") {
+TEST_CASE("Grammar2::CALL_OPERATOR") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_OPERATOR, "+", Production::CALL_OPERATOR));
@@ -2016,7 +2187,7 @@ TEST_CASE("Grammar2::test CALL_OPERATOR") {
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <- a +"));  // missing right operand
 }
 
-TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
+TEST_CASE("Grammar2::CALL_BLOCKQUOTE") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_BLOCKQUOTE, ":{doIt}", Production::CALL_BLOCK_NOFAIL));
@@ -2062,585 +2233,125 @@ TEST_CASE("Grammar2::test CALL_BLOCKQUOTE") {
     CHECK_FALSE(testParse(grammar.CALL_BLOCKQUOTE, "doIt}"));  // missing opening
 }
 
-TEST_CASE("Grammar2::test COMPILATION_UNIT - empty and minimal") {
+// =============================================================================
+// TYPE_EXPR - Type Expressions (initTypeExpressions)
+// =============================================================================
+
+TEST_CASE("Grammar2::TYPE_EXPR") {
     Grammar2& grammar = getGrammar();
 
-    // Empty compilation unit (all parts optional)
-    CHECK(testParse(grammar.COMPILATION_UNIT, "", Production::COMPILATION_UNIT));
+    // Basic type expressions
+    CHECK(testParse(grammar.TYPE_EXPR, "Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "String", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "T", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "List[Int]", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "Map[String, Int]", Production::TYPE_EXPR));
 
-    // Just a module
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".module MyModule", Production::COMPILATION_UNIT));
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".module Std::Collections", Production::COMPILATION_UNIT));
+    // Pointer types
+    CHECK(testParse(grammar.TYPE_EXPR, "^Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^^Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^List[T]", Production::TYPE_EXPR));
 
-    // Just imports
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".import \"file.basis\"", Production::COMPILATION_UNIT));
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".import \"file1.basis\"\n"
-        ".import \"file2.basis\"",
-        Production::COMPILATION_UNIT));
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".import Module1\n"
-        ".import Module2\n"
-        ".import Std:Core",
-        Production::COMPILATION_UNIT));
+    // Array types
+    CHECK(testParse(grammar.TYPE_EXPR, "[]Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[10]Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[size]Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[][]Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[4][4]Float", Production::TYPE_EXPR));
 
-    // Just definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".alias MyInt: Int", Production::COMPILATION_UNIT));
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".domain UserId: Int", Production::COMPILATION_UNIT));
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".enum Fish: sockeye = 0, salmon = 1", Production::COMPILATION_UNIT));
+    // Command types
+    CHECK(testParse(grammar.TYPE_EXPR, ":<>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<Int>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "?<String>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "!<Float>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<Int, String>", Production::TYPE_EXPR));
+
+    // Combined types
+    CHECK(testParse(grammar.TYPE_EXPR, "^[]Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[]^Int", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^:<Int>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[]:<String>", Production::TYPE_EXPR));
+
+    // Qualified types
+    CHECK(testParse(grammar.TYPE_EXPR, "Std::String", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "Collections::List[T]", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "^Namespace::Type", Production::TYPE_EXPR));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "int"));  // lowercase
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR, "value"));  // identifier not typename
 }
 
-TEST_CASE("Grammar2::test COMPILATION_UNIT - module and imports") {
+// =============================================================================
+// LITERALS - Literal Values (initLiterals)
+// =============================================================================
+
+TEST_CASE("Grammar2::LITERAL") {
     Grammar2& grammar = getGrammar();
 
-    // Module followed by imports
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"",
-        Production::COMPILATION_UNIT));
+    // Decimal numbers
+    CHECK(testParse(grammar.NUMBER, "123", Production::NUMBER));
+    CHECK(testParse(grammar.NUMBER, "0", Production::NUMBER));
+    CHECK(testParse(grammar.NUMBER, "999_999", Production::NUMBER));
 
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"file1.basis\"\n"
-        ".import \"file2.basis\"\n"
-        ".import Std:Core",
-        Production::COMPILATION_UNIT));
+    // Hex numbers
+    CHECK(testParse(grammar.HEXNUMBER, "0x1234", Production::HEXNUMBER));
+    CHECK(testParse(grammar.HEXNUMBER, "0xABCD", Production::HEXNUMBER));
+    CHECK(testParse(grammar.HEXNUMBER, "0x1234_5678", Production::HEXNUMBER));
 
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Std::Collections\n"
-        ".import Std:Core\n"
-        ".import Std:Memory",
-        Production::COMPILATION_UNIT));
+    // Binary numbers
+    CHECK(testParse(grammar.BINARY, "0b10101010", Production::BINARY));
+    CHECK(testParse(grammar.BINARY, "0b1111000011110000", Production::BINARY));
+    CHECK(testParse(grammar.BINARY, "0b11110000_11110000", Production::BINARY));
 
-    // Module with indented imports (boundedGroup rule)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"",
-        Production::COMPILATION_UNIT));
+    // Floating point numbers
+    CHECK(testParse(grammar.DECIMAL, "3.14", Production::DECIMAL));
+    CHECK(testParse(grammar.DECIMAL, "0.5", Production::DECIMAL));
+    CHECK(testParse(grammar.DECIMAL, "123.456", Production::DECIMAL));
 
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"file1.basis\"\n"
-        ".import \"file2.basis\"",
-        Production::COMPILATION_UNIT));
+    // Strings
+    CHECK(testParse(grammar.STRING, "\"hello\"", Production::STRING));
+    CHECK(testParse(grammar.STRING, "\"\"", Production::STRING));
+    CHECK(testParse(grammar.STRING, "\"hello world\"", Production::STRING));
 
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        "  .import \"file1.basis\"\n"
-        "  .import \"file2.basis\""));
+    // LITERAL matches any of the above
+    CHECK(testParse(grammar.LITERAL, "123"));
+    CHECK(testParse(grammar.LITERAL, "0x1234"));
+    CHECK(testParse(grammar.LITERAL, "0b10101010"));
+    CHECK(testParse(grammar.LITERAL, "3.14"));
+    CHECK(testParse(grammar.LITERAL, "\"hello\""));
 }
 
-TEST_CASE("Grammar2::test COMPILATION_UNIT - module, imports, and definitions") {
+// =============================================================================
+// IDENTIFIERS - Identifier Types (initIdentifiers)
+// =============================================================================
+
+TEST_CASE("Grammar2::IDENTIFIER") {
     Grammar2& grammar = getGrammar();
 
-    // Module, imports, and a single definition
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"\n"
-        ".alias MyInt: Int",
-        Production::COMPILATION_UNIT));
+    // Basic identifiers (lowercase start)
+    CHECK(testParse(grammar.IDENTIFIER, "x", Production::IDENTIFIER));
+    CHECK(testParse(grammar.IDENTIFIER, "value", Production::IDENTIFIER));
+    CHECK(testParse(grammar.IDENTIFIER, "myVariable", Production::IDENTIFIER));
+    CHECK(testParse(grammar.IDENTIFIER, "item123", Production::IDENTIFIER));
 
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import Std:Core\n"
-        ".domain UserId: Int",
-        Production::COMPILATION_UNIT));
-
-    // Module, imports, and multiple definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"\n"
-        ".alias MyInt: Int\n"
-        ".domain UserId: Int\n"
-        ".enum Status: active = 0, inactive = 1",
-        Production::COMPILATION_UNIT));
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"\n"
-        ".alias MyInt: Int\n"
-        ".domain UserId: Int",
-        Production::COMPILATION_UNIT));
+    CHECK_FALSE(testParse(grammar.IDENTIFIER, "Widget"));  // typename
+    CHECK_FALSE(testParse(grammar.IDENTIFIER, "123"));  // number
 }
 
-TEST_CASE("Grammar2::test COMPILATION_UNIT - all definition types") {
+TEST_CASE("Grammar2::TYPENAME") {
     Grammar2& grammar = getGrammar();
 
-    // Test with all types of definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"base.basis\"\n"
-        ".alias MyInt: Int\n"
-        ".domain UserId: Int\n"
-        ".enum Status: active = 0, inactive = 1\n"
-        ".record Point: Int x, Int y\n"
-        ".object Node: Int value, ^Node next\n"
-        ".instance MyType: Interface\n"
-        ".test \"simple test\" = doSomething\n"
-        ".program = main",
-        Production::COMPILATION_UNIT));
+    // Basic typenames (uppercase start) - unqualified produces TYPENAME
+    CHECK(testParse(grammar.TYPENAME, "Int32", Production::TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "Strin_g", Production::TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "MyClass", Production::TYPENAME));
 
-    // Test with class containing commands
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import Std:Core\n"
-        ".class Widget:\n"
-        "  .decl Widget w: Int x, Int y\n"
-        "  .cmd doIt = process",
-        Production::COMPILATION_UNIT));
+    // Qualified typenames - qualified produces QUALIFIED_TYPENAME
+    CHECK(testParse(grammar.TYPENAME, "Std::String", Production::QUALIFIED_TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "Collections::List", Production::QUALIFIED_TYPENAME));
+    CHECK(testParse(grammar.TYPENAME, "A::B::C::Type", Production::QUALIFIED_TYPENAME));
 
-    // Test with standalone command definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".cmd doSomething: Int x -> result = process: x\n"
-        ".decl helper: String s -> output\n"
-        ".intrinsic native: Int x",
-        Production::COMPILATION_UNIT));
+    CHECK_FALSE(testParse(grammar.TYPENAME, "value"));  // identifier
+    CHECK_FALSE(testParse(grammar.TYPENAME, "123"));  // number
 }
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - imports and definitions without module") {
-    Grammar2& grammar = getGrammar();
-
-    // Imports followed by definitions (no module)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".import \"utils.basis\"\n"
-        ".alias MyInt: Int",
-        Production::COMPILATION_UNIT));
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".import Std:Core\n"
-        ".import Std:IO\n"
-        ".domain UserId: Int\n"
-        ".record User: UserId id, String name",
-        Production::COMPILATION_UNIT));
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".import \"base.basis\"\n"
-        ".enum Color: red = 0, green = 1, blue = 2\n"
-        ".alias ColorCode: Int\n"
-        ".test \"color test\" = validateColor",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - complex multi-definition files") {
-    Grammar2& grammar = getGrammar();
-
-    // Multiple records and objects
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Graphics\n"
-        ".import Std:Math\n"
-        ".record Point: Int x, Int y\n"
-        ".record Vector: Int dx, Int dy\n"
-        ".object Shape: Point origin, Int size\n"
-        ".object Circle: Point center, Int radius",
-        Production::COMPILATION_UNIT));
-
-    // Multiple enums and aliases
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Types\n"
-        ".enum Status: active = 0, inactive = 1\n"
-        ".enum Priority: low = 0, medium = 1, high = 2\n"
-        ".alias StatusCode: Int\n"
-        ".alias PriorityLevel: Int",
-        Production::COMPILATION_UNIT));
-
-    // Mix of all definition types in order
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyApp\n"
-        ".import \"base.basis\"\n"
-        ".import Std:Core\n"
-        ".alias UserId: Int\n"
-        ".domain SessionId: Int\n"
-        ".enum Role: admin = 0, user = 1\n"
-        ".record User: UserId id, String name\n"
-        ".object Session: SessionId id, User user\n"
-        ".class UserManager:\n"
-        "    .decl create: User u -> result\n"
-        ".instance User: Serializable\n"
-        ".cmd authenticate: String username -> result = validate: username\n"
-        ".decl logout: SessionId sid\n"
-        ".intrinsic hashPassword: String pwd\n"
-        ".test \"user creation\" = testCreate\n"
-        ".program = main",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - definitions only (no module or imports)") {
-    Grammar2& grammar = getGrammar();
-
-    // Multiple definitions without module or imports
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".alias MyInt: Int\n"
-        ".domain UserId: Int\n"
-        ".enum Status: active = 0, inactive = 1",
-        Production::COMPILATION_UNIT));
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".record Point: Int x, Int y\n"
-        ".object Node: Int value, ^Node next\n"
-        ".class Widget:\n"
-        "  .decl Widget w: Int x",
-        Production::COMPILATION_UNIT));
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".cmd doSomething: Int x -> result = process: x\n"
-        ".decl helper: String s -> output\n"
-        ".intrinsic native: Int x\n"
-        ".test \"test\" = run\n"
-        ".program = main",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - indentation variations") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"utils.basis\"\n"
-        ".alias MyInt: Int",
-        Production::COMPILATION_UNIT));
-
-    // Definitions indented more than module
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        "    .import \"utils.basis\"\n"
-        "    .alias MyInt: Int\n"
-        "    .domain UserId: Int"));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - with complex class definitions") {
-    Grammar2& grammar = getGrammar();
-
-    // Class with multiple commands and declarations
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".class Widget:\n"
-        "    .decl Widget w: Int x, Int y\n"
-        "    .cmd doIt = process\n"
-        "    .cmd render = draw\n"
-        "    .decl update: Int delta\n"
-        "    .cmd @ Widget w: Int code = cleanup: code",
-        Production::COMPILATION_UNIT));
-
-    // Multiple classes
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module UI\n"
-        ".import Graphics:Core\n"
-        ".class Widget:\n"
-        "    .decl Widget w: Int x, Int y\n"
-        ".class Button:\n"
-        "    .decl Button b: String label\n"
-        "    .cmd click = handleClick\n"
-        ".class Container:\n"
-        "    .decl Container c: Int capacity",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - with test and program definitions") {
-    Grammar2& grammar = getGrammar();
-
-    // Multiple tests
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Tests\n"
-        ".test \"test 1\" = run1\n"
-        ".test \"test 2\" = run2\n"
-        ".test \"test 3\" = run3",
-        Production::COMPILATION_UNIT));
-
-    // Tests with other definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyApp\n"
-        ".alias MyInt: Int\n"
-        ".cmd helper: Int x -> result = process: x\n"
-        ".test \"helper test\" = testHelper: 42\n"
-        ".program = main",
-        Production::COMPILATION_UNIT));
-
-    // Program at the end
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyApp\n"
-        ".import Std:Core\n"
-        ".cmd initialize = setup\n"
-        ".cmd run: []String args = execute: args\n"
-        ".program = run: args",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - order variations") {
-    Grammar2& grammar = getGrammar();
-
-    // Definitions can appear in any order (except module must be first, imports before definitions)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"base.basis\"\n"
-        ".enum Status: active = 0\n"
-        ".alias MyInt: Int\n"
-        ".record Point: Int x, Int y\n"
-        ".domain UserId: Int\n"
-        ".object Node: Int value",
-        Production::COMPILATION_UNIT));
-
-    // Commands and declarations mixed
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".cmd doIt = process\n"
-        ".decl helper: Int x\n"
-        ".intrinsic native: String s\n"
-        ".cmd other = run\n"
-        ".decl another: Int y",
-        Production::COMPILATION_UNIT));
-
-    // Classes, instances, tests mixed
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".class Widget:\n"
-        "    .decl Widget w: Int x\n"
-        ".instance Widget: Interface\n"
-        ".test \"test\" = run\n"
-        ".class Button:\n"
-        "    .decl Button b: String label\n"
-        ".test \"another test\" = run2",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - single definition types") {
-    Grammar2& grammar = getGrammar();
-
-    // Just one alias
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".alias MyInt: Int", Production::COMPILATION_UNIT));
-
-    // Just one class
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".class Widget:\n"
-        "  .decl Widget w: Int x",
-        Production::COMPILATION_UNIT));
-
-    // Just one command
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".cmd doIt = process", Production::COMPILATION_UNIT));
-
-    // Just one declaration
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".decl helper: Int x -> result", Production::COMPILATION_UNIT));
-
-    // Just one intrinsic
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".intrinsic native: String s", Production::COMPILATION_UNIT));
-
-    // Just one domain
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".domain UserId: Int", Production::COMPILATION_UNIT));
-
-    // Just one enum
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".enum Status: active = 0", Production::COMPILATION_UNIT));
-
-    // Just one record
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".record Point: Int x, Int y", Production::COMPILATION_UNIT));
-
-    // Just one object
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".object Node: Int value", Production::COMPILATION_UNIT));
-
-    // Just one instance
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".instance MyType: Interface", Production::COMPILATION_UNIT));
-
-    // Just one test
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".test \"test\" = run", Production::COMPILATION_UNIT));
-
-    // Just one program
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".program = main", Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - module only variations") {
-    Grammar2& grammar = getGrammar();
-
-    // Simple module name
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".module MyModule", Production::COMPILATION_UNIT));
-
-    // Qualified module name
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".module Std::Collections::List", Production::COMPILATION_UNIT));
-
-    // Module with just imports (no definitions)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".import \"file.basis\"\n"
-        ".import Std:Core",
-        Production::COMPILATION_UNIT));
-
-    // Module with just definitions (no imports)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        ".alias MyInt: Int\n"
-        ".domain UserId: Int",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - negative tests") {
-    Grammar2& grammar = getGrammar();
-
-    // Invalid: imports before module (module must be first if present)
-    // Note: This might actually parse successfully since module is optional
-    // The grammar allows imports without a module
-
-    // Invalid: definitions before imports (imports must come before definitions)
-    // Note: This might also parse since both are optional and can appear in any order
-    // The grammar structure allows this flexibility
-
-    // Invalid module syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".module myModule"));  // lowercase module name
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "module MyModule"));  // missing dot
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Module MyModule"));  // wrong case
-
-    // Invalid import syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".import file.basis"));  // missing quotes
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "import \"file.basis\""));  // missing dot
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Import \"file.basis\""));  // wrong case
-
-    // Invalid definition syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".alias myInt: Int"));  // lowercase type name
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".domain userId: Int"));  // lowercase domain name
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".enum status: active = 0"));  // lowercase enum name
-
-    // Invalid class syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
-        ".class widget:\n"
-        "  .decl Widget w: Int x"));  // lowercase class name
-
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
-        ".class Widget:\n"
-        ".decl Widget w: Int x"));  // declaration not indented
-
-    // Invalid record/object syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".record point: Int x"));  // lowercase record name
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".object node: Int value"));  // lowercase object name
-
-    // Invalid instance syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".instance myType: Interface"));  // lowercase type name
-
-    // Invalid command syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".cmd DoIt = process"));  // uppercase command name
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".decl Helper: Int x"));  // uppercase declaration name
-
-    // Invalid test syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".test test = run"));  // missing quotes
-
-    // Invalid program syntax
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, "program = main"));  // missing dot
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".Program = main"));  // wrong case
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - realistic file examples") {
-    Grammar2& grammar = getGrammar();
-
-    // Realistic utility module
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Std::Utils\n"
-        ".import Std:Core\n"
-        ".alias StringList: List[String]\n"
-        ".cmd join: StringList items, String separator -> result = _\n"
-        ".cmd split: String text, String delimiter -> result = _\n"
-        ".test \"join test\" = testJoin\n"
-        ".test \"split test\" = testSplit",
-        Production::COMPILATION_UNIT));
-
-    // Realistic data model module
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module App::Models\n"
-        ".import Std:Core\n"
-        ".domain UserId: Int\n"
-        ".domain SessionId: Int\n"
-        ".enum UserRole: admin = 0, user = 1, guest = 2\n"
-        ".record User: UserId id, String name, String email, UserRole role\n"
-        ".record Session: SessionId id, UserId userId, Int timestamp\n"
-        ".object UserManager: List[User] users\n"
-        ".instance User: Serializable, Comparable",
-        Production::COMPILATION_UNIT));
-
-    // Realistic service module with classes
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module App::Services\n"
-        ".import App:Models\n"
-        ".import Std:Core\n"
-        ".class AuthService:\n"
-        "    .decl AuthService s: String secret\n"
-        "    .cmd login: String username, String password -> result = authenticate: username, password\n"
-        "    .cmd logout: SessionId sid = invalidate: sid\n"
-        "    .decl validateToken: String token -> result\n"
-        ".class UserService:\n"
-        "    .decl UserService s: UserManager manager\n"
-        "    .cmd createUser: String name, String email -> result = (manager):: add: name, email\n"
-        "    .cmd getUser: UserId id -> result = (manager):: find: id\n"
-        ".test \"auth test\" = testAuth\n"
-        ".test \"user test\" = testUser",
-        Production::COMPILATION_UNIT));
-
-    // Realistic main program module
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module App::Main\n"
-        ".import App:Services\n"
-        ".import App:Models\n"
-        ".import Std:Core\n"
-        ".import Std:IO\n"
-        ".cmd initialize = setupDatabase\n    loadConfig\n"
-        ".cmd run: []String args = initialize\n    startServer: args\n"
-        ".program = run: args",
-        Production::COMPILATION_UNIT));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - edge cases with whitespace and newlines") {
-    Grammar2& grammar = getGrammar();
-
-    // Multiple newlines between definitions
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        "\n"
-        ".import \"file.basis\"\n"
-        "\n"
-        "\n"
-        ".alias MyInt: Int",
-        Production::COMPILATION_UNIT));
-
-    // Definitions with varying indentation levels
-    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
-        ".module MyModule\n"
-        "  .import \"file.basis\"\n"
-        "    .alias MyInt: Int\n"
-        "      .domain UserId: Int"));
-}
-
-TEST_CASE("Grammar2::test COMPILATION_UNIT - all 13 definition types together") {
-    Grammar2& grammar = getGrammar();
-
-    // Comprehensive test with all 13 definition types that begin with reserved words
-    // (excluding MODULE and IMPORT which have their own sections)
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".module Comprehensive\n"
-        ".import Std:Core\n"
-        ".alias MyInt: Int\n"
-        ".class Widget:\n"
-        "    .decl Widget w: Int x\n"
-        ".cmd doSomething: Int x -> result = process: x\n"
-        ".decl helper: String s -> output\n"
-        ".intrinsic native: Int x\n"
-        ".domain UserId: Int\n"
-        ".enum Status: active = 0, inactive = 1\n"
-        ".instance Widget: Interface\n"
-        ".object Node: Int value\n"
-        ".program = main\n"
-        ".record Point: Int x, Int y\n"
-        ".test \"comprehensive test\" = run",
-        Production::COMPILATION_UNIT));
-
-    // Same but without module and imports
-    CHECK(testParse(grammar.COMPILATION_UNIT,
-        ".alias MyInt: Int\n"
-        ".class Widget:\n"
-        "  .decl Widget w: Int x\n"
-        ".cmd doSomething: Int x -> result = process: x\n"
-        ".decl helper: String s -> output\n"
-        ".intrinsic native: Int x\n"
-        ".domain UserId: Int\n"
-        ".enum Status: active = 0, inactive = 1\n"
-        ".instance Widget: Interface\n"
-        ".object Node: Int value\n"
-        ".program = main\n"
-        ".record Point: Int x, Int y\n"
-        ".test \"comprehensive test\" = run",
-        Production::COMPILATION_UNIT));
-}
-

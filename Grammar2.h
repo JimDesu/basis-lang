@@ -42,7 +42,6 @@ namespace basis {
         SPPF IDENTIFIER;
         SPPF TYPENAME;
         SPPF TYPENAME_UNQUALIFIED;
-        SPPF QUALIFIED_IDENTIFIER;
         SPPF QUALIFIED_TYPENAME;
 
         // Reserved words

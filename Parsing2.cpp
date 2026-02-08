@@ -228,12 +228,13 @@ namespace basis {
     SPPF oneOrMore(SPPF parseFn) { return std::make_shared<OneOrMore>(parseFn); }
 
     // Separated implementation
-    Separated::Separated(SPPF spElement, SPPF spSeparator)
-        : spElement(spElement), spSeparator(spSeparator) {}
+    Separated::Separated(SPPF spElement, SPPF spSeparator, bool optionalSeparator)
+        : spElement(spElement), spSeparator(spSeparator), optionalSeparator(optionalSeparator) {}
 
     bool Separated::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                          itToken* pIter, const Token* pLimit,
                          itToken* pFurthest, const ParseFn** ppFurthestParser) const {
+        bool foundSeparator = false;
         if (!spElement->parse(tokens, dpspResult, pIter, pLimit, pFurthest, ppFurthestParser)) {
             return false;
         }
@@ -242,8 +243,12 @@ namespace basis {
         while (true) {
             RollbackGuard<itToken> guard(pIter);
             if (!spSeparator->parse(tokens, &next, pIter, pLimit, pFurthest, ppFurthestParser)) {
-                break;
+                // if the separator is optional or we've already found a separator, then we're done
+                if (optionalSeparator || foundSeparator) break;
+                // no separator found and not optional - fail
+                return false;
             }
+            foundSeparator = true;
             if (!spElement->parse(tokens, &next, pIter, pLimit, pFurthest, ppFurthestParser)) {
                 // Found separator but no following element - restore position and fail
                 return false;
@@ -255,8 +260,8 @@ namespace basis {
         return true;
     }
 
-    SPPF separated(SPPF element, SPPF separator) {
-        return std::make_shared<Separated>(element, separator);
+    SPPF separated(SPPF element, SPPF separator, bool optionalSeparator) {
+        return std::make_shared<Separated>(element, separator, optionalSeparator);
     }
 
     // Bound implementation
