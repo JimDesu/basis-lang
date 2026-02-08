@@ -1517,7 +1517,9 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         "     nested: c,d\n"
         " ^ rewind\n"
         " | recover: error\n"
-        " | Error e> handleError: e\n"
+        " | Error e -> handleError: e\n"
+        " | Error e ->"
+        "   handleError: e\n"
         " @ cleanup: resource\n"
         " execute: { doIt }\n"
         " @! onFailure: error\n"
@@ -1920,10 +1922,10 @@ TEST_CASE("Grammar2::BLOCK") {
     CHECK(testParse(grammar.BLOCK, "% execute", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "^ retry", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "| recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| Failtype f> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| Failtype[T] f> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| \"fish\"> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| FailTypes[error] > recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| Failtype f-> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| Failtype[T] f-> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| \"fish\"-> recover", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| FailTypes[error] -> recover", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "@ cleanup: resource", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "@! handleFailure: error", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? doIt\n process: x", Production::DO_BLOCK));

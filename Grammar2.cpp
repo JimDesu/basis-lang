@@ -379,7 +379,7 @@ void Grammar2::initCommandBody() {
             group(Production::DO_UNLESS, BANG),
             group(Production::DO_BLOCK, PERCENT),
             group(Production::DO_REWIND, CARAT),
-            group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RANGLE)),
+            group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW)),
             group(Production::DO_RECOVER, PIPE),
             group(Production::ON_EXIT, AMPHORA),
             group(Production::ON_EXIT_FAIL, AMBANG) ));
