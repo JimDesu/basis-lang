@@ -410,6 +410,10 @@ bool Lexer::readPunct() {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::LARROW;
+        } else if ( input.good() && input.peek() == '=') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::LEQUALS;
         } else {
             pToken->type = TokenType::LANGLE;
         }
@@ -524,7 +528,13 @@ bool Lexer::readPunct() {
         }
         break;
     case '>':
-        pToken->type = TokenType::RANGLE;
+        if ( input.good() && input.peek() == '=') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::GREQUALS;
+        } else {
+            pToken->type = TokenType::RANGLE;
+        }
         break;
     case '}':
         pToken->type = TokenType::RBRACE;

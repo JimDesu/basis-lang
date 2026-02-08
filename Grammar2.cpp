@@ -48,9 +48,9 @@ void Grammar2::initPunctuation() {
    ON_EXIT_FAIL = match(Production::ON_EXIT_FAIL, TokenType::AMBANG);
    AMPERSAND = match(Production::AMPERSAND, TokenType::AMPERSAND);
    ON_EXIT = match(Production::ON_EXIT, TokenType::AMPHORA);
-   APOSTROPHE = match(Production::APOSTROPHE, TokenType::APOSTROPHE);
+   WRITEABLE = match(Production::APOSTROPHE, TokenType::APOSTROPHE);
    ASTERISK = match(Production::ASTERISK, TokenType::ASTERISK);
-   BANG = match(Production::BANG, TokenType::BANG);
+   DO_UNLESS = match(Production::BANG, TokenType::BANG);
    BANGBRACE = match(Production::BANGBRACE, TokenType::BANGBRACE);
    BANGLANGLE = match(Production::BANGLANGLE, TokenType::BANGLANGLE);
    CARAT = match(Production::CARAT, TokenType::CARAT);
@@ -58,25 +58,27 @@ void Grammar2::initPunctuation() {
    COLON = match(Production::COLON, TokenType::COLON);
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);
    COLBRACE = match(Production::COLBRACE, TokenType::COLBRACE);
-   DQMARK = match(Production::DQMARK, TokenType::DQMARK);
+   DO_WHEN_MULTI = match(Production::DQMARK, TokenType::DQMARK);
    DCOLON = match(Production::DCOLON, TokenType::DCOLON);
-   DOLLAR = match(Production::DOLLAR, TokenType::DOLLAR);
+   EXEC_CMD = match(Production::DOLLAR, TokenType::DOLLAR);
    EQUALS = match(Production::EQUALS, TokenType::EQUALS);
+   GREQUALS = match(Production::GREQUALS, TokenType::GREQUALS);
    LANGLE = match(Production::LANGLE, TokenType::LANGLE);
+   LEQUALS = match(Production::LEQUALS, TokenType::LEQUALS);
    LARROW = match(Production::LARROW, TokenType::LARROW);
    LBRACE = match(Production::LBRACE, TokenType::LBRACE);
    LBRACKET = match(Production::LBRACKET, TokenType::LBRACKET);
    LPAREN = match(Production::LPAREN, TokenType::LPAREN);
    MINUS = match(Production::MINUS, TokenType::MINUS);
-   PERCENT = match(Production::PERCENT, TokenType::PERCENT);
+   DO_BLOCK = match(Production::PERCENT, TokenType::PERCENT);
    PIPE = match(Production::PIPE, TokenType::PIPE);
    PLUS = match(Production::PLUS, TokenType::PLUS);
    POUND = match(Production::POUND, TokenType::POUND);
    QBRACE = match(Production::QBRACE, TokenType::QBRACE);
    QCOLON = match(Production::QCOLON, TokenType::QCOLON);
    QLANGLE = match(Production::QLANGLE, TokenType::QLANGLE);
-   QMARK = match(Production::QMARK, TokenType::QMARK);
-   QMINUS = match(Production::QMINUS, TokenType::QMINUS);
+   DO_WHEN = match(Production::QMARK, TokenType::QMARK);
+   DO_WHEN_FAIL = match(Production::QMINUS, TokenType::QMINUS);
    RANGLE = match(Production::RANGLE, TokenType::RANGLE);
    RARROW = match(Production::RARROW, TokenType::RARROW);
    RBRACE = match(Production::RBRACE, TokenType::RBRACE);
@@ -124,7 +126,7 @@ void Grammar2::initTypeExpressions() {
           TYPE_NAME_Q,
           forward(TYPE_EXPR_CMD),
           all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG)),
-          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ), maybe(APOSTROPHE) ));
+          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ), maybe(WRITEABLE) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
@@ -314,7 +316,7 @@ void Grammar2::initCommandBody() {
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(PLUS, MINUS, ASTERISK, SLASH) );
+        any(PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS) );
 
     CALL_BLOCKQUOTE = any(
         boundedGroup(Production::CALL_BLOCK_NOFAIL,
@@ -327,8 +329,8 @@ void Grammar2::initCommandBody() {
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(ON_EXIT, ON_EXIT_FAIL)), CALL_QUOTE)),
-            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(ON_EXIT, ON_EXIT_FAIL)), IDENTIFIER)),
+            group(Production::CALL_QUOTED, all(EXEC_CMD, maybe(any(ON_EXIT, ON_EXIT_FAIL)), CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(EXEC_CMD, maybe(any(ON_EXIT, ON_EXIT_FAIL)), IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
@@ -366,18 +368,16 @@ void Grammar2::initCommandBody() {
         all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
 
+    //TODO conditional expressions in parens at this level plus insert/extract
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_INVOKE, forward(BLOCK))) );
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
     BLOCK_HEADER = group(Production::BLOCK_HEADER,
-        any(group(Production::DO_WHEN_MULTI, DQMARK),
-            group(Production::DO_WHEN, QMARK),
-            group(Production::DO_WHEN_FAIL, QMINUS),
+        any(DO_WHEN_MULTI, DO_WHEN, DO_WHEN_FAIL,
             group(Production::DO_ELSE, MINUS),
-            group(Production::DO_UNLESS, BANG),
-            group(Production::DO_BLOCK, PERCENT),
+            DO_UNLESS, DO_BLOCK,
             group(Production::DO_REWIND, CARAT),
             group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW)),
             group(Production::DO_RECOVER, PIPE),

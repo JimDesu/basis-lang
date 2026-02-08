@@ -75,7 +75,9 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken(":", TokenType::COLON);
     testSingleToken("$", TokenType::DOLLAR);
     testSingleToken("=", TokenType::EQUALS);
+    testSingleToken(">=", TokenType::GREQUALS);
     testSingleToken("<", TokenType::LANGLE);
+    testSingleToken("<=", TokenType::LEQUALS);
     testSingleToken("<-", TokenType::LARROW);
     testSingleToken("{", TokenType::LBRACE);
     testSingleToken("[", TokenType::LBRACKET);
