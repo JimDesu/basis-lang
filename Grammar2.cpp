@@ -174,7 +174,7 @@ void Grammar2::initModuleTypes() {
 
 void Grammar2::initProgramDefinitions() {
     DEF_PROGRAM = exclusiveGroup(Production::DEF_PROGRAM,
-        all(PROGRAM, EQUALS, SUBCALL_COMMAND));
+        all(PROGRAM, EQUALS, forward(CALL_INVOKE)));
 }
 
 void Grammar2::initTestDefinitions() {
@@ -310,40 +310,29 @@ void Grammar2::initClassTypes() {
 }
 
 void Grammar2::initCommandBody() {
-    CALL_IDENTIFIER = any( group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)) );
+    CALL_IDENTIFIER = any( group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)), IDENTIFIER );
 
     CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
-        any( CALL_IDENTIFIER, forward(CALL_EXPRESSION) ) );
+        any( forward(CALL_EXPRESSION), CALL_IDENTIFIER ) );
     CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
     CALL_PARAMETER = group(Production::CALL_PARAMETER,
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
-
-    SUBCALL_CONSTRUCTOR = group(Production::CALL_CONSTRUCTOR,
-        all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
-    SUBCALL_COMMAND = group(Production::CALL_COMMAND,
-        all(forward(CALL_CMD_TARGET), maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
-    SUBCALL_VCOMMAND = group(Production::CALL_VCOMMAND,
-        all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
-            maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
-    SUB_CALL = any(SUBCALL_VCOMMAND, SUBCALL_CONSTRUCTOR, SUBCALL_COMMAND);
-    SUBCALL_GROUP = group(Production::CALL_GROUP,
-        oneOrMore(any(forward(CALL_ASSIGNMENT), SUB_CALL, forward(BLOCK))) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
         any(PLUS, MINUS, ASTERISK, SLASH) );
 
     CALL_BLOCKQUOTE = any(
-        group(Production::CALL_BLOCK_NOFAIL,
-            all(COLBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)),
-        group(Production::CALL_BLOCK_FAIL,
-            all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)),
-        group(Production::CALL_BLOCK_MAYFAIL,
-            all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(SUBCALL_GROUP)), RBRACE)) );
-    CALL_SUBQUOTE = all( LBRACE, maybe( SUB_CALL ), RBRACE );
+        boundedGroup(Production::CALL_BLOCK_NOFAIL,
+            all(COLBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+        boundedGroup(Production::CALL_BLOCK_FAIL,
+            all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
+        boundedGroup(Production::CALL_BLOCK_MAYFAIL,
+            all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
+    CALL_SUBQUOTE = all( LBRACE, maybe( forward(CALL_INVOKE) ), RBRACE );
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)),CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)), CALL_QUOTE)),
             group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)), IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
@@ -358,7 +347,8 @@ void Grammar2::initCommandBody() {
     CALL_EXPR_TERM = all(
         any( LITERAL,
              group(Production::ENUM_DEREF, all(TYPENAME, LBRACKET, IDENTIFIER, RBRACKET)),
-             SUB_CALL,
+             forward(CALL_INVOKE),
+             IDENTIFIER,
              all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
@@ -371,7 +361,7 @@ void Grammar2::initCommandBody() {
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
             all( CALL_EXPRESSION, maybe(oneOrMore(all(PIPE, CALL_EXPRESSION))) ) ),
-            maybe(oneOrMore(all(CALL_OPERATOR, any(SUB_CALL,CALL_EXPRESSION)))) );
+            maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),CALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );

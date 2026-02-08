@@ -38,11 +38,28 @@ namespace {
     bool debugTestParse(SPPF parseFn, const std::string& text, Production expected) {
         bool lexSuccess = false;
         std::list<spToken> tokens = tokenize(text, lexSuccess);
-        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
+        if (!lexSuccess) {
+            std::cerr << "Lexing failed" << std::endl;
+            return false;  // Lexing failed, so parsing fails
+        }
         Parser parser(tokens, parseFn);
-        if (parser.parse() && parser.allTokensConsumed()
-            && parser.parseTree != nullptr && parser.parseTree->production == expected) return true;
-        std::cerr << parser.getError();
+        bool parseResult = parser.parse();
+        bool allConsumed = parser.allTokensConsumed();
+        bool hasTree = parser.parseTree != nullptr;
+        bool correctProduction = hasTree && parser.parseTree->production == expected;
+
+        if (parseResult && allConsumed && correctProduction) return true;
+
+        std::cerr << std::endl << "=== DEBUG TEST PARSE FAILURE ===" << std::endl;
+        std::cerr << "parse() returned: " << (parseResult ? "true" : "false") << std::endl;
+        std::cerr << "allTokensConsumed(): " << (allConsumed ? "true" : "false") << std::endl;
+        std::cerr << "parseTree != nullptr: " << (hasTree ? "true" : "false") << std::endl;
+        if (hasTree) {
+            std::cerr << "parseTree->production: " << static_cast<int>(parser.parseTree->production)
+                      << " (expected: " << static_cast<int>(expected) << ")" << std::endl;
+        }
+        std::cerr << "Parser error: " << parser.getError();
+        std::cerr << "================================" << std::endl;
         return false;
     }
 }
@@ -1344,7 +1361,6 @@ TEST_CASE("Grammar2::test CALL_IDENTIFIER") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.CALL_IDENTIFIER, "#temp", Production::ALLOC_IDENTIFIER));
-    CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "result"));  // uppercase not allowed
     CHECK_FALSE(testParse(grammar.CALL_IDENTIFIER, "Widget"));  // typename not allowed
 }
 
