@@ -406,7 +406,11 @@ bool Lexer::readPunct() {
         }
         break;
     case '<':
-        if ( input.good() && input.peek() == '-') {
+        if ( input.good() && input.peek() == '<') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::DLANGLE;
+        } else if ( input.good() && input.peek() == '-') {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::LARROW;
@@ -528,7 +532,11 @@ bool Lexer::readPunct() {
         }
         break;
     case '>':
-        if ( input.good() && input.peek() == '=') {
+        if ( input.good() && input.peek() == '>') {
+            read();
+            pToken->text += readChar;
+            pToken->type = TokenType::DRANGLE;
+        } else if ( input.good() && input.peek() == '=') {
             read();
             pToken->text += readChar;
             pToken->type = TokenType::GREQUALS;

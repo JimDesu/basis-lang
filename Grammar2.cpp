@@ -62,7 +62,9 @@ void Grammar2::initPunctuation() {
    DCOLON = match(Production::DCOLON, TokenType::DCOLON);
    EXEC_CMD = match(Production::DOLLAR, TokenType::DOLLAR);
    EQUALS = match(Production::EQUALS, TokenType::EQUALS);
+   EXTRACT = match(Production::EXTRACT, TokenType::DRANGLE);
    GREQUALS = match(Production::GREQUALS, TokenType::GREQUALS);
+   INSERT = match(Production::INSERT, TokenType::DLANGLE);
    LANGLE = match(Production::LANGLE, TokenType::LANGLE);
    LEQUALS = match(Production::LEQUALS, TokenType::LEQUALS);
    LARROW = match(Production::LARROW, TokenType::LARROW);
@@ -268,11 +270,9 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL,
        all(DECLARE, any(
            // destructor
-           all(group(Production::ON_EXIT, ON_EXIT),DEF_CMD_RECEIVER, COLON,
-               separated(DEF_CMD_PARM, COMMA)),
+           all(ON_EXIT,DEF_CMD_RECEIVER),
            // failure handler
-           all(ON_EXIT_FAIL, DEF_CMD_RECEIVER, COLON,
-               separated(DEF_CMD_PARM, COMMA)),
+           all(ON_EXIT_FAIL, DEF_CMD_RECEIVER),
            // constructor
            all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
            // VCOMMAND - with receivers, allows -> result without params
@@ -288,10 +288,10 @@ void Grammar2::initCommandDefinitions() {
            any(
                // constructor
                all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
-               // destructor
-               all(group(Production::ON_EXIT, ON_EXIT), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
-               // failure handler
-               all(ON_EXIT_FAIL, DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
+               // destructor -- no parameters allowed
+               all(ON_EXIT, DEF_CMD_RECEIVER ),
+               // failure handler -- no parms allowed
+               all(ON_EXIT_FAIL, DEF_CMD_RECEIVER),
                // VCOMMAND - with receivers, allows -> result without params
                all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
                // Regular command - without receivers, requires params for -> result
@@ -310,13 +310,13 @@ void Grammar2::initCommandBody() {
     CALL_IDENTIFIER = any( group(Production::ALLOC_IDENTIFIER, all(POUND, IDENTIFIER)), IDENTIFIER );
 
     CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
-        any( forward(CALL_EXPRESSION), CALL_IDENTIFIER ) );
+        any( forward(SUBCALL_EXPRESSION), CALL_IDENTIFIER ) );
     CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
     CALL_PARAMETER = group(Production::CALL_PARAMETER,
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS) );
+        any(PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, INSERT, EXTRACT) );
 
     CALL_BLOCKQUOTE = any(
         boundedGroup(Production::CALL_BLOCK_NOFAIL,
@@ -336,7 +336,7 @@ void Grammar2::initCommandBody() {
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
     CALL_EXPR_INDEX = group(Production::CALL_EXPR_INDEX, all(
         LBRACKET,
-        all(forward(CALL_EXPRESSION), maybe(all(COMMA, forward(CALL_EXPRESSION)))),
+        all(forward(SUBCALL_EXPRESSION), maybe(all(COMMA, forward(SUBCALL_EXPRESSION)))),
         RBRACKET ));
     CALL_EXPR_SUFFIX = all(
         maybe(oneOrMore(any(CALL_EXPR_DEREF, CALL_EXPR_INDEX))),
@@ -346,19 +346,19 @@ void Grammar2::initCommandBody() {
              group(Production::ENUM_DEREF, all(TYPENAME, LBRACKET, IDENTIFIER, RBRACKET)),
              forward(CALL_INVOKE),
              IDENTIFIER,
-             all(LPAREN, forward(CALL_EXPRESSION), RPAREN) ),
+             all(LPAREN, forward(SUBCALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
         any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, LBRACE, forward(CALL_GROUP), RBRACE ));
-    CALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
+
+    SUBCALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_CMD_LITERAL,
         CALL_QUOTE,
-        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,forward(CALL_EXPR_TERM))))) ));
-
+        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))) ));
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(any(IDENTIFIER,CALL_IDENTIFIER), LARROW,
-            all( CALL_EXPRESSION, maybe(oneOrMore(all(PIPE, CALL_EXPRESSION))) ) ),
-            maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),CALL_EXPRESSION)))) );
+        all(CALL_IDENTIFIER, LARROW,
+            all( SUBCALL_EXPRESSION, maybe(oneOrMore(all(PIPE, SUBCALL_EXPRESSION))) ) ),
+            maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),SUBCALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
@@ -367,11 +367,13 @@ void Grammar2::initCommandBody() {
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
         all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
-
-    //TODO conditional expressions in parens at this level plus insert/extract
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
+
+    CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
+       all(CALL_EXPR_TERM,
+           oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)) ));
     CALL_GROUP = group(Production::CALL_GROUP,
-        oneOrMore(any(CALL_ASSIGNMENT, CALL_INVOKE, forward(BLOCK))) );
+        oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, CALL_INVOKE, forward(BLOCK))) );
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
     BLOCK_HEADER = group(Production::BLOCK_HEADER,

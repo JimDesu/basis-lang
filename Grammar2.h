@@ -77,7 +77,9 @@ namespace basis {
         SPPF DCOLON;
         SPPF EXEC_CMD;
         SPPF EQUALS;
+        SPPF EXTRACT;
         SPPF GREQUALS;
+        SPPF INSERT;
         SPPF LANGLE;
         SPPF LEQUALS;
         SPPF LARROW;
@@ -201,11 +203,12 @@ namespace basis {
         SPPF DEF_CMD_EMPTY;
         SPPF CALL_GROUP;
         SPPF CALL_INVOKE;
+        SPPF CALL_EXPRESSION;
         SPPF CALL_CONSTRUCTOR;
         SPPF CALL_COMMAND;
         SPPF CALL_VCOMMAND;
         SPPF CALL_ASSIGNMENT;
-        SPPF CALL_EXPRESSION;
+        SPPF SUBCALL_EXPRESSION;
         SPPF CALL_EXPR_TERM;
         SPPF CALL_EXPR_SUFFIX;
         SPPF CALL_EXPR_INDEX;

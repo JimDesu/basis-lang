@@ -321,7 +321,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - with complex class definitions") {
         "    .cmd doIt = process\n"
         "    .cmd render = draw\n"
         "    .decl update: Int delta\n"
-        "    .cmd @ Widget w: Int code = cleanup: code",
+        "    .cmd @ Widget w = cleanup: code",
         Production::COMPILATION_UNIT));
 
     // Multiple classes
@@ -711,6 +711,22 @@ TEST_CASE("Grammar2::DEF_TEST") {
     CHECK_FALSE(testParse(grammar.DEF_TEST, ".test = doSomething"));  // missing string literal
 }
 
+TEST_CASE("Grammar2::DEF_TEST - with CALL_EXPRESSION") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_TEST, ".test \"arithmetic test\" = a + b", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"subtraction test\" = x - y", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"multiplication test\" = width * height", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"division test\" = sum / count", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"complex expression\" = (a + b) * (c - d)", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"comparison test\" = x < y", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"array test\" = arr[0] + arr[1]", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"pointer test\" = ptr^ + offset", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"mixed test\" = setup\n"
+                                              "      a + b\n"
+                                              "      validate: result", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"expression with invoke\" = (Widget: x, y) + offset", Production::DEF_TEST));
+}
+
 // =============================================================================
 // DEF_CLASS - Class Definitions (initClassTypes)
 // =============================================================================
@@ -753,18 +769,18 @@ TEST_CASE("Grammar2::DEF_CLASS") {
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Resource:\n"
         "  .decl Resource r: String name\n"
-        "  .decl @ Resource r: Int code",
+        "  .decl @ Resource r",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Transaction:\n"
         "  .decl Transaction t: Int id\n"
-        "  .decl @! Transaction t: String error",
+        "  .decl @! Transaction t",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Connection:\n"
         "  .decl Connection c: String host, Int port\n"
-        "  .decl @ Connection c: Int timeout\n"
-        "  .decl @! Connection c: String reason",
+        "  .decl @ Connection c\n"
+        "  .decl @! Connection c",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
@@ -814,7 +830,7 @@ TEST_CASE("Grammar2::DEF_CLASS") {
         "  .decl Handler h: String name\n"
         "  .cmd process: String data = validate: data\n"
         "  .cmd cleanup = _\n"
-        "  .decl @ Handler h: Int code",
+        "  .decl @ Handler h",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
@@ -827,20 +843,20 @@ TEST_CASE("Grammar2::DEF_CLASS") {
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Resource:\n"
         "  .cmd Resource r: String name = acquire: name\n"
-        "  .cmd @ Resource r: Int code = release: code",
+        "  .cmd @ Resource r = release: code",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Connection:\n"
-        "  .cmd @ Connection c: Int timeout = disconnect\n    cleanup",
+        "  .cmd @ Connection c= disconnect\n    cleanup",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Transaction:\n"
         "  .cmd Transaction t: Int id = begin: id\n"
-        "  .cmd @! Transaction t: String error = rollback: error",
+        "  .cmd @! Transaction t= rollback: error",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Connection:\n"
-        "  .cmd @! Connection c: String reason = logError: reason\n    notify",
+        "  .cmd @! Connection c= logError: reason\n    notify",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
@@ -873,14 +889,14 @@ TEST_CASE("Grammar2::DEF_CLASS") {
         "  .cmd ?tryIt: Int x -> result = validate: x\n"
         "  .decl !mustFail: String s -> output\n"
         "  .cmd cleanup = _\n"
-        "  .cmd @ Widget w: Int code = release: code\n"
-        "  .decl @! Widget w: String error",
+        "  .cmd @ Widget w = release: code\n"
+        "  .decl @! Widget w",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
         "  .cmd Widget w: Int x = _\n"
-        "  .cmd @ Widget w: Int code = _\n"
-        "  .cmd @! Widget w: String error = _\n"
+        "  .cmd @ Widget w = _\n"
+        "  .cmd @! Widget w = _\n"
         "  .cmd (Widget w):: method = _\n"
         "  .cmd process: Int x -> result = _",
         Production::DEF_CLASS));
@@ -1329,7 +1345,6 @@ TEST_CASE("Grammar2::DEF_CMD_PARMTYPE_NAME") {
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (UI::Widget w):: render", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (Std::Collections::List[T] items):: process", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: Namespace::Type param -> result", Production::DEF_CMD_DECL));
-    // syntactically but not semantically valid
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl process: Module::Item x -> Module::result", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl (UI::Widget w):: handle: IO::Event e -> UI::response / Std::Context ctx", Production::DEF_CMD_DECL));
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: Int i, Int j", Production::DEF_CMD_DECL));
@@ -1337,18 +1352,10 @@ TEST_CASE("Grammar2::DEF_CMD_PARMTYPE_NAME") {
     CHECK(testParse(grammar.DEF_CMD_DECL, ".decl doIt: !<String', Int> result", Production::DEF_CMD_DECL));
 
     // Destructor tests (using @ AMPHORA)
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w: Int x", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w: Int x, Int y", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Container c: String name", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Resource r: ?<Int'> cmd", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w", Production::DEF_CMD_DECL));
 
     // Failure handler tests (using @! AMBANG)
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w: Int x", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w: Int x, Int y", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Container c: String error", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Handler h: ^Int ptr, []String items", Production::DEF_CMD_DECL));
-    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Resource r: !<String', Int> result", Production::DEF_CMD_DECL));
+    CHECK(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w", Production::DEF_CMD_DECL));
 
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt -> result"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl doIt: ^Int' ptr"));
@@ -1382,16 +1389,13 @@ TEST_CASE("Grammar2::DEF_CMD_PARMTYPE_NAME") {
 
     // Destructor negative tests
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ doIt: Int x -> result"));  // destructor needs receiver
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget w"));  // destructor needs parameters
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: @ Int x"));  // @ in wrong position
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @ Widget' w: Int x"));  // receiver can't have apostrophe
 
     // Failure handler negative tests
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! (Widget w):: Int i"));  // failure handler can't use ::
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! doIt: Int x -> result"));  // failure handler needs receiver
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget w"));  // failure handler needs parameters
     CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl Widget w: @! Int x"));  // @! in wrong position
-    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget' w: Int x"));  // receiver can't have apostrophe
+    CHECK_FALSE(testParse(grammar.DEF_CMD_DECL, ".decl @! Widget' w"));  // receiver can't have apostrophe
 
     CHECK(testParse(grammar.DEF_CMD_INTRINSIC, ".intrinsic doIt"));
     CHECK(testParse(grammar.DEF_CMD_INTRINSIC, ".intrinsic doIt: Int x -> result", Production::DEF_CMD_INTRINSIC));
@@ -1447,11 +1451,11 @@ TEST_CASE("Grammar2::DEF_CMD - full commands with bodies") {
     Grammar2& grammar = getGrammar();
 
     CHECK(testParse(grammar.DEF_CMD, ".cmd Container c: Int size = Container: size", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Widget w: String error = logError: error", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Connection c: String msg, Int code = handleFailure: #msg, code", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd @ Resource r: String name, Int id = doIt", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Widget w: String error = doIt", Production::DEF_CMD));
-    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Transaction t: Int code, String msg = doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Widget w = logError: error", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Connection c = handleFailure: #msg, code", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd @ Resource r = doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Widget w = doIt", Production::DEF_CMD));
+    CHECK(testParse(grammar.DEF_CMD, ".cmd @! Transaction t = doIt", Production::DEF_CMD));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @ (Widget w):: Int x = cleanup: x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @! (Widget w):: String error = logError: error"));
     CHECK_FALSE(testParse(grammar.DEF_CMD, ".cmd @ doIt: Int x = cleanup: x"));
@@ -1614,115 +1618,115 @@ TEST_CASE("Grammar2::CALL_VCOMMAND") {
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - dereference operator") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "myPtr^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "42^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "3.14^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "\"hello\"^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(x + y)^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((doIt))^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y)^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^ + y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + ptr^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr1^ * ptr2^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "myPtr^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "42^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "3.14^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "\"hello\"^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(x + y)^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((doIt))^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x, y)^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^ + y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + ptr^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr1^ * ptr2^", Production::CALL_EXPRESSION));
 }
 
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - address-of operator") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "myVar&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "42&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "3.14&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "\"hello\"&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(x + y)&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((doIt))&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y)&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x& + y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x& * y&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "myVar&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "42&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "3.14&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "\"hello\"&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(x + y)&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((doIt))&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x, y)&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x& + y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + b&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x& * y&", Production::CALL_EXPRESSION));
 }
 
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - array indexing") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[i]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "items[index]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "myArray[42]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "matrix[i, j]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "grid[0, 0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "table[row, col]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0][1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[i][j]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "cube[x][y][z]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "nested[0][1][2][3]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i, j][k]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[0][i, j]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "complex[a, b][c][d, e]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i + 1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[x * 2]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "items[a + b, c - d]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "42[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "\"text\"[i]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(x + y)[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt)[i]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y)[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a + b) * c)[index]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0] + arr[1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[i] * data[j]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x + arr[i]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "matrix[i, j] - offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[i]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "items[index]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "myArray[42]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "matrix[i, j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "grid[0, 0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "table[row, col]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[0][1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[i][j]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "cube[x][y][z]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "nested[0][1][2][3]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[i, j][k]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[0][i, j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "complex[a, b][c][d, e]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[i + 1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[x * 2]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "items[a + b, c - d]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "42[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "\"text\"[i]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(x + y)[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(doIt)[i]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x, y)[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a + b) * c)[index]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[0] + arr[1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[i] * data[j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x + arr[i]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "matrix[i, j] - offset", Production::CALL_EXPRESSION));
 }
 
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - combined operations") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i][j][k] + data[x][y]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "matrix[0, 0] * matrix[1, 1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i + j]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data[x * 2, y / 2]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "items[(a + b)]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[i][j]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[0]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[i, j]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "data^[0][1][2]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^ + offset", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[i] * scale", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr1^[0] + ptr2^[1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr^&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0]^",Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "arr^^", Production::CALL_EXPRESSION));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr&[0]"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr&&"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr[]"));  // empty index
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr["));  // missing closing bracket
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr]"));  // missing opening bracket
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr[0, 1, 2]"));  // too many dimensions
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "arr[,]"));  // missing expressions
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[i][j][k] + data[x][y]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "matrix[0, 0] * matrix[1, 1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[i + j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data[x * 2, y / 2]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "items[(a + b)]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[0]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^[i][j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^[0]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^[i, j]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "data^[0][1][2]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^ + offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr^[i] * scale", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "ptr1^[0] + ptr2^[1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr^&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr[0]^",Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "arr^^", Production::CALL_EXPRESSION));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr&[0]"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr&&"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr[]"));  // empty index
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr["));  // missing closing bracket
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr]"));  // missing opening bracket
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr[0, 1, 2]"));  // too many dimensions
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "arr[,]"));  // missing expressions
 }
 
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - ordering rules") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^[0]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x[0]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^[0]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^[0][1]", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^[0][1]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^[i, j][k]&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x[0]^", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x[0]^&", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x^^", Production::CALL_EXPRESSION));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "x&[0]"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "x&^"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "x&&"));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^[0]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x[0]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^[0]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^[0][1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^[0][1]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^[i, j][k]&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x[0]^", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x[0]^&", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x^^", Production::CALL_EXPRESSION));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "x&[0]"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "x&^"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "x&&"));
 }
 
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - in assignments") {
@@ -1753,53 +1757,53 @@ TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - in assignments") {
 TEST_CASE("Grammar2::CALL_EXPRESSION") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((Widget: x, y))", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(List[Int]: item)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(process: item)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "someVariable", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((obj):: method: x)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a, b):: handle: item)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "($handler: x)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "($callback)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(${doIt}: data)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(${Widget: x, y})", Production::CALL_EXPRESSION));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(Widget: x"));  // missing closing paren
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "Widget: x)"));  // missing opening paren
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((Widget: x, y))", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(List[Int]: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(process: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(doIt)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "someVariable", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((obj):: method: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a, b):: handle: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "($handler: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "($callback)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(${doIt}: data)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(${Widget: x, y})", Production::CALL_EXPRESSION));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x"));  // missing closing paren
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
 
 TEST_CASE("Grammar2::CALL_CMD_LITERAL") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<String name>{Container: name}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<Int value>{List[Int]: value}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String data>{Map[String, Int]: data, count}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int count>{Array[8]: count}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{process: x}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<String name>{doIt}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<Int value>{calculate: value, value}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<String data>{validate: data}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{(obj):: method: x}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name>{(a, b):: handle: name}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int value>{(widget):: process}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, String y>{Widget: x, y}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int a, Int b, Int c>{calculate: a, b, c}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, Int count>{process: name, count}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Int x, String y, Int z>{(obj):: method: x, y, z}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<^Int ptr>{process: ptr}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<[]Int items>{calculate: items}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<[8]Int buffer>{validate: buffer}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<List[T] list>{Widget: list}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<^[]Int data>{process: data}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<Map[String, Int] map>{doIt}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<(T: Int) value>{process: value}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<(T: String) data>{Widget: data}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<(U: List[T]) items>{calculate: items}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x, ^String ptr, []Int items>{process: x, ptr, items}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<String name, (T: Int) value>{Widget: name, value}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<List[T] list, Int count, ^Int ptr>{(obj):: method: list, count, ptr}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<String name>{Container: name}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<Int value>{List[Int]: value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<String data>{Map[String, Int]: data, count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<Int count>{Array[8]: count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>{process: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<String name>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<Int value>{calculate: value, value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<String data>{validate: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>{(obj):: method: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<String name>{(a, b):: handle: name}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<Int value>{(widget):: process}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x, String y>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int a, Int b, Int c>{calculate: a, b, c}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<String name, Int count>{process: name, count}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<Int x, String y, Int z>{(obj):: method: x, y, z}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<^Int ptr>{process: ptr}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<[]Int items>{calculate: items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<[8]Int buffer>{validate: buffer}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<List[T] list>{Widget: list}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<^[]Int data>{process: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<Map[String, Int] map>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<(T: Int) value>{process: value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<(T: String) data>{Widget: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<(U: List[T]) items>{calculate: items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x, ^String ptr, []Int items>{process: x, ptr, items}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<String name, (T: Int) value>{Widget: name, value}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<List[T] list, Int count, ^Int ptr>{(obj):: method: list, count, ptr}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "handler <- ?<String name>{process: name}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- !<Int a, Int b>{calculate: a, b}", Production::CALL_ASSIGNMENT));
@@ -1820,21 +1824,21 @@ TEST_CASE("Grammar2::CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a, Int b>{calculate: a, b} - offset", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y} | ?<String s>{process: s}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a>{doIt} | :<String s>{validate: s} | ?<Int x>{finalize}", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<>{Widget: x, y}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "?<>{process: data}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "!<>{doIt}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<>{Widget: x, y}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<>{process: data}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<>{doIt}", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<>{(obj):: method: x}", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_EXPRESSION, ":<Int x>{%process: x}", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION,
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>{%process: x}", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION,
         "?<String name, Int count>{%doIt\n"
                 "                           cleanup}", Production::CALL_EXPRESSION));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x{Widget: x, y}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>{Widget: x, y"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int x>Widget: x, y}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int>{Widget: x, y}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<x>{Widget: x, y}"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, ":<Int X>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>Widget: x, y"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>{Widget: x, y"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int x>Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<x>{Widget: x, y}"));
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, ":<Int X>{Widget: x, y}"));
 }
 
 
@@ -1894,6 +1898,171 @@ TEST_CASE("Grammar2::CALL_GROUP") {
     CHECK(testParse(grammar.CALL_GROUP, "$handler: x\n$callback", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "${doIt}\n${process: data}", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "init\n$handler: x\ncleanup", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - basic arithmetic") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x - y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "m * n", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "p / q", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "value << 8", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "bits >> 4", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "a + b", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x - y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "m * n", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "p / q", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "value << 8", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "bits >> 4", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "width + height", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "total - discount", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "area * scale", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "sum / count", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - chained operations") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b + c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x - y - z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a * b * c * d", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "p / q / r", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a << b << c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x >> y >> z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "a + b + c", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x - y - z", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a * b * c * d", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "p / q / r", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a << b << c", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x >> y >> z", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a + b - c * d / e", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "total - discount + tax", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "value << 1 + offset", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "mask >> 4 * scale", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with parentheses") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x * (y + z)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * (c - d)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(value << 8) + offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "mask >> (shift + 2)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "(a + b) * c", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x * (y + z)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(a + b) * (c - d)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "((a + b) * c) / d", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(x) + (y) * (z)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "((a + (b * c))) / d", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(value << 8) + offset", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "mask >> (shift + 2)", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - comparison operators") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a < b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x > y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a <= b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x >= y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a = b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "a < b", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x > y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a <= b", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x >= y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a = b", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(a + b) <= (c - d)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x * y >= z", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with invocations") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y) + z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a + (process: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt) * (calculate: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "(Widget: x, y) + z", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a + (process: item)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(doIt) * (calculate: x)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "((obj):: method: x) + y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a + ((b, c):: handle: item)", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "(Widget: x, y) + (process: a) * (calculate: b)", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with qualified identifiers") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "Module::value + x", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "a * Std::Math::pi", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "Module::value + x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a * Std::Math::pi", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Std::IO::width + Std::IO::height", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with array indexing") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0] + arr[1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "data[i] * data[j]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x + arr[i]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "matrix[i, j] - offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "arr[0] + arr[1]", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "data[i] * data[j]", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x + arr[i]", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "matrix[i, j] - offset", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "arr[i][j][k] + data[x][y]", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with pointer operations") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^ + offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr^[i] * scale", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "ptr1^[0] + ptr2^[1]", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "data& + offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "ptr^ + offset", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "ptr^[i] * scale", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "ptr1^[0] + ptr2^[1]", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "data& + offset", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - mixed with other statements") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_GROUP, "doIt\na + b", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x + y\nprocess: result", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\na * b\ncleanup", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "init\nx + y\nz - w\nfinalize", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "result <- a + b\nx * y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "a + b\nresult <- x * y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\na + b\nresult <- c * d\ncleanup", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with literals") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.CALL_EXPRESSION, "42 + x", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x + 3.14", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "\"hello\" + suffix", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_GROUP, "42 + x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "x + 3.14", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "100 - discount", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "count * 2", Production::CALL_GROUP));
+}
+
+TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - negative cases") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "doIt"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "42"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(a)"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "+ a"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "- a"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a +"));
+    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a + + b"));
 }
 
 TEST_CASE("Grammar2::BLOCK_HEADER") {
@@ -1990,6 +2159,49 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj, #widget):: method: #data", Production::CALL_VCOMMAND));
 }
 
+TEST_CASE("Grammar2::DEF_CMD_BODY - with CALL_EXPRESSION") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= a + b", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= x - y", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= width * height", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= sum / count", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= a + b + c", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= (a + b) * (c - d)", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= arr[i] + arr[j]", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= ptr^ + offset", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= a < b", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= x >= y", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= (Widget: x, y) + offset", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= Module::value + x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init\na + b", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= x * y\ncleanup", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt\na + b\nfinalize", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= result <- a + b\nx * y", Production::DEF_CMD_BODY));
+}
+
+TEST_CASE("Grammar2::BLOCK - with CALL_EXPRESSION") {
+    Grammar2& grammar = getGrammar();
+
+    CHECK(testParse(grammar.BLOCK, "? a + b", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "?? x - y", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "?- width * height", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "! sum / count", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "- a + b + c", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "% (a + b) * (c - d)", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "^ arr[i] + arr[j]", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "| ptr^ + offset", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "@ a < b", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "@! x >= y", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? (Widget: x, y) + offset", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "% Module::value + x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? init\n"
+                                           "  a + b", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "% x * y\n  cleanup", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "- doIt\n  a + b\n  finalize", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? result <- a + b\n  x * y", Production::DO_BLOCK));
+}
+
 TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
     Grammar2& grammar = getGrammar();
 
@@ -2039,9 +2251,9 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - negative cases") {
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result doIt"));  // missing arrow
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "<- doIt"));  // missing target
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <-"));  // missing source
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(doIt"));  // missing close paren
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "doIt)"));  // missing open paren
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "()"));  // empty expression
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "(doIt"));  // missing close paren
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "doIt)"));  // missing open paren
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "()"));  // empty expression
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "="));  // missing call group
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call group (whitespace only)
@@ -2113,46 +2325,61 @@ TEST_CASE("Grammar2::CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_OPERATOR, "-", Production::CALL_OPERATOR));
     CHECK(testParse(grammar.CALL_OPERATOR, "*", Production::CALL_OPERATOR));
     CHECK(testParse(grammar.CALL_OPERATOR, "/", Production::CALL_OPERATOR));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x - y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "m * n", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "p / q", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b + c", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x - y - z", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a * b * c * d", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "p / q / r", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b * c", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x - y / z", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a * b + c * d", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "p / q - r / s", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + b - c * d / e", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * c", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x * (y + z)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(a + b) * (c - d)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a + b) * c) / d", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(x) + (y) * (z)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a + b)) * c", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(((x))) + y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a + (b * c))) / d", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y) + z", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + (process: item)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(doIt) * (calculate: x)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((obj):: method: x) + y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a + ((b, c):: handle: item)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "Module::value + x", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a * Std::Math::pi", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "Module::function: x, y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(UI::Widget: x, y) + offset", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.CALL_OPERATOR, "<<", Production::CALL_OPERATOR));
+    CHECK(testParse(grammar.CALL_OPERATOR, ">>", Production::CALL_OPERATOR));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x - y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "m * n", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "p / q", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a << b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x >> y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + b + c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x - y - z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a * b * c * d", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "p / q / r", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + b * c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x - y / z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a * b + c * d", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "p / q - r / s", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + b - c * d / e", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(a + b) * c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x * (y + z)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(a + b) * (c - d)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a + b) * c) / d", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(x) + (y) * (z)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a + b)) * c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(((x))) + y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a + (b * c))) / d", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "value << 8", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "bits >> 4", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a << b << c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x >> y >> z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a << 1 + b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x >> 2 * y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(a << b) + c", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + (b >> c)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x, y) + z", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + (process: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(doIt) * (calculate: x)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((obj):: method: x) + y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a + ((b, c):: handle: item)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "Module::value + x", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a * Std::Math::pi", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "Module::function: x, y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(UI::Widget: x, y) + offset", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- a + b", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- x - y", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "product <- m * n", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#quotient <- p / q", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "shifted <- value << 8", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "extracted <- bits >> 4", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "combined <- a | b", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- f:a,b | g:b,c | 0", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "sum <- a + b + c", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "diff <- x - y - z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- a * b / c + d", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- p + q * r - s / t", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "mask <- (bits << 4) + offset", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y) + z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- (process: item) * factor", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (doIt) + offset", Production::CALL_ASSIGNMENT));
@@ -2169,11 +2396,11 @@ TEST_CASE("Grammar2::CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#temp <- a + b", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#result <- x * y + z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#value <- (Widget: x, y) + offset", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "((a + b) * (c - d)) / ((e + f) * g)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "(Widget: x, y) + (process: a) * (calculate: b)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a + b) * (c - d)) / ((e + f) * g)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x, y) + (process: a) * (calculate: b)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- ((a + b) * c) + ((d - e) / f)", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "width + height", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "total - discount + tax", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "width + height", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "total - discount + tax", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "area <- width * height", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "average <- sum / count", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "isLess <- a < b", Production::CALL_ASSIGNMENT));
@@ -2181,11 +2408,11 @@ TEST_CASE("Grammar2::CALL_OPERATOR") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "isLessOrEqual <- a <= b", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "isGreaterOrEqual <- x >= y", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "isEqual <- a = b", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a < b", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x > y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a <= b", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "x >= y", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.CALL_EXPRESSION, "a = b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a < b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x > y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a <= b", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "x >= y", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "a = b", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (a + b) <= (c - d)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "check <- x * y >= z", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "match <- (a - b) = (c + d)", Production::CALL_ASSIGNMENT));
@@ -2194,11 +2421,11 @@ TEST_CASE("Grammar2::CALL_OPERATOR") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= value <- x * y + z", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= output <- (Widget: x, y) + offset", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= sum <- a + b\nproduct <- x * y", Production::DEF_CMD_BODY));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "+ a"));  // prefix operator not supported
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "- a"));  // prefix operator not supported
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a +"));  // missing right operand
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a + + b"));  // consecutive operators
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a b + c"));  // missing operator between a and b
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "+ a"));  // prefix operator not supported
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "- a"));  // prefix operator not supported
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "a +"));  // missing right operand
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "a + + b"));  // consecutive operators
+    CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "a b + c"));  // missing operator between a and b
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <- + a"));  // prefix operator
     CHECK_FALSE(testParse(grammar.CALL_ASSIGNMENT, "result <- a +"));  // missing right operand
 }

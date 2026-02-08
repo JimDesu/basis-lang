@@ -76,6 +76,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("$", TokenType::DOLLAR);
     testSingleToken("=", TokenType::EQUALS);
     testSingleToken(">=", TokenType::GREQUALS);
+    testSingleToken("<<", TokenType::DLANGLE);
     testSingleToken("<", TokenType::LANGLE);
     testSingleToken("<=", TokenType::LEQUALS);
     testSingleToken("<-", TokenType::LARROW);
@@ -93,6 +94,7 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken("?", TokenType::QMARK);
     testSingleToken("?-", TokenType::QMINUS);
     testSingleToken("??", TokenType::DQMARK);
+    testSingleToken(">>", TokenType::DRANGLE);
     testSingleToken(">", TokenType::RANGLE);
     testSingleToken("->", TokenType::RARROW);
     testSingleToken("}", TokenType::RBRACE);
