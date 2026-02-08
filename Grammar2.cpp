@@ -45,9 +45,9 @@ void Grammar2::initIdentifiers() {
 }
 
 void Grammar2::initPunctuation() {
-   AMBANG = match(Production::AMBANG, TokenType::AMBANG);
+   ON_EXIT_FAIL = match(Production::ON_EXIT_FAIL, TokenType::AMBANG);
    AMPERSAND = match(Production::AMPERSAND, TokenType::AMPERSAND);
-   AMPHORA = match(Production::AMPHORA, TokenType::AMPHORA);
+   ON_EXIT = match(Production::ON_EXIT, TokenType::AMPHORA);
    APOSTROPHE = match(Production::APOSTROPHE, TokenType::APOSTROPHE);
    ASTERISK = match(Production::ASTERISK, TokenType::ASTERISK);
    BANG = match(Production::BANG, TokenType::BANG);
@@ -266,10 +266,10 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL,
        all(DECLARE, any(
            // destructor
-           all(group(Production::ON_EXIT, AMPHORA),DEF_CMD_RECEIVER, COLON,
+           all(group(Production::ON_EXIT, ON_EXIT),DEF_CMD_RECEIVER, COLON,
                separated(DEF_CMD_PARM, COMMA)),
            // failure handler
-           all(group(Production::ON_EXIT_FAIL, AMBANG), DEF_CMD_RECEIVER, COLON,
+           all(ON_EXIT_FAIL, DEF_CMD_RECEIVER, COLON,
                separated(DEF_CMD_PARM, COMMA)),
            // constructor
            all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
@@ -287,9 +287,9 @@ void Grammar2::initCommandDefinitions() {
                // constructor
                all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
                // destructor
-               all(group(Production::ON_EXIT, AMPHORA), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
+               all(group(Production::ON_EXIT, ON_EXIT), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
                // failure handler
-               all(group(Production::ON_EXIT_FAIL, AMBANG), DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
+               all(ON_EXIT_FAIL, DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
                // VCOMMAND - with receivers, allows -> result without params
                all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
                // Regular command - without receivers, requires params for -> result
@@ -327,8 +327,8 @@ void Grammar2::initCommandBody() {
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)), CALL_QUOTE)),
-            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(AMPHORA, AMBANG)), IDENTIFIER)),
+            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(ON_EXIT, ON_EXIT_FAIL)), CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(DOLLAR, maybe(any(ON_EXIT, ON_EXIT_FAIL)), IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
@@ -370,7 +370,7 @@ void Grammar2::initCommandBody() {
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_INVOKE, forward(BLOCK))) );
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
-        any(all(TYPE_NAME_Q, IDENTIFIER  ), CALL_EXPR_TERM) );
+        any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
     BLOCK_HEADER = group(Production::BLOCK_HEADER,
         any(group(Production::DO_WHEN_MULTI, DQMARK),
             group(Production::DO_WHEN, QMARK),
@@ -381,8 +381,7 @@ void Grammar2::initCommandBody() {
             group(Production::DO_REWIND, CARAT),
             group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW)),
             group(Production::DO_RECOVER, PIPE),
-            group(Production::ON_EXIT, AMPHORA),
-            group(Production::ON_EXIT_FAIL, AMBANG) ));
+            ON_EXIT, ON_EXIT_FAIL ));
     BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, CALL_GROUP) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(

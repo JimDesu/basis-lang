@@ -61,9 +61,9 @@ namespace basis {
         SPPF TEST;
 
         // Punctuation
-        SPPF AMBANG;
+        SPPF ON_EXIT_FAIL;
         SPPF AMPERSAND;
-        SPPF AMPHORA;
+        SPPF ON_EXIT;
         SPPF APOSTROPHE;
         SPPF ASTERISK;
         SPPF BANG;
