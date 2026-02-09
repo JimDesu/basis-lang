@@ -62,7 +62,6 @@ namespace basis {
         PLUS,
         POUND,
         QBRACE,
-        QCOLON,
         QLANGLE,
         QMARK,
         QMINUS,
@@ -80,7 +79,6 @@ namespace basis {
         DEF_ENUM,
         DEF_ENUM_NAME1,
         DEF_ENUM_NAME2,
-        DEF_ENUM_ITEM,
         DEF_ENUM_ITEM_NAME,
         DEF_ENUM_ITEM_LIST,
         // -- type expressions

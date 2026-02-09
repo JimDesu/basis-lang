@@ -89,11 +89,10 @@ namespace basis {
         SPPF MINUS;
         SPPF DO_BLOCK;
         SPPF PIPE;
-        SPPF PIPECOL;
         SPPF PLUS;
         SPPF POUND;
         SPPF QBRACE;
-        SPPF QCOLON;
+        SPPF DO_WHEN_SELECT;
         SPPF QLANGLE;
         SPPF DO_WHEN;
         SPPF DO_WHEN_FAIL;

@@ -77,7 +77,7 @@ void Grammar2::initPunctuation() {
    PLUS = match(Production::PLUS, TokenType::PLUS);
    POUND = match(Production::POUND, TokenType::POUND);
    QBRACE = match(Production::QBRACE, TokenType::QBRACE);
-   QCOLON = match(Production::QCOLON, TokenType::QCOLON);
+   DO_WHEN_SELECT = match(Production::DO_WHEN_SELECT, TokenType::QCOLON);
    QLANGLE = match(Production::QLANGLE, TokenType::QLANGLE);
    DO_WHEN = match(Production::QMARK, TokenType::QMARK);
    DO_WHEN_FAIL = match(Production::QMINUS, TokenType::QMINUS);

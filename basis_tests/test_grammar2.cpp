@@ -1206,7 +1206,7 @@ TEST_CASE("Grammar2::DEF_INSTANCE") {
 
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance MyType: Serializable", Production::DEF_INSTANCE));
-    CHECK(debugTestParse(grammar.DEF_INSTANCE, ".instance List[T]: Iterable", Production::DEF_INSTANCE));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance List[T]: Iterable", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance Map[K, V]: Container", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance User: Serializable, Comparable", Production::DEF_INSTANCE));
     CHECK(testParse(grammar.DEF_INSTANCE, ".instance Node: Printable, Hashable, Cloneable", Production::DEF_INSTANCE));
@@ -1466,7 +1466,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
     Grammar2& grammar = getGrammar();
 
     // Single command definition containing all permissible syntax variations in its body
-    CHECK(debugTestParse(grammar.DEF_CMD,
+    CHECK(testParse(grammar.DEF_CMD,
         ".cmd process: Int x, String y -> result / ^Context ctx = "
         " init: x\n"
         " Widget: x, y\n"
@@ -1592,7 +1592,7 @@ TEST_CASE("Grammar2::CALL_COMMAND") {
     CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${(obj):: method}: data", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "Module::function: x, y", Production::CALL_COMMAND));
-    CHECK(debugTestParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "A::B::C::method", Production::CALL_COMMAND));
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "DoSomething: x"));  // uppercase command name
     CHECK_FALSE(testParse(grammar.CALL_COMMAND, "Widget: x"));  // typename not allowed
