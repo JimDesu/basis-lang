@@ -5,7 +5,8 @@
 #include "compiler.h"
 #include "CompilerContext.h"
 #include "Lexer.h"
-//#include "Parser.h"
+#include "Parsing2.h"
+#include "Grammar2.h"
 
 
 int compile(std::vector<std::string> arguments) {
@@ -23,8 +24,12 @@ int compile(std::vector<std::string> arguments) {
         std::cerr << "Error scanning input file: " << ctx.options.filename << std::endl;
         return 1;
     }
-    // TODO replace with template-based Parser
-    //Parser parser(lexer.output);
+    Parser parser(lexer.output, getGrammar().COMPILATION_UNIT);
+    if ( !parser.parse() ) {
+        std::cerr << "Error parsing input file: " << ctx.options.filename << std::endl;
+        std::cerr << parser.getError();
+        return 1;
+    }
 
     return 0;
 }

@@ -3,7 +3,7 @@
 
 #include "../compiler.h"
 
-TEST_CASE("main read options") {
+TEST_CASE("Compiler::main read options") {
     CompileOptions options;
     std::vector<std::string> argv_good{"-file", "testfile"};
     CHECK(options.readCompileOptions( argv_good));
@@ -15,7 +15,7 @@ TEST_CASE("main read options") {
     CHECK_FALSE(options.readCompileOptions( argv_bad2));
 }
 
-TEST_CASE("read input file") {
+TEST_CASE("Compiler::read input file") {
     CompilerContext ctx;
     ctx.options.filename = "test1.b";
     CHECK(openInputFile(ctx));
