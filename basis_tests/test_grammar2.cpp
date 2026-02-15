@@ -1502,6 +1502,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " text <- \"hello\"\n"
         " hex <- 0x1234_5678\n"
         " enumVal <- Status[ok]\n"
+        " unnested <- x + y\n"
         " nested <- (((x + y)))\n"
         " $handler: x\n"
         " $ @ cleanup: x\n"
