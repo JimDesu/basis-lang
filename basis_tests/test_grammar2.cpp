@@ -1505,9 +1505,6 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " unnested <- x + y\n"
         " nested <- (((x + y)))\n"
         " $handler: x\n"
-        " $ @ cleanup: x\n"
-        " $ @ identifier\n"
-        " $@!onFail: x\n"
         " $ {process: x}: y\n"
         " process: ($handler)\n"
         " ? validate: x\n"
@@ -2113,6 +2110,7 @@ TEST_CASE("Grammar2::DEF_CMD_BODY") {
 
     CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= process: x + 7", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= Widget: x, y", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= List[Int]: item", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= (obj):: method: x", Production::DEF_CMD_BODY));
@@ -2219,9 +2217,6 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "$handler: a, b, c, d, e", Production::CALL_COMMAND));
-    // n.b. these two are syntactically valid but semantically wrong as stack effect commands cannot accept arguments
-    CHECK(testParse(grammar.CALL_COMMAND, "$@handler: a, b, c, d, e", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "$@!handler: a, b, c, d, e", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "${process: data}: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_PARAMETER, "($handler)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt})", Production::CALL_PARAMETER));

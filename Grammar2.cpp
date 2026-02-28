@@ -316,7 +316,7 @@ void Grammar2::initCommandBody() {
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, INSERT, EXTRACT) );
+        any(DCOLON, PIPE, PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, INSERT, EXTRACT) );
 
     CALL_BLOCKQUOTE = any(
         boundedGroup(Production::CALL_BLOCK_NOFAIL,
@@ -329,8 +329,8 @@ void Grammar2::initCommandBody() {
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(EXEC_CMD, maybe(any(ON_EXIT, ON_EXIT_FAIL)), CALL_QUOTE)),
-            group(Production::CALL_QUOTED, all(EXEC_CMD, maybe(any(ON_EXIT, ON_EXIT_FAIL)), IDENTIFIER)),
+            group(Production::CALL_QUOTED, all(EXEC_CMD, CALL_QUOTE)),
+            group(Production::CALL_QUOTED, all(EXEC_CMD, IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
@@ -355,10 +355,6 @@ void Grammar2::initCommandBody() {
         CALL_CMD_LITERAL,
         CALL_QUOTE,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))) ));
-    CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW,
-            all( SUBCALL_EXPRESSION, maybe(oneOrMore(all(PIPE, SUBCALL_EXPRESSION))) ) ),
-            maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),SUBCALL_EXPRESSION)))) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
@@ -370,10 +366,13 @@ void Grammar2::initCommandBody() {
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
 
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
-       all(CALL_EXPR_TERM,
-           oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)) ));
-    CALL_GROUP = group(Production::CALL_GROUP,
-        oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, CALL_INVOKE, forward(BLOCK))) );
+       all(CALL_EXPR_TERM, oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)) ));
+
+    CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
+        all(CALL_IDENTIFIER, LARROW,
+            all( SUBCALL_EXPRESSION, maybe(oneOrMore(all(PIPE, SUBCALL_EXPRESSION))) ) ),
+        maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),SUBCALL_EXPRESSION)))) );
+
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
     BLOCK_HEADER = group(Production::BLOCK_HEADER,
@@ -384,7 +383,10 @@ void Grammar2::initCommandBody() {
             group(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW)),
             group(Production::DO_RECOVER, PIPE),
             ON_EXIT, ON_EXIT_FAIL ));
-    BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, CALL_GROUP) );
+    BLOCK = boundedGroup(Production::DO_BLOCK, all(BLOCK_HEADER, forward(CALL_GROUP)) );
+
+    CALL_GROUP = group(Production::CALL_GROUP,
+        oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, CALL_INVOKE, BLOCK)) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
         discard(TokenType::EQUALS), any(DEF_CMD_EMPTY, CALL_GROUP) ));
