@@ -268,36 +268,27 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_NAME_SPEC = group(Production::DEF_CMD_NAME_SPEC,
        all(maybe(any(DEF_CMD_MAYFAIL, DEF_CMD_FAILS)), DEF_CMD_NAME) );
 
+   DEF_CMD_REGULAR_FORM = all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS);
+
+   DEF_CMD_SIGNATURE = any(
+       // destructor
+       all(ON_EXIT, DEF_CMD_RECEIVER),
+       // failure handler
+       all(ON_EXIT_FAIL, DEF_CMD_RECEIVER),
+       // constructor
+       all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
+       // VCOMMAND - with receivers, allows -> result without params
+       all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
+       // Regular command - without receivers, requires params for -> result
+       DEF_CMD_REGULAR_FORM );
+
    DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL,
-       all(DECLARE, any(
-           // destructor
-           all(ON_EXIT,DEF_CMD_RECEIVER),
-           // failure handler
-           all(ON_EXIT_FAIL, DEF_CMD_RECEIVER),
-           // constructor
-           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
-           // VCOMMAND - with receivers, allows -> result without params
-           all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
-           // Regular command - without receivers, requires params for -> result
-           all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) )));
+       all(DECLARE, DEF_CMD_SIGNATURE));
    DEF_CMD_INTRINSIC = exclusiveGroup(Production::DEF_CMD_INTRINSIC,
-       all(INTRINSIC, DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) );
+       all(INTRINSIC, DEF_CMD_REGULAR_FORM) );
 
    DEF_CMD = exclusiveGroup(Production::DEF_CMD,
-       all(
-           COMMAND,
-           any(
-               // constructor
-               all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA) ),
-               // destructor -- no parameters allowed
-               all(ON_EXIT, DEF_CMD_RECEIVER ),
-               // failure handler -- no parms allowed
-               all(ON_EXIT_FAIL, DEF_CMD_RECEIVER),
-               // VCOMMAND - with receivers, allows -> result without params
-               all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
-               // Regular command - without receivers, requires params for -> result
-               all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS) ),
-            forward(DEF_CMD_BODY) ));
+       all(COMMAND, DEF_CMD_SIGNATURE, forward(DEF_CMD_BODY)));
 
 }
 
@@ -349,7 +340,7 @@ void Grammar2::initCommandBody() {
     CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
         any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, LBRACE, forward(CALL_GROUP), RBRACE ));
 
-    SUBCALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
+    SUBCALL_EXPRESSION = group(Production::SUBCALL_EXPRESSION, any(
         CALL_CMD_LITERAL,
         all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))),
         CALL_QUOTE ));

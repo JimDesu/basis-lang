@@ -165,6 +165,7 @@ namespace basis {
         CALL_VCOMMAND,
         CALL_ASSIGNMENT,
         CALL_EXPRESSION,
+        SUBCALL_EXPRESSION,
         CALL_EXPR_ADDR,
         CALL_EXPR_DEREF,
         CALL_EXPR_INDEX,
