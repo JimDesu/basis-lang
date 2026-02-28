@@ -329,10 +329,7 @@ void Grammar2::initCommandBody() {
     CALL_SUBQUOTE = all( LBRACE, maybe( forward(CALL_INVOKE) ), RBRACE );
     CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
 
-    CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
-            group(Production::CALL_QUOTED, all(EXEC_CMD, CALL_QUOTE)),
-            //group(Production::CALL_QUOTED, all(EXEC_CMD, IDENTIFIER)),
-            IDENTIFIER ));
+    CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any( CALL_SUBQUOTE, IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
     CALL_EXPR_INDEX = group(Production::CALL_EXPR_INDEX, all(
@@ -354,8 +351,8 @@ void Grammar2::initCommandBody() {
 
     SUBCALL_EXPRESSION = group(Production::CALL_EXPRESSION, any(
         CALL_CMD_LITERAL,
-        CALL_QUOTE,
-        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))) ));
+        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))),
+        CALL_QUOTE ));
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );

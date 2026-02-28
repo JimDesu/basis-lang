@@ -1506,7 +1506,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " enumVal <- Status[ok]\n"
         " unnested <- x + y\n"
         " nested <- (((x + y)))\n"
-        " $ {process: x}: y\n"
+        " {process: x}: y\n"
         " process: (handler)\n"
         " ? validate: x\n"
         "   call: x\n"
@@ -1549,8 +1549,8 @@ TEST_CASE("Grammar2::CALL_PARAMETERS") {
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: x, y)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "(process: item)", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_PARAMETER, "((obj):: method: x)", Production::CALL_PARAMETER));
-    CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt}: data)", Production::CALL_PARAMETER));
-    CHECK(testParse(grammar.CALL_PARAMETER, "(${Widget: x, y})", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "({doIt}: data)", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_PARAMETER, "({Widget: x, y})", Production::CALL_PARAMETER));
 }
 
 TEST_CASE("Grammar2::CALL_CONSTRUCTOR") {
@@ -1582,9 +1582,9 @@ TEST_CASE("Grammar2::CALL_COMMAND") {
     CHECK(testParse(grammar.CALL_COMMAND, "doIt", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: #temp, value", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "process: (Widget: x, y), z", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${doIt}: x", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${(obj):: method}: data", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "{doIt}: x", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "{Widget: x, y}", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "{(obj):: method}: data", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "Module::function: x, y", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "Std::IO::println: message", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_COMMAND, "A::B::C::method", Production::CALL_COMMAND));
@@ -1759,8 +1759,8 @@ TEST_CASE("Grammar2::CALL_EXPRESSION") {
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((obj):: method: x)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, "((a, b):: handle: item)", Production::CALL_EXPRESSION));
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(process: (Widget: x, y))", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(${doIt}: data)", Production::CALL_EXPRESSION));
-    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "(${Widget: x, y})", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "({doIt}: data)", Production::CALL_EXPRESSION));
+    CHECK(testParse(grammar.SUBCALL_EXPRESSION, "({Widget: x, y})", Production::CALL_EXPRESSION));
     CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "(Widget: x"));  // missing closing paren
     CHECK_FALSE(testParse(grammar.SUBCALL_EXPRESSION, "Widget: x)"));  // missing opening paren
 }
@@ -1849,8 +1849,8 @@ TEST_CASE("Grammar2::CALL_ASSIGNMENT") {
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- Module::function: param", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- A::B::C::process: data", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (processor: data)", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (${doIt}: x, y)", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- (${Widget: x, y})", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- ({doIt}: x, y)", Production::CALL_ASSIGNMENT));
+    CHECK(testParse(grammar.CALL_ASSIGNMENT, "value <- ({Widget: x, y})", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (Widget: x, y)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- (process: item)", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "#output <- (process: item)", Production::CALL_ASSIGNMENT));
@@ -1886,7 +1886,7 @@ TEST_CASE("Grammar2::CALL_GROUP") {
     CHECK(testParse(grammar.CALL_GROUP, "doIt\nprocess: x", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\ndoIt\ncleanup", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x\ndoIt\n(obj):: method: y", Production::CALL_GROUP));
-    CHECK(testParse(grammar.CALL_GROUP, "${doIt}\n${process: data}", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "{doIt}\n{process: data}", Production::CALL_GROUP));
 }
 
 TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - basic arithmetic") {
@@ -2143,9 +2143,9 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
     CHECK(testParse(grammar.CALL_GROUP, "result <- (Widget: x, y)\nprocess: result", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "#temp <- doIt\nprocess: #temp", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_COMMAND, "handler: (processor: data)", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${Widget: x, y}: result", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_COMMAND, "{Widget: x, y}: result", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Handler: (callback)", Production::CALL_CONSTRUCTOR));
-    CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Processor: (${doIt}: x)", Production::CALL_CONSTRUCTOR));
+    CHECK(debugTestParse(grammar.CALL_CONSTRUCTOR, "Processor: ({doIt}: x)", Production::CALL_CONSTRUCTOR));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(#obj, #widget):: method: #data", Production::CALL_VCOMMAND));
 }
 
@@ -2207,8 +2207,8 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
     CHECK(testParse(grammar.CALL_PARAMETER, "(Widget: (Point: (Value: x)))", Production::CALL_PARAMETER));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (Container: (List[Int]: (Value: x)))", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_COMMAND, "process: x, #temp, y, #output, z", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_COMMAND, "${process: data}: x, y", Production::CALL_COMMAND));
-    CHECK(testParse(grammar.CALL_PARAMETER, "(${doIt})", Production::CALL_PARAMETER));
+    CHECK(testParse(grammar.CALL_COMMAND, "{process: data}: x, y", Production::CALL_COMMAND));
+    CHECK(testParse(grammar.CALL_PARAMETER, "({doIt})", Production::CALL_PARAMETER));
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b, c):: method: x, #y", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? success\n- failure\n| recover\n@ cleanup\n@! onFail", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
