@@ -331,7 +331,7 @@ void Grammar2::initCommandBody() {
 
     CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any(
             group(Production::CALL_QUOTED, all(EXEC_CMD, CALL_QUOTE)),
-            group(Production::CALL_QUOTED, all(EXEC_CMD, IDENTIFIER)),
+            //group(Production::CALL_QUOTED, all(EXEC_CMD, IDENTIFIER)),
             IDENTIFIER ));
     CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
     CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
