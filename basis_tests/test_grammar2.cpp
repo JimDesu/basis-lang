@@ -817,6 +817,7 @@ TEST_CASE("Grammar2::DEF_CLASS") {
     CHECK(testParse(grammar.DEF_CLASS,
         ".class Widget:\n"
         "  .decl Widget w: Int x, Int y\n"
+        "  .decl (Widget w, Int m) :: print: Int x, Int y\n"
         "  .cmd doIt = process",
         Production::DEF_CLASS));
     CHECK(testParse(grammar.DEF_CLASS,
@@ -829,6 +830,7 @@ TEST_CASE("Grammar2::DEF_CLASS") {
         ".class Handler:\n"
         "  .decl Handler h: String name\n"
         "  .cmd process: String data = validate: data\n"
+        "  .cmd Handler h::process: String data = validate: data\n"
         "  .cmd cleanup = _\n"
         "  .decl @ Handler h",
         Production::DEF_CLASS));

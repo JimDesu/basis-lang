@@ -244,8 +244,9 @@ void Grammar2::initCommandDefinitions() {
    DEF_CMD_RECEIVER = group(Production::DEF_CMD_RECEIVER,
       all(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARM_NAME) );
 
-   DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS,
-       all(LPAREN, separated(DEF_CMD_RECEIVER, COMMA), RPAREN, DCOLON) );
+   DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS, all(
+           any( all(LPAREN, separated(DEF_CMD_RECEIVER, COMMA), RPAREN), DEF_CMD_RECEIVER ),
+           DCOLON ));
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
