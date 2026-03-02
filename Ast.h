@@ -77,41 +77,6 @@ struct Visitor {
     virtual void visit(CallParameter&)   = 0;
 };
 
-// ---- DefaultVisitor: no-op implementations ----
-struct DefaultVisitor : Visitor {
-    void visit(CompilationUnit&) override {}
-    void visit(ModuleDecl&)      override {}
-    void visit(ImportDecl&)      override {}
-    void visit(TypeExpr&)        override {}
-    void visit(AliasDecl&)       override {}
-    void visit(DomainDecl&)      override {}
-    void visit(EnumDecl&)        override {}
-    void visit(EnumItem&)        override {}
-    void visit(FieldDecl&)       override {}
-    void visit(RecordDecl&)      override {}
-    void visit(ObjectDecl&)      override {}
-    void visit(InstanceType&)    override {}
-    void visit(InstanceDecl&)    override {}
-    void visit(CmdDecl&)         override {}
-    void visit(CmdDef&)          override {}
-    void visit(IntrinsicDecl&)   override {}
-    void visit(ClassDecl&)       override {}
-    void visit(ProgramDecl&)     override {}
-    void visit(TestDecl&)        override {}
-    void visit(CmdBody&)         override {}
-    void visit(CallGroup&)       override {}
-    void visit(CallInvoke&)      override {}
-    void visit(CallAssignment&)  override {}
-    void visit(CallExpression&)  override {}
-    void visit(Block&)           override {}
-    void visit(Literal&)         override {}
-    void visit(IdentifierExpr&)  override {}
-    void visit(SubcallExpr&)     override {}
-    void visit(CallQuote&)       override {}
-    void visit(CmdLiteral&)      override {}
-    void visit(CallParameter&)   override {}
-};
-
 // ---- Base node ----
 struct AstNode {
     size_t line = 0;
@@ -382,6 +347,78 @@ struct CompilationUnit : AstNode {
     std::vector<std::shared_ptr<ImportDecl>> imports;
     std::vector<spAstNode>                   definitions;  // any top-level Decl node
     void accept(Visitor& v) override { v.visit(*this); }
+};
+
+// ---- DefaultVisitor: walks the tree by default ----
+// Placed after all node definitions so inline method bodies can reference member fields.
+struct DefaultVisitor : Visitor {
+    // Leaf nodes (no AstNode children)
+    void visit(ModuleDecl&)      override {}
+    void visit(ImportDecl&)      override {}
+    void visit(EnumItem&)        override {}
+    void visit(InstanceType&)    override {}
+    void visit(Literal&)         override {}
+    void visit(IdentifierExpr&)  override {}
+
+    // Nodes whose only AstNode children are TypeExprs
+    void visit(TypeExpr& n) override {
+        if (n.inner) n.inner->accept(*this);
+        for (auto& a : n.typeArgs) a->accept(*this);
+        for (auto& a : n.cmdArgs)  a->accept(*this);
+    }
+    void visit(FieldDecl& n)  override { if (n.type) n.type->accept(*this); }
+    void visit(AliasDecl& n)  override { if (n.type) n.type->accept(*this); }
+    void visit(DomainDecl& n) override { if (n.parent) n.parent->accept(*this); }
+
+    // Nodes with list children
+    void visit(EnumDecl& n)     override { for (auto& i : n.items)      i->accept(*this); }
+    void visit(RecordDecl& n)   override { for (auto& f : n.fields)     f->accept(*this); }
+    void visit(ObjectDecl& n)   override { for (auto& f : n.fields)     f->accept(*this); }
+    void visit(InstanceDecl& n) override { for (auto& t : n.types)      t->accept(*this); }
+    void visit(ClassDecl& n)    override { for (auto& m : n.members)    m->accept(*this); }
+    void visit(CallGroup& n)    override { for (auto& s : n.statements) s->accept(*this); }
+
+    // Command declarations: walk TypeExprs in signature receivers/params/implicitParams
+    void visit(CmdDecl& n)       override { visitSignature(*this, n.signature); }
+    void visit(IntrinsicDecl& n) override { visitSignature(*this, n.signature); }
+    void visit(CmdDef& n)        override {
+        visitSignature(*this, n.signature);
+        if (n.body) n.body->accept(*this);
+    }
+
+    // Nodes with a single body child
+    void visit(CmdBody& n)       override { if (n.group)       n.group->accept(*this); }
+    void visit(ProgramDecl& n)   override { if (n.entryPoint)  n.entryPoint->accept(*this); }
+    void visit(TestDecl& n)      override { if (n.body)        n.body->accept(*this); }
+    void visit(Block& n)         override { if (n.body)        n.body->accept(*this); }
+    void visit(CallQuote& n)     override { if (n.body)        n.body->accept(*this); }
+    void visit(CmdLiteral& n)    override { if (n.body)        n.body->accept(*this); }
+    void visit(CallParameter& n) override { if (n.expr)        n.expr->accept(*this); }
+
+    // Expression nodes
+    void visit(CallInvoke& n)    override { for (auto& p : n.params) p->accept(*this); }
+    void visit(CallExpression& n) override { for (auto& t : n.terms) t->accept(*this); }
+    void visit(SubcallExpr& n)   override { for (auto& t : n.terms)  t->accept(*this); }
+    void visit(CallAssignment& n) override {
+        if (n.target) n.target->accept(*this);
+        for (auto& e : n.exprs) e->accept(*this);
+        for (auto& [op, rhs] : n.postOps) if (rhs) rhs->accept(*this);
+    }
+
+    // Top-level unit
+    void visit(CompilationUnit& n) override {
+        if (n.module) n.module->accept(*this);
+        for (auto& i : n.imports)     i->accept(*this);
+        for (auto& d : n.definitions) d->accept(*this);
+    }
+
+protected:
+    // Walk TypeExprs in a CmdSignature's receivers, params, and implicitParams
+    static void visitSignature(Visitor& v, const CmdSignature& sig) {
+        for (auto& r : sig.receivers)      { if (r.type) r.type->accept(v); }
+        for (auto& p : sig.params)         { if (p.type) p.type->accept(v); }
+        for (auto& p : sig.implicitParams) { if (p.type) p.type->accept(v); }
+    }
 };
 
 } // namespace basis
