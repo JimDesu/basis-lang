@@ -552,10 +552,15 @@ std::shared_ptr<EnumDecl> buildEnumDecl(const ParseTree* pt) {
     for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
         switch (c->production) {
             case Production::DEF_ENUM_NAME1:
-                if (c->pToken) node->name1 = c->pToken->text;
+                if (c->pToken) node->enumName = c->pToken->text;
                 break;
             case Production::DEF_ENUM_NAME2:
-                if (c->pToken) node->name2 = c->pToken->text;
+                // if there are two names, the first one is the name of the constraining type and
+                // the second one is the name of the enumeration
+                if (c->pToken) {
+                    node->typeName = node->enumName;
+                    node->enumName = c->pToken->text;
+                }
                 break;
             case Production::DEF_ENUM_ITEM_NAME: {
                 // Sibling chain: ITEM_NAME EQUALS LITERAL [COMMA ITEM_NAME EQUALS LITERAL ...]

@@ -130,8 +130,8 @@ struct EnumItem : AstNode {
 };
 
 struct EnumDecl : AstNode {
-    std::string name1;
-    std::string name2;   // optional second typename (empty if absent)
+    std::string enumName;
+    std::string typeName;   // optional second typename (empty if absent)
     std::vector<std::shared_ptr<EnumItem>> items;
     void accept(Visitor& v) override { v.visit(*this); }
 };

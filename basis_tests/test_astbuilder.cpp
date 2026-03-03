@@ -138,8 +138,8 @@ TEST_CASE("AstBuilder: enum declaration") {
     REQUIRE(cu != nullptr);
     auto en = defAs<EnumDecl>(cu, 0);
     REQUIRE(en != nullptr);
-    CHECK_EQ(en->name1, "Status");
-    CHECK(en->name2.empty());
+    CHECK_EQ(en->enumName, "Status");
+    CHECK(en->typeName.empty());
     REQUIRE(en->items.size() == 2);
     CHECK_EQ(en->items[0]->name, "active");
     CHECK_EQ(en->items[0]->value, "0");
@@ -152,8 +152,8 @@ TEST_CASE("AstBuilder: typed enum declaration") {
     REQUIRE(cu != nullptr);
     auto en = defAs<EnumDecl>(cu, 0);
     REQUIRE(en != nullptr);
-    CHECK_EQ(en->name1, "T");
-    CHECK_EQ(en->name2, "Fish");
+    CHECK_EQ(en->typeName, "T");
+    CHECK_EQ(en->enumName, "Fish");
 }
 
 // =============================================================================
