@@ -92,6 +92,24 @@ TEST_CASE("AstBuilder: standard import with qualifier") {
     CHECK_EQ(cu->imports[0]->name, "Core");
 }
 
+TEST_CASE("AstBuilder: standard import with qualified name") {
+    auto cu = parseAndBuild(".import A::B::C");
+    REQUIRE(cu != nullptr);
+    REQUIRE(cu->imports.size() == 1);
+    CHECK_EQ(cu->imports[0]->kind, ImportDecl::Kind::Standard);
+    CHECK(cu->imports[0]->qualifier.empty());
+    CHECK_EQ(cu->imports[0]->name, "A::B::C");
+}
+
+TEST_CASE("AstBuilder: standard import with qualifier and qualified name") {
+    auto cu = parseAndBuild(".import Prefix:A::B::C");
+    REQUIRE(cu != nullptr);
+    REQUIRE(cu->imports.size() == 1);
+    CHECK_EQ(cu->imports[0]->kind, ImportDecl::Kind::Standard);
+    CHECK_EQ(cu->imports[0]->qualifier, "Prefix");
+    CHECK_EQ(cu->imports[0]->name, "A::B::C");
+}
+
 TEST_CASE("AstBuilder: multiple imports") {
     auto cu = parseAndBuild(".import \"a.basis\"\n.import Std:Core");
     REQUIRE(cu != nullptr);

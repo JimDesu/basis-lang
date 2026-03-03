@@ -527,14 +527,20 @@ std::shared_ptr<ImportDecl> buildImportDecl(const ParseTree* pt) {
             case Production::DEF_IMPORT_STANDARD: {
                 node->kind = ImportDecl::Kind::Standard;
                 // Children: [TYPENAME COLON] TYPENAME
+                // Note: a failed maybe(TYPENAME_UNQUALIFIED COLON) attempt may leave a stale
+                // TYPENAME node as the first child, with the real QUALIFIED_TYPENAME as its spNext.
                 const ParseTree* ic = c->spDown.get();
                 if (ic && ic->spNext.get() &&
                     ic->spNext.get()->production == Production::COLON) {
                     // qualifier : name
                     if (ic->pToken) node->qualifier = ic->pToken->text;
                     ic = ic->spNext.get()->spNext.get(); // skip COLON
+                } else if (ic && ic->spNext.get() &&
+                           ic->spNext.get()->production == Production::QUALIFIED_TYPENAME) {
+                    // stale TYPENAME from failed maybe; real name is the QUALIFIED_TYPENAME sibling
+                    ic = ic->spNext.get();
                 }
-                if (ic && ic->pToken) node->name = ic->pToken->text;
+                node->name = resolveTypeName(ic);
                 break;
             }
             case Production::IMPORT:

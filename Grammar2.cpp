@@ -182,6 +182,7 @@ void Grammar2::initTestDefinitions() {
 }
 
 void Grammar2::initImports() {
+    //TODO add prefix here, and restructure to make AST building easier
     DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, STRING);
 
     DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD,
