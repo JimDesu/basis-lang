@@ -574,8 +574,10 @@ std::shared_ptr<EnumDecl> buildEnumDecl(const ParseTree* pt) {
                 node->items.push_back(item);
                 break;
             }
-            case Production::ENUMERATION: case Production::COLON:
-            case Production::EQUALS:      case Production::COMMA:
+            case Production::ENUMERATION:
+            case Production::COLON:
+            case Production::EQUALS:
+            case Production::COMMA:
                 break; // structural — no-op
             default:
                 break;
