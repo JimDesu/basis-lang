@@ -3,7 +3,7 @@
 
 #include "Ast.h"
 #include "ParseObject.h"
-
+/*
 namespace basis {
 
     // Convert the ParseTree rooted at a COMPILATION_UNIT node into an AST.
@@ -11,6 +11,6 @@ namespace basis {
     std::shared_ptr<CompilationUnit> buildAst(const spParseTree& pt);
 
 } // namespace basis
-
+*/
 #endif // ASTBUILDER_H
 

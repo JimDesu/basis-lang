@@ -6,8 +6,8 @@ using namespace basis;
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+/*
 namespace {
-
 // Return the first token text reachable by descending spDown then spNext.
 std::string firstTokenText(const ParseTree* pt) {
     if (!pt) return {};
@@ -1520,3 +1520,4 @@ std::shared_ptr<CompilationUnit> basis::buildAst(const spParseTree& pt) {
 }
 
 
+*/

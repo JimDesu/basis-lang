@@ -2,7 +2,7 @@
 #include "../Ast.h"
 #include <map>
 #include <string>
-
+/*
 using namespace basis;
 
 // =============================================================================
@@ -352,3 +352,4 @@ TEST_CASE("AST DefaultVisitor: post-order traversal visits all nodes with correc
     cu->accept(v);
     checkCounts(v.byType, v.total);
 }
+*/

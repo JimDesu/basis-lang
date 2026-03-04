@@ -77,8 +77,8 @@ namespace basis {
         LITERAL,
         // -- enumerations
         DEF_ENUM,
-        DEF_ENUM_NAME1,
-        DEF_ENUM_NAME2,
+        DEF_ENUM_NAME,
+        DEF_ENUM_TYPENAME,
         DEF_ENUM_ITEM_NAME,
         DEF_ENUM_ITEM_LIST,
         // -- type expressions

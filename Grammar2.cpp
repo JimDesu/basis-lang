@@ -160,10 +160,13 @@ void Grammar2::initEnumerations() {
    DEF_ENUM_ITEM_LIST = separated(
        all(match(Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER), EQUALS, LITERAL),
        COMMA);
-   DEF_ENUM_NAME2 = maybe(match(Production::DEF_ENUM_NAME2, TokenType::TYPENAME));
-   DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME1, TokenType::TYPENAME);
+   DEF_ENUM_NAME2 = all(
+       match(Production::DEF_ENUM_TYPENAME, TokenType::TYPENAME),
+       match(Production::DEF_ENUM_NAME, TokenType::TYPENAME) );
+   DEF_ENUM_NAME1 = match(Production::DEF_ENUM_NAME, TokenType::TYPENAME);
+
    DEF_ENUM = exclusiveGroup(Production::DEF_ENUM,
-       ENUMERATION, DEF_ENUM_NAME1, DEF_ENUM_NAME2, COLON, DEF_ENUM_ITEM_LIST);
+       ENUMERATION, any(DEF_ENUM_NAME2, DEF_ENUM_NAME1), COLON, DEF_ENUM_ITEM_LIST);
 }
 
 void Grammar2::initModuleTypes() {
@@ -173,7 +176,7 @@ void Grammar2::initModuleTypes() {
 
 void Grammar2::initProgramDefinitions() {
     DEF_PROGRAM = exclusiveGroup(Production::DEF_PROGRAM,
-        all(PROGRAM, EQUALS, forward(CALL_INVOKE)));
+        all(PROGRAM, forward(CALL_INVOKE)));
 }
 
 void Grammar2::initTestDefinitions() {

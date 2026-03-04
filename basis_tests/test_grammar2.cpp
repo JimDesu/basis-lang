@@ -179,7 +179,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all definition types") {
         ".object Node: Int value, ^Node next\n"
         ".instance MyType: Interface\n"
         ".test \"simple test\" = doSomething\n"
-        ".program = main",
+        ".program main",
         Production::COMPILATION_UNIT));
 
     // Test with class containing commands
@@ -263,7 +263,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - complex multi-definition files") {
         ".decl logout: SessionId sid\n"
         ".intrinsic hashPassword: String pwd\n"
         ".test \"user creation\" = testCreate\n"
-        ".program = main",
+        ".program main",
         Production::COMPILATION_UNIT));
 }
 
@@ -289,7 +289,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - definitions only (no module or imports)"
         ".decl helper: String s -> output\n"
         ".intrinsic native: Int x\n"
         ".test \"test\" = run\n"
-        ".program = main",
+        ".program main",
         Production::COMPILATION_UNIT));
 }
 
@@ -355,7 +355,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - with test and program definitions") {
         ".alias MyInt: Int\n"
         ".cmd helper: Int x -> result = process: x\n"
         ".test \"helper test\" = testHelper: 42\n"
-        ".program = main",
+        ".program main",
         Production::COMPILATION_UNIT));
 
     // Program at the end
@@ -364,7 +364,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - with test and program definitions") {
         ".import Std:Core\n"
         ".cmd initialize = setup\n"
         ".cmd run: []String args = execute: args\n"
-        ".program = run: args",
+        ".program run: args",
         Production::COMPILATION_UNIT));
 }
 
@@ -445,7 +445,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - single definition types") {
     CHECK(testParse(grammar.COMPILATION_UNIT, ".test \"test\" = run", Production::COMPILATION_UNIT));
 
     // Just one program
-    CHECK(testParse(grammar.COMPILATION_UNIT, ".program = main", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".program main", Production::COMPILATION_UNIT));
 }
 
 TEST_CASE("Grammar2::COMPILATION_UNIT - module only variations") {
@@ -572,7 +572,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - realistic file examples") {
         ".import Std:IO\n"
         ".cmd initialize = setupDatabase\n    loadConfig\n"
         ".cmd run: []String args = initialize\n    startServer: args\n"
-        ".program = run: args",
+        ".program run: args",
         Production::COMPILATION_UNIT));
 }
 
@@ -615,7 +615,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
         ".enum Status: active = 0, inactive = 1\n"
         ".instance Widget: Interface\n"
         ".object Node: Int value\n"
-        ".program = main\n"
+        ".program main\n"
         ".record Point: Int x, Int y\n"
         ".test \"comprehensive test\" = run",
         Production::COMPILATION_UNIT));
@@ -632,7 +632,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
         ".enum Status: active = 0, inactive = 1\n"
         ".instance Widget: Interface\n"
         ".object Node: Int value\n"
-        ".program = main\n"
+        ".program main\n"
         ".record Point: Int x, Int y\n"
         ".test \"comprehensive test\" = run",
         Production::COMPILATION_UNIT));
@@ -684,10 +684,9 @@ TEST_CASE("Grammar2::DEF_IMPORT") {
 
 TEST_CASE("Grammar2::DEF_PROGRAM") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.DEF_PROGRAM, ".program = main", Production::DEF_PROGRAM));
-    CHECK(testParse(grammar.DEF_PROGRAM, ".program = start: arg1, arg2", Production::DEF_PROGRAM));
-    CHECK(testParse(grammar.DEF_PROGRAM, ".program = run: config", Production::DEF_PROGRAM));
-    CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program main"));  // missing equals
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program main", Production::DEF_PROGRAM));
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program start: arg1, arg2", Production::DEF_PROGRAM));
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program run: config", Production::DEF_PROGRAM));
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program ="));  // missing command
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, "program = main"));  // missing dot
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program = Main"));  // typename instead of identifier

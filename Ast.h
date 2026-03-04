@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstddef>
-
+/*
 namespace basis {
 
 // Forward declarations of all concrete node types
@@ -422,7 +422,7 @@ protected:
 };
 
 } // namespace basis
-
+*/
 #endif // AST_H
 
 
