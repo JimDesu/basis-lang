@@ -45,6 +45,7 @@ void Grammar2::initIdentifiers() {
 }
 
 void Grammar2::initPunctuation() {
+// TODO evaluate which of these must actually be matches
    ON_EXIT_FAIL = match(Production::ON_EXIT_FAIL, TokenType::AMBANG);
    AMPERSAND = match(Production::AMPERSAND, TokenType::AMPERSAND);
    ON_EXIT = match(Production::ON_EXIT, TokenType::AMPHORA);
@@ -55,7 +56,7 @@ void Grammar2::initPunctuation() {
    BANGLANGLE = match(Production::BANGLANGLE, TokenType::BANGLANGLE);
    CARAT = match(Production::CARAT, TokenType::CARAT);
    COMMA = match(Production::COMMA, TokenType::COMMA);
-   COLON = match(Production::COLON, TokenType::COLON);
+   COLON = discard(TokenType::COLON);
    COLANGLE = match(Production::COLANGLE, TokenType::COLANGLE);
    COLBRACE = match(Production::COLBRACE, TokenType::COLBRACE);
    DO_WHEN_MULTI = match(Production::DQMARK, TokenType::DQMARK);
@@ -91,20 +92,20 @@ void Grammar2::initPunctuation() {
 }
 
 void Grammar2::initReservedWords() {
-   ALIAS = match(Production::ALIAS, TokenType::ALIAS);
-   CLASS = match(Production::CLASS, TokenType::CLASS);
-   COMMAND = match(Production::COMMAND, TokenType::COMMAND);
-   DECLARE = match(Production::DECLARE, TokenType::DECLARE);
-   DOMAIN = match(Production::DOMAIN, TokenType::DOMAIN);
-   ENUMERATION = match(Production::ENUMERATION, TokenType::ENUMERATION);
-   IMPORT = match(Production::IMPORT, TokenType::IMPORT);
-   INSTANCE = match(Production::INSTANCE, TokenType::INSTANCE);
-   INTRINSIC = match(Production::INTRINSIC, TokenType::INTRINSIC);
-   MODULE = match(Production::MODULE, TokenType::MODULE);
-   OBJECT = match(Production::OBJECT, TokenType::OBJECT);
-   PROGRAM = match(Production::PROGRAM, TokenType::PROGRAM);
-   RECORD = match(Production::RECORD, TokenType::RECORD);
-   TEST = match(Production::TEST, TokenType::TEST);
+   ALIAS = discard(TokenType::ALIAS);
+   CLASS = discard(TokenType::CLASS);
+   COMMAND = discard(TokenType::COMMAND);
+   DECLARE = discard(TokenType::DECLARE);
+   DOMAIN = discard(TokenType::DOMAIN);
+   ENUMERATION = discard(TokenType::ENUMERATION);
+   IMPORT = discard(TokenType::IMPORT);
+   INSTANCE = discard(TokenType::INSTANCE);
+   INTRINSIC = discard(TokenType::INTRINSIC);
+   MODULE = discard(TokenType::MODULE);
+   OBJECT = discard(TokenType::OBJECT);
+   PROGRAM = discard(TokenType::PROGRAM);
+   RECORD = discard(TokenType::RECORD);
+   TEST = discard(TokenType::TEST);
 }
 
 void Grammar2::initTypeExpressions() {
