@@ -267,6 +267,45 @@ TEST_CASE("Parsing2::test separated") {
     CHECK( !parser5.parse() );  // Should fail - trailing separator with no following element
 }
 
+TEST_CASE("Parsing2::test as") {
+    // Case 1: as overwrites production of first result node on success
+    std::list<spToken> tokens1;
+    addToken(tokens1, TokenType::IDENTIFIER);
+    Parser parser1(tokens1, as(Production::CARAT, matchSlashIdent));
+    CHECK( parser1.parse() );
+    Token* IDENT1 = tokens1.front().get();
+    CHECK( *parser1.parseTree == ParseTree{Production::CARAT, IDENT1} );
+
+    // Case 2: as fails when inner parse fails - no result produced
+    std::list<spToken> tokens2;
+    addToken(tokens2, TokenType::IDENTIFIER);
+    Parser parser2(tokens2, as(Production::CARAT, matchSlashNumber));
+    CHECK_FALSE( parser2.parse() );
+    CHECK( parser2.parseTree == nullptr );
+
+    // Case 3: as with a sequence - only the first result node's production is overwritten
+    std::list<spToken> tokens3;
+    addTokens(tokens3, { TokenType::IDENTIFIER, TokenType::COLON });
+    auto it3 = tokens3.begin();
+    Token* IDENT3 = (*it3).get();
+    ++it3;
+    Token* COLON3 = (*it3).get();
+    Parser parser3(tokens3, as(Production::CARAT, all(matchSlashIdent, matchSlashColon)));
+    CHECK( parser3.parse() );
+    CHECK( *parser3.parseTree == ParseTree{Production::CARAT, IDENT3,
+        std::make_shared<ParseTree>(Production::SLASH, COLON3)} );
+
+    // Case 4: as nested inside another combinator
+    std::list<spToken> tokens4;
+    addTokens(tokens4, { TokenType::IDENTIFIER, TokenType::COMMA });
+    Token* IDENT4 = tokens4.front().get();
+    Token* COMMA4 = tokens4.back().get();
+    Parser parser4(tokens4, all(as(Production::CARAT, matchSlashIdent), matchSlashComma));
+    CHECK( parser4.parse() );
+    CHECK( *parser4.parseTree == ParseTree{Production::CARAT, IDENT4,
+        std::make_shared<ParseTree>(Production::SLASH, COMMA4)} );
+}
+
 TEST_CASE("Parsing2::test prefix") {
     // prefix(COLON, IDENT) - if COLON found, IDENT must follow
     SPPF prefixColonIdent = prefix(discardColon, matchSlashIdent);

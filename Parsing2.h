@@ -222,6 +222,19 @@ namespace basis {
     };
     SPPF forward(const SPPF& spfnRef);
 
+    // As combinator - runs inner parse fn; on success, overwrites production of first result node
+    class As : public ParseFn {
+    public:
+        As(Production prod, SPPF spParseFn);
+        bool parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                  itToken* pIter, const Token* pLimit,
+                  itToken* pFurthest, const ParseFn** ppFurthestParser) const override;
+    private:
+        Production prod;
+        SPPF spfn;
+    };
+    SPPF as(Production prod, SPPF parseFn);
+
 }
 
 #endif // PARSER2_H

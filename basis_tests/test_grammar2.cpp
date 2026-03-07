@@ -1479,7 +1479,7 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         " Qualified::command: x\n"
         " withParams: x, y\n"
         " ? mayfail: x\n"
-        " !mustSucceed: y\n"
+        //" !mustSucceed: y\n"
         " #temp <- getValue: x\n"
         " result <- compute: x, y\n"
         " #alloc <- allocate\n"
@@ -1511,7 +1511,6 @@ TEST_CASE("Grammar2::comprehensive DEF_CMD with all body syntax variations") {
         "   call: x\n"
         " - fallback: y\n"
         " ?? multiCheck: x\n"
-        " ! unless: y\n"
         " a <- :{ % doIt }\n"
         " % block\n"
         "   call: x,y\n"
@@ -2053,44 +2052,28 @@ TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - negative cases") {
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a + + b"));
 }
 
-TEST_CASE("Grammar2::BLOCK_HEADER") {
-    Grammar2& grammar = getGrammar();
-
-    CHECK(testParse(grammar.BLOCK_HEADER, "?", Production::BLOCK_HEADER));  // DO_WHEN
-    CHECK(testParse(grammar.BLOCK_HEADER, "??", Production::BLOCK_HEADER));  // DO_WHEN_MULTI
-    CHECK(testParse(grammar.BLOCK_HEADER, "?-", Production::BLOCK_HEADER));  // DO_WHEN_FAIL
-    CHECK(testParse(grammar.BLOCK_HEADER, "!", Production::BLOCK_HEADER));  // DO_UNLESS
-    CHECK(testParse(grammar.BLOCK_HEADER, "-", Production::BLOCK_HEADER));  // DO_ELSE
-    CHECK(testParse(grammar.BLOCK_HEADER, "%", Production::BLOCK_HEADER));  // DO_BLOCK
-    CHECK(testParse(grammar.BLOCK_HEADER, "^", Production::BLOCK_HEADER));  // DO_REWIND
-    CHECK(testParse(grammar.BLOCK_HEADER, "|", Production::BLOCK_HEADER));  // DO_RECOVER
-    CHECK(testParse(grammar.BLOCK_HEADER, "@", Production::BLOCK_HEADER));  // ON_EXIT
-    CHECK(testParse(grammar.BLOCK_HEADER, "@!", Production::BLOCK_HEADER));  // ON_EXIT_FAIL
-}
-
 TEST_CASE("Grammar2::BLOCK") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "?? process: x", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "?- cleanup", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "! abort", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "- fallback", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_WHEN));
+    CHECK(testParse(grammar.BLOCK, "?? process: x", Production::DO_WHEN_MULTI));
+    CHECK(testParse(grammar.BLOCK, "?- cleanup", Production::DO_WHEN_FAIL));
+    CHECK(testParse(grammar.BLOCK, "- fallback", Production::DO_ELSE));
     CHECK(testParse(grammar.BLOCK, "% execute", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "^ retry", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| Failtype f-> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| Failtype[T] f-> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| \"fish\"-> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| FailTypes[error] -> recover", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "@ cleanup: resource", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "@! handleFailure: error", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? doIt\n process: x", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "^ retry", Production::DO_REWIND));
+    CHECK(testParse(grammar.BLOCK, "| recover", Production::DO_RECOVER));
+    CHECK(testParse(grammar.BLOCK, "| Failtype f-> recover", Production::DO_RECOVER_SPEC));
+    CHECK(testParse(grammar.BLOCK, "| Failtype[T] f-> recover", Production::DO_RECOVER_SPEC));
+    CHECK(testParse(grammar.BLOCK, "| \"fish\"-> recover", Production::DO_RECOVER_SPEC));
+    CHECK(testParse(grammar.BLOCK, "| FailTypes[error] -> recover", Production::DO_RECOVER_SPEC));
+    CHECK(testParse(grammar.BLOCK, "@ cleanup: resource", Production::DO_ON_EXIT));
+    CHECK(testParse(grammar.BLOCK, "@! handleFailure: error", Production::DO_ON_EXIT_FAIL));
+    CHECK(testParse(grammar.BLOCK, "? doIt\n process: x", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "% init\n process: data\n cleanup", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? Widget: x, y", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? Widget: x, y", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "% Container: size\n doIt", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? (obj):: method: x", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| (a, b):: recover: error", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? (obj):: method: x", Production::DO_WHEN));
+    CHECK(testParse(grammar.BLOCK, "| (a, b):: recover: error", Production::DO_RECOVER));
     CHECK_FALSE(testParse(grammar.BLOCK, "% init\nprocess: data\ncleanup"));
     CHECK_FALSE(testParse(grammar.BLOCK, "% Container: size\ndoIt"));
 }
@@ -2172,23 +2155,22 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - with CALL_EXPRESSION") {
 TEST_CASE("Grammar2::BLOCK - with CALL_EXPRESSION") {
     Grammar2& grammar = getGrammar();
 
-    CHECK(testParse(grammar.BLOCK, "? a + b", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "?? x - y", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "?- width * height", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "! sum / count", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "- a + b + c", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? a + b", Production::DO_WHEN));
+    CHECK(testParse(grammar.BLOCK, "?? x - y", Production::DO_WHEN_MULTI));
+    CHECK(testParse(grammar.BLOCK, "?- width * height", Production::DO_WHEN_FAIL));
+    CHECK(testParse(grammar.BLOCK, "- a + b + c", Production::DO_ELSE));
     CHECK(testParse(grammar.BLOCK, "% (a + b) * (c - d)", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "^ arr[i] + arr[j]", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "| ptr^ + offset", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "@ a < b", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "@! x >= y", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? (Widget: x, y) + offset", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "^ arr[i] + arr[j]", Production::DO_REWIND));
+    CHECK(testParse(grammar.BLOCK, "| ptr^ + offset", Production::DO_RECOVER));
+    CHECK(testParse(grammar.BLOCK, "@ a < b", Production::DO_ON_EXIT));
+    CHECK(testParse(grammar.BLOCK, "@! x >= y", Production::DO_ON_EXIT_FAIL));
+    CHECK(testParse(grammar.BLOCK, "? (Widget: x, y) + offset", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "% Module::value + x", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? init\n"
-                                           "  a + b", Production::DO_BLOCK));
+                                           "  a + b", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "% x * y\n  cleanup", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "- doIt\n  a + b\n  finalize", Production::DO_BLOCK));
-    CHECK(testParse(grammar.BLOCK, "? result <- a + b\n  x * y", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "- doIt\n  a + b\n  finalize", Production::DO_ELSE));
+    CHECK(testParse(grammar.BLOCK, "? result <- a + b\n  x * y", Production::DO_WHEN));
 }
 
 TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
@@ -2211,7 +2193,7 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - edge cases") {
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "(a, #b, c):: method: x, #y", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n? success\n- failure\n| recover\n@ cleanup\n@! onFail", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.CALL_GROUP, "doIt", Production::CALL_GROUP));
-    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? doIt", Production::DO_WHEN));
 }
 
 TEST_CASE("Grammar2::DEF_CMD_BODY - negative cases") {

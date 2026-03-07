@@ -339,5 +339,21 @@ namespace basis {
         return std::make_shared<Forward>(spfnRef);
     }
 
+    // As implementation
+    As::As(Production prod, SPPF spParseFn) : prod(prod), spfn(spParseFn) {}
+
+    bool As::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
+                   itToken* pIter, const Token* pLimit,
+                   itToken* pFurthest, const ParseFn** ppFurthestParser) const {
+        spParseTree* firstResult = *dpspResult;
+        if (spfn->parse(tokens, dpspResult, pIter, pLimit, pFurthest, ppFurthestParser)) {
+            if (*firstResult) (*firstResult)->production = prod;
+            return true;
+        }
+        return false;
+    }
+
+    SPPF as(Production prod, SPPF parseFn) { return std::make_shared<As>(prod, parseFn); }
+
 }
 

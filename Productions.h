@@ -143,6 +143,8 @@ namespace basis {
         DEF_CMD_DECL,
         DEF_CMD_INTRINSIC,
         DEF_CMD_RECEIVERS,
+        DEF_CMD_RECEIVER_ATSTACK,
+        DEF_CMD_RECEIVER_ATSTACK_FAIL,
         DEF_CMD_RECEIVER,
         DEF_CMD_NAME_SPEC,
         DEF_CMD_NAME,
@@ -195,9 +197,13 @@ namespace basis {
         DO_REWIND,
         DO_RECOVER,
         DO_RECOVER_SPEC,
+        DO_ON_EXIT,
+        DO_ON_EXIT_FAIL,
+
         RECOVER_SPEC,
-        BLOCK_HEADER,
         ENUM_DEREF,
+
+
         // -- compilation unit
         COMPILATION_UNIT
 
