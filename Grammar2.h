@@ -64,7 +64,7 @@ namespace basis {
         SPPF AMBANG;
         SPPF AMPERSAND;
         SPPF AMPHORA;
-        SPPF WRITEABLE;
+        SPPF APOSTROPHE;
         SPPF ASTERISK;
         SPPF BANG;
         SPPF BANGBRACE;
@@ -75,11 +75,11 @@ namespace basis {
         SPPF COLANGLE;
         SPPF COLBRACE;
         SPPF DCOLON;
-        SPPF EXEC_CMD;
+        SPPF DLANGLE;
+        SPPF DOLLAR;
+        SPPF DRANGLE;
         SPPF EQUALS;
-        SPPF EXTRACT;
         SPPF GREQUALS;
-        SPPF INSERT;
         SPPF LANGLE;
         SPPF LEQUALS;
         SPPF LARROW;

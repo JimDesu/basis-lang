@@ -49,7 +49,7 @@ void Grammar2::initPunctuation() {
    AMBANG = discard(TokenType::AMBANG);
    AMPERSAND = discard(TokenType::AMPERSAND);
    AMPHORA = discard(TokenType::AMPHORA);
-   WRITEABLE = discard(TokenType::APOSTROPHE);
+   APOSTROPHE = discard(TokenType::APOSTROPHE);
    ASTERISK = discard(TokenType::ASTERISK);
    BANG = discard(TokenType::BANG);
    BANGBRACE = discard(TokenType::BANGBRACE);
@@ -61,11 +61,11 @@ void Grammar2::initPunctuation() {
    COLBRACE = discard(TokenType::COLBRACE);
    DQMARK = discard(TokenType::DQMARK);
    DCOLON = discard(TokenType::DCOLON);
-   EXEC_CMD = discard(TokenType::DOLLAR);
+   DOLLAR = discard(TokenType::DOLLAR);
    EQUALS = discard(TokenType::EQUALS);
-   EXTRACT = discard(TokenType::DRANGLE);
+   DRANGLE = discard(TokenType::DRANGLE);
    GREQUALS = discard(TokenType::GREQUALS);
-   INSERT = discard(TokenType::DLANGLE);
+   DLANGLE = discard(TokenType::DLANGLE);
    LANGLE = discard(TokenType::LANGLE);
    LEQUALS = discard(TokenType::LEQUALS);
    LARROW = discard(TokenType::LARROW);
@@ -130,7 +130,7 @@ void Grammar2::initTypeExpressions() {
           forward(TYPE_EXPR_CMD),
           all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG)),
           all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ),
-      maybe(as(Production::TYPE_ARG_WRITEABLE, WRITEABLE)) ));
+      maybe(as(Production::TYPE_ARG_WRITEABLE, APOSTROPHE)) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
@@ -314,7 +314,7 @@ void Grammar2::initCommandBody() {
         any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(DCOLON, PIPE, PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, INSERT, EXTRACT) );
+        any(DCOLON, PIPE, PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, DLANGLE, DRANGLE) );
 
     CALL_BLOCKQUOTE = any(
         boundedGroup(Production::CALL_BLOCK_NOFAIL,
