@@ -46,12 +46,12 @@ void Grammar2::initIdentifiers() {
 
 void Grammar2::initPunctuation() {
 // TODO evaluate which of these must actually be matches
-   ON_EXIT_FAIL = discard(TokenType::AMBANG);
+   AMBANG = discard(TokenType::AMBANG);
    AMPERSAND = discard(TokenType::AMPERSAND);
-   ON_EXIT = discard(TokenType::AMPHORA);
+   AMPHORA = discard(TokenType::AMPHORA);
    WRITEABLE = discard(TokenType::APOSTROPHE);
    ASTERISK = discard(TokenType::ASTERISK);
-   DO_UNLESS = discard(TokenType::BANG);
+   BANG = discard(TokenType::BANG);
    BANGBRACE = discard(TokenType::BANGBRACE);
    BANGLANGLE = discard(TokenType::BANGLANGLE);
    CARAT = discard(TokenType::CARAT);
@@ -59,7 +59,7 @@ void Grammar2::initPunctuation() {
    COLON = discard(TokenType::COLON);
    COLANGLE = discard(TokenType::COLANGLE);
    COLBRACE = discard(TokenType::COLBRACE);
-   DO_WHEN_MULTI = discard(TokenType::DQMARK);
+   DQMARK = discard(TokenType::DQMARK);
    DCOLON = discard(TokenType::DCOLON);
    EXEC_CMD = discard(TokenType::DOLLAR);
    EQUALS = discard(TokenType::EQUALS);
@@ -73,15 +73,15 @@ void Grammar2::initPunctuation() {
    LBRACKET = discard(TokenType::LBRACKET);
    LPAREN = discard(TokenType::LPAREN);
    MINUS = discard(TokenType::MINUS);
-   DO_BLOCK = discard(TokenType::PERCENT);
+   PERCENT = discard(TokenType::PERCENT);
    PIPE = discard(TokenType::PIPE);
    PLUS = discard(TokenType::PLUS);
    POUND = discard(TokenType::POUND);
    QBRACE = discard(TokenType::QBRACE);
-   DO_WHEN_SELECT = discard(TokenType::QCOLON);
+   QCOLON = discard(TokenType::QCOLON);
    QLANGLE = discard(TokenType::QLANGLE);
-   DO_WHEN = discard(TokenType::QMARK);
-   DO_WHEN_FAIL = discard(TokenType::QMINUS);
+   QMARK = discard(TokenType::QMARK);
+   QMINUS = discard(TokenType::QMINUS);
    RANGLE = discard(TokenType::RANGLE);
    RARROW = discard(TokenType::RARROW);
    RBRACE = discard(TokenType::RBRACE);
@@ -129,7 +129,8 @@ void Grammar2::initTypeExpressions() {
           TYPE_NAME_Q,
           forward(TYPE_EXPR_CMD),
           all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG)),
-          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ), maybe(WRITEABLE) ));
+          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ),
+      maybe(as(Production::TYPE_ARG_WRITEABLE, WRITEABLE)) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
          any(COLANGLE, QLANGLE, BANGLANGLE),
@@ -277,9 +278,9 @@ void Grammar2::initCommandDefinitions() {
 
    DEF_CMD_SIGNATURE = any(
        // destructor
-       as(Production::DEF_CMD_RECEIVER_ATSTACK,all(ON_EXIT, DEF_CMD_RECEIVER)),
+       as(Production::DEF_CMD_RECEIVER_ATSTACK,all(AMPHORA, DEF_CMD_RECEIVER)),
        // failure handler
-       as(Production::DEF_CMD_RECEIVER_ATSTACK_FAIL,all(ON_EXIT_FAIL, DEF_CMD_RECEIVER)),
+       as(Production::DEF_CMD_RECEIVER_ATSTACK_FAIL,all(AMBANG, DEF_CMD_RECEIVER)),
        // constructor
        all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
        // VCOMMAND - with receivers, allows -> result without params
@@ -370,14 +371,15 @@ void Grammar2::initCommandBody() {
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
     BLOCK = any(
-        boundedGroup(Production::DO_WHEN_MULTI, all(DO_WHEN_MULTI, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_WHEN, all(DO_WHEN, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_WHEN_FAIL, all(DO_WHEN_FAIL, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_ON_EXIT, all(ON_EXIT, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_ON_EXIT_FAIL, all(ON_EXIT_FAIL, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_WHEN_MULTI, all(DQMARK, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_WHEN, all(QMARK, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_WHEN_FAIL, all(QMINUS, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_WHEN_SELECT, all(QCOLON, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_ON_EXIT, all(AMPHORA, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_ON_EXIT_FAIL, all(AMBANG, forward(CALL_GROUP))),
         boundedGroup(Production::DO_ELSE, all(MINUS, forward(CALL_GROUP))),
         //boundedGroup(Production::DO_UNLESS, all(DO_UNLESS, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_BLOCK, all(DO_BLOCK, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_BLOCK, all(PERCENT, forward(CALL_GROUP))),
         boundedGroup(Production::DO_REWIND, all(CARAT, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER, all(PIPE, forward(CALL_GROUP))) );

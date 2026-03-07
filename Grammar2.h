@@ -61,12 +61,12 @@ namespace basis {
         SPPF TEST;
 
         // Punctuation
-        SPPF ON_EXIT_FAIL;
+        SPPF AMBANG;
         SPPF AMPERSAND;
-        SPPF ON_EXIT;
+        SPPF AMPHORA;
         SPPF WRITEABLE;
         SPPF ASTERISK;
-        SPPF DO_UNLESS;
+        SPPF BANG;
         SPPF BANGBRACE;
         SPPF BANGLANGLE;
         SPPF CARAT;
@@ -87,16 +87,16 @@ namespace basis {
         SPPF LBRACKET;
         SPPF LPAREN;
         SPPF MINUS;
-        SPPF DO_BLOCK;
+        SPPF PERCENT;
         SPPF PIPE;
         SPPF PLUS;
         SPPF POUND;
         SPPF QBRACE;
-        SPPF DO_WHEN_SELECT;
+        SPPF QCOLON;
         SPPF QLANGLE;
-        SPPF DO_WHEN;
-        SPPF DO_WHEN_FAIL;
-        SPPF DO_WHEN_MULTI;
+        SPPF QMARK;
+        SPPF QMINUS;
+        SPPF DQMARK;
         SPPF RANGLE;
         SPPF RARROW;
         SPPF RBRACE;
