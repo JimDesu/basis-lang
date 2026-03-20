@@ -188,7 +188,7 @@ void Grammar2::initTestDefinitions() {
 void Grammar2::initImports() {
     DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, all(
         maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
-        STRING ));
+        as(Production::DEF_IMPORT_FILENAME, STRING) ));
 
     DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD, all(
         maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
@@ -199,10 +199,12 @@ void Grammar2::initImports() {
 }
 
 void Grammar2::initDomainTypes() {
+    // TODO: add [n]Type
     DEF_DOMAIN = exclusiveGroup(Production::DEF_DOMAIN,
         all(DOMAIN, group(Production::DEF_DOMAIN_NAME, TYPENAME), COLON,
             group(Production::DEF_DOMAIN_PARENT,
-               any(TYPENAME, all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
+              any(TYPENAME,
+                   all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
 }
 void Grammar2::initRecordTypes() {
     DEF_RECORD_FIELD = group(Production::DEF_RECORD_FIELD,
