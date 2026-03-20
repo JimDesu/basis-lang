@@ -40,12 +40,11 @@ void Grammar2::initIdentifiers() {
    TYPENAME = any(QUALIFIED_TYPENAME, TYPENAME_UNQUALIFIED);
 
    IDENTIFIER = group(Production::IDENTIFIER, all(
-       maybe(oneOrMore(all(TYPENAME_UNQUALIFIED, DCOLON))),
+       maybe(oneOrMore(all(as(Production::IDENTIFIER_QUALIFIER, TYPENAME_UNQUALIFIED), DCOLON))),
        match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
 }
 
 void Grammar2::initPunctuation() {
-// TODO evaluate which of these must actually be matches
    AMBANG = discard(TokenType::AMBANG);
    AMPERSAND = discard(TokenType::AMPERSAND);
    AMPHORA = discard(TokenType::AMPHORA);
@@ -109,7 +108,7 @@ void Grammar2::initReservedWords() {
 }
 
 void Grammar2::initTypeExpressions() {
-   TYPE_EXPR_PTR = group(Production::TYPE_EXPR_PTR, oneOrMore(CARAT)  );
+   TYPE_EXPR_PTR = oneOrMore(group(Production::TYPE_EXPR_PTR,CARAT)  );
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
    TYPE_EXPR_RANGE_FIXED = group(Production::TYPE_EXPR_RANGE,
@@ -378,12 +377,12 @@ void Grammar2::initCommandBody() {
         boundedGroup(Production::DO_ON_EXIT, all(AMPHORA, forward(CALL_GROUP))),
         boundedGroup(Production::DO_ON_EXIT_FAIL, all(AMBANG, forward(CALL_GROUP))),
         boundedGroup(Production::DO_ELSE, all(MINUS, forward(CALL_GROUP))),
-        //boundedGroup(Production::DO_UNLESS, all(DO_UNLESS, forward(CALL_GROUP))),
         boundedGroup(Production::DO_BLOCK, all(PERCENT, forward(CALL_GROUP))),
         boundedGroup(Production::DO_REWIND, all(CARAT, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER, all(PIPE, forward(CALL_GROUP))) );
 
+    // TODO add failure (bang)
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, CALL_INVOKE, BLOCK)) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
