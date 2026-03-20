@@ -109,9 +109,9 @@ void Grammar2::initReservedWords() {
 
 void Grammar2::initTypeExpressions() {
    TYPE_EXPR_PTR = oneOrMore(as(Production::TYPE_EXPR_PTR, CARAT)  );
-   TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
+   TYPE_EXPR_VECTOR = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
-   TYPE_EXPR_RANGE_FIXED = group(Production::TYPE_EXPR_RANGE,
+   TYPE_EXPR_VECTOR_FIXED = group(Production::TYPE_EXPR_RANGE,
        all(LBRACKET,any(IDENTIFIER, NUMBER), RBRACKET) );
 
    TYPE_ARG_TYPE = group(Production::TYPE_ARG_TYPE, forward( TYPE_NAME_Q ));
@@ -120,19 +120,20 @@ void Grammar2::initTypeExpressions() {
    // n.b. ordering is important because of shared prefix
    TYPE_NAME_ARGS = group(Production::TYPE_NAME_ARGS,
        all(LBRACKET, separated(any(TYPE_ARG_VALUE, TYPE_ARG_TYPE), COMMA), RBRACKET) );
-   TYPE_NAME_Q = group(Production::TYPE_NAME_Q,
-       all(TYPENAME, maybe(TYPE_NAME_ARGS)) );
+   TYPE_NAME_Q = group(Production::TYPE_NAME_Q, all(TYPENAME, maybe(TYPE_NAME_ARGS)) );
 
    TYPE_CMDEXPR_ARG = group(Production::TYPE_CMDEXPR_ARG, all(
       any(
           TYPE_NAME_Q,
           forward(TYPE_EXPR_CMD),
           all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG)),
-          all(TYPE_EXPR_RANGE, maybe(forward(TYPE_CMDEXPR_ARG))) ),
+          all(TYPE_EXPR_VECTOR, maybe(forward(TYPE_CMDEXPR_ARG))) ),
       maybe(as(Production::TYPE_ARG_WRITEABLE, APOSTROPHE)) ));
 
    TYPE_EXPR_CMD = group(Production::TYPE_EXPR_CMD, all(
-         any(COLANGLE, QLANGLE, BANGLANGLE),
+         any( as(Production::TYPE_CMD_NOFAIL, COLANGLE),
+              as( Production::TYPE_CMD_MAYFAIL, QLANGLE),
+              as(Production::TYPE_CMD_FAILS, BANGLANGLE)  ),
          maybe(separated(TYPE_CMDEXPR_ARG, COMMA)),
          RANGLE) );
 
@@ -143,18 +144,17 @@ void Grammar2::initTypeExpressions() {
    // n.b. ordering is important because of shared prefix
    TYPEDEF_PARMS = group(Production::TYPEDEF_PARMS,
        all(LBRACKET, separated(any(TYPEDEF_PARM_VALUE, TYPEDEF_PARM_TYPE), COMMA), RBRACKET) );
-   TYPEDEF_NAME_Q = group(Production::TYPEDEF_NAME_Q,
-       all(TYPENAME, maybe(TYPEDEF_PARMS)) );
+   TYPEDEF_NAME_Q = group(Production::TYPEDEF_NAME_Q, all(TYPENAME, maybe(TYPEDEF_PARMS)) );
 
    TYPE_EXPR = group(Production::TYPE_EXPR,
          any(
             TYPEDEF_NAME_Q,
             TYPE_EXPR_CMD,
             all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
-            all(TYPE_EXPR_RANGE, maybe(forward(TYPE_EXPR))) ));
+            all(TYPE_EXPR_VECTOR, maybe(forward(TYPE_EXPR))) ));
 
     TYPE_EXPR_DOMAIN = group(Production::TYPE_EXPR_DOMAIN,
-        any( TYPE_NAME_Q, all(TYPE_EXPR_RANGE_FIXED, maybe(forward(TYPE_EXPR_DOMAIN))) ));
+        any( TYPE_NAME_Q, all(TYPE_EXPR_VECTOR_FIXED, maybe(forward(TYPE_EXPR_DOMAIN))) ));
 }
 
 void Grammar2::initEnumerations() {

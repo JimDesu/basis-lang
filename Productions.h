@@ -99,6 +99,9 @@ namespace basis {
         TYPE_CMDEXPR_ARG,
         TYPE_EXPR_DOMAIN,
         TYPE_ARG_WRITEABLE,
+        TYPE_CMD_NOFAIL,
+        TYPE_CMD_MAYFAIL,
+        TYPE_CMD_FAILS,
 
         // -- type aliases
         DEF_ALIAS,

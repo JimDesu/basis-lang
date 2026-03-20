@@ -120,8 +120,8 @@ namespace basis {
         // Type Expressions
         SPPF TYPE_EXPR;
         SPPF TYPE_EXPR_PTR;
-        SPPF TYPE_EXPR_RANGE;
-        SPPF TYPE_EXPR_RANGE_FIXED;
+        SPPF TYPE_EXPR_VECTOR;
+        SPPF TYPE_EXPR_VECTOR_FIXED;
         SPPF TYPE_EXPR_CMD;
         SPPF TYPE_CMDEXPR_ARG;
         SPPF TYPEDEF_NAME_Q;
