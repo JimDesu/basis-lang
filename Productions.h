@@ -116,6 +116,7 @@ namespace basis {
         DEF_IMPORT,
         DEF_IMPORT_FILE,
         DEF_IMPORT_STANDARD,
+        DEF_IMPORT_ALIAS,
         // -- domain definitions
         DEF_DOMAIN,
         DEF_DOMAIN_NAME,

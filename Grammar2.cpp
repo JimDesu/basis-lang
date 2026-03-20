@@ -186,11 +186,13 @@ void Grammar2::initTestDefinitions() {
 }
 
 void Grammar2::initImports() {
-    //TODO add prefix here, and restructure to make AST building easier
-    DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, STRING);
+    DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, all(
+        maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
+        STRING ));
 
-    DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD,
-        all(maybe(all(TYPENAME_UNQUALIFIED, COLON)), TYPENAME));
+    DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD, all(
+        maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
+        TYPENAME ));
 
     DEF_IMPORT = exclusiveGroup(Production::DEF_IMPORT,
         all(IMPORT, any(DEF_IMPORT_FILE, DEF_IMPORT_STANDARD)));

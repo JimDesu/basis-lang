@@ -76,9 +76,10 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - empty and minimal") {
 
     // Just imports
     CHECK(testParse(grammar.COMPILATION_UNIT, ".import \"file.basis\"", Production::COMPILATION_UNIT));
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".import B: \"file.basis\"", Production::COMPILATION_UNIT));
     CHECK(testParse(grammar.COMPILATION_UNIT,
         ".import \"file1.basis\"\n"
-        ".import \"file2.basis\"",
+        ".import F:\"file2.basis\"",
         Production::COMPILATION_UNIT));
     CHECK(testParse(grammar.COMPILATION_UNIT,
         ".import Module1\n"
