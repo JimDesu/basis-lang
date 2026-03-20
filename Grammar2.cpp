@@ -108,7 +108,7 @@ void Grammar2::initReservedWords() {
 }
 
 void Grammar2::initTypeExpressions() {
-   TYPE_EXPR_PTR = oneOrMore(group(Production::TYPE_EXPR_PTR,CARAT)  );
+   TYPE_EXPR_PTR = oneOrMore(as(Production::TYPE_EXPR_PTR, CARAT)  );
    TYPE_EXPR_RANGE = group(Production::TYPE_EXPR_RANGE,
       all(LBRACKET, maybe(any(IDENTIFIER, NUMBER)), RBRACKET ) );
    TYPE_EXPR_RANGE_FIXED = group(Production::TYPE_EXPR_RANGE,
