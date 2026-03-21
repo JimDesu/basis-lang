@@ -199,13 +199,16 @@ void Grammar2::initImports() {
 }
 
 void Grammar2::initDomainTypes() {
-    // TODO: add [n]Type
     DEF_DOMAIN = exclusiveGroup(Production::DEF_DOMAIN,
         all(DOMAIN, group(Production::DEF_DOMAIN_NAME, TYPENAME), COLON,
             group(Production::DEF_DOMAIN_PARENT,
-              any(TYPENAME,
-                   all(LBRACKET, maybe(NUMBER), RBRACKET)) )));
+             any(TYPENAME,
+                   group(Production::DEF_DOMAIN_PARENT_RANGE,
+                      all(
+                          LBRACKET, group(Production::DEF_DOMAIN_PARENT_RANGE_SIZE, NUMBER), RBRACKET,
+                          maybe(group(Production::DEF_DOMAIN_PARENT_RANGE_TYPE, TYPENAME)) ))))));
 }
+
 void Grammar2::initRecordTypes() {
     DEF_RECORD_FIELD = group(Production::DEF_RECORD_FIELD,
         all(group(Production::DEF_RECORD_FIELD_DOMAIN, TYPE_EXPR_DOMAIN),

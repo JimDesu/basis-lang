@@ -122,6 +122,11 @@ namespace basis {
         DEF_DOMAIN,
         DEF_DOMAIN_NAME,
         DEF_DOMAIN_PARENT,
+        DEF_DOMAIN_PARENT_TYPE,
+        DEF_DOMAIN_PARENT_RANGE,
+        DEF_DOMAIN_PARENT_RANGE_SIZE,
+        DEF_DOMAIN_PARENT_RANGE_TYPE,
+
         // -- record definitions
         DEF_RECORD,
         DEF_RECORD_NAME,
