@@ -211,7 +211,7 @@ void Grammar2::initDomainTypes() {
 
 void Grammar2::initRecordTypes() {
     DEF_RECORD_FIELD = group(Production::DEF_RECORD_FIELD,
-        all(group(Production::DEF_RECORD_FIELD_DOMAIN, TYPE_EXPR_DOMAIN),
+       all(group(Production::DEF_RECORD_FIELD_DOMAIN, TYPE_EXPR_DOMAIN),
             group(Production::DEF_RECORD_FIELD_NAME, IDENTIFIER)) );
      DEF_RECORD_FIELDS = group(Production::DEF_RECORD_FIELDS,
         separated(DEF_RECORD_FIELD, COMMA) );
@@ -249,16 +249,16 @@ void Grammar2::initCommandDefinitions() {
       all(LPAREN, TYPENAME, COLON, DEF_CMD_PARMTYPE_NAME, RPAREN) );
    DEF_CMD_PARM_NAME = match(Production::DEF_CMD_PARM_NAME, TokenType::IDENTIFIER);
 
-   DEF_CMD_PARM_TYPE = group(Production::DEF_CMD_PARM_TYPE,
-      any(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARMTYPE_VAR) );
+   DEF_CMD_PARM_TYPE = any(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARMTYPE_VAR);
    DEF_CMD_PARM = group(Production::DEF_CMD_PARM,
       all(DEF_CMD_PARM_TYPE, DEF_CMD_PARM_NAME) );
    DEF_CMD_RECEIVER = group(Production::DEF_CMD_RECEIVER,
       all(DEF_CMD_PARMTYPE_NAME, DEF_CMD_PARM_NAME) );
 
    DEF_CMD_RECEIVERS = group(Production::DEF_CMD_RECEIVERS, all(
-           any( all(LPAREN, separated(DEF_CMD_RECEIVER, COMMA), RPAREN), DEF_CMD_RECEIVER ),
-           DCOLON ));
+       any( all(LPAREN, separated(DEF_CMD_RECEIVER, COMMA), RPAREN),
+            DEF_CMD_RECEIVER ),
+       DCOLON ));
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
       separated(DEF_CMD_PARM, COMMA)) );
    DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
@@ -269,10 +269,8 @@ void Grammar2::initCommandDefinitions() {
       all(DEF_CMD_PARM_LIST, maybe(DEF_CMD_RETVAL)) ));
    // For VCOMMAND - allows return value without parameters (receivers act as implicit parameters)
    DEF_CMD_VPARMS = all(
-      maybe(prefix(COLON, group(Production::DEF_CMD_PARMS,
-         DEF_CMD_PARM_LIST))),
-      maybe(DEF_CMD_RETVAL)
-   );
+      maybe(prefix(COLON, group(Production::DEF_CMD_PARMS, DEF_CMD_PARM_LIST))),
+      maybe(DEF_CMD_RETVAL) );
 
    DEF_CMD_NAME = match(Production::DEF_CMD_NAME, TokenType::IDENTIFIER);
    DEF_CMD_MAYFAIL = match(Production::DEF_CMD_MAYFAIL, TokenType::QMARK);
@@ -282,26 +280,23 @@ void Grammar2::initCommandDefinitions() {
 
    DEF_CMD_REGULAR_FORM = all(DEF_CMD_NAME_SPEC, DEF_CMD_PARMS, DEF_CMD_IMPARMS);
 
+   DEF_CMD_INTRINSIC = exclusiveGroup(Production::DEF_CMD_INTRINSIC, all(INTRINSIC, DEF_CMD_REGULAR_FORM) );
    DEF_CMD_SIGNATURE = any(
        // destructor
-       as(Production::DEF_CMD_RECEIVER_ATSTACK,all(AMPHORA, DEF_CMD_RECEIVER)),
+       group(Production::DEF_CMD_RECEIVER_ATSTACK,all(AMPHORA, DEF_CMD_RECEIVER)),
        // failure handler
-       as(Production::DEF_CMD_RECEIVER_ATSTACK_FAIL,all(AMBANG, DEF_CMD_RECEIVER)),
+       group(Production::DEF_CMD_RECEIVER_ATSTACK_FAIL,all(AMBANG, DEF_CMD_RECEIVER)),
        // constructor
-       all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA)),
+       group(Production::DEF_CMD_CTOR,
+           all(DEF_CMD_RECEIVER, COLON, separated(DEF_CMD_PARM, COMMA))),
        // VCOMMAND - with receivers, allows -> result without params
-       all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS),
+       group(Production::DEF_CMD_VCOMMAND,
+           all(DEF_CMD_RECEIVERS, DEF_CMD_NAME_SPEC, DEF_CMD_VPARMS, DEF_CMD_IMPARMS) ),
        // Regular command - without receivers, requires params for -> result
-       DEF_CMD_REGULAR_FORM );
+       group(Production::DEF_CMD_REGULAR, DEF_CMD_REGULAR_FORM) );
 
-   DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL,
-       all(DECLARE, DEF_CMD_SIGNATURE));
-   DEF_CMD_INTRINSIC = exclusiveGroup(Production::DEF_CMD_INTRINSIC,
-       all(INTRINSIC, DEF_CMD_REGULAR_FORM) );
-
-   DEF_CMD = exclusiveGroup(Production::DEF_CMD,
-       all(COMMAND, DEF_CMD_SIGNATURE, forward(DEF_CMD_BODY)));
-
+   DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL, all(DECLARE, DEF_CMD_SIGNATURE));
+   DEF_CMD = exclusiveGroup(Production::DEF_CMD, all(COMMAND, DEF_CMD_SIGNATURE, forward(DEF_CMD_BODY)));
 }
 
 void Grammar2::initClassTypes() {
