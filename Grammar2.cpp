@@ -379,10 +379,7 @@ void Grammar2::initCommandBody() {
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)))) );
 
-    CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
-        all(CALL_IDENTIFIER, LARROW,
-            all( SUBCALL_EXPRESSION, maybe(oneOrMore(all(PIPE, SUBCALL_EXPRESSION))) ) ),
-        maybe(oneOrMore(all(CALL_OPERATOR, any(SUBCALL_EXPRESSION)))) );
+    CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT, all(CALL_IDENTIFIER, LARROW, SUBCALL_EXPRESSION));
 
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );

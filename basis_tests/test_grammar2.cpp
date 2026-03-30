@@ -1809,11 +1809,6 @@ TEST_CASE("Grammar2::CALL_CMD_LITERAL") {
     CHECK(testParse(grammar.CALL_COMMAND, "process: (:<Int x>{Widget: x, y})", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_CONSTRUCTOR, "Widget: (?<String name>{doIt}), (!<Int value>{process: value})", Production::CALL_CONSTRUCTOR));
     CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- (:<Int a, Int b>{calculate: a, b})", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y} + value", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "sum <- ?<String s>{process: s} * count", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a, Int b>{calculate: a, b} - offset", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "result <- :<Int x>{Widget: x, y} | ?<String s>{process: s}", Production::CALL_ASSIGNMENT));
-    CHECK(testParse(grammar.CALL_ASSIGNMENT, "output <- !<Int a>{doIt} | :<String s>{validate: s} | ?<Int x>{finalize}", Production::CALL_ASSIGNMENT));
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, ":<>{Widget: x, y}", Production::SUBCALL_EXPRESSION));
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, "?<>{process: data}", Production::SUBCALL_EXPRESSION));
     CHECK(testParse(grammar.SUBCALL_EXPRESSION, "!<>{doIt}", Production::SUBCALL_EXPRESSION));
