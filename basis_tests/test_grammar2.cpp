@@ -347,7 +347,7 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - with test and program definitions") {
         ".module Tests\n"
         ".test \"test 1\" = run1\n"
         ".test \"test 2\" = run2\n"
-        ".test \"test 3\" = run3",
+        ".test \"test 3\" = run3 | fallback",
         Production::COMPILATION_UNIT));
 
     // Tests with other definitions
@@ -2042,10 +2042,6 @@ TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - with literals") {
 TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - negative cases") {
     Grammar2& grammar = getGrammar();
 
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "doIt"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "42"));
-    CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "(a)"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "+ a"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "- a"));
     CHECK_FALSE(testParse(grammar.CALL_EXPRESSION, "a +"));
@@ -2072,6 +2068,7 @@ TEST_CASE("Grammar2::BLOCK") {
     CHECK(testParse(grammar.BLOCK, "% init\n process: data\n cleanup", Production::DO_BLOCK));
     CHECK(testParse(grammar.BLOCK, "? Widget: x, y", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "% Container: size\n doIt", Production::DO_BLOCK));
+    CHECK(testParse(grammar.BLOCK, "? obj :: method: x", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "? (obj):: method: x", Production::DO_WHEN));
     CHECK(testParse(grammar.BLOCK, "| (a, b):: recover: error", Production::DO_RECOVER));
     CHECK_FALSE(testParse(grammar.BLOCK, "% init\nprocess: data\ncleanup"));

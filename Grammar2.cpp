@@ -310,12 +310,24 @@ void Grammar2::initCommandBody() {
 
     CALL_PARM_EXPR = group(Production::CALL_PARM_EXPR,
         any( forward(SUBCALL_EXPRESSION), CALL_IDENTIFIER ) );
-    CALL_PARM_EMPTY = group(Production::CALL_PARM_EMPTY, UNDERSCORE);
-    CALL_PARAMETER = group(Production::CALL_PARAMETER,
-        any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
+    CALL_PARM_EMPTY = as(Production::CALL_PARM_EMPTY, UNDERSCORE);
+    CALL_PARAMETER = group(Production::CALL_PARAMETER, any( CALL_PARM_EMPTY, CALL_PARM_EXPR) );
 
     CALL_OPERATOR = group(Production::CALL_OPERATOR,
-        any(DCOLON, PIPE, PLUS, MINUS, ASTERISK, SLASH, LANGLE, RANGLE, LEQUALS, GREQUALS, EQUALS, DLANGLE, DRANGLE) );
+    any(
+            as(Production::CALL_OPER_SCOPE, DCOLON),
+            as(Production::CALL_OPER_CHOICE, PIPE),
+            as(Production::CALL_OPER_ADD, PLUS),
+            as(Production::CALL_OPER_SUBTRACT, MINUS),
+            as(Production::CALL_OPER_MULTIPLY, ASTERISK),
+            as(Production::CALL_OPER_DIVIDE, SLASH),
+            as(Production::CALL_OPER_LESSTHAN, LANGLE),
+            as(Production::CALL_OPER_GREATERTHAN, RANGLE),
+            as(Production::CALL_OPER_LESSTHAN_EQ, LEQUALS),
+            as(Production::CALL_OPER_GREATERTHAN_EQ, GREQUALS),
+            as(Production::CALL_OPER_EQUALS, EQUALS),
+            as(Production::CALL_OPER_INSERT, DLANGLE),
+            as(Production::CALL_OPER_EXTRACT, DRANGLE) ));
 
     CALL_BLOCKQUOTE = any(
         boundedGroup(Production::CALL_BLOCK_NOFAIL,
@@ -324,15 +336,16 @@ void Grammar2::initCommandBody() {
             all(BANGBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)),
         boundedGroup(Production::CALL_BLOCK_MAYFAIL,
             all(QBRACE, any(forward(DEF_CMD_EMPTY),forward(CALL_GROUP)), RBRACE)) );
-    CALL_SUBQUOTE = all( LBRACE, maybe( forward(CALL_INVOKE) ), RBRACE );
-    CALL_QUOTE = group(Production::CALL_QUOTE, any( CALL_SUBQUOTE, CALL_BLOCKQUOTE) );
+    CALL_SUBQUOTE = group(Production::CALL_QUOTE, all(LBRACE, maybe( forward(CALL_INVOKE) ), RBRACE ));
+    CALL_QUOTE = any( CALL_SUBQUOTE, CALL_BLOCKQUOTE );
 
-    CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET, any( CALL_SUBQUOTE, IDENTIFIER ));
-    CALL_EXPR_ADDR = group(Production::CALL_EXPR_ADDR, AMPERSAND);
-    CALL_EXPR_DEREF = group(Production::CALL_EXPR_DEREF, CARAT);
+    CALL_CMD_TARGET = group(Production::CALL_CMD_TARGET,any( CALL_SUBQUOTE, IDENTIFIER ));
+    CALL_EXPR_ADDR = as(Production::CALL_EXPR_ADDR, AMPERSAND);
+    CALL_EXPR_DEREF = as(Production::CALL_EXPR_DEREF, CARAT);
     CALL_EXPR_INDEX = group(Production::CALL_EXPR_INDEX, all(
         LBRACKET,
-        all(forward(SUBCALL_EXPRESSION), maybe(all(COMMA, forward(SUBCALL_EXPRESSION)))),
+        group(Production::CALL_EXPRINDEX_LOC, forward(SUBCALL_EXPRESSION)),
+        maybe(all(COMMA, group(Production::CALL_EXPRINDEX_EXT, forward(SUBCALL_EXPRESSION)))),
         RBRACKET ));
     CALL_EXPR_SUFFIX = all(
         maybe(oneOrMore(any(CALL_EXPR_DEREF, CALL_EXPR_INDEX))),
@@ -345,29 +358,31 @@ void Grammar2::initCommandBody() {
              all(LPAREN, forward(SUBCALL_EXPRESSION), RPAREN) ),
         maybe(CALL_EXPR_SUFFIX) );
     CALL_CMD_LITERAL = group(Production::CALL_CMD_LITERAL, all(
-        any(COLANGLE, QLANGLE, BANGLANGLE), maybe(DEF_CMD_PARM_LIST), RANGLE, LBRACE, forward(CALL_GROUP), RBRACE ));
+        any( as(Production::CALL_CMDLIT_NOFAIL,COLANGLE),
+            as(Production::CALL_CMDLIT_MAYFAIL, QLANGLE),
+            as(Production::CALL_CMDLIT_MUSTFAIL, BANGLANGLE) ),
+        maybe(DEF_CMD_PARM_LIST), RANGLE, LBRACE, forward(CALL_GROUP), RBRACE ));
 
-    SUBCALL_EXPRESSION = group(Production::SUBCALL_EXPRESSION, any(
-        CALL_CMD_LITERAL,
-        all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR,CALL_EXPR_TERM)))),
-        CALL_QUOTE ));
+    SUBCALL_EXPRESSION = group(Production::SUBCALL_EXPRESSION,
+       any(CALL_CMD_LITERAL, forward(CALL_EXPRESSION), CALL_QUOTE) );
 
     CALL_CONSTRUCTOR = boundedGroup(Production::CALL_CONSTRUCTOR,
         all(TYPE_NAME_Q, COLON, separated(CALL_PARAMETER, COMMA)) );
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
         all(CALL_CMD_TARGET, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
+    // special handling to enable multiple dispatch
     CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
         all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND);
 
     CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
-       all(CALL_EXPR_TERM, oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)) ));
+       all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)))) );
 
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT,
         all(CALL_IDENTIFIER, LARROW,
             all( SUBCALL_EXPRESSION, maybe(oneOrMore(all(PIPE, SUBCALL_EXPRESSION))) ) ),
-        maybe(oneOrMore(all(CALL_OPERATOR, any(forward(CALL_INVOKE),SUBCALL_EXPRESSION)))) );
+        maybe(oneOrMore(all(CALL_OPERATOR, any(SUBCALL_EXPRESSION)))) );
 
     RECOVER_SPEC = group(Production::RECOVER_SPEC,
         any(all(TYPE_NAME_Q, IDENTIFIER), CALL_EXPR_TERM) );
@@ -386,7 +401,7 @@ void Grammar2::initCommandBody() {
 
     // TODO add failure (bang)
     CALL_GROUP = group(Production::CALL_GROUP,
-        oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, CALL_INVOKE, BLOCK)) );
+        oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, BLOCK)) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
     DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
         discard(TokenType::EQUALS), any(DEF_CMD_EMPTY, CALL_GROUP) ));
