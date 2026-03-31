@@ -141,6 +141,20 @@ namespace basis {
         DEF_OBJECT_FIELD,
         DEF_OBJECT_FIELD_NAME,
         DEF_OBJECT_FIELD_TYPE,
+        // -- union definitions
+        DEF_UNION,
+        DEF_UNION_NAME,
+        DEF_UNION_CANDIDATES,
+        DEF_UNION_CANDIDATE,
+        DEF_UNION_CANDIDATE_DOMAIN,
+        DEF_UNION_CANDIDATE_NAME,
+        // -- variant definitions
+        DEF_VARIANT,
+        DEF_VARIANT_NAME,
+        DEF_VARIANT_CANDIDATES,
+        DEF_VARIANT_CANDIDATE,
+        DEF_VARIANT_CANDIDATE_TYPE,
+        DEF_VARIANT_CANDIDATE_NAME,
         // -- class definitions
         DEF_CLASS,
         DEF_CLASS_NAME,

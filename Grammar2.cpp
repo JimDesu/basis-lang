@@ -14,6 +14,8 @@ Grammar2::Grammar2() {
     initDomainTypes();
     initRecordTypes();
     initObjectTypes();
+    initUnionTypes();
+    initVariantTypes();
     initTypeAliases();
     initCommandDefinitions();
     initClassTypes();
@@ -106,6 +108,8 @@ void Grammar2::initReservedWords() {
    RECORD = discard(TokenType::RECORD);
    TEST = discard(TokenType::TEST);
    FAIL = discard(TokenType::FAIL);
+   UNION = discard(TokenType::UNION);
+   VARIANT = discard(TokenType::VARIANT);
 }
 
 void Grammar2::initTypeExpressions() {
@@ -228,6 +232,26 @@ void Grammar2::initObjectTypes() {
        separated(DEF_OBJECT_FIELD, COMMA) );
     DEF_OBJECT = exclusiveGroup(Production::DEF_OBJECT,
         all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
+}
+
+void Grammar2::initUnionTypes() {
+    DEF_UNION_CANDIDATE = group(Production::DEF_UNION_CANDIDATE,
+        all(group(Production::DEF_UNION_CANDIDATE_DOMAIN, TYPE_EXPR_DOMAIN),
+            group(Production::DEF_UNION_CANDIDATE_NAME, IDENTIFIER)));
+    DEF_UNION_CANDIDATES = group(Production::DEF_UNION_CANDIDATES,
+        separated(DEF_UNION_CANDIDATE, COMMA));
+    DEF_UNION = exclusiveGroup(Production::DEF_UNION,
+        all(UNION, group(Production::DEF_UNION_NAME, TYPEDEF_NAME_Q), COLON, DEF_UNION_CANDIDATES));
+}
+
+void Grammar2::initVariantTypes() {
+    DEF_VARIANT_CANDIDATE = group(Production::DEF_VARIANT_CANDIDATE,
+        all(group(Production::DEF_VARIANT_CANDIDATE_TYPE, TYPE_EXPR),
+            group(Production::DEF_VARIANT_CANDIDATE_NAME, IDENTIFIER)));
+    DEF_VARIANT_CANDIDATES = group(Production::DEF_VARIANT_CANDIDATES,
+        separated(DEF_VARIANT_CANDIDATE, COMMA));
+    DEF_VARIANT = exclusiveGroup(Production::DEF_VARIANT,
+        all(VARIANT, group(Production::DEF_VARIANT_NAME, TYPEDEF_NAME_Q), COLON, DEF_VARIANT_CANDIDATES));
 }
 
 void Grammar2::initInstanceDecls() {
@@ -398,7 +422,6 @@ void Grammar2::initCommandBody() {
         boundedGroup(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER, all(PIPE, forward(CALL_GROUP))) );
 
-    // TODO add failure (bang)
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, BLOCK)) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
@@ -422,7 +445,9 @@ void Grammar2::initCompilationUnit() {
             DEF_OBJECT,
             DEF_PROGRAM,
             DEF_RECORD,
-            DEF_TEST )))));
+            DEF_TEST,
+            DEF_UNION,
+            DEF_VARIANT )))));
 }
 
 Grammar2& basis::getGrammar() {

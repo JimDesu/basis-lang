@@ -22,6 +22,8 @@ namespace basis {
         void initDomainTypes();
         void initRecordTypes();
         void initObjectTypes();
+        void initUnionTypes();
+        void initVariantTypes();
         void initClassTypes();
         void initInstanceDecls();
         void initTypeExpressions();
@@ -60,6 +62,8 @@ namespace basis {
         SPPF RECORD;
         SPPF TEST;
         SPPF FAIL;
+        SPPF UNION;
+        SPPF VARIANT;
 
         // Punctuation
         SPPF AMBANG;
@@ -171,6 +175,22 @@ namespace basis {
         SPPF DEF_OBJECT_FIELD;
         SPPF DEF_OBJECT_FIELD_NAME;
         SPPF DEF_OBJECT_FIELD_TYPE;
+
+        // Union definition
+        SPPF DEF_UNION;
+        SPPF DEF_UNION_NAME;
+        SPPF DEF_UNION_CANDIDATES;
+        SPPF DEF_UNION_CANDIDATE;
+        SPPF DEF_UNION_CANDIDATE_DOMAIN;
+        SPPF DEF_UNION_CANDIDATE_NAME;
+
+        // Variant definition
+        SPPF DEF_VARIANT;
+        SPPF DEF_VARIANT_NAME;
+        SPPF DEF_VARIANT_CANDIDATES;
+        SPPF DEF_VARIANT_CANDIDATE;
+        SPPF DEF_VARIANT_CANDIDATE_TYPE;
+        SPPF DEF_VARIANT_CANDIDATE_NAME;
 
         // Class definition
         SPPF DEF_CLASS;

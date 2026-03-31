@@ -36,6 +36,8 @@ namespace basis {
         RECORD,
         TEST,
         FAIL,
+        UNION,
+        VARIANT,
         // punctuation
         AMBANG,
         AMPERSAND,

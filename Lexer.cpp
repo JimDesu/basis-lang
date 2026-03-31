@@ -28,6 +28,7 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".decl", TokenType::DECLARE},
     {".domain", TokenType::DOMAIN},
     {".enum", TokenType::ENUMERATION},
+    {".fail", TokenType::FAIL},
     {".import", TokenType::IMPORT},
     {".instance", TokenType::INSTANCE},
     {".intrinsic", TokenType::INTRINSIC},
@@ -36,7 +37,8 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".program", TokenType::PROGRAM},
     {".record", TokenType::RECORD},
     {".test", TokenType::TEST},
-    {".fail", TokenType::FAIL}
+    {".union", TokenType::UNION},
+    {".variant", TokenType::VARIANT}
 };
 
 bool Lexer::read() {

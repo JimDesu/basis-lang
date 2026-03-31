@@ -111,6 +111,8 @@ TEST_CASE("Lexer::test lex all token types") {
     testSingleToken(".object foobar", TokenType::OBJECT);
     testSingleToken(".record foobar", TokenType::RECORD);
     testSingleToken(".test foobar", TokenType::TEST);
+    testSingleToken(".union foobar", TokenType::UNION);
+    testSingleToken(".variant foobar", TokenType::VARIANT);
 }
 
 TEST_CASE("Lexer::test lex single token negative test cases") {

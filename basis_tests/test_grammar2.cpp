@@ -178,6 +178,8 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all definition types") {
         ".enum Status: active = 0, inactive = 1\n"
         ".record Point: Int x, Int y\n"
         ".object Node: Int value, ^Node next\n"
+        ".union Scalar: Int whole, Float fractional\n"
+        ".variant Shape: Int circle, ^Node inner\n"
         ".instance MyType: Interface\n"
         ".test \"simple test\" = doSomething\n"
         ".program main",
@@ -257,6 +259,8 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - complex multi-definition files") {
         ".enum Role: admin = 0, user = 1\n"
         ".record User: UserId id, String name\n"
         ".object Session: SessionId id, User user\n"
+        ".union Scalar: Int whole, Float fractional\n"
+        ".variant Shape: Int circle, ^Node inner\n"
         ".class UserManager:\n"
         "    .decl create: User u -> result\n"
         ".instance User: Serializable\n"
@@ -439,6 +443,12 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - single definition types") {
     // Just one object
     CHECK(testParse(grammar.COMPILATION_UNIT, ".object Node: Int value", Production::COMPILATION_UNIT));
 
+    // Just one union
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".union Scalar: Int whole, Float fractional", Production::COMPILATION_UNIT));
+
+    // Just one variant
+    CHECK(testParse(grammar.COMPILATION_UNIT, ".variant Shape: Int circle, ^Node inner", Production::COMPILATION_UNIT));
+
     // Just one instance
     CHECK(testParse(grammar.COMPILATION_UNIT, ".instance MyType: Interface", Production::COMPILATION_UNIT));
 
@@ -503,6 +513,10 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - negative tests") {
     // Invalid record/object syntax
     CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".record point: Int x"));  // lowercase record name
     CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".object node: Int value"));  // lowercase object name
+
+    // Invalid union/variant syntax
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".union scalar: Int whole"));   // lowercase union name
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".variant shape: Int circle")); // lowercase variant name
 
     // Invalid instance syntax
     CHECK_FALSE(testParse(grammar.COMPILATION_UNIT, ".instance myType: Interface"));  // lowercase type name
@@ -598,10 +612,10 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - edge cases with whitespace and newlines"
         "      .domain UserId: Int"));
 }
 
-TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
+TEST_CASE("Grammar2::COMPILATION_UNIT - all 15 definition types together") {
     Grammar2& grammar = getGrammar();
 
-    // Comprehensive test with all 13 definition types that begin with reserved words
+    // Comprehensive test with all 15 definition types that begin with reserved words
     // (excluding MODULE and IMPORT which have their own sections)
     CHECK(testParse(grammar.COMPILATION_UNIT,
         ".module Comprehensive\n"
@@ -618,7 +632,9 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
         ".object Node: Int value\n"
         ".program main\n"
         ".record Point: Int x, Int y\n"
-        ".test \"comprehensive test\" = run",
+        ".test \"comprehensive test\" = run\n"
+        ".union Scalar: Int whole, Float fractional\n"
+        ".variant Shape: Int circle, ^Node inner",
         Production::COMPILATION_UNIT));
 
     // Same but without module and imports
@@ -635,7 +651,9 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all 13 definition types together") {
         ".object Node: Int value\n"
         ".program main\n"
         ".record Point: Int x, Int y\n"
-        ".test \"comprehensive test\" = run",
+        ".test \"comprehensive test\" = run\n"
+        ".union Scalar: Int whole, Float fractional\n"
+        ".variant Shape: Int circle, ^Node inner",
         Production::COMPILATION_UNIT));
 }
 
@@ -1166,6 +1184,186 @@ TEST_CASE("Grammar2::DEF_OBJECT") {
     CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".object Point: Int x,\nInt y"));  // newline in field list
     CHECK_FALSE(testParse(grammar.DEF_OBJECT, ".Object Point: Int x"));  // wrong keyword case
     CHECK_FALSE(testParse(grammar.DEF_OBJECT, ". object Point: Int x"));  // wrong keyword case
+}
+
+// =============================================================================
+// DEF_UNION - Union (Domain Sum) Type Definitions (initUnionTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_UNION_CANDIDATE") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic domain-type candidates with name
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "Int whole", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "Float fractional", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "String text", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "UserId uid", Production::DEF_UNION_CANDIDATE));
+
+    // Parameterized domain types
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "List[Int] items", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "Map[String, Int] data", Production::DEF_UNION_CANDIDATE));
+
+    // Fixed-size arrays (domain types)
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "[3]Float vec", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "[size]Byte buf", Production::DEF_UNION_CANDIDATE));
+
+    // Negative: pointer/command types not allowed (domain restriction)
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "^Int ptr"));        // pointer not allowed
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, ":<Int> callback")); // command not allowed
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "Int X"));           // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "Int"));             // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "x"));               // missing type
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "int whole"));       // lowercase type
+}
+
+TEST_CASE("Grammar2::DEF_UNION_CANDIDATES") {
+    Grammar2& grammar = getGrammar();
+
+    // Single candidate
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "Int whole", Production::DEF_UNION_CANDIDATES));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "String text", Production::DEF_UNION_CANDIDATES));
+
+    // Multiple candidates
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "Int whole, Float fractional", Production::DEF_UNION_CANDIDATES));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "Int i, String s, Float f", Production::DEF_UNION_CANDIDATES));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "List[Int] items, Map[String, Int] data", Production::DEF_UNION_CANDIDATES));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATES, "[3]Float vec, [3]Float point", Production::DEF_UNION_CANDIDATES));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATES, "Int x,"));       // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATES, "Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATES, ""));             // empty
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATES, ",Int x"));       // leading comma
+}
+
+TEST_CASE("Grammar2::DEF_UNION") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic unions
+    CHECK(testParse(grammar.DEF_UNION, ".union Scalar: Int whole, Float fractional", Production::DEF_UNION));
+    CHECK(testParse(grammar.DEF_UNION, ".union NumericId: Int i, String s", Production::DEF_UNION));
+    CHECK(testParse(grammar.DEF_UNION, ".union Single: Int value", Production::DEF_UNION));
+
+    // With type parameters
+    CHECK(testParse(grammar.DEF_UNION, ".union Either[T]: T left, T right", Production::DEF_UNION));
+    CHECK(testParse(grammar.DEF_UNION, ".union Result[T, E]: T ok, E err", Production::DEF_UNION));
+
+    // More candidates
+    CHECK(testParse(grammar.DEF_UNION, ".union Token: Int integer, Float floating, String text", Production::DEF_UNION));
+    CHECK(testParse(grammar.DEF_UNION, ".union Number: Int i, Float f, [3]Float vec", Production::DEF_UNION));
+
+    // Qualified type names in candidates
+    CHECK(testParse(grammar.DEF_UNION, ".union Id: Std::Int i, Std::String s", Production::DEF_UNION));
+
+    // Pointer/command types not allowed in UNION (domain restriction)
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Bad: ^Int ptr"));
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Bad: :<Int> callback, Int i"));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union scalar: Int whole"));   // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar"));              // missing colon and candidates
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar:"));             // missing candidates
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union : Int whole"));         // missing name
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar Int whole"));    // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_UNION, "union Scalar: Int whole"));    // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".Union Scalar: Int whole"));   // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar: Int whole,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar: int whole"));   // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar: Int Whole"));   // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar: Int"));         // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_UNION, ".union Scalar: Int whole,\nFloat fractional"));  // newline in list
+}
+
+// =============================================================================
+// DEF_VARIANT - Variant (General Sum) Type Definitions (initVariantTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_VARIANT_CANDIDATE") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic types with name
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "Int circle", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "String text", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "Float value", Production::DEF_VARIANT_CANDIDATE));
+
+    // Pointer types allowed (unlike UNION)
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "^Node inner", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "^Int ptr", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "[]Int items", Production::DEF_VARIANT_CANDIDATE));
+
+    // Command/function types allowed
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, ":<Int> callback", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "?<String> loader", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "!<> cleanup", Production::DEF_VARIANT_CANDIDATE));
+
+    // Parameterized types
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "List[Int] items", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "Map[String, Int] data", Production::DEF_VARIANT_CANDIDATE));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATE, "Int X"));    // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATE, "Int"));      // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATE, "x"));        // missing type
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATE, "int name")); // lowercase type
+}
+
+TEST_CASE("Grammar2::DEF_VARIANT_CANDIDATES") {
+    Grammar2& grammar = getGrammar();
+
+    // Single candidate
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "Int circle", Production::DEF_VARIANT_CANDIDATES));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "^Node inner", Production::DEF_VARIANT_CANDIDATES));
+
+    // Multiple candidates (mix of domain and non-domain types)
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "Int circle, ^Node inner", Production::DEF_VARIANT_CANDIDATES));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "Int i, String s, Float f", Production::DEF_VARIANT_CANDIDATES));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "^Node next, []Int items, :<> action", Production::DEF_VARIANT_CANDIDATES));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATES, "List[Int] items, Map[String, Int] data, ^Node ptr", Production::DEF_VARIANT_CANDIDATES));
+
+    // Negative tests
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATES, "Int x,"));       // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATES, "Int x Int y"));  // missing comma
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATES, ""));             // empty
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATES, ",Int x"));       // leading comma
+}
+
+TEST_CASE("Grammar2::DEF_VARIANT") {
+    Grammar2& grammar = getGrammar();
+
+    // Basic variants with domain types
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Scalar: Int whole, Float fractional", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Single: Int value", Production::DEF_VARIANT));
+
+    // Mix of domain and pointer types (key difference from UNION)
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Shape: Int circle, ^Node inner", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Tree[T]: T leaf, ^Tree[T] branch", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Expr: Int literal, ^Expr left, ^Expr right", Production::DEF_VARIANT));
+
+    // With command/function types
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Action: :<> doIt, ?<String> mayFail", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Handler: :<Int> callback, Int value", Production::DEF_VARIANT));
+
+    // With type parameters
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Either[T]: T left, T right", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Result[T, E]: T ok, E err", Production::DEF_VARIANT));
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Option[T]: T some, Int none", Production::DEF_VARIANT));
+
+    // Many candidates
+    CHECK(testParse(grammar.DEF_VARIANT, ".variant Node: Int leaf, ^Node inner, []Int data, :<> action", Production::DEF_VARIANT));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant shape: Int circle"));    // lowercase name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape"));               // missing colon and candidates
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape:"));              // missing candidates
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant : Int circle"));        // missing name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape Int circle"));    // missing colon
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, "variant Shape: Int circle"));    // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".Variant Shape: Int circle"));   // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape: Int circle,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape: int circle"));   // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape: Int Circle"));   // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape: Int"));          // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_VARIANT, ".variant Shape: Int circle,\n^Node inner"));  // newline in list
 }
 
 // =============================================================================
