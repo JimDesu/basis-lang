@@ -155,6 +155,12 @@ namespace basis {
         DEF_VARIANT_CANDIDATE,
         DEF_VARIANT_CANDIDATE_TYPE,
         DEF_VARIANT_CANDIDATE_NAME,
+        // -- inline type definitions
+        DEF_INLINE_SCOPE_NAME,
+        DEF_INLINE_RECORD,
+        DEF_INLINE_UNION,
+        DEF_INLINE_OBJECT,
+        DEF_INLINE_VARIANT,
         // -- class definitions
         DEF_CLASS,
         DEF_CLASS_NAME,

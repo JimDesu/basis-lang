@@ -192,6 +192,12 @@ namespace basis {
         SPPF DEF_VARIANT_CANDIDATE_TYPE;
         SPPF DEF_VARIANT_CANDIDATE_NAME;
 
+        // Inline type definitions
+        SPPF DEF_INLINE_RECORD;
+        SPPF DEF_INLINE_UNION;
+        SPPF DEF_INLINE_OBJECT;
+        SPPF DEF_INLINE_VARIANT;
+
         // Class definition
         SPPF DEF_CLASS;
         SPPF DEF_CLASS_NAME;

@@ -153,13 +153,21 @@ void Grammar2::initTypeExpressions() {
 
    TYPE_EXPR = group(Production::TYPE_EXPR,
          any(
+            forward(DEF_INLINE_OBJECT),
+            forward(DEF_INLINE_RECORD),
+            forward(DEF_INLINE_UNION),
+            forward(DEF_INLINE_VARIANT),
             TYPEDEF_NAME_Q,
             TYPE_EXPR_CMD,
             all(TYPE_EXPR_PTR, forward(TYPE_EXPR)),
             all(TYPE_EXPR_VECTOR, maybe(forward(TYPE_EXPR))) ));
 
     TYPE_EXPR_DOMAIN = group(Production::TYPE_EXPR_DOMAIN,
-        any( TYPE_NAME_Q, all(TYPE_EXPR_VECTOR_FIXED, maybe(forward(TYPE_EXPR_DOMAIN))) ));
+        any(
+            forward(DEF_INLINE_RECORD),
+            forward(DEF_INLINE_UNION),
+            TYPE_NAME_Q,
+            all(TYPE_EXPR_VECTOR_FIXED, maybe(forward(TYPE_EXPR_DOMAIN))) ));
 }
 
 void Grammar2::initEnumerations() {
@@ -222,6 +230,11 @@ void Grammar2::initRecordTypes() {
         separated(DEF_RECORD_FIELD, COMMA) );
      DEF_RECORD = exclusiveGroup(Production::DEF_RECORD,
         all(RECORD, group(Production::DEF_RECORD_NAME, TYPEDEF_NAME_Q), COLON, DEF_RECORD_FIELDS) );
+     DEF_INLINE_RECORD = boundedGroup(Production::DEF_INLINE_RECORD,
+        all(RECORD,
+            maybe(group(Production::DEF_INLINE_SCOPE_NAME,
+                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON) )),
+            DEF_RECORD_FIELDS ));
 }
 
 void Grammar2::initObjectTypes() {
@@ -232,6 +245,11 @@ void Grammar2::initObjectTypes() {
        separated(DEF_OBJECT_FIELD, COMMA) );
     DEF_OBJECT = exclusiveGroup(Production::DEF_OBJECT,
         all(OBJECT, group(Production::DEF_OBJECT_NAME, TYPEDEF_NAME_Q), COLON, DEF_OBJECT_FIELDS) );
+    DEF_INLINE_OBJECT = boundedGroup(Production::DEF_INLINE_OBJECT,
+        all(OBJECT,
+            maybe(group(Production::DEF_INLINE_SCOPE_NAME,
+                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON) )),
+            DEF_OBJECT_FIELDS ));
 }
 
 void Grammar2::initUnionTypes() {
@@ -242,6 +260,11 @@ void Grammar2::initUnionTypes() {
         separated(DEF_UNION_CANDIDATE, COMMA));
     DEF_UNION = exclusiveGroup(Production::DEF_UNION,
         all(UNION, group(Production::DEF_UNION_NAME, TYPEDEF_NAME_Q), COLON, DEF_UNION_CANDIDATES));
+    DEF_INLINE_UNION = boundedGroup(Production::DEF_INLINE_UNION,
+        all(UNION,
+            maybe(group(Production::DEF_INLINE_SCOPE_NAME,
+                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON))),
+            DEF_UNION_CANDIDATES));
 }
 
 void Grammar2::initVariantTypes() {
@@ -252,6 +275,11 @@ void Grammar2::initVariantTypes() {
         separated(DEF_VARIANT_CANDIDATE, COMMA));
     DEF_VARIANT = exclusiveGroup(Production::DEF_VARIANT,
         all(VARIANT, group(Production::DEF_VARIANT_NAME, TYPEDEF_NAME_Q), COLON, DEF_VARIANT_CANDIDATES));
+    DEF_INLINE_VARIANT = boundedGroup(Production::DEF_INLINE_VARIANT,
+        all(VARIANT,
+            maybe(group(Production::DEF_INLINE_SCOPE_NAME,
+                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON))),
+            DEF_VARIANT_CANDIDATES));
 }
 
 void Grammar2::initInstanceDecls() {
