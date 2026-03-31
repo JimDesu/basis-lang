@@ -35,7 +35,8 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".object", TokenType::OBJECT},
     {".program", TokenType::PROGRAM},
     {".record", TokenType::RECORD},
-    {".test", TokenType::TEST}
+    {".test", TokenType::TEST},
+    {".fail", TokenType::FAIL}
 };
 
 bool Lexer::read() {

@@ -180,6 +180,7 @@ namespace basis {
         CALL_CONSTRUCTOR,
         CALL_COMMAND,
         CALL_VCOMMAND,
+        CALL_FAIL,
         CALL_ASSIGNMENT,
         CALL_EXPRESSION,
         SUBCALL_EXPRESSION,

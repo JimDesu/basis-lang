@@ -59,6 +59,7 @@ namespace basis {
         SPPF PROGRAM;
         SPPF RECORD;
         SPPF TEST;
+        SPPF FAIL;
 
         // Punctuation
         SPPF AMBANG;
@@ -208,6 +209,7 @@ namespace basis {
         SPPF CALL_CONSTRUCTOR;
         SPPF CALL_COMMAND;
         SPPF CALL_VCOMMAND;
+        SPPF CALL_FAIL;
         SPPF CALL_ASSIGNMENT;
         SPPF SUBCALL_EXPRESSION;
         SPPF CALL_EXPR_TERM;

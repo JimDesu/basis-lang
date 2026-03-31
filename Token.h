@@ -35,6 +35,7 @@ namespace basis {
         PROGRAM,
         RECORD,
         TEST,
+        FAIL,
         // punctuation
         AMBANG,
         AMPERSAND,

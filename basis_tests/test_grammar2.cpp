@@ -688,6 +688,7 @@ TEST_CASE("Grammar2::DEF_PROGRAM") {
     CHECK(testParse(grammar.DEF_PROGRAM, ".program main", Production::DEF_PROGRAM));
     CHECK(testParse(grammar.DEF_PROGRAM, ".program start: arg1, arg2", Production::DEF_PROGRAM));
     CHECK(testParse(grammar.DEF_PROGRAM, ".program run: config", Production::DEF_PROGRAM));
+    CHECK(testParse(grammar.DEF_PROGRAM, ".program .fail x", Production::DEF_PROGRAM));
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program ="));  // missing command
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, "program = main"));  // missing dot
     CHECK_FALSE(testParse(grammar.DEF_PROGRAM, ".program = Main"));  // typename instead of identifier
@@ -704,6 +705,8 @@ TEST_CASE("Grammar2::DEF_TEST") {
     CHECK(testParse(grammar.DEF_TEST, ".test \"complex test\" = setup\n    validate: data", Production::DEF_TEST));
     CHECK(testParse(grammar.DEF_TEST, ".test \"constructor test\" = Widget: 10, 20", Production::DEF_TEST));
     CHECK(testParse(grammar.DEF_TEST, ".test \"assignment test\" = result <- compute: x", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"fail test\" = .fail x", Production::DEF_TEST));
+    CHECK(testParse(grammar.DEF_TEST, ".test \"fail expression test\" = .fail x + y", Production::DEF_TEST));
     CHECK_FALSE(testParse(grammar.DEF_TEST, ".test simple = doSomething"));  // missing quotes on string
     CHECK_FALSE(testParse(grammar.DEF_TEST, ".test \"test\" doSomething"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_TEST, ".test \"test\" ="));  // missing call group
@@ -1607,6 +1610,31 @@ TEST_CASE("Grammar2::CALL_VCOMMAND") {
     CHECK_FALSE(testParse(grammar.CALL_VCOMMAND, "obj: method: x"));  // single colon instead of double
 }
 
+TEST_CASE("Grammar2::CALL_FAIL") {
+    Grammar2& grammar = getGrammar();
+
+    // simple expressions
+    CHECK(testParse(grammar.CALL_FAIL, ".fail x", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail someValue", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail 42", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail \"message\"", Production::CALL_FAIL));
+    // binary expression
+    CHECK(testParse(grammar.CALL_FAIL, ".fail x + y", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail a * b + c", Production::CALL_FAIL));
+    // parenthesized expression
+    CHECK(testParse(grammar.CALL_FAIL, ".fail (a + b)", Production::CALL_FAIL));
+    // invoke as expression term
+    CHECK(testParse(grammar.CALL_FAIL, ".fail doIt", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail compute: x", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail Widget: x, y", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_FAIL, ".fail (obj):: method: x", Production::CALL_FAIL));
+    // negative cases
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, ".fail"));           // missing expression
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, ".fail _"));         // underscore is not a valid CALL_EXPRESSION term
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, "fail x"));          // missing dot prefix
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, "x"));               // no keyword at all
+}
+
 TEST_CASE("Grammar2::CALL_EXPR_SUFFIX - dereference operator") {
     Grammar2& grammar = getGrammar();
 
@@ -1864,6 +1892,10 @@ TEST_CASE("Grammar2::CALL_INVOKE") {
     CHECK(testParse(grammar.CALL_INVOKE, "process", Production::CALL_COMMAND));
     CHECK(testParse(grammar.CALL_INVOKE, "(obj):: method: x, y", Production::CALL_VCOMMAND));
     CHECK(testParse(grammar.CALL_INVOKE, "(a, b):: handle", Production::CALL_VCOMMAND));
+    CHECK(testParse(grammar.CALL_INVOKE, ".fail x", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_INVOKE, ".fail x + y", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_INVOKE, ".fail doIt", Production::CALL_FAIL));
+    CHECK(testParse(grammar.CALL_INVOKE, ".fail Widget: x, y", Production::CALL_FAIL));
 }
 
 TEST_CASE("Grammar2::CALL_GROUP") {
@@ -1880,6 +1912,11 @@ TEST_CASE("Grammar2::CALL_GROUP") {
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x, y\ndoIt\ncleanup", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "Widget: x\ndoIt\n(obj):: method: y", Production::CALL_GROUP));
     CHECK(testParse(grammar.CALL_GROUP, "{doIt}\n{process: data}", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, ".fail x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, ".fail x + y", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "init\n.fail x", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, ".fail doIt\ncleanup", Production::CALL_GROUP));
+    CHECK(testParse(grammar.CALL_GROUP, "setup\n.fail errorCode\ncleanup", Production::CALL_GROUP));
 }
 
 TEST_CASE("Grammar2::CALL_EXPRESSION in CALL_GROUP - basic arithmetic") {
@@ -2092,9 +2129,16 @@ TEST_CASE("Grammar2::DEF_CMD_BODY") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= % doIt\nprocess: x\n| recover", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= _", Production::DEF_CMD_BODY));
     CHECK(testParse(grammar.DEF_CMD_EMPTY, "_", Production::DEF_CMD_EMPTY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= .fail x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= .fail x + y", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= .fail doIt", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= .fail Widget: x, y", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= init\n.fail x", Production::DEF_CMD_BODY));
+    CHECK(testParse(grammar.DEF_CMD_BODY, "= .fail errorCode\n? recover: x", Production::DEF_CMD_BODY));
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "Widget: x"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
+    CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= .fail"));  // .fail with no expression
 }
 
 TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
@@ -2215,6 +2259,9 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - negative cases") {
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "doIt"));  // missing equals
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "="));  // missing call group
     CHECK_FALSE(testParse(grammar.DEF_CMD_BODY, "= "));  // missing call group (whitespace only)
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, ".fail"));   // .fail with no expression
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, ".fail _")); // underscore is not a valid expression term
+    CHECK_FALSE(testParse(grammar.CALL_FAIL, "fail x"));  // missing dot — lexed as identifier, not keyword
 }
 
 TEST_CASE("Grammar2::CALL_PARM_EMPTY and CALL_QUOTE") {
