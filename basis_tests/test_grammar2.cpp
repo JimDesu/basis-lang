@@ -1053,6 +1053,11 @@ TEST_CASE("Grammar2::DEF_RECORD_FIELD") {
     CHECK(testParse(grammar.DEF_RECORD_FIELD, "[10]List[String] items", Production::DEF_RECORD_FIELD));
     CHECK(testParse(grammar.DEF_RECORD_FIELD, "[rows][cols]Matrix[Float] data", Production::DEF_RECORD_FIELD));
 
+    // Inline field types (TYPE_EXPR_DOMAIN includes DEF_INLINE_RECORD and DEF_INLINE_UNION)
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, ".record Int x, Int y pt", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, ".union Int i, Float f value", Production::DEF_RECORD_FIELD));
+    CHECK(testParse(grammar.DEF_RECORD_FIELD, ".record scope: String a, Int b data", Production::DEF_RECORD_FIELD));
+
     // Negative tests
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "int x"));  // lowercase type
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int X"));  // uppercase field name
@@ -1061,6 +1066,8 @@ TEST_CASE("Grammar2::DEF_RECORD_FIELD") {
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "^Int ptr"));  // pointer not allowed
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, ":<Int> cmd"));  // command type not allowed
     CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, "Int' x"));  // apostrophe not allowed
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, ".object ^Node n inner"));  // inline object not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_RECORD_FIELD, ".variant Int circle x"));  // inline variant not in TYPE_EXPR_DOMAIN
 }
 
 TEST_CASE("Grammar2::DEF_RECORD_FIELDS") {
@@ -1116,6 +1123,13 @@ TEST_CASE("Grammar2::DEF_OBJECT_FIELD") {
     CHECK(testParse(grammar.DEF_OBJECT_FIELD, "^:<Int> cmdPtr", Production::DEF_OBJECT_FIELD));
     CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[]:<String> cmdArray", Production::DEF_OBJECT_FIELD));
     CHECK(testParse(grammar.DEF_OBJECT_FIELD, "[5]^Int ptrArray", Production::DEF_OBJECT_FIELD));
+
+    // Inline field types (TYPE_EXPR allows all four inline types)
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ".record Int x, Int y pt", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ".object ^Node next, Int val inner", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ".union Int i, Float f value", Production::DEF_OBJECT_FIELD));
+    CHECK(testParse(grammar.DEF_OBJECT_FIELD, ".variant Int circle, ^Node n shape", Production::DEF_OBJECT_FIELD));
+
     CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "int x"));  // lowercase type
     CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int X"));  // uppercase field name
     CHECK_FALSE(testParse(grammar.DEF_OBJECT_FIELD, "Int"));  // missing field name
@@ -1207,6 +1221,10 @@ TEST_CASE("Grammar2::DEF_UNION_CANDIDATE") {
     CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "[3]Float vec", Production::DEF_UNION_CANDIDATE));
     CHECK(testParse(grammar.DEF_UNION_CANDIDATE, "[size]Byte buf", Production::DEF_UNION_CANDIDATE));
 
+    // Inline candidate types (TYPE_EXPR_DOMAIN includes DEF_INLINE_RECORD and DEF_INLINE_UNION)
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, ".record Int x, Int y pt", Production::DEF_UNION_CANDIDATE));
+    CHECK(testParse(grammar.DEF_UNION_CANDIDATE, ".union Int i, Float f value", Production::DEF_UNION_CANDIDATE));
+
     // Negative: pointer/command types not allowed (domain restriction)
     CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "^Int ptr"));        // pointer not allowed
     CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, ":<Int> callback")); // command not allowed
@@ -1214,6 +1232,8 @@ TEST_CASE("Grammar2::DEF_UNION_CANDIDATE") {
     CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "Int"));             // missing candidate name
     CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "x"));               // missing type
     CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, "int whole"));       // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, ".object ^Node n inner")); // inline object not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_UNION_CANDIDATE, ".variant Int circle x")); // inline variant not in TYPE_EXPR_DOMAIN
 }
 
 TEST_CASE("Grammar2::DEF_UNION_CANDIDATES") {
@@ -1299,6 +1319,11 @@ TEST_CASE("Grammar2::DEF_VARIANT_CANDIDATE") {
     // Parameterized types
     CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "List[Int] items", Production::DEF_VARIANT_CANDIDATE));
     CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, "Map[String, Int] data", Production::DEF_VARIANT_CANDIDATE));
+
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, ".record Int x, Int y pt", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, ".object ^Node next, Int val inner", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, ".union Int i, Float f value", Production::DEF_VARIANT_CANDIDATE));
+    CHECK(testParse(grammar.DEF_VARIANT_CANDIDATE, ".variant Int circle, ^Node n shape", Production::DEF_VARIANT_CANDIDATE));
 
     // Negative tests
     CHECK_FALSE(testParse(grammar.DEF_VARIANT_CANDIDATE, "Int X"));    // uppercase candidate name
@@ -1388,6 +1413,14 @@ TEST_CASE("Grammar2::DEF_ALIAS") {
     CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdPtr: ^:<Int>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias CmdArray: []:<String>", Production::DEF_ALIAS));
     CHECK(testParse(grammar.DEF_ALIAS, ".alias Complex: ^[]:<Int>", Production::DEF_ALIAS));
+
+    // Inline type aliases
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Point: .record Int x, Int y", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Node: .object ^Node next, Int val", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Num: .union Int i, Float f", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias Shape: .variant Int circle, ^Node n ", Production::DEF_ALIAS));
+    CHECK(testParse(grammar.DEF_ALIAS, ".alias ScopedPt: .record myScope: Int x, Int y", Production::DEF_ALIAS));
+
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias myInt: Int"));  // lowercase alias name
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt Int"));  // missing colon
     CHECK_FALSE(testParse(grammar.DEF_ALIAS, ".alias MyInt:"));  // missing type
@@ -1500,6 +1533,13 @@ TEST_CASE("Grammar2::DEF_CMD_PARMTYPE_NAME") {
     CHECK(testParse(grammar.DEF_CMD_PARM, "Collections::List[T] items", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "^Namespace::Type ptr", Production::DEF_CMD_PARM));
     CHECK(testParse(grammar.DEF_CMD_PARM, "[]Module::Item array", Production::DEF_CMD_PARM));
+
+    // Inline type parameters (TYPE_EXPR allows all four inline types)
+    CHECK(testParse(grammar.DEF_CMD_PARM, ".record Int x, Int y pt", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, ".object ^Node next, Int val inner", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, ".union Int i, Float f value", Production::DEF_CMD_PARM));
+    CHECK(testParse(grammar.DEF_CMD_PARM, ".variant Int circle, ^Node n shape", Production::DEF_CMD_PARM));
+
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "String' name"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "value x"));
     CHECK_FALSE(testParse(grammar.DEF_CMD_PARM, "Int X"));
@@ -2723,6 +2763,20 @@ TEST_CASE("Grammar2::TYPE_EXPR") {
     CHECK(testParse(grammar.TYPE_EXPR, "Collections::List[T]", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "^Namespace::Type", Production::TYPE_EXPR));
 
+    // Inline type expressions
+    CHECK(testParse(grammar.TYPE_EXPR, ".record Int x, Int y", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".record scope: Int x, Int y", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".object ^Node next, Int val", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".object scope: ^Node next, Int val", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".union Int i, Float f", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".union scope: Int i, Float f", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".variant Int circle, ^Node inner", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ".variant scope: Int circle, ^Node inner", Production::TYPE_EXPR));
+
+    // Pointer/array of inline types
+    CHECK(testParse(grammar.TYPE_EXPR, "^.record Int x, Int y", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, "[].union Int i, Float f", Production::TYPE_EXPR));
+
     // Negative tests
     CHECK_FALSE(testParse(grammar.TYPE_EXPR, "int"));  // lowercase
     CHECK_FALSE(testParse(grammar.TYPE_EXPR, "value"));  // identifier not typename
@@ -2800,4 +2854,186 @@ TEST_CASE("Grammar2::TYPENAME") {
 
     CHECK_FALSE(testParse(grammar.TYPENAME, "value"));  // identifier
     CHECK_FALSE(testParse(grammar.TYPENAME, "123"));  // number
+}
+
+// =============================================================================
+// DEF_INLINE_RECORD - Inline Record Type Expressions (initRecordTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_INLINE_RECORD") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple fields
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record Int x", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record String name", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record Int x, Int y", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record String name, Int age, Float salary", Production::DEF_INLINE_RECORD));
+
+    // Optional scope name
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record myScope: Int x", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record scope: String name, Int age", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record pt: Int x, Int y", Production::DEF_INLINE_RECORD));
+
+    // Fixed-size array field types (TYPE_EXPR_DOMAIN)
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record [3]Float position", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record [size]Byte data", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record [4][4]Float matrix", Production::DEF_INLINE_RECORD));
+
+    // Parameterized and qualified field types
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record List[Int] items", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record Map[String, Int] data", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record Std::String name", Production::DEF_INLINE_RECORD));
+
+    // Nested inline types as field types (TYPE_EXPR_DOMAIN allows record/union)
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record .record Int x, Int y pt, Int z", Production::DEF_INLINE_RECORD));
+    CHECK(testParse(grammar.DEF_INLINE_RECORD, ".record .union Int i, Float f value", Production::DEF_INLINE_RECORD));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record"));                        // no fields
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record Int"));                    // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record ^Int ptr"));               // pointer not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record :<Int> cmd"));             // command not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record Int x,"));                 // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record .object ^Node n inner"));  // inline object not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record .variant Int circle x"));  // inline variant not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, "record Int x"));                   // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".Record Int x"));                  // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record int x"));                  // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record Int X"));                  // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_RECORD, ".record Point: Int x"));           // uppercase scope name (TYPENAME not IDENTIFIER)
+}
+
+// =============================================================================
+// DEF_INLINE_OBJECT - Inline Object Type Expressions (initObjectTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_INLINE_OBJECT") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple fields
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object Int x", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object String name", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object Int x, Int y", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object String name, Int age", Production::DEF_INLINE_OBJECT));
+
+    // Optional scope name
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object myScope: Int x", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object scope: String name, Int age", Production::DEF_INLINE_OBJECT));
+
+    // Pointer field types (TYPE_EXPR allows these)
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object ^Node next", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object ^Node next, Int val", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object ^^Int ptrPtr", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object []Int items", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object ^[]Int ptrArray", Production::DEF_INLINE_OBJECT));
+
+    // Command field types (TYPE_EXPR allows these)
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object :<Int> callback", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object ?<String> loader", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object :<> voidCmd", Production::DEF_INLINE_OBJECT));
+
+    // Inline type fields (TYPE_EXPR allows all four inline types)
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object .record Int x, Int y pt", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object .union Int i, Float f value", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object .object Int x inner", Production::DEF_INLINE_OBJECT));
+    CHECK(testParse(grammar.DEF_INLINE_OBJECT, ".object .variant Int circle, ^Node n shape", Production::DEF_INLINE_OBJECT));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object"));         // no fields
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object Int"));     // missing field name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object Int x,"));  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, "object Int x"));    // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".Object Int x"));   // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object int x"));   // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object Int X"));   // uppercase field name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_OBJECT, ".object Point: Int x")); // uppercase scope name
+}
+
+// =============================================================================
+// DEF_INLINE_UNION - Inline Union Type Expressions (initUnionTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_INLINE_UNION") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple candidates
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union Int whole", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union Float fractional", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union Int i, Float f", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union Int i, Float f, String s", Production::DEF_INLINE_UNION));
+
+    // Optional scope name
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union myScope: Int whole", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union scope: Int i, Float f", Production::DEF_INLINE_UNION));
+
+    // Fixed-size array candidates (TYPE_EXPR_DOMAIN)
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union [3]Float vec", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union [size]Byte buf", Production::DEF_INLINE_UNION));
+
+    // Parameterized and qualified candidate types
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union List[Int] items", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union Std::String name", Production::DEF_INLINE_UNION));
+
+    // Nested inline types as candidates (TYPE_EXPR_DOMAIN allows record/union)
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union .record Int x, Int y pt", Production::DEF_INLINE_UNION));
+    CHECK(testParse(grammar.DEF_INLINE_UNION, ".union .union Int i, Float f value", Production::DEF_INLINE_UNION));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union"));                         // no candidates
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union Int"));                     // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union ^Int ptr"));                // pointer not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union :<Int> callback"));         // command not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union Int i,"));                  // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union .object ^Node n inner"));   // inline object not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union .variant Int circle x"));   // inline variant not in TYPE_EXPR_DOMAIN
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, "union Int whole"));                // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".Union Int whole"));               // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union int whole"));               // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union Int Whole"));               // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_UNION, ".union Point: Int x"));            // uppercase scope name
+}
+
+// =============================================================================
+// DEF_INLINE_VARIANT - Inline Variant Type Expressions (initVariantTypes)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_INLINE_VARIANT") {
+    Grammar2& grammar = getGrammar();
+
+    // Simple candidates
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int circle", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant String text", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int circle, Float radius", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int leaf, ^Node inner", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int leaf, ^Node inner, []Int data", Production::DEF_INLINE_VARIANT));
+
+    // Optional scope name
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant myScope: Int circle", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant scope: Int leaf, ^Node inner", Production::DEF_INLINE_VARIANT));
+
+    // Pointer types allowed (TYPE_EXPR)
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant ^Node inner", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant ^^Int ptr", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant []Int items", Production::DEF_INLINE_VARIANT));
+
+    // Command types allowed (TYPE_EXPR)
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant :<Int> action", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant ?<String> loader", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant :<> voidAction", Production::DEF_INLINE_VARIANT));
+
+    // Inline type candidates (TYPE_EXPR allows all four inline types)
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant .record Int x, Int y pt", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant .union Int i, Float f value", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant .object ^Node next, Int val inner", Production::DEF_INLINE_VARIANT));
+    CHECK(testParse(grammar.DEF_INLINE_VARIANT, ".variant .variant Int circle, ^Node n shape", Production::DEF_INLINE_VARIANT));
+
+    // Structural negatives
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant"));            // no candidates
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int"));        // missing candidate name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int x,"));     // trailing comma
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, "variant Int circle"));  // missing dot
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".Variant Int circle")); // wrong keyword case
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant int circle")); // lowercase type
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int Circle")); // uppercase candidate name
+    CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Point: Int x")); // uppercase scope name
 }
