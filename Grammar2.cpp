@@ -52,7 +52,6 @@ void Grammar2::initPunctuation() {
    AMPHORA = discard(TokenType::AMPHORA);
    APOSTROPHE = discard(TokenType::APOSTROPHE);
    ASTERISK = discard(TokenType::ASTERISK);
-   BANG = discard(TokenType::BANG);
    BANGBRACE = discard(TokenType::BANGBRACE);
    BANGLANGLE = discard(TokenType::BANGLANGLE);
    CARAT = discard(TokenType::CARAT);
@@ -62,7 +61,6 @@ void Grammar2::initPunctuation() {
    COLBRACE = discard(TokenType::COLBRACE);
    DQMARK = discard(TokenType::DQMARK);
    DCOLON = discard(TokenType::DCOLON);
-   DOLLAR = discard(TokenType::DOLLAR);
    EQUALS = discard(TokenType::EQUALS);
    DRANGLE = discard(TokenType::DRANGLE);
    GREQUALS = discard(TokenType::GREQUALS);

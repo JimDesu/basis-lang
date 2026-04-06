@@ -71,7 +71,6 @@ namespace basis {
         SPPF AMPHORA;
         SPPF APOSTROPHE;
         SPPF ASTERISK;
-        SPPF BANG;
         SPPF BANGBRACE;
         SPPF BANGLANGLE;
         SPPF CARAT;
@@ -81,7 +80,6 @@ namespace basis {
         SPPF COLBRACE;
         SPPF DCOLON;
         SPPF DLANGLE;
-        SPPF DOLLAR;
         SPPF DRANGLE;
         SPPF EQUALS;
         SPPF GREQUALS;
@@ -162,35 +160,23 @@ namespace basis {
 
         // Record definition
         SPPF DEF_RECORD;
-        SPPF DEF_RECORD_NAME;
         SPPF DEF_RECORD_FIELDS;
         SPPF DEF_RECORD_FIELD;
-        SPPF DEF_RECORD_FIELD_NAME;
-        SPPF DEF_RECORD_FIELD_DOMAIN;
 
         // Object definition
         SPPF DEF_OBJECT;
-        SPPF DEF_OBJECT_NAME;
         SPPF DEF_OBJECT_FIELDS;
         SPPF DEF_OBJECT_FIELD;
-        SPPF DEF_OBJECT_FIELD_NAME;
-        SPPF DEF_OBJECT_FIELD_TYPE;
 
         // Union definition
         SPPF DEF_UNION;
-        SPPF DEF_UNION_NAME;
         SPPF DEF_UNION_CANDIDATES;
         SPPF DEF_UNION_CANDIDATE;
-        SPPF DEF_UNION_CANDIDATE_DOMAIN;
-        SPPF DEF_UNION_CANDIDATE_NAME;
 
         // Variant definition
         SPPF DEF_VARIANT;
-        SPPF DEF_VARIANT_NAME;
         SPPF DEF_VARIANT_CANDIDATES;
         SPPF DEF_VARIANT_CANDIDATE;
-        SPPF DEF_VARIANT_CANDIDATE_TYPE;
-        SPPF DEF_VARIANT_CANDIDATE_NAME;
 
         // Inline type definitions
         SPPF DEF_INLINE_RECORD;
@@ -200,8 +186,6 @@ namespace basis {
 
         // Class definition
         SPPF DEF_CLASS;
-        SPPF DEF_CLASS_NAME;
-        SPPF DEF_CLASS_CMDS;
 
         // Command definitions
         SPPF DEF_CMD;
@@ -254,7 +238,6 @@ namespace basis {
         SPPF CALL_PARM_EXPR;
         SPPF CALL_PARM_EMPTY;
         SPPF RECOVER_SPEC;
-        SPPF BLOCK_HEADER;
         SPPF BLOCK;
 
         // Expressions
