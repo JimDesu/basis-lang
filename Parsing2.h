@@ -222,7 +222,8 @@ namespace basis {
     };
     SPPF forward(const SPPF& spfnRef);
 
-    // As combinator - runs inner parse fn; on success, overwrites production of first result node
+    // As combinator - runs inner parse fn; on success, overwrites production of first result node,
+    // or synthesizes one if the inner parser consumed tokens without producing a node.
     class As : public ParseFn {
     public:
         As(Production prod, SPPF spParseFn);

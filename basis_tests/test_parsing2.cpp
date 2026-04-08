@@ -304,6 +304,36 @@ TEST_CASE("Parsing2::test as") {
     CHECK( parser4.parse() );
     CHECK( *parser4.parseTree == ParseTree{Production::CARAT, IDENT4,
         std::make_shared<ParseTree>(Production::SLASH, COMMA4)} );
+
+    // Case 5: as synthesizes a node when the inner parser only discards tokens
+    std::list<spToken> tokens5;
+    addToken(tokens5, TokenType::IDENTIFIER);
+    Parser parser5(tokens5, as(Production::CARAT, discardIdent));
+    CHECK( parser5.parse() );
+    Token* IDENT5 = tokens5.front().get();
+    CHECK( *parser5.parseTree == ParseTree{Production::CARAT, IDENT5} );
+
+    // Case 6: synthesized nodes still advance the append pointer for repetition
+    std::list<spToken> tokens6;
+    addTokens(tokens6, { TokenType::IDENTIFIER, TokenType::IDENTIFIER, TokenType::IDENTIFIER } );
+    Parser parser6(tokens6, oneOrMore(as(Production::CARAT, discardIdent)));
+    CHECK( parser6.parse() );
+    auto it6 = tokens6.begin();
+    Token* IDENT61 = (*it6).get();
+    ++it6;
+    Token* IDENT62 = (*it6).get();
+    ++it6;
+    Token* IDENT63 = (*it6).get();
+    CHECK( *parser6.parseTree == ParseTree{Production::CARAT, IDENT61,
+        std::make_shared<ParseTree>(Production::CARAT, IDENT62,
+            std::make_shared<ParseTree>(Production::CARAT, IDENT63))} );
+
+    // Case 7: zero-width success still does not synthesize a node
+    std::list<spToken> tokens7;
+    addToken(tokens7, TokenType::IDENTIFIER);
+    Parser parser7(tokens7, as(Production::CARAT, maybe(discardNumber)));
+    CHECK( parser7.parse() );
+    CHECK( parser7.parseTree == nullptr );
 }
 
 TEST_CASE("Parsing2::test prefix") {

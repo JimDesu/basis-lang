@@ -2751,6 +2751,7 @@ TEST_CASE("Grammar2::TYPE_EXPR") {
     CHECK(testParse(grammar.TYPE_EXPR, "?<String>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, "!<Float>", Production::TYPE_EXPR));
     CHECK(testParse(grammar.TYPE_EXPR, ":<Int, String>", Production::TYPE_EXPR));
+    CHECK(testParse(grammar.TYPE_EXPR, ":<:<Int'> >", Production::TYPE_EXPR));
 
     // Combined types
     CHECK(testParse(grammar.TYPE_EXPR, "^[]Int", Production::TYPE_EXPR));

@@ -345,9 +345,15 @@ namespace basis {
     bool As::parse(const std::list<spToken>& tokens, spParseTree** dpspResult,
                    itToken* pIter, const Token* pLimit,
                    itToken* pFurthest, const ParseFn** ppFurthestParser) const {
+        itToken start = *pIter;
         spParseTree* firstResult = *dpspResult;
         if (spfn->parse(tokens, dpspResult, pIter, pLimit, pFurthest, ppFurthestParser)) {
-            if (*firstResult) (*firstResult)->production = prod;
+            if (*firstResult) {
+                (*firstResult)->production = prod;
+            } else if (start != *pIter) {
+                *firstResult = std::make_shared<ParseTree>(prod, (*start).get());
+                *dpspResult = &((*firstResult)->spNext);
+            }
             return true;
         }
         return false;

@@ -2,15 +2,6 @@
 #include <stdexcept>
 #include <cassert>
 
-// TODO fix this crap
-// KNOWN LIMITATIONS (grammar uses as+discard which loses information):
-//   - PtrType depth is always 1 (pointer caret count lost)
-//   - CmdType::Kind defaults to NoFail (opening bracket kind lost)
-//   - CmdLiteralExpr::Kind defaults to NoFail (opening bracket kind lost)
-//   - BinaryExpr operator text is "?" (operator token discarded)
-//   - SuffixOp::Deref and SuffixOp::Addr are invisible (as+discard)
-//   - CmdTypeArg::writeable is always false (apostrophe discarded)
-
 namespace basis {
 
 // ========================================================================
@@ -33,6 +24,10 @@ static const Token* firstTok(const spParseTree& pt) {
     if (pt->pToken) return pt->pToken;
     return firstTok(pt->spDown);
 }
+static std::string firstTxt(const spParseTree& pt) {
+    auto* t = firstTok(pt);
+    return t ? t->text : std::string{};
+}
 static size_t locL(const spParseTree& pt) { auto* t = firstTok(pt); return t ? t->lineNumber : 0; }
 static size_t locC(const spParseTree& pt) { auto* t = firstTok(pt); return t ? t->columnNumber : 0; }
 
@@ -45,6 +40,40 @@ static std::vector<spParseTree> allChildren(const spParseTree& pt) {
     std::vector<spParseTree> v;
     for (auto c = down(pt); c; c = nxt(c)) v.push_back(c);
     return v;
+}
+
+static int countChildren(const spParseTree& pt, Production p) {
+    int count = 0;
+    for (auto c = down(pt); c; c = nxt(c))
+        if (is(c, p)) ++count;
+    return count;
+}
+
+static CmdType::Kind cmdTypeKind(const spParseTree& pt) {
+    if (findChild(pt, Production::TYPE_CMD_MAYFAIL)) return CmdType::Kind::MayFail;
+    if (findChild(pt, Production::TYPE_CMD_FAILS))   return CmdType::Kind::Fails;
+    return CmdType::Kind::NoFail;
+}
+
+static CmdLiteralExpr::Kind cmdLiteralKind(const spParseTree& pt) {
+    if (findChild(pt, Production::CALL_CMDLIT_MAYFAIL))   return CmdLiteralExpr::Kind::MayFail;
+    if (findChild(pt, Production::CALL_CMDLIT_MUSTFAIL))  return CmdLiteralExpr::Kind::MustFail;
+    return CmdLiteralExpr::Kind::NoFail;
+}
+
+static bool hasCmdArgWriteable(const spParseTree& pt) {
+    if (!is(pt, Production::TYPE_CMDEXPR_ARG)) return false;
+    if (findChild(pt, Production::TYPE_ARG_WRITEABLE)) return true;
+    auto c = down(pt);
+    while (c && is(c, Production::TYPE_EXPR_PTR)) c = nxt(c);
+    if (c && is(c, Production::TYPE_CMDEXPR_ARG))
+        return hasCmdArgWriteable(c);
+    if (c && is(c, Production::TYPE_EXPR_RANGE)) {
+        auto elem = nxt(c);
+        if (elem && is(elem, Production::TYPE_CMDEXPR_ARG))
+            return hasCmdArgWriteable(elem);
+    }
+    return false;
 }
 
 // Collect text from TYPENAME or QUALIFIED_TYPENAME
@@ -128,14 +157,13 @@ static TypeNodePtr buildTypeNameQ(const spParseTree& pt) {
 }
 
 static CmdType buildCmdTypeNode(const spParseTree& pt) {
-    // TYPE_EXPR_CMD: kind lost (as+discard); children are TYPE_CMDEXPR_ARG nodes
     CmdType ct;
     ct.line = locL(pt); ct.col = locC(pt);
-    ct.kind = CmdType::Kind::NoFail; // TODO: grammar fix needed
+    ct.kind = cmdTypeKind(pt);
     for (auto c = down(pt); c; c = nxt(c)) {
         if (is(c, Production::TYPE_CMDEXPR_ARG)) {
             CmdTypeArg arg;
-            arg.writeable = false; // TODO: grammar fix needed
+            arg.writeable = hasCmdArgWriteable(c);
             arg.type = buildCmdExprArgType(c);
             ct.args.push_back(std::move(arg));
         }
@@ -144,19 +172,21 @@ static CmdType buildCmdTypeNode(const spParseTree& pt) {
 }
 
 static TypeNodePtr buildCmdExprArgType(const spParseTree& pt) {
-    // TYPE_CMDEXPR_ARG: child is TYPE_NAME_Q | TYPE_EXPR_CMD | TYPE_CMDEXPR_ARG(ptr) | TYPE_EXPR_RANGE
     auto c = down(pt);
     if (!c) return nullptr;
+    if (is(c, Production::TYPE_EXPR_PTR)) {
+        PtrType ptr;
+        ptr.depth = countChildren(pt, Production::TYPE_EXPR_PTR);
+        ptr.line = locL(pt); ptr.col = locC(pt);
+        while (c && is(c, Production::TYPE_EXPR_PTR)) c = nxt(c);
+        ptr.inner = buildCmdExprArgType(c);
+        return std::make_shared<TypeNode>(std::move(ptr));
+    }
     if (is(c, Production::TYPE_NAME_Q))
         return buildTypeNameQ(c);
     if (is(c, Production::TYPE_EXPR_CMD)) {
         auto ct = buildCmdTypeNode(c);
         return std::make_shared<TypeNode>(std::move(ct));
-    }
-    if (is(c, Production::TYPE_CMDEXPR_ARG)) {
-        PtrType ptr; ptr.depth = 1; ptr.line = locL(pt); ptr.col = locC(pt);
-        ptr.inner = buildCmdExprArgType(c);
-        return std::make_shared<TypeNode>(std::move(ptr));
     }
     if (is(c, Production::TYPE_EXPR_RANGE)) {
         RangeType rt; rt.line = locL(c); rt.col = locC(c);
@@ -307,11 +337,11 @@ static TypeNodePtr buildTypeExpr(const spParseTree& pt) {
             rt.element = buildTypeExpr(elemSibling);
         return std::make_shared<TypeNode>(std::move(rt));
     }
-    if (is(c, Production::TYPE_EXPR)) {
-        // Pointer type: TYPE_EXPR_PTR consumed carets (no nodes), inner TYPE_EXPR follows
+    if (is(c, Production::TYPE_EXPR_PTR)) {
         PtrType ptr;
-        ptr.depth = 1; // TODO: depth lost due to as+discard
+        ptr.depth = countChildren(pt, Production::TYPE_EXPR_PTR);
         ptr.line = locL(pt); ptr.col = locC(pt);
+        while (c && is(c, Production::TYPE_EXPR_PTR)) c = nxt(c);
         ptr.inner = buildTypeExpr(c);
         return std::make_shared<TypeNode>(std::move(ptr));
     }
@@ -384,7 +414,7 @@ static ExprNodePtr buildQuoteExpr(const spParseTree& pt) {
 static ExprNodePtr buildCmdLiteral(const spParseTree& pt) {
     CmdLiteralExpr lit;
     lit.line = locL(pt); lit.col = locC(pt);
-    lit.kind = CmdLiteralExpr::Kind::NoFail; // TODO: kind lost (as+discard)
+    lit.kind = cmdLiteralKind(pt);
     for (auto c = down(pt); c; c = nxt(c)) {
         if (is(c, Production::DEF_CMD_PARM))
             lit.params.push_back(buildCmdParm(c));
@@ -547,12 +577,18 @@ static ExprNodePtr buildCallExpression(const spParseTree& pt) {
         ExprNodePtr primary;
         std::vector<SuffixOp> suffixes;
         for (auto& n : seg) {
-            if (is(n, Production::CALL_EXPR_INDEX)) {
+            if (is(n, Production::CALL_EXPR_DEREF)) {
+                SuffixOp sop; sop.kind = SuffixOp::Kind::Deref;
+                suffixes.push_back(std::move(sop));
+            } else if (is(n, Production::CALL_EXPR_INDEX)) {
                 SuffixOp sop; sop.kind = SuffixOp::Kind::Index;
                 auto loc = findChild(n, Production::CALL_EXPRINDEX_LOC);
                 if (loc) sop.indexLoc = buildSubcallExpr(down(loc));
                 auto ext = findChild(n, Production::CALL_EXPRINDEX_EXT);
                 if (ext) sop.indexExt = buildSubcallExpr(down(ext));
+                suffixes.push_back(std::move(sop));
+            } else if (is(n, Production::CALL_EXPR_ADDR)) {
+                SuffixOp sop; sop.kind = SuffixOp::Kind::Addr;
                 suffixes.push_back(std::move(sop));
             } else if (!primary) {
                 primary = buildPrimaryExpr(n);
@@ -577,7 +613,7 @@ static ExprNodePtr buildCallExpression(const spParseTree& pt) {
     be.first = buildTerm(segments[0]);
     for (size_t i = 0; i < operators.size(); ++i) {
         BinaryExpr::OpTerm ot;
-        ot.op = "?"; // TODO: operator identity lost (as+discard)
+        ot.op = firstTxt(operators[i]);
         ot.term = buildTerm(segments[i + 1]);
         be.rest.push_back(std::move(ot));
     }
