@@ -1,1523 +1,1075 @@
 #include "AstBuilder.h"
-#include "Productions.h"
+#include <stdexcept>
+#include <cassert>
 
-using namespace basis;
+// TODO fix this crap
+// KNOWN LIMITATIONS (grammar uses as+discard which loses information):
+//   - PtrType depth is always 1 (pointer caret count lost)
+//   - CmdType::Kind defaults to NoFail (opening bracket kind lost)
+//   - CmdLiteralExpr::Kind defaults to NoFail (opening bracket kind lost)
+//   - BinaryExpr operator text is "?" (operator token discarded)
+//   - SuffixOp::Deref and SuffixOp::Addr are invisible (as+discard)
+//   - CmdTypeArg::writeable is always false (apostrophe discarded)
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-/*
-namespace {
-// Return the first token text reachable by descending spDown then spNext.
-std::string firstTokenText(const ParseTree* pt) {
-    if (!pt) return {};
-    if (pt->pToken) return pt->pToken->text;
-    return firstTokenText(pt->spDown.get());
+namespace basis {
+
+// ========================================================================
+// Parse-tree navigation helpers
+// ========================================================================
+static bool is(const spParseTree& pt, Production p) {
+    return pt && pt->production == p;
 }
-
-// Copy source location from the first terminal token found under pt.
-void setLoc(AstNode& node, const ParseTree* pt) {
-    for (const ParseTree* n = pt; n != nullptr; n = n->spDown.get()) {
-        if (n->pToken) {
-            node.line = n->pToken->lineNumber;
-            node.col = n->pToken->columnNumber;
-            return;
-        }
-    }
+static spParseTree down(const spParseTree& pt) {
+    return pt ? pt->spDown : nullptr;
 }
-
-// Collect all token texts in the spNext chain (used for qualified names).
-// Handles both flat token chains and QUALIFIED_TYPENAME group nodes.
-std::string collectQualifiedName(const ParseTree* pt) {
-    std::string result;
-    for (const ParseTree* n = pt; n != nullptr; n = n->spNext.get()) {
-        if (n->pToken) {
-            if (!result.empty() && n->production != Production::DCOLON) result += "::";
-            if (n->production != Production::DCOLON) result += n->pToken->text;
-        } else if (n->production == Production::QUALIFIED_TYPENAME) {
-            // Recurse into QUALIFIED_TYPENAME children
-            if (!result.empty()) result += "::";
-            result += collectQualifiedName(n->spDown.get());
-        }
-    }
-    return result;
+static spParseTree nxt(const spParseTree& pt) {
+    return pt ? pt->spNext : nullptr;
 }
-
-// Resolve a TYPENAME node (which may be QUALIFIED_TYPENAME or a plain TYPENAME match)
-// into a string.
-std::string resolveTypeName(const ParseTree* pt) {
-    if (!pt) return {};
-    if (pt->production == Production::QUALIFIED_TYPENAME)
-        return collectQualifiedName(pt->spDown.get());
-    if (pt->pToken) return pt->pToken->text;
-    return firstTokenText(pt);
+static std::string txt(const spParseTree& pt) {
+    return (pt && pt->pToken) ? pt->pToken->text : std::string{};
 }
-
-// Forward declarations of all builders
-spAstNode build(const ParseTree* pt);
-std::shared_ptr<TypeExpr>       buildTypeExpr(const ParseTree* pt);
-std::shared_ptr<ModuleDecl>     buildModuleDecl(const ParseTree* pt);
-std::shared_ptr<ImportDecl>     buildImportDecl(const ParseTree* pt);
-std::shared_ptr<EnumDecl>       buildEnumDecl(const ParseTree* pt);
-std::shared_ptr<RecordDecl>     buildRecordDecl(const ParseTree* pt);
-std::shared_ptr<ObjectDecl>     buildObjectDecl(const ParseTree* pt);
-std::shared_ptr<InstanceDecl>   buildInstanceDecl(const ParseTree* pt);
-std::shared_ptr<AliasDecl>      buildAliasDecl(const ParseTree* pt);
-std::shared_ptr<DomainDecl>     buildDomainDecl(const ParseTree* pt);
-CmdSignature                    buildCmdSignature(const ParseTree* pt);
-std::shared_ptr<CmdDecl>        buildCmdDecl(const ParseTree* pt);
-std::shared_ptr<CmdDef>         buildCmdDef(const ParseTree* pt);
-std::shared_ptr<IntrinsicDecl>  buildIntrinsicDecl(const ParseTree* pt);
-std::shared_ptr<ClassDecl>      buildClassDecl(const ParseTree* pt);
-std::shared_ptr<ProgramDecl>    buildProgramDecl(const ParseTree* pt);
-std::shared_ptr<TestDecl>       buildTestDecl(const ParseTree* pt);
-std::shared_ptr<CmdBody>        buildCmdBody(const ParseTree* pt);
-std::shared_ptr<CallGroup>      buildCallGroup(const ParseTree* pt);
-spAstNode                       buildCallInvoke(const ParseTree* pt);
-spAstNode                       buildCallAssignment(const ParseTree* pt);
-spAstNode                       buildCallExpression(const ParseTree* pt);
-spAstNode                       buildSubcallExpr(const ParseTree* pt);
-spAstNode                       buildBlock(const ParseTree* pt);
-std::shared_ptr<CallParameter>  buildCallParameter(const ParseTree* pt);
-spAstNode                       buildCallQuote(const ParseTree* pt);
-spAstNode                       buildCmdLiteral(const ParseTree* pt);
-spAstNode                       buildLiteral(const ParseTree* pt);
-spAstNode                       buildIdentifierExpr(const ParseTree* pt);
-
-// ---------------------------------------------------------------------------
-// TypeExpr builders
-// ---------------------------------------------------------------------------
-
-// Build a TypeExpr from a TYPE_NAME_Q or TYPEDEF_NAME_Q node.
-// Children: TYPENAME [TYPE_NAME_ARGS | TYPEDEF_PARMS]
-std::shared_ptr<TypeExpr> buildNamedTypeExpr(const ParseTree* pt, TypeExpr::Kind kind) {
-    auto node = std::make_shared<TypeExpr>();
-    node->kind = kind;
-    setLoc(*node, pt);
-    const ParseTree* child = pt->spDown.get();
-    // Collect the typename (may be QUALIFIED_TYPENAME with spNext chain, or single TYPENAME)
-    if (child && child->production == Production::QUALIFIED_TYPENAME) {
-        node->typeName = collectQualifiedName(child->spDown.get());
-        child = child->spNext.get();
-    } else if (child && (child->production == Production::TYPENAME)) {
-        node->typeName = child->pToken ? child->pToken->text : firstTokenText(child);
-        child = child->spNext.get();
-    }
-    // Optional type args / typedef params
-    while (child) {
-        switch (child->production) {
-            case Production::TYPE_NAME_ARGS:
-            case Production::TYPEDEF_PARMS:
-                for (const ParseTree* arg = child->spDown.get(); arg; arg = arg->spNext.get()) {
-                    switch (arg->production) {
-                        case Production::TYPE_ARG_TYPE:
-                        case Production::TYPEDEF_PARM_TYPE:
-                            node->typeArgs.push_back(buildTypeExpr(arg->spDown.get()));
-                            break;
-                        case Production::TYPE_ARG_VALUE:
-                        case Production::TYPEDEF_PARM_VALUE: {
-                            // value arg: represent as a Named TypeExpr with the text
-                            auto va = std::make_shared<TypeExpr>();
-                            va->kind = TypeExpr::Kind::Named;
-                            va->typeName = firstTokenText(arg);
-                            node->typeArgs.push_back(va);
-                            break;
-                        }
-                        case Production::LBRACKET: case Production::RBRACKET:
-                        case Production::COMMA:
-                            break; // structural punctuation — no-op
-                        default:
-                            break; // any other structural node — no-op
-                    }
-                }
-                break;
-            case Production::LBRACKET: case Production::RBRACKET:
-            case Production::COMMA:
-                break; // structural punctuation — no-op
-            default:
-                break;
-        }
-        child = child->spNext.get();
-    }
-    return node;
-}
-
-// Build a pointer TypeExpr from TYPE_EXPR_PTR + inner TYPE_EXPR
-std::shared_ptr<TypeExpr> buildPtrTypeExpr(const ParseTree* ptPtr, const ParseTree* ptInner) {
-    auto node = std::make_shared<TypeExpr>();
-    node->kind = TypeExpr::Kind::Pointer;
-    setLoc(*node, ptPtr);
-    // Count carats in the PTR node's children
-    for (const ParseTree* c = ptPtr->spDown.get(); c; c = c->spNext.get())
-        if (c->production == Production::CARAT) node->ptrDepth++;
-    if (ptInner) node->inner = buildTypeExpr(ptInner);
-    return node;
-}
-
-// Build a range TypeExpr from TYPE_EXPR_RANGE[_FIXED] + optional inner
-std::shared_ptr<TypeExpr> buildRangeTypeExpr(const ParseTree* ptRange, const ParseTree* ptInner) {
-    auto node = std::make_shared<TypeExpr>();
-    node->kind = TypeExpr::Kind::Range;
-    setLoc(*node, ptRange);
-    for (const ParseTree* c = ptRange->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::IDENTIFIER: case Production::NUMBER:
-                if (c->pToken) node->rangeSize = c->pToken->text;
-                break;
-            case Production::LBRACKET: case Production::RBRACKET:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    if (ptInner) node->inner = buildTypeExpr(ptInner);
-    return node;
-}
-
-// ---------------------------------------------------------------------------
-// buildTypeExpr — dispatches on the production of the node passed in
-// ---------------------------------------------------------------------------
-std::shared_ptr<TypeExpr> buildTypeExpr(const ParseTree* pt) {
+static const Token* firstTok(const spParseTree& pt) {
     if (!pt) return nullptr;
-    switch (pt->production) {
-        // Named type in usage context
-        case Production::TYPE_NAME_Q:
-            return buildNamedTypeExpr(pt, TypeExpr::Kind::Named);
-        // Named type in definition context (with optional typedef params)
-        case Production::TYPEDEF_NAME_Q:
-            return buildNamedTypeExpr(pt, TypeExpr::Kind::Named);
-        // Domain-restricted type expression
-        case Production::TYPE_EXPR_DOMAIN:
-            // spDown is either TYPE_NAME_Q or TYPE_EXPR_RANGE_FIXED
-            return buildTypeExpr(pt->spDown.get());
-        // General type expression wrapper
-        case Production::TYPE_EXPR: {
-            const ParseTree* child = pt->spDown.get();
-            if (!child) return nullptr;
-            switch (child->production) {
-                case Production::TYPEDEF_NAME_Q:
-                    return buildNamedTypeExpr(child, TypeExpr::Kind::Named);
-                case Production::TYPE_EXPR_CMD:
-                    return buildTypeExpr(child);
-                case Production::TYPE_EXPR_PTR: {
-                    // next sibling is the inner TYPE_EXPR
-                    return buildPtrTypeExpr(child, child->spNext.get());
-                }
-                case Production::TYPE_EXPR_RANGE:
-                case Production::TYPE_EXPR_RANGE_FIXED: {
-                    return buildRangeTypeExpr(child, child->spNext.get());
-                }
-                // Structural nodes that should not appear here — no-op
-                case Production::LBRACKET: case Production::RBRACKET:
-                case Production::COMMA: case Production::COLON:
-                    return nullptr;
-                default:
-                    return nullptr;
-            }
+    if (pt->pToken) return pt->pToken;
+    return firstTok(pt->spDown);
+}
+static size_t locL(const spParseTree& pt) { auto* t = firstTok(pt); return t ? t->lineNumber : 0; }
+static size_t locC(const spParseTree& pt) { auto* t = firstTok(pt); return t ? t->columnNumber : 0; }
+
+static spParseTree findChild(const spParseTree& pt, Production p) {
+    for (auto c = down(pt); c; c = nxt(c))
+        if (c->production == p) return c;
+    return nullptr;
+}
+static std::vector<spParseTree> allChildren(const spParseTree& pt) {
+    std::vector<spParseTree> v;
+    for (auto c = down(pt); c; c = nxt(c)) v.push_back(c);
+    return v;
+}
+
+// Collect text from TYPENAME or QUALIFIED_TYPENAME
+static std::string collectTypeName(const spParseTree& pt) {
+    if (!pt) return {};
+    if (is(pt, Production::QUALIFIED_TYPENAME)) {
+        std::string r;
+        for (auto c = down(pt); c; c = nxt(c)) {
+            if (!r.empty()) r += "::";
+            r += txt(c);
         }
-        case Production::TYPE_EXPR_PTR:
-            return buildPtrTypeExpr(pt, pt->spNext.get());
-        case Production::TYPE_EXPR_RANGE:
-        case Production::TYPE_EXPR_RANGE_FIXED:
-            return buildRangeTypeExpr(pt, pt->spNext.get());
-        // Command type expression  :<  ?<  !<
-        case Production::TYPE_EXPR_CMD: {
-            auto node = std::make_shared<TypeExpr>();
-            node->kind = TypeExpr::Kind::Command;
-            setLoc(*node, pt);
-            for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::COLANGLE:  node->cmdKind = TypeExpr::CmdKind::NoFail;  break;
-                    case Production::QLANGLE:   node->cmdKind = TypeExpr::CmdKind::MayFail; break;
-                    case Production::BANGLANGLE:node->cmdKind = TypeExpr::CmdKind::Fails;   break;
-                    case Production::TYPE_CMDEXPR_ARG:
-                        node->cmdArgs.push_back(buildTypeExpr(c));
-                        break;
-                    case Production::RANGLE: case Production::COMMA:
-                        break; // structural — no-op
-                    default:
-                        break; // any other structural node — no-op
-                }
-            }
-            return node;
-        }
-        // TYPE_CMDEXPR_ARG: like TYPE_EXPR but with optional writeable marker
-        case Production::TYPE_CMDEXPR_ARG: {
-            auto node = std::make_shared<TypeExpr>();
-            node->kind = TypeExpr::Kind::Named;
-            setLoc(*node, pt);
-            for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::TYPE_NAME_Q:
-                        node = buildNamedTypeExpr(c, TypeExpr::Kind::Named);
-                        break;
-                    case Production::TYPE_EXPR_CMD:
-                        node = buildTypeExpr(c);
-                        break;
-                    case Production::TYPE_EXPR_PTR:
-                        node = buildPtrTypeExpr(c, c->spNext.get());
-                        break;
-                    case Production::TYPE_EXPR_RANGE:
-                    case Production::TYPE_EXPR_RANGE_FIXED:
-                        node = buildRangeTypeExpr(c, c->spNext.get());
-                        break;
-                    case Production::APOSTROPHE:
-                        node->writeable = true;
-                        break;
-                    // Structural punctuation — no-op
-                    case Production::COMMA: case Production::RANGLE:
-                        break;
-                    default:
-                        break;
-                }
-            }
-            return node;
-        }
-        // Structural / terminal nodes that are not type expressions — no-op
-        case Production::LBRACKET: case Production::RBRACKET:
-        case Production::COMMA:    case Production::COLON:
-        case Production::TYPENAME: case Production::QUALIFIED_TYPENAME:
-            return nullptr;
-        default:
-            return nullptr;
+        return r;
     }
+    return txt(pt);
 }
 
-// ---------------------------------------------------------------------------
-// CmdParam / CmdReceiver helpers
-// ---------------------------------------------------------------------------
-CmdParam buildOneCmdParam(const ParseTree* pt) {
-    // pt is DEF_CMD_PARM: spDown -> DEF_CMD_PARM_TYPE, spNext -> DEF_CMD_PARM_NAME
-    CmdParam p;
-    const ParseTree* typeNode = pt->spDown.get();
-    const ParseTree* nameNode = typeNode ? typeNode->spNext.get() : nullptr;
-    if (typeNode && typeNode->production == Production::DEF_CMD_PARM_TYPE) {
-        const ParseTree* inner = typeNode->spDown.get();
-        if (inner && inner->production == Production::DEF_CMD_PARMTYPE_VAR) {
-            // (T : TypeExpr) form
-            p.isTypeVar = true;
-            const ParseTree* c = inner->spDown.get();
-            // LPAREN TYPENAME COLON DEF_CMD_PARMTYPE_NAME RPAREN
-            for (; c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::TYPENAME:
-                        if (c->pToken) p.typeVarName = c->pToken->text;
-                        break;
-                    case Production::DEF_CMD_PARMTYPE_NAME:
-                        p.type = buildTypeExpr(c->spDown.get());
-                        break;
-                    case Production::LPAREN: case Production::RPAREN: case Production::COLON:
-                        break; // structural — no-op
-                    default:
-                        break;
-                }
-            }
-        } else if (inner && inner->production == Production::DEF_CMD_PARMTYPE_NAME) {
-            p.type = buildTypeExpr(inner->spDown.get());
+// Collect text from IDENTIFIER group (with optional qualifiers)
+static std::string collectIdent(const spParseTree& pt) {
+    if (!pt) return {};
+    if (is(pt, Production::IDENTIFIER)) {
+        std::string r;
+        for (auto c = down(pt); c; c = nxt(c)) {
+            if (c->production == Production::IDENTIFIER_QUALIFIER)
+                r += txt(c) + "::";
+            else if (c->production == Production::IDENTIFIER)
+                r += txt(c);
         }
+        return r;
     }
-    if (nameNode && nameNode->production == Production::DEF_CMD_PARM_NAME && nameNode->pToken)
-        p.name = nameNode->pToken->text;
-    return p;
-}
-
-CmdReceiver buildOneCmdReceiver(const ParseTree* pt) {
-    // pt is DEF_CMD_RECEIVER: spDown -> DEF_CMD_PARMTYPE_NAME, spNext -> DEF_CMD_PARM_NAME
-    CmdReceiver r;
-    const ParseTree* typeNode = pt->spDown.get();
-    const ParseTree* nameNode = typeNode ? typeNode->spNext.get() : nullptr;
-    if (typeNode && typeNode->production == Production::DEF_CMD_PARMTYPE_NAME)
-        r.type = buildTypeExpr(typeNode->spDown.get());
-    if (nameNode && nameNode->production == Production::DEF_CMD_PARM_NAME && nameNode->pToken)
-        r.name = nameNode->pToken->text;
-    return r;
-}
-
-// Collect comma-separated DEF_CMD_PARM nodes from a sibling chain
-std::vector<CmdParam> collectParams(const ParseTree* pt) {
-    std::vector<CmdParam> result;
-    for (const ParseTree* n = pt; n; n = n->spNext.get()) {
-        switch (n->production) {
-            case Production::DEF_CMD_PARM:
-                result.push_back(buildOneCmdParam(n));
-                break;
-            case Production::COMMA: case Production::COLON: case Production::SLASH:
-                break; // structural — no-op
-            default:
-                break;
-        }
+    if (is(pt, Production::ALLOC_IDENTIFIER)) {
+        // children: IDENTIFIER group (POUND was discarded)
+        return collectIdent(down(pt));
     }
-    return result;
+    return txt(pt);
 }
 
-// Collect comma-separated DEF_CMD_RECEIVER nodes from a sibling chain
-std::vector<CmdReceiver> collectReceivers(const ParseTree* pt) {
-    std::vector<CmdReceiver> result;
-    for (const ParseTree* n = pt; n; n = n->spNext.get()) {
-        switch (n->production) {
-            case Production::DEF_CMD_RECEIVER:
-                result.push_back(buildOneCmdReceiver(n));
-                break;
-            case Production::COMMA: case Production::LPAREN: case Production::RPAREN:
-            case Production::DCOLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return result;
+static bool isAllocIdent(const spParseTree& pt) {
+    return is(pt, Production::ALLOC_IDENTIFIER);
 }
 
-// ---------------------------------------------------------------------------
-// buildCmdSignature — shared by DEF_CMD, DEF_CMD_DECL, DEF_CMD_INTRINSIC
-// pt->spDown is the first child after the keyword token
-// ---------------------------------------------------------------------------
-CmdSignature buildCmdSignature(const ParseTree* pt) {
-    CmdSignature sig;
-    const ParseTree* c = pt ? pt->spDown.get() : nullptr;
-    if (!c) return sig;
+// ========================================================================
+// Forward declarations of builder functions
+// ========================================================================
+static TypeNodePtr buildTypeExpr(const spParseTree& pt);
+static TypeNodePtr buildTypeExprDomain(const spParseTree& pt);
+static TypeNodePtr buildTypeNameQ(const spParseTree& pt);
+static TypeNodePtr buildCmdExprArgType(const spParseTree& pt);
+static ExprNodePtr buildPrimaryExpr(const spParseTree& pt);
+static ExprNodePtr buildCallExpression(const spParseTree& pt);
+static ExprNodePtr buildSubcallExpr(const spParseTree& pt);
+static ExprNodePtr buildInvokeExpr(const spParseTree& pt);
+static std::shared_ptr<CallGroup> buildCallGroup(const spParseTree& pt);
+static CmdParam buildCmdParm(const spParseTree& pt);
+static CmdReceiver buildCmdReceiver(const spParseTree& pt);
+static CmdSignature buildSignature(const spParseTree& pt);
+static std::vector<FieldDecl> buildRecordFields(const spParseTree& pt);
+static std::vector<FieldDecl> buildObjectFields(const spParseTree& pt);
 
-    // Skip keyword token (DECLARE, COMMAND, INTRINSIC) — first child of exclusiveGroup
-    if (c->production == Production::DECLARE ||
-        c->production == Production::COMMAND ||
-        c->production == Production::INTRINSIC)
-        c = c->spNext.get();
-    if (!c) return sig;
-
-    // Determine kind from first meaningful child
-    switch (c->production) {
-        case Production::ON_EXIT:      // @ DEF_CMD_RECEIVER
-            sig.kind = CmdSignature::Kind::Destructor;
-            c = c->spNext.get();
-            if (c && c->production == Production::DEF_CMD_RECEIVER)
-                sig.receivers.push_back(buildOneCmdReceiver(c));
-            return sig;
-
-        case Production::ON_EXIT_FAIL: // @! DEF_CMD_RECEIVER
-            sig.kind = CmdSignature::Kind::FailHandler;
-            c = c->spNext.get();
-            if (c && c->production == Production::DEF_CMD_RECEIVER)
-                sig.receivers.push_back(buildOneCmdReceiver(c));
-            return sig;
-
-        case Production::DEF_CMD_RECEIVERS: { // VCommand: (recvs):: name vparms imparms
-            sig.kind = CmdSignature::Kind::VCommand;
-            sig.receivers = collectReceivers(c->spDown.get());
-            c = c->spNext.get();
-            // DEF_CMD_NAME_SPEC
-            if (c && c->production == Production::DEF_CMD_NAME_SPEC) {
-                for (const ParseTree* ns = c->spDown.get(); ns; ns = ns->spNext.get()) {
-                    switch (ns->production) {
-                        case Production::DEF_CMD_MAYFAIL: sig.mayFail = true; break;
-                        case Production::DEF_CMD_FAILS:   sig.fails   = true; break;
-                        case Production::DEF_CMD_NAME:
-                            if (ns->pToken) sig.name = ns->pToken->text;
-                            break;
-                        default: break;
-                    }
-                }
-                c = c->spNext.get();
-            }
-            // DEF_CMD_PARMS (optional) and DEF_CMD_RETVAL
-            for (; c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::DEF_CMD_PARMS:
-                        sig.params = collectParams(c->spDown.get());
-                        for (const ParseTree* n = c->spDown.get(); n; n = n->spNext.get())
-                            if (n->production == Production::DEF_CMD_RETVAL)
-                                sig.returnVal = firstTokenText(n->spDown.get());
-                        break;
-                    case Production::DEF_CMD_RETVAL:
-                        sig.returnVal = firstTokenText(c->spDown.get());
-                        break;
-                    case Production::DEF_CMD_IMPARMS:
-                        sig.implicitParams = collectParams(c->spDown.get());
-                        break;
-                    default: break;
-                }
-            }
-            return sig;
-        }
-
-        case Production::DEF_CMD_RECEIVER: {
-            // Could be constructor: RECEIVER : PARM, ...
-            // Peek at next sibling
-            const ParseTree* next = c->spNext.get();
-            if (next && next->production == Production::COLON) {
-                sig.kind = CmdSignature::Kind::Constructor;
-                sig.receivers.push_back(buildOneCmdReceiver(c));
-                sig.params = collectParams(next->spNext.get());
-            } else {
-                // Treat as regular with receiver (shouldn't normally occur at top level)
-                sig.kind = CmdSignature::Kind::Regular;
-                sig.receivers.push_back(buildOneCmdReceiver(c));
-            }
-            return sig;
-        }
-
-        case Production::DEF_CMD_NAME_SPEC: { // Regular command
-            sig.kind = CmdSignature::Kind::Regular;
-            for (const ParseTree* ns = c->spDown.get(); ns; ns = ns->spNext.get()) {
-                switch (ns->production) {
-                    case Production::DEF_CMD_MAYFAIL: sig.mayFail = true; break;
-                    case Production::DEF_CMD_FAILS:   sig.fails   = true; break;
-                    case Production::DEF_CMD_NAME:
-                        if (ns->pToken) sig.name = ns->pToken->text;
-                        break;
-                    default: break;
-                }
-            }
-            c = c->spNext.get();
-            for (; c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::DEF_CMD_PARMS:
-                        // DEF_CMD_RETVAL is a child of DEF_CMD_PARMS, not a sibling
-                        sig.params = collectParams(c->spDown.get());
-                        for (const ParseTree* n = c->spDown.get(); n; n = n->spNext.get())
-                            if (n->production == Production::DEF_CMD_RETVAL)
-                                sig.returnVal = firstTokenText(n->spDown.get());
-                        break;
-                    case Production::DEF_CMD_RETVAL:
-                        sig.returnVal = firstTokenText(c->spDown.get());
-                        break;
-                    case Production::DEF_CMD_IMPARMS:
-                        sig.implicitParams = collectParams(c->spDown.get());
-                        break;
-                    default: break;
-                }
-            }
-            return sig;
-        }
-
-        default:
-            return sig;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Top-level declaration builders
-// ---------------------------------------------------------------------------
-
-std::shared_ptr<ModuleDecl> buildModuleDecl(const ParseTree* pt) {
-    auto node = std::make_shared<ModuleDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_MODULE_NAME:
-                node->name = resolveTypeName(c->spDown.get());
-                break;
-            case Production::MODULE:
-                break; // keyword — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<ImportDecl> buildImportDecl(const ParseTree* pt) {
-    auto node = std::make_shared<ImportDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_IMPORT_FILE:
-                node->kind = ImportDecl::Kind::File;
-                node->path = firstTokenText(c);
-                break;
-            case Production::DEF_IMPORT_STANDARD: {
-                node->kind = ImportDecl::Kind::Standard;
-                // Children: [TYPENAME COLON] TYPENAME
-                // Note: a failed maybe(TYPENAME_UNQUALIFIED COLON) attempt may leave a stale
-                // TYPENAME node as the first child, with the real QUALIFIED_TYPENAME as its spNext.
-                const ParseTree* ic = c->spDown.get();
-                if (ic && ic->spNext.get() &&
-                    ic->spNext.get()->production == Production::COLON) {
-                    // qualifier : name
-                    if (ic->pToken) node->qualifier = ic->pToken->text;
-                    ic = ic->spNext.get()->spNext.get(); // skip COLON
-                } else if (ic && ic->spNext.get() &&
-                           ic->spNext.get()->production == Production::QUALIFIED_TYPENAME) {
-                    // stale TYPENAME from failed maybe; real name is the QUALIFIED_TYPENAME sibling
-                    ic = ic->spNext.get();
-                }
-                node->name = resolveTypeName(ic);
-                break;
-            }
-            case Production::IMPORT:
-                break; // keyword — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<EnumDecl> buildEnumDecl(const ParseTree* pt) {
-    auto node = std::make_shared<EnumDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_ENUM_NAME1:
-                if (c->pToken) node->enumName = c->pToken->text;
-                break;
-            case Production::DEF_ENUM_NAME2:
-                // if there are two names, the first one is the name of the constraining type and
-                // the second one is the name of the enumeration
-                if (c->pToken) {
-                    node->typeName = node->enumName;
-                    node->enumName = c->pToken->text;
-                }
-                break;
-            case Production::DEF_ENUM_ITEM_NAME: {
-                // Sibling chain: ITEM_NAME EQUALS LITERAL [COMMA ITEM_NAME EQUALS LITERAL ...]
-                auto item = std::make_shared<EnumItem>();
-                setLoc(*item, c);
-                if (c->pToken) item->name = c->pToken->text;
-                // value is two siblings ahead (skip EQUALS)
-                const ParseTree* eq  = c->spNext.get();
-                const ParseTree* lit = eq ? eq->spNext.get() : nullptr;
-                if (lit) item->value = firstTokenText(lit);
-                node->items.push_back(item);
-                break;
-            }
-            case Production::ENUMERATION:
-            case Production::COLON:
-            case Production::EQUALS:
-            case Production::COMMA:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<FieldDecl> buildFieldDecl(const ParseTree* pt) {
-    auto node = std::make_shared<FieldDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_RECORD_FIELD_DOMAIN:
-            case Production::DEF_OBJECT_FIELD_TYPE:
-                node->type = buildTypeExpr(c->spDown.get());
-                break;
-            case Production::DEF_RECORD_FIELD_NAME:
-            case Production::DEF_OBJECT_FIELD_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::COMMA:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<RecordDecl> buildRecordDecl(const ParseTree* pt) {
-    auto node = std::make_shared<RecordDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_RECORD_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::DEF_RECORD_FIELDS:
-                for (const ParseTree* f = c->spDown.get(); f; f = f->spNext.get()) {
-                    switch (f->production) {
-                        case Production::DEF_RECORD_FIELD:
-                            node->fields.push_back(buildFieldDecl(f));
-                            break;
-                        case Production::COMMA:
-                            break; // structural — no-op
-                        default:
-                            break;
-                    }
-                }
-                break;
-            case Production::RECORD: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<ObjectDecl> buildObjectDecl(const ParseTree* pt) {
-    auto node = std::make_shared<ObjectDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_OBJECT_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::DEF_OBJECT_FIELDS:
-                for (const ParseTree* f = c->spDown.get(); f; f = f->spNext.get()) {
-                    switch (f->production) {
-                        case Production::DEF_OBJECT_FIELD:
-                            node->fields.push_back(buildFieldDecl(f));
-                            break;
-                        case Production::COMMA:
-                            break; // structural — no-op
-                        default:
-                            break;
-                    }
-                }
-                break;
-            case Production::OBJECT: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<InstanceDecl> buildInstanceDecl(const ParseTree* pt) {
-    auto node = std::make_shared<InstanceDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_INSTANCE_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::DEF_INSTANCE_TYPES:
-                for (const ParseTree* t = c->spDown.get(); t; t = t->spNext.get()) {
-                    switch (t->production) {
-                        case Production::TYPENAME: {
-                            auto it = std::make_shared<InstanceType>();
-                            setLoc(*it, t);
-                            if (t->pToken) it->typeName = t->pToken->text;
-                            // optional delegate is the next sibling DEF_INSTANCE_DELEGATE
-                            const ParseTree* del = t->spNext.get();
-                            if (del && del->production == Production::DEF_INSTANCE_DELEGATE) {
-                                it->delegate = firstTokenText(del);
-                            }
-                            node->types.push_back(it);
-                            break;
-                        }
-                        case Production::DEF_INSTANCE_DELEGATE:
-                        case Production::COMMA:
-                            break; // structural — no-op
-                        default:
-                            break;
-                    }
-                }
-                break;
-            case Production::INSTANCE: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<AliasDecl> buildAliasDecl(const ParseTree* pt) {
-    auto node = std::make_shared<AliasDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::TYPEDEF_NAME_Q:
-                node->name = firstTokenText(c);
-                break;
-            case Production::TYPE_EXPR:
-                node->type = buildTypeExpr(c);
-                break;
-            case Production::ALIAS: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<DomainDecl> buildDomainDecl(const ParseTree* pt) {
-    auto node = std::make_shared<DomainDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_DOMAIN_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::DEF_DOMAIN_PARENT: {
-                const ParseTree* inner = c->spDown.get();
-                if (!inner) break;
-                // DEF_DOMAIN_PARENT wraps any(TYPENAME, [...]) — TYPENAME is transparent,
-                // so inner is either a QUALIFIED_TYPENAME group or a TYPENAME match node.
-                if (inner->production == Production::TYPENAME ||
-                    inner->production == Production::QUALIFIED_TYPENAME) {
-                    auto te = std::make_shared<TypeExpr>();
-                    te->kind = TypeExpr::Kind::Named;
-                    te->typeName = resolveTypeName(inner);
-                    node->parent = te;
-                } else {
-                    node->parent = buildTypeExpr(inner);
-                }
-                break;
-            }
-            case Production::DOMAIN: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<CmdDecl> buildCmdDecl(const ParseTree* pt) {
-    auto node = std::make_shared<CmdDecl>();
-    setLoc(*node, pt);
-    node->signature = buildCmdSignature(pt);
-    return node;
-}
-
-std::shared_ptr<CmdDef> buildCmdDef(const ParseTree* pt) {
-    auto node = std::make_shared<CmdDef>();
-    setLoc(*node, pt);
-    node->signature = buildCmdSignature(pt);
-    // Find DEF_CMD_BODY in the children
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        if (c->production == Production::DEF_CMD_BODY) {
-            node->body = buildCmdBody(c);
-            break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<IntrinsicDecl> buildIntrinsicDecl(const ParseTree* pt) {
-    auto node = std::make_shared<IntrinsicDecl>();
-    setLoc(*node, pt);
-    node->signature = buildCmdSignature(pt);
-    return node;
-}
-
-std::shared_ptr<ClassDecl> buildClassDecl(const ParseTree* pt) {
-    auto node = std::make_shared<ClassDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_CLASS_NAME:
-                node->name = firstTokenText(c);
-                break;
-            case Production::DEF_CLASS_CMDS:
-                for (const ParseTree* m = c->spDown.get(); m; m = m->spNext.get()) {
-                    switch (m->production) {
-                        case Production::DEF_CMD_DECL:
-                            node->members.push_back(buildCmdDecl(m));
-                            break;
-                        case Production::DEF_CMD:
-                            node->members.push_back(buildCmdDef(m));
-                            break;
-                        default:
-                            break; // structural — no-op
-                    }
-                }
-                break;
-            case Production::CLASS: case Production::COLON:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<ProgramDecl> buildProgramDecl(const ParseTree* pt) {
-    auto node = std::make_shared<ProgramDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::CALL_COMMAND:
-            case Production::CALL_CONSTRUCTOR:
-            case Production::CALL_VCOMMAND:
-                node->entryPoint = buildCallInvoke(c);
-                break;
-            case Production::PROGRAM: case Production::EQUALS:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<TestDecl> buildTestDecl(const ParseTree* pt) {
-    auto node = std::make_shared<TestDecl>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::STRING:
-                if (c->pToken) node->label = c->pToken->text;
-                break;
-            case Production::CALL_GROUP:
-                node->body = buildCallGroup(c);
-                break;
-            case Production::TEST: case Production::EQUALS:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-// ---------------------------------------------------------------------------
-// Command body
-// ---------------------------------------------------------------------------
-std::shared_ptr<CmdBody> buildCmdBody(const ParseTree* pt) {
-    auto node = std::make_shared<CmdBody>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_CMD_EMPTY:
-                node->isEmpty = true;
-                break;
-            case Production::CALL_GROUP:
-                node->group = buildCallGroup(c);
-                break;
-            case Production::EQUALS:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-// ---------------------------------------------------------------------------
-// Statement / expression builders
-// ---------------------------------------------------------------------------
-
-std::shared_ptr<CallParameter> buildCallParameter(const ParseTree* pt) {
-    auto node = std::make_shared<CallParameter>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::CALL_PARM_EMPTY:
-                node->isEmpty = true;
-                break;
-            case Production::CALL_PARM_EXPR:
-                // spDown is SUBCALL_EXPRESSION or IDENTIFIER
-                node->expr = build(c->spDown.get());
-                break;
-            default:
-                break; // structural — no-op
-        }
-    }
-    return node;
-}
-
-spAstNode buildCallInvoke(const ParseTree* pt) {
-    auto node = std::make_shared<CallInvoke>();
-    setLoc(*node, pt);
-    switch (pt->production) {
-        case Production::CALL_COMMAND: {
-            node->kind = CallInvoke::Kind::Command;
-            for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::CALL_CMD_TARGET:
-                        node->target = firstTokenText(c);
-                        break;
-                    case Production::CALL_PARAMETER:
-                        node->params.push_back(buildCallParameter(c));
-                        break;
-                    case Production::COLON: case Production::COMMA:
-                        break; // structural — no-op
-                    default:
-                        break;
-                }
-            }
-            break;
-        }
-        case Production::CALL_CONSTRUCTOR: {
-            node->kind = CallInvoke::Kind::Constructor;
-            for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::TYPE_NAME_Q:
-                        node->target = firstTokenText(c);
-                        break;
-                    case Production::CALL_PARAMETER:
-                        node->params.push_back(buildCallParameter(c));
-                        break;
-                    case Production::COLON: case Production::COMMA:
-                        break; // structural — no-op
-                    default:
-                        break;
-                }
-            }
-            break;
-        }
-        case Production::CALL_VCOMMAND: {
-            node->kind = CallInvoke::Kind::VCommand;
-            for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-                switch (c->production) {
-                    case Production::IDENTIFIER:
-                        // Before DCOLON = receiver; after = command name
-                        // IDENTIFIER is a group node (pToken=null), use firstTokenText
-                        if (node->target.empty())
-                            node->receivers.push_back(firstTokenText(c));
-                        else
-                            node->target = firstTokenText(c);
-                        break;
-                    case Production::DCOLON:
-                        // Signals transition from receivers to command name
-                        node->target = " "; // sentinel; overwritten by next IDENTIFIER
-                        break;
-                    case Production::CALL_PARAMETER:
-                        node->params.push_back(buildCallParameter(c));
-                        break;
-                    case Production::LPAREN: case Production::RPAREN:
-                    case Production::COLON:  case Production::COMMA:
-                        break; // structural — no-op
-                    default:
-                        break;
-                }
-            }
-            // trim sentinel
-            if (node->target == " ") node->target.clear();
-            break;
-        }
-        default:
-            break;
-    }
-    return node;
-}
-
-spAstNode buildCallQuote(const ParseTree* pt) {
-    auto node = std::make_shared<CallQuote>();
-    setLoc(*node, pt);
-    switch (pt->production) {
-        case Production::CALL_BLOCK_NOFAIL:  node->kind = CallQuote::Kind::NoFail;   break;
-        case Production::CALL_BLOCK_FAIL:    node->kind = CallQuote::Kind::Fails;    break;
-        case Production::CALL_BLOCK_MAYFAIL: node->kind = CallQuote::Kind::MayFail;  break;
-        default:                             node->kind = CallQuote::Kind::Subquote; break;
-    }
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::CALL_GROUP:
-                node->body = buildCallGroup(c);
-                break;
-            case Production::CALL_COMMAND:
-            case Production::CALL_CONSTRUCTOR:
-            case Production::CALL_VCOMMAND:
-                node->body = buildCallInvoke(c);
-                break;
-            case Production::DEF_CMD_EMPTY:
-                break; // empty body — no-op
-            case Production::COLBRACE: case Production::BANGBRACE:
-            case Production::QBRACE:   case Production::LBRACE:
-            case Production::RBRACE:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-spAstNode buildCmdLiteral(const ParseTree* pt) {
-    auto node = std::make_shared<CmdLiteral>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::COLANGLE:   node->cmdKind = TypeExpr::CmdKind::NoFail;  break;
-            case Production::QLANGLE:    node->cmdKind = TypeExpr::CmdKind::MayFail; break;
-            case Production::BANGLANGLE: node->cmdKind = TypeExpr::CmdKind::Fails;   break;
-            case Production::DEF_CMD_PARM:
-                node->params.push_back(buildOneCmdParam(c));
-                break;
-            case Production::CALL_GROUP:
-                node->body = buildCallGroup(c);
-                break;
-            case Production::RANGLE: case Production::LBRACE: case Production::RBRACE:
-            case Production::COMMA:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-spAstNode buildLiteral(const ParseTree* pt) {
-    auto node = std::make_shared<Literal>();
-    setLoc(*node, pt);
-    if (pt->pToken) node->text = pt->pToken->text;
-    return node;
-}
-
-spAstNode buildIdentifierExpr(const ParseTree* pt) {
-    auto node = std::make_shared<IdentifierExpr>();
-    setLoc(*node, pt);
-    if (pt->production == Production::ALLOC_IDENTIFIER) {
-        node->isAlloc = true;
-        node->text = firstTokenText(pt->spDown.get());
-    } else {
-        // IDENTIFIER node: optional TYPENAME:: prefix chain + IDENTIFIER token
-        node->text = "";
-        for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-            switch (c->production) {
-                case Production::TYPENAME:
-                    if (c->pToken) {
-                        if (!node->text.empty()) node->text += "::";
-                        node->text += c->pToken->text;
-                    }
-                    break;
-                case Production::IDENTIFIER:
-                    if (c->pToken) {
-                        if (!node->text.empty()) node->text += "::";
-                        node->text += c->pToken->text;
-                    }
-                    break;
-                case Production::DCOLON:
-                    break; // structural — no-op
-                default:
-                    if (c->pToken && !c->pToken->text.empty()) {
-                        if (!node->text.empty()) node->text += "::";
-                        node->text += c->pToken->text;
-                    }
-                    break;
-            }
-        }
-        // Fallback: if no children, use own token
-        if (node->text.empty() && pt->pToken) node->text = pt->pToken->text;
-    }
-    return node;
-}
-
-// Build a term list (for CallExpression / SubcallExpr) from a sibling chain
-// Each term is an expression node; operators become IdentifierExpr nodes.
-std::vector<spAstNode> buildTermList(const ParseTree* first) {
-    std::vector<spAstNode> terms;
-    for (const ParseTree* c = first; c; c = c->spNext.get()) {
-        switch (c->production) {
-            // Operators
-            case Production::CALL_OPERATOR: {
-                auto op = std::make_shared<IdentifierExpr>();
-                setLoc(*op, c);
-                op->text = firstTokenText(c);
-                terms.push_back(op);
-                break;
-            }
-            // Terminals / sub-expressions
-            case Production::DECIMAL: case Production::HEXNUMBER:
-            case Production::BINARY:  case Production::NUMBER:
-            case Production::STRING:
-                terms.push_back(buildLiteral(c));
-                break;
-            case Production::IDENTIFIER:
-            case Production::ALLOC_IDENTIFIER:
-                terms.push_back(buildIdentifierExpr(c));
-                break;
-            case Production::SUBCALL_EXPRESSION:
-                terms.push_back(buildSubcallExpr(c));
-                break;
-            case Production::CALL_COMMAND:
-            case Production::CALL_CONSTRUCTOR:
-            case Production::CALL_VCOMMAND:
-                terms.push_back(buildCallInvoke(c));
-                break;
-            case Production::CALL_QUOTE:
-            case Production::CALL_BLOCK_NOFAIL:
-            case Production::CALL_BLOCK_FAIL:
-            case Production::CALL_BLOCK_MAYFAIL:
-                terms.push_back(buildCallQuote(c));
-                break;
-            case Production::CALL_CMD_LITERAL:
-                terms.push_back(buildCmdLiteral(c));
-                break;
-            case Production::ENUM_DEREF: {
-                // TYPENAME [ IDENTIFIER ] — represent as IdentifierExpr "Type[member]"
-                auto id = std::make_shared<IdentifierExpr>();
-                setLoc(*id, c);
-                id->text = firstTokenText(c);
-                terms.push_back(id);
-                break;
-            }
-            case Production::CALL_EXPR_DEREF:
-            case Production::CALL_EXPR_ADDR:
-            case Production::CALL_EXPR_INDEX:
-                // Suffix modifiers: attach as a trailing IdentifierExpr for now
-                {
-                    auto suf = std::make_shared<IdentifierExpr>();
-                    setLoc(*suf, c);
-                    suf->text = firstTokenText(c);
-                    terms.push_back(suf);
-                }
-                break;
-            case Production::LPAREN: case Production::RPAREN:
-            case Production::COMMA:  case Production::PIPE:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return terms;
-}
-
-spAstNode buildSubcallExpr(const ParseTree* pt) {
-    auto node = std::make_shared<SubcallExpr>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::CALL_CMD_LITERAL:
-                node->terms.push_back(buildCmdLiteral(c));
-                break;
-            case Production::CALL_QUOTE:
-            case Production::CALL_BLOCK_NOFAIL:
-            case Production::CALL_BLOCK_FAIL:
-            case Production::CALL_BLOCK_MAYFAIL:
-                node->terms.push_back(buildCallQuote(c));
-                break;
-            default:
-                // Everything else: build as term list
-                for (auto& t : buildTermList(c))
-                    node->terms.push_back(t);
-                break;
-        }
-    }
-    return node;
-}
-
-spAstNode buildCallAssignment(const ParseTree* pt) {
-    auto node = std::make_shared<CallAssignment>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::IDENTIFIER:
-            case Production::ALLOC_IDENTIFIER: {
-                auto id = std::static_pointer_cast<IdentifierExpr>(buildIdentifierExpr(c));
-                node->target = id;
-                break;
-            }
-            case Production::SUBCALL_EXPRESSION:
-                node->exprs.push_back(buildSubcallExpr(c));
-                break;
-            case Production::CALL_OPERATOR: {
-                // post-assignment operator: next sibling is the rhs
-                std::string op = firstTokenText(c);
-                const ParseTree* rhs = c->spNext.get();
-                if (rhs) {
-                    spAstNode rhsNode = build(rhs);
-                    node->postOps.emplace_back(op, rhsNode);
-                }
-                break;
-            }
-            case Production::LARROW: case Production::PIPE:
-                break; // structural — no-op
-            default:
-                break;
-        }
-    }
-    return node;
-}
-
-spAstNode buildCallExpression(const ParseTree* pt) {
-    auto node = std::make_shared<CallExpression>();
-    setLoc(*node, pt);
-    node->terms = buildTermList(pt->spDown.get());
-    return node;
-}
-
-spAstNode buildBlock(const ParseTree* pt) {
-    auto node = std::make_shared<Block>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::BLOCK_HEADER:
-                for (const ParseTree* h = c->spDown.get(); h; h = h->spNext.get()) {
-                    switch (h->production) {
-                        case Production::DQMARK:        node->kind = Block::Kind::DoWhenMulti;  break;
-                        case Production::QMARK:         node->kind = Block::Kind::DoWhen;       break;
-                        case Production::QMINUS:        node->kind = Block::Kind::DoWhenFail;   break;
-                        case Production::DO_ELSE:       node->kind = Block::Kind::DoElse;       break;
-                        case Production::BANG:          node->kind = Block::Kind::DoUnless;     break;
-                        case Production::PERCENT:       node->kind = Block::Kind::DoBlock;      break;
-                        case Production::DO_REWIND:     node->kind = Block::Kind::DoRewind;     break;
-                        case Production::DO_RECOVER:    node->kind = Block::Kind::DoRecover;    break;
-                        case Production::DO_RECOVER_SPEC:
-                            node->kind = Block::Kind::DoRecoverSpec;
-                            // PIPE RECOVER_SPEC RARROW
-                            for (const ParseTree* rs = h->spDown.get(); rs; rs = rs->spNext.get()) {
-                                if (rs->production == Production::RECOVER_SPEC) {
-                                    const ParseTree* rc = rs->spDown.get();
-                                    if (rc && rc->production == Production::TYPE_NAME_Q) {
-                                        node->recoverType = firstTokenText(rc);
-                                        rc = rc->spNext.get();
-                                        if (rc && rc->pToken) node->recoverName = rc->pToken->text;
-                                    } else if (rc) {
-                                        node->recoverName = firstTokenText(rc);
-                                    }
-                                }
-                            }
-                            break;
-                        case Production::ON_EXIT:      node->kind = Block::Kind::OnExit;     break;
-                        case Production::ON_EXIT_FAIL: node->kind = Block::Kind::OnExitFail; break;
-                        case Production::DO_WHEN_SELECT: node->kind = Block::Kind::DoWhen; break; // select variant
-                        case Production::PIPE: case Production::RARROW:
-                            break; // structural — no-op
-                        default:
-                            break;
-                    }
-                }
-                break;
-            case Production::CALL_GROUP:
-                node->body = buildCallGroup(c);
-                break;
-            default:
-                break; // structural — no-op
-        }
-    }
-    return node;
-}
-
-std::shared_ptr<CallGroup> buildCallGroup(const ParseTree* pt) {
-    auto node = std::make_shared<CallGroup>();
-    setLoc(*node, pt);
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::CALL_ASSIGNMENT:
-                node->statements.push_back(buildCallAssignment(c));
-                break;
-            case Production::CALL_EXPRESSION:
-                node->statements.push_back(buildCallExpression(c));
-                break;
-            case Production::CALL_COMMAND:
-            case Production::CALL_CONSTRUCTOR:
-            case Production::CALL_VCOMMAND:
-                node->statements.push_back(buildCallInvoke(c));
-                break;
-            case Production::DO_BLOCK:
-                node->statements.push_back(buildBlock(c));
-                break;
-            default:
-                break; // structural — no-op
-        }
-    }
-    return node;
-}
-
-// ---------------------------------------------------------------------------
-// Central dispatch — handles any node that can appear as a child
-// ---------------------------------------------------------------------------
-spAstNode build(const ParseTree* pt) {
+// ========================================================================
+// Type expression builders
+// ========================================================================
+static TypeNodePtr buildTypeNameQ(const spParseTree& pt) {
     if (!pt) return nullptr;
-    switch (pt->production) {
-        // Top-level declarations
-        case Production::COMPILATION_UNIT:  return nullptr; // handled by buildAst() directly
-        case Production::DEF_MODULE:        return buildModuleDecl(pt);
-        case Production::DEF_IMPORT:        return buildImportDecl(pt);
-        case Production::DEF_ALIAS:         return buildAliasDecl(pt);
-        case Production::DEF_CLASS:         return buildClassDecl(pt);
-        case Production::DEF_CMD:           return buildCmdDef(pt);
-        case Production::DEF_CMD_DECL:      return buildCmdDecl(pt);
-        case Production::DEF_CMD_INTRINSIC: return buildIntrinsicDecl(pt);
-        case Production::DEF_DOMAIN:        return buildDomainDecl(pt);
-        case Production::DEF_ENUM:          return buildEnumDecl(pt);
-        case Production::DEF_INSTANCE:      return buildInstanceDecl(pt);
-        case Production::DEF_OBJECT:        return buildObjectDecl(pt);
-        case Production::DEF_PROGRAM:       return buildProgramDecl(pt);
-        case Production::DEF_RECORD:        return buildRecordDecl(pt);
-        case Production::DEF_TEST:          return buildTestDecl(pt);
-        // Statements
-        case Production::CALL_ASSIGNMENT:   return buildCallAssignment(pt);
-        case Production::CALL_EXPRESSION:   return buildCallExpression(pt);
-        case Production::CALL_COMMAND:
-        case Production::CALL_CONSTRUCTOR:
-        case Production::CALL_VCOMMAND:     return buildCallInvoke(pt);
-        case Production::DO_BLOCK:          return buildBlock(pt);
-        case Production::CALL_GROUP:        return buildCallGroup(pt);
-        // Expressions
-        case Production::SUBCALL_EXPRESSION:return buildSubcallExpr(pt);
-        case Production::CALL_CMD_LITERAL:  return buildCmdLiteral(pt);
-        case Production::CALL_QUOTE:
-        case Production::CALL_BLOCK_NOFAIL:
-        case Production::CALL_BLOCK_FAIL:
-        case Production::CALL_BLOCK_MAYFAIL:return buildCallQuote(pt);
-        case Production::LITERAL:           return build(pt->spDown.get()); // transparent
-        case Production::DECIMAL: case Production::HEXNUMBER:
-        case Production::BINARY:  case Production::NUMBER:
-        case Production::STRING:            return buildLiteral(pt);
-        case Production::IDENTIFIER:
-        case Production::ALLOC_IDENTIFIER:  return buildIdentifierExpr(pt);
-        // Type expressions — not directly statement-level, but reachable via build()
-        case Production::TYPE_EXPR:
-        case Production::TYPE_EXPR_DOMAIN:
-        case Production::TYPE_EXPR_CMD:
-        case Production::TYPE_EXPR_PTR:
-        case Production::TYPE_EXPR_RANGE:
-        case Production::TYPE_EXPR_RANGE_FIXED:
-        case Production::TYPE_NAME_Q:
-        case Production::TYPEDEF_NAME_Q:    return buildTypeExpr(pt);
-        // Sub-productions that are structural / transparent — no-op, recurse into children
-        case Production::DEF_MODULE_NAME:
-        case Production::DEF_IMPORT_FILE:
-        case Production::DEF_IMPORT_STANDARD:
-        case Production::DEF_ENUM_NAME1:
-        case Production::DEF_ENUM_NAME2:
-        case Production::DEF_ENUM_ITEM_NAME:
-        case Production::DEF_ENUM_ITEM_LIST:
-        case Production::DEF_RECORD_NAME:
-        case Production::DEF_RECORD_FIELDS:
-        case Production::DEF_RECORD_FIELD:
-        case Production::DEF_RECORD_FIELD_NAME:
-        case Production::DEF_RECORD_FIELD_DOMAIN:
-        case Production::DEF_OBJECT_NAME:
-        case Production::DEF_OBJECT_FIELDS:
-        case Production::DEF_OBJECT_FIELD:
-        case Production::DEF_OBJECT_FIELD_NAME:
-        case Production::DEF_OBJECT_FIELD_TYPE:
-        case Production::DEF_CLASS_NAME:
-        case Production::DEF_CLASS_CMDS:
-        case Production::DEF_INSTANCE_NAME:
-        case Production::DEF_INSTANCE_DELEGATE:
-        case Production::DEF_INSTANCE_TYPES:
-        case Production::DEF_CMD_NAME:
-        case Production::DEF_CMD_NAME_SPEC:
-        case Production::DEF_CMD_MAYFAIL:
-        case Production::DEF_CMD_FAILS:
-        case Production::DEF_CMD_PARM:
-        case Production::DEF_CMD_PARM_NAME:
-        case Production::DEF_CMD_PARM_TYPE:
-        case Production::DEF_CMD_PARMTYPE_NAME:
-        case Production::DEF_CMD_PARMTYPE_VAR:
-        case Production::DEF_CMD_RECEIVER:
-        case Production::DEF_CMD_RECEIVERS:
-        case Production::DEF_CMD_PARMS:
-        case Production::DEF_CMD_IMPARMS:
-        case Production::DEF_CMD_RETVAL:
-        case Production::DEF_CMD_BODY:
-        case Production::DEF_CMD_EMPTY:
-        case Production::DEF_DOMAIN_NAME:
-        case Production::DEF_DOMAIN_PARENT:
-        case Production::CALL_PARAMETER:
-        case Production::CALL_PARM_EMPTY:
-        case Production::CALL_PARM_EXPR:
-        case Production::CALL_CMD_TARGET:
-        case Production::CALL_IDENTIFIER:
-        case Production::CALL_OPERATOR:
-        case Production::CALL_EXPR_DEREF:
-        case Production::CALL_EXPR_ADDR:
-        case Production::CALL_EXPR_INDEX:
-        case Production::BLOCK_HEADER:
-        case Production::RECOVER_SPEC:
-        case Production::DO_RECOVER_SPEC:
-        case Production::DO_RECOVER:
-        case Production::DO_WHEN:
-        case Production::DO_WHEN_MULTI:
-        case Production::DO_WHEN_FAIL:
-        case Production::DO_WHEN_SELECT:
-        case Production::DO_ELSE:
-        case Production::DO_UNLESS:
-        case Production::DO_REWIND:
-        case Production::CALL_QUOTED:
-        case Production::ENUM_DEREF:
-        case Production::TYPEDEF_PARMS:
-        case Production::TYPEDEF_PARM_TYPE:
-        case Production::TYPEDEF_PARM_VALUE:
-        case Production::TYPE_NAME_ARGS:
-        case Production::TYPE_ARG_TYPE:
-        case Production::TYPE_ARG_VALUE:
-        case Production::TYPE_CMDEXPR_ARG:
-        case Production::QUALIFIED_TYPENAME:
-            return build(pt->spDown.get()); // transparent structural node
-        // Pure terminal / punctuation tokens — no-op
-        case Production::TYPENAME:
-        case Production::ALIAS:    case Production::CLASS:    case Production::COMMAND:
-        case Production::DECLARE:  case Production::DOMAIN:   case Production::ENUMERATION:
-        case Production::IMPORT:   case Production::INSTANCE: case Production::INTRINSIC:
-        case Production::MODULE:   case Production::OBJECT:   case Production::PROGRAM:
-        case Production::RECORD:   case Production::TEST:
-        case Production::AMBANG:   case Production::AMPERSAND: case Production::AMPHORA:
-        case Production::APOSTROPHE: case Production::ASTERISK: case Production::BANG:
-        case Production::BANGBRACE:  case Production::BANGLANGLE: case Production::CARAT:
-        case Production::COMMA:    case Production::COLON:    case Production::COLANGLE:
-        case Production::COLBRACE: case Production::DCOLON:   case Production::DOLLAR:
-        case Production::EQUALS:   case Production::EXTRACT:  case Production::GREQUALS:
-        case Production::INSERT:   case Production::LANGLE:   case Production::LEQUALS:
-        case Production::LARROW:   case Production::LBRACE:   case Production::LBRACKET:
-        case Production::LPAREN:   case Production::MINUS:    case Production::PERCENT:
-        case Production::PIPE:     case Production::PLUS:     case Production::POUND:
-        case Production::QBRACE:   case Production::QLANGLE:  case Production::QMARK:
-        case Production::QMINUS:   case Production::DQMARK:   case Production::RANGLE:
-        case Production::RARROW:   case Production::RBRACE:   case Production::RBRACKET:
-        case Production::RPAREN:   case Production::SLASH:    case Production::UNDERSCORE:
-        case Production::ON_EXIT:  case Production::ON_EXIT_FAIL:
-            return nullptr; // terminal token — no-op
+    NamedType nt;
+    nt.line = locL(pt); nt.col = locC(pt);
+    auto c = down(pt); // first child: TYPENAME or QUALIFIED_TYPENAME
+    nt.name = collectTypeName(c);
+    auto args = findChild(pt, Production::TYPE_NAME_ARGS);
+    if (args) {
+        for (auto a = down(args); a; a = nxt(a)) {
+            if (is(a, Production::TYPE_ARG_TYPE)) {
+                nt.typeArgs.push_back(buildTypeNameQ(findChild(a, Production::TYPE_NAME_Q)));
+            } else if (is(a, Production::TYPE_ARG_VALUE)) {
+                NamedType val; val.name = txt(down(a));
+                val.line = locL(a); val.col = locC(a);
+                nt.typeArgs.push_back(std::make_shared<TypeNode>(std::move(val)));
+            }
+        }
+    }
+    return std::make_shared<TypeNode>(std::move(nt));
+}
+
+static CmdType buildCmdTypeNode(const spParseTree& pt) {
+    // TYPE_EXPR_CMD: kind lost (as+discard); children are TYPE_CMDEXPR_ARG nodes
+    CmdType ct;
+    ct.line = locL(pt); ct.col = locC(pt);
+    ct.kind = CmdType::Kind::NoFail; // TODO: grammar fix needed
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (is(c, Production::TYPE_CMDEXPR_ARG)) {
+            CmdTypeArg arg;
+            arg.writeable = false; // TODO: grammar fix needed
+            arg.type = buildCmdExprArgType(c);
+            ct.args.push_back(std::move(arg));
+        }
+    }
+    return ct;
+}
+
+static TypeNodePtr buildCmdExprArgType(const spParseTree& pt) {
+    // TYPE_CMDEXPR_ARG: child is TYPE_NAME_Q | TYPE_EXPR_CMD | TYPE_CMDEXPR_ARG(ptr) | TYPE_EXPR_RANGE
+    auto c = down(pt);
+    if (!c) return nullptr;
+    if (is(c, Production::TYPE_NAME_Q))
+        return buildTypeNameQ(c);
+    if (is(c, Production::TYPE_EXPR_CMD)) {
+        auto ct = buildCmdTypeNode(c);
+        return std::make_shared<TypeNode>(std::move(ct));
+    }
+    if (is(c, Production::TYPE_CMDEXPR_ARG)) {
+        PtrType ptr; ptr.depth = 1; ptr.line = locL(pt); ptr.col = locC(pt);
+        ptr.inner = buildCmdExprArgType(c);
+        return std::make_shared<TypeNode>(std::move(ptr));
+    }
+    if (is(c, Production::TYPE_EXPR_RANGE)) {
+        RangeType rt; rt.line = locL(c); rt.col = locC(c);
+        auto sizeNode = down(c);
+        if (sizeNode) rt.size = txt(sizeNode);
+        auto elemNode = nxt(c); // optional TYPE_CMDEXPR_ARG sibling
+        if (elemNode && is(elemNode, Production::TYPE_CMDEXPR_ARG))
+            rt.element = buildCmdExprArgType(elemNode);
+        return std::make_shared<TypeNode>(std::move(rt));
     }
     return nullptr;
 }
 
-} // anonymous namespace
-
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
-std::shared_ptr<CompilationUnit> basis::buildAst(const spParseTree& pt) {
-    if (!pt || pt->production != Production::COMPILATION_UNIT)
-        return nullptr;
-
-    auto node = std::make_shared<CompilationUnit>();
-    setLoc(*node, pt.get());
-
-    for (const ParseTree* c = pt->spDown.get(); c; c = c->spNext.get()) {
-        switch (c->production) {
-            case Production::DEF_MODULE:
-                node->module = buildModuleDecl(c);
-                break;
-            case Production::DEF_IMPORT:
-                node->imports.push_back(buildImportDecl(c));
-                break;
-            // All possible top-level definition productions
-            case Production::DEF_ALIAS:
-                node->definitions.push_back(buildAliasDecl(c));
-                break;
-            case Production::DEF_CLASS:
-                node->definitions.push_back(buildClassDecl(c));
-                break;
-            case Production::DEF_CMD:
-                node->definitions.push_back(buildCmdDef(c));
-                break;
-            case Production::DEF_CMD_DECL:
-                node->definitions.push_back(buildCmdDecl(c));
-                break;
-            case Production::DEF_CMD_INTRINSIC:
-                node->definitions.push_back(buildIntrinsicDecl(c));
-                break;
-            case Production::DEF_DOMAIN:
-                node->definitions.push_back(buildDomainDecl(c));
-                break;
-            case Production::DEF_ENUM:
-                node->definitions.push_back(buildEnumDecl(c));
-                break;
-            case Production::DEF_INSTANCE:
-                node->definitions.push_back(buildInstanceDecl(c));
-                break;
-            case Production::DEF_OBJECT:
-                node->definitions.push_back(buildObjectDecl(c));
-                break;
-            case Production::DEF_PROGRAM:
-                node->definitions.push_back(buildProgramDecl(c));
-                break;
-            case Production::DEF_RECORD:
-                node->definitions.push_back(buildRecordDecl(c));
-                break;
-            case Production::DEF_TEST:
-                node->definitions.push_back(buildTestDecl(c));
-                break;
-            // Structural nodes that wrap the above (e.g. from maybe/oneOrMore) — transparent
-            case Production::COMPILATION_UNIT:
-                break; // should not occur as a child, but guard it — no-op
-            default:
-                break; // any other structural wrapper — no-op
-        }
+static std::vector<FieldDecl> buildRecordFields(const spParseTree& pt) {
+    // DEF_RECORD_FIELDS: children are DEF_RECORD_FIELD groups
+    std::vector<FieldDecl> fields;
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (!is(c, Production::DEF_RECORD_FIELD)) continue;
+        FieldDecl f;
+        f.line = locL(c); f.col = locC(c);
+        auto dom = findChild(c, Production::DEF_RECORD_FIELD_DOMAIN);
+        f.type = buildTypeExprDomain(dom ? down(dom) : nullptr);
+        auto nm = findChild(c, Production::DEF_RECORD_FIELD_NAME);
+        f.name = collectIdent(nm ? down(nm) : nullptr);
+        fields.push_back(std::move(f));
     }
-    return node;
+    return fields;
+}
+
+static std::vector<FieldDecl> buildObjectFields(const spParseTree& pt) {
+    std::vector<FieldDecl> fields;
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (!is(c, Production::DEF_OBJECT_FIELD)) continue;
+        FieldDecl f;
+        f.line = locL(c); f.col = locC(c);
+        auto tp = findChild(c, Production::DEF_OBJECT_FIELD_TYPE);
+        f.type = buildTypeExpr(tp ? down(tp) : nullptr);
+        auto nm = findChild(c, Production::DEF_OBJECT_FIELD_NAME);
+        f.name = collectIdent(nm ? down(nm) : nullptr);
+        fields.push_back(std::move(f));
+    }
+    return fields;
+}
+
+static std::vector<UnionCandidate> buildUnionCandidates(const spParseTree& pt) {
+    std::vector<UnionCandidate> cands;
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (!is(c, Production::DEF_UNION_CANDIDATE)) continue;
+        UnionCandidate uc;
+        uc.line = locL(c); uc.col = locC(c);
+        auto dom = findChild(c, Production::DEF_UNION_CANDIDATE_DOMAIN);
+        uc.domain = buildTypeExprDomain(dom ? down(dom) : nullptr);
+        auto nm = findChild(c, Production::DEF_UNION_CANDIDATE_NAME);
+        uc.name = collectIdent(nm ? down(nm) : nullptr);
+        cands.push_back(std::move(uc));
+    }
+    return cands;
+}
+
+static std::vector<VariantCandidate> buildVariantCandidates(const spParseTree& pt) {
+    std::vector<VariantCandidate> cands;
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (!is(c, Production::DEF_VARIANT_CANDIDATE)) continue;
+        VariantCandidate vc;
+        vc.line = locL(c); vc.col = locC(c);
+        auto tp = findChild(c, Production::DEF_VARIANT_CANDIDATE_TYPE);
+        vc.type = buildTypeExpr(tp ? down(tp) : nullptr);
+        auto nm = findChild(c, Production::DEF_VARIANT_CANDIDATE_NAME);
+        vc.name = collectIdent(nm ? down(nm) : nullptr);
+        cands.push_back(std::move(vc));
+    }
+    return cands;
+}
+
+static TypeNodePtr buildInlineType(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    auto scopeNode = findChild(pt, Production::DEF_INLINE_SCOPE_NAME);
+    std::string scopeName;
+    if (scopeNode) scopeName = txt(findChild(scopeNode, Production::IDENTIFIER));
+
+    if (is(pt, Production::DEF_INLINE_RECORD)) {
+        InlineRecordType irt;
+        irt.scopeName = scopeName;
+        irt.line = locL(pt); irt.col = locC(pt);
+        auto flds = findChild(pt, Production::DEF_RECORD_FIELDS);
+        if (flds) irt.fields = buildRecordFields(flds);
+        return std::make_shared<TypeNode>(std::move(irt));
+    }
+    if (is(pt, Production::DEF_INLINE_OBJECT)) {
+        InlineObjectType iot;
+        iot.scopeName = scopeName;
+        iot.line = locL(pt); iot.col = locC(pt);
+        auto flds = findChild(pt, Production::DEF_OBJECT_FIELDS);
+        if (flds) iot.fields = buildObjectFields(flds);
+        return std::make_shared<TypeNode>(std::move(iot));
+    }
+    if (is(pt, Production::DEF_INLINE_UNION)) {
+        InlineUnionType iut;
+        iut.scopeName = scopeName;
+        iut.line = locL(pt); iut.col = locC(pt);
+        auto cands = findChild(pt, Production::DEF_UNION_CANDIDATES);
+        if (cands) iut.candidates = buildUnionCandidates(cands);
+        return std::make_shared<TypeNode>(std::move(iut));
+    }
+    if (is(pt, Production::DEF_INLINE_VARIANT)) {
+        InlineVariantType ivt;
+        ivt.scopeName = scopeName;
+        ivt.line = locL(pt); ivt.col = locC(pt);
+        auto cands = findChild(pt, Production::DEF_VARIANT_CANDIDATES);
+        if (cands) ivt.candidates = buildVariantCandidates(cands);
+        return std::make_shared<TypeNode>(std::move(ivt));
+    }
+    return nullptr;
+}
+
+static TypeNodePtr buildTypeExpr(const spParseTree& pt) {
+    // TYPE_EXPR group: first child determines kind
+    if (!pt) return nullptr;
+    // If pt IS a TYPE_EXPR group, look at its first child
+    spParseTree c = is(pt, Production::TYPE_EXPR) ? down(pt) : pt;
+    if (!c) return nullptr;
+
+    if (is(c, Production::TYPEDEF_NAME_Q)) {
+        // Named type: extract typename from TYPEDEF_NAME_Q
+        // TYPEDEF_NAME_Q has TYPENAME + optional TYPEDEF_PARMS
+        // But TYPE_EXPR uses TYPE_NAME_Q via TYPEDEF_NAME_Q
+        // For type expressions, map to NamedType
+        NamedType nt;
+        nt.line = locL(c); nt.col = locC(c);
+        auto tn = down(c); // TYPENAME or QUALIFIED_TYPENAME
+        nt.name = collectTypeName(tn);
+        // TYPEDEF_PARMS not used here (definition-side only)
+        return std::make_shared<TypeNode>(std::move(nt));
+    }
+    if (is(c, Production::TYPE_NAME_Q))
+        return buildTypeNameQ(c);
+    if (is(c, Production::TYPE_EXPR_CMD)) {
+        auto ct = buildCmdTypeNode(c);
+        return std::make_shared<TypeNode>(std::move(ct));
+    }
+    if (is(c, Production::TYPE_EXPR_RANGE)) {
+        RangeType rt;
+        rt.line = locL(c); rt.col = locC(c);
+        auto sizeNode = down(c);
+        if (sizeNode) rt.size = txt(sizeNode);
+        auto elemSibling = nxt(c);
+        if (elemSibling && is(elemSibling, Production::TYPE_EXPR))
+            rt.element = buildTypeExpr(elemSibling);
+        return std::make_shared<TypeNode>(std::move(rt));
+    }
+    if (is(c, Production::TYPE_EXPR)) {
+        // Pointer type: TYPE_EXPR_PTR consumed carets (no nodes), inner TYPE_EXPR follows
+        PtrType ptr;
+        ptr.depth = 1; // TODO: depth lost due to as+discard
+        ptr.line = locL(pt); ptr.col = locC(pt);
+        ptr.inner = buildTypeExpr(c);
+        return std::make_shared<TypeNode>(std::move(ptr));
+    }
+    if (is(c, Production::DEF_INLINE_RECORD) || is(c, Production::DEF_INLINE_OBJECT) ||
+        is(c, Production::DEF_INLINE_UNION) || is(c, Production::DEF_INLINE_VARIANT))
+        return buildInlineType(c);
+    return nullptr;
+}
+
+static TypeNodePtr buildTypeExprDomain(const spParseTree& pt) {
+    // TYPE_EXPR_DOMAIN: similar to TYPE_EXPR but restricted alternatives
+    if (!pt) return nullptr;
+    spParseTree c = is(pt, Production::TYPE_EXPR_DOMAIN) ? down(pt) : pt;
+    if (!c) return nullptr;
+
+    if (is(c, Production::TYPE_NAME_Q))
+        return buildTypeNameQ(c);
+    if (is(c, Production::TYPEDEF_NAME_Q)) {
+        NamedType nt;
+        nt.line = locL(c); nt.col = locC(c);
+        nt.name = collectTypeName(down(c));
+        return std::make_shared<TypeNode>(std::move(nt));
+    }
+    if (is(c, Production::TYPE_EXPR_RANGE)) {
+        RangeType rt;
+        rt.line = locL(c); rt.col = locC(c);
+        auto sizeNode = down(c);
+        if (sizeNode) rt.size = txt(sizeNode);
+        auto elemSibling = nxt(c);
+        if (elemSibling && is(elemSibling, Production::TYPE_EXPR_DOMAIN))
+            rt.element = buildTypeExprDomain(elemSibling);
+        return std::make_shared<TypeNode>(std::move(rt));
+    }
+    if (is(c, Production::DEF_INLINE_RECORD) || is(c, Production::DEF_INLINE_UNION))
+        return buildInlineType(c);
+    return nullptr;
 }
 
 
-*/
+// ========================================================================
+// Expression builders
+// ========================================================================
+
+// Build a QuoteExpr from a CALL_QUOTE or CALL_BLOCK_* node
+static ExprNodePtr buildQuoteExpr(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    QuoteExpr q;
+    q.line = locL(pt); q.col = locC(pt);
+    if (is(pt, Production::CALL_QUOTE)) {
+        q.kind = QuoteExpr::Kind::Subquote;
+        auto inv = down(pt); // optional CALL_INVOKE child
+        if (inv) q.invoke = buildInvokeExpr(inv);
+    } else if (is(pt, Production::CALL_BLOCK_NOFAIL)) {
+        q.kind = QuoteExpr::Kind::BlockNoFail;
+        auto body = findChild(pt, Production::CALL_GROUP);
+        if (body) q.group = buildCallGroup(body);
+    } else if (is(pt, Production::CALL_BLOCK_MAYFAIL)) {
+        q.kind = QuoteExpr::Kind::BlockMayFail;
+        auto body = findChild(pt, Production::CALL_GROUP);
+        if (body) q.group = buildCallGroup(body);
+    } else if (is(pt, Production::CALL_BLOCK_FAIL)) {
+        q.kind = QuoteExpr::Kind::BlockFail;
+        auto body = findChild(pt, Production::CALL_GROUP);
+        if (body) q.group = buildCallGroup(body);
+    }
+    return std::make_shared<ExprNode>(std::move(q));
+}
+
+// Build a CmdLiteralExpr from CALL_CMD_LITERAL
+static ExprNodePtr buildCmdLiteral(const spParseTree& pt) {
+    CmdLiteralExpr lit;
+    lit.line = locL(pt); lit.col = locC(pt);
+    lit.kind = CmdLiteralExpr::Kind::NoFail; // TODO: kind lost (as+discard)
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (is(c, Production::DEF_CMD_PARM))
+            lit.params.push_back(buildCmdParm(c));
+        else if (is(c, Production::CALL_GROUP))
+            lit.body = buildCallGroup(c);
+    }
+    return std::make_shared<ExprNode>(std::move(lit));
+}
+
+// Build an ExprNode from a single primary child (leaf or invoke)
+static ExprNodePtr buildPrimaryExpr(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    auto p = pt->production;
+    // Literals
+    if (p == Production::DECIMAL || p == Production::HEXNUMBER ||
+        p == Production::BINARY || p == Production::NUMBER || p == Production::STRING) {
+        LiteralExpr le; le.text = txt(pt);
+        le.line = locL(pt); le.col = locC(pt);
+        return std::make_shared<ExprNode>(std::move(le));
+    }
+    if (p == Production::LITERAL) {
+        return buildPrimaryExpr(down(pt));
+    }
+    // Identifier
+    if (p == Production::IDENTIFIER) {
+        IdentifierExpr ie; ie.text = collectIdent(pt);
+        ie.line = locL(pt); ie.col = locC(pt);
+        return std::make_shared<ExprNode>(std::move(ie));
+    }
+    if (p == Production::ALLOC_IDENTIFIER) {
+        IdentifierExpr ie; ie.text = collectIdent(pt); ie.isAlloc = true;
+        ie.line = locL(pt); ie.col = locC(pt);
+        return std::make_shared<ExprNode>(std::move(ie));
+    }
+    // Enum deref
+    if (p == Production::ENUM_DEREF) {
+        EnumDerefExpr ed;
+        ed.line = locL(pt); ed.col = locC(pt);
+        auto c = down(pt);
+        ed.typeName = txt(c);        // TYPENAME
+        ed.memberName = collectIdent(nxt(c)); // IDENTIFIER
+        return std::make_shared<ExprNode>(std::move(ed));
+    }
+    // Invocations
+    if (p == Production::CALL_COMMAND || p == Production::CALL_CONSTRUCTOR ||
+        p == Production::CALL_VCOMMAND || p == Production::CALL_FAIL)
+        return buildInvokeExpr(pt);
+    // Quotes
+    if (p == Production::CALL_QUOTE || p == Production::CALL_BLOCK_NOFAIL ||
+        p == Production::CALL_BLOCK_MAYFAIL || p == Production::CALL_BLOCK_FAIL)
+        return buildQuoteExpr(pt);
+    // Command literal
+    if (p == Production::CALL_CMD_LITERAL)
+        return buildCmdLiteral(pt);
+    // Subcall expression (unwrap)
+    if (p == Production::SUBCALL_EXPRESSION)
+        return buildSubcallExpr(pt);
+    // Call expression
+    if (p == Production::CALL_EXPRESSION)
+        return buildCallExpression(pt);
+    return nullptr;
+}
+
+// Build invoke expressions (CALL_COMMAND, CALL_CONSTRUCTOR, CALL_VCOMMAND, CALL_FAIL)
+static std::vector<CallParam> buildCallParams(const spParseTree& pt) {
+    // Collect CALL_PARAMETER children from any parent
+    std::vector<CallParam> params;
+    for (auto c = down(pt); c; c = nxt(c)) {
+        if (!is(c, Production::CALL_PARAMETER)) continue;
+        CallParam cp;
+        cp.line = locL(c); cp.col = locC(c);
+        auto inner = down(c);
+        if (inner && is(inner, Production::CALL_PARM_EMPTY)) {
+            cp.isEmpty = true;
+        } else if (inner && is(inner, Production::CALL_PARM_EXPR)) {
+            cp.expr = buildPrimaryExpr(down(inner));
+        }
+        params.push_back(std::move(cp));
+    }
+    return params;
+}
+
+static ExprNodePtr buildInvokeExpr(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    if (is(pt, Production::CALL_COMMAND)) {
+        CallCommandExpr cc;
+        cc.line = locL(pt); cc.col = locC(pt);
+        auto tgt = findChild(pt, Production::CALL_CMD_TARGET);
+        if (tgt) cc.target = buildPrimaryExpr(down(tgt));
+        cc.params = buildCallParams(pt);
+        return std::make_shared<ExprNode>(std::move(cc));
+    }
+    if (is(pt, Production::CALL_CONSTRUCTOR)) {
+        CallConstructorExpr ce;
+        ce.line = locL(pt); ce.col = locC(pt);
+        auto tn = findChild(pt, Production::TYPE_NAME_Q);
+        if (tn) ce.typeName = buildTypeNameQ(tn);
+        ce.params = buildCallParams(pt);
+        return std::make_shared<ExprNode>(std::move(ce));
+    }
+    if (is(pt, Production::CALL_VCOMMAND)) {
+        CallVCommandExpr vc;
+        vc.line = locL(pt); vc.col = locC(pt);
+        // Children: IDENTIFIER* (receivers), IDENTIFIER (name), CALL_PARAMETER*
+        auto kids = allChildren(pt);
+        // Collect receivers (IDENTIFIERs before the command name)
+        // The last IDENTIFIER before any CALL_PARAMETER is the name
+        std::vector<size_t> identIdxs;
+        for (size_t i = 0; i < kids.size(); ++i)
+            if (is(kids[i], Production::IDENTIFIER)) identIdxs.push_back(i);
+        if (identIdxs.size() >= 2) {
+            for (size_t i = 0; i + 1 < identIdxs.size(); ++i)
+                vc.receivers.push_back(collectIdent(kids[identIdxs[i]]));
+            vc.name = collectIdent(kids[identIdxs.back()]);
+        } else if (identIdxs.size() == 1) {
+            vc.name = collectIdent(kids[identIdxs[0]]);
+        }
+        vc.params = buildCallParams(pt);
+        return std::make_shared<ExprNode>(std::move(vc));
+    }
+    if (is(pt, Production::CALL_FAIL)) {
+        CallFailExpr cf;
+        cf.line = locL(pt); cf.col = locC(pt);
+        auto expr = findChild(pt, Production::CALL_EXPRESSION);
+        if (expr) cf.expr = buildCallExpression(expr);
+        return std::make_shared<ExprNode>(std::move(cf));
+    }
+    return buildPrimaryExpr(pt);
+}
+
+static ExprNodePtr buildSubcallExpr(const spParseTree& pt) {
+    // SUBCALL_EXPRESSION: child is CALL_CMD_LITERAL | CALL_EXPRESSION | CALL_QUOTE
+    if (!pt) return nullptr;
+    auto c = is(pt, Production::SUBCALL_EXPRESSION) ? down(pt) : pt;
+    return buildPrimaryExpr(c);
+}
+
+static ExprNodePtr buildCallExpression(const spParseTree& pt) {
+    // CALL_EXPRESSION: flattened children = term-parts (CALL_OPERATOR term-parts)*
+    if (!pt) return nullptr;
+    auto kids = allChildren(pt);
+    if (kids.empty()) return nullptr;
+
+    // Split into segments at CALL_OPERATOR boundaries
+    std::vector<std::vector<spParseTree>> segments;
+    std::vector<spParseTree> operators;
+    segments.emplace_back();
+    for (auto& k : kids) {
+        if (is(k, Production::CALL_OPERATOR)) {
+            operators.push_back(k);
+            segments.emplace_back();
+        } else {
+            segments.back().push_back(k);
+        }
+    }
+
+    // Build a term from a segment: primary + optional CALL_EXPR_INDEX suffixes
+    auto buildTerm = [](const std::vector<spParseTree>& seg) -> ExprNodePtr {
+        if (seg.empty()) return nullptr;
+        ExprNodePtr primary;
+        std::vector<SuffixOp> suffixes;
+        for (auto& n : seg) {
+            if (is(n, Production::CALL_EXPR_INDEX)) {
+                SuffixOp sop; sop.kind = SuffixOp::Kind::Index;
+                auto loc = findChild(n, Production::CALL_EXPRINDEX_LOC);
+                if (loc) sop.indexLoc = buildSubcallExpr(down(loc));
+                auto ext = findChild(n, Production::CALL_EXPRINDEX_EXT);
+                if (ext) sop.indexExt = buildSubcallExpr(down(ext));
+                suffixes.push_back(std::move(sop));
+            } else if (!primary) {
+                primary = buildPrimaryExpr(n);
+            }
+        }
+        if (!suffixes.empty() && primary) {
+            SuffixExpr se;
+            se.line = locL(seg[0]); se.col = locC(seg[0]);
+            se.base = primary;
+            se.suffixes = std::move(suffixes);
+            return std::make_shared<ExprNode>(std::move(se));
+        }
+        return primary;
+    };
+
+    if (segments.size() == 1)
+        return buildTerm(segments[0]);
+
+    // Multiple segments → BinaryExpr
+    BinaryExpr be;
+    be.line = locL(pt); be.col = locC(pt);
+    be.first = buildTerm(segments[0]);
+    for (size_t i = 0; i < operators.size(); ++i) {
+        BinaryExpr::OpTerm ot;
+        ot.op = "?"; // TODO: operator identity lost (as+discard)
+        ot.term = buildTerm(segments[i + 1]);
+        be.rest.push_back(std::move(ot));
+    }
+    return std::make_shared<ExprNode>(std::move(be));
+}
+
+// ========================================================================
+// Statement / block / group builders
+// ========================================================================
+
+static Block::Kind blockKindFromProd(Production p) {
+    switch (p) {
+        case Production::DO_WHEN:         return Block::Kind::DoWhen;
+        case Production::DO_WHEN_MULTI:   return Block::Kind::DoWhenMulti;
+        case Production::DO_WHEN_FAIL:    return Block::Kind::DoWhenFail;
+        case Production::DO_WHEN_SELECT:  return Block::Kind::DoWhenSelect;
+        case Production::DO_ELSE:         return Block::Kind::DoElse;
+        case Production::DO_BLOCK:        return Block::Kind::DoBlock;
+        case Production::DO_REWIND:       return Block::Kind::DoRewind;
+        case Production::DO_RECOVER:      return Block::Kind::DoRecover;
+        case Production::DO_RECOVER_SPEC: return Block::Kind::DoRecoverSpec;
+        case Production::DO_ON_EXIT:      return Block::Kind::DoOnExit;
+        case Production::DO_ON_EXIT_FAIL: return Block::Kind::DoOnExitFail;
+        default:                          return Block::Kind::DoBlock;
+    }
+}
+
+static bool isBlockProd(Production p) {
+    return p == Production::DO_WHEN || p == Production::DO_WHEN_MULTI ||
+           p == Production::DO_WHEN_FAIL || p == Production::DO_WHEN_SELECT ||
+           p == Production::DO_ELSE || p == Production::DO_BLOCK ||
+           p == Production::DO_REWIND || p == Production::DO_RECOVER ||
+           p == Production::DO_RECOVER_SPEC || p == Production::DO_ON_EXIT ||
+           p == Production::DO_ON_EXIT_FAIL;
+}
+
+static StatNode buildBlock(const spParseTree& pt) {
+    Block blk;
+    blk.line = locL(pt); blk.col = locC(pt);
+    blk.kind = blockKindFromProd(pt->production);
+    if (is(pt, Production::DO_RECOVER_SPEC)) {
+        auto spec = findChild(pt, Production::RECOVER_SPEC);
+        if (spec) {
+            auto tnq = findChild(spec, Production::TYPE_NAME_Q);
+            if (tnq) {
+                blk.recoverType = buildTypeNameQ(tnq);
+                // IDENTIFIER sibling = bound identifier
+                for (auto c = down(spec); c; c = nxt(c))
+                    if (is(c, Production::IDENTIFIER))
+                        blk.recoverIdent = collectIdent(c);
+            } else {
+                // CALL_EXPR_TERM fallback (flattened children)
+                blk.recoverExpr = buildPrimaryExpr(down(spec));
+            }
+        }
+    }
+    auto body = findChild(pt, Production::CALL_GROUP);
+    if (body) blk.body = buildCallGroup(body);
+    return StatNode(std::move(blk));
+}
+
+static StatNode buildStatement(const spParseTree& pt) {
+    if (is(pt, Production::CALL_ASSIGNMENT)) {
+        AssignStat as;
+        as.line = locL(pt); as.col = locC(pt);
+        auto kids = allChildren(pt);
+        if (!kids.empty()) {
+            // First child: ALLOC_IDENTIFIER or IDENTIFIER
+            auto& tgt = kids[0];
+            IdentifierExpr ie;
+            ie.text = collectIdent(tgt);
+            ie.isAlloc = isAllocIdent(tgt);
+            ie.line = locL(tgt); ie.col = locC(tgt);
+            as.target = std::make_shared<ExprNode>(std::move(ie));
+        }
+        // Second child: SUBCALL_EXPRESSION
+        if (kids.size() > 1)
+            as.value = buildSubcallExpr(kids[1]);
+        return StatNode(std::move(as));
+    }
+    if (is(pt, Production::CALL_EXPRESSION)) {
+        ExprStat es;
+        es.line = locL(pt); es.col = locC(pt);
+        es.expr = buildCallExpression(pt);
+        return StatNode(std::move(es));
+    }
+    if (isBlockProd(pt->production))
+        return buildBlock(pt);
+    // Fallback: treat as expression
+    ExprStat es;
+    es.line = locL(pt); es.col = locC(pt);
+    es.expr = buildPrimaryExpr(pt);
+    return StatNode(std::move(es));
+}
+
+static std::shared_ptr<CallGroup> buildCallGroup(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    auto cg = std::make_shared<CallGroup>();
+    cg->line = locL(pt); cg->col = locC(pt);
+    for (auto c = down(pt); c; c = nxt(c))
+        cg->statements.push_back(buildStatement(c));
+    return cg;
+}
+
+static std::shared_ptr<CmdBody> buildCmdBody(const spParseTree& pt) {
+    if (!pt) return nullptr;
+    auto body = std::make_shared<CmdBody>();
+    body->line = locL(pt); body->col = locC(pt);
+    if (findChild(pt, Production::DEF_CMD_EMPTY)) {
+        body->isEmpty = true;
+    } else {
+        auto cg = findChild(pt, Production::CALL_GROUP);
+        if (cg) body->group = buildCallGroup(cg);
+    }
+    return body;
+}
+
+// ========================================================================
+// Command parameter and signature builders
+// ========================================================================
+
+static CmdParam buildCmdParm(const spParseTree& pt) {
+    // DEF_CMD_PARM: children = DEF_CMD_PARMTYPE_NAME or DEF_CMD_PARMTYPE_VAR, then DEF_CMD_PARM_NAME
+    CmdParam cp;
+    auto nameNode = findChild(pt, Production::DEF_CMD_PARM_NAME);
+    cp.name = txt(nameNode);
+    auto typeNameNode = findChild(pt, Production::DEF_CMD_PARMTYPE_NAME);
+    auto typeVarNode = findChild(pt, Production::DEF_CMD_PARMTYPE_VAR);
+    if (typeVarNode) {
+        cp.isTypeVar = true;
+        auto c = down(typeVarNode); // TYPENAME (the T)
+        cp.typeVarName = txt(c);
+        auto inner = findChild(typeVarNode, Production::DEF_CMD_PARMTYPE_NAME);
+        if (inner) cp.type = buildTypeExpr(down(inner));
+    } else if (typeNameNode) {
+        cp.type = buildTypeExpr(down(typeNameNode));
+    }
+    return cp;
+}
+
+static CmdReceiver buildCmdReceiver(const spParseTree& pt) {
+    // DEF_CMD_RECEIVER: DEF_CMD_PARMTYPE_NAME + DEF_CMD_PARM_NAME
+    CmdReceiver cr;
+    auto typeNode = findChild(pt, Production::DEF_CMD_PARMTYPE_NAME);
+    if (typeNode) cr.type = buildTypeExpr(down(typeNode));
+    auto nameNode = findChild(pt, Production::DEF_CMD_PARM_NAME);
+    cr.name = txt(nameNode);
+    return cr;
+}
+
+static void parseNameSpec(const spParseTree& pt, std::string& name, FailMode& failMode) {
+    // DEF_CMD_NAME_SPEC: optional DEF_CMD_MAYFAIL or DEF_CMD_FAILS, then DEF_CMD_NAME
+    if      (findChild(pt, Production::DEF_CMD_MAYFAIL)) failMode = FailMode::MayFail;
+    else if (findChild(pt, Production::DEF_CMD_FAILS))   failMode = FailMode::Fails;
+    else                                                  failMode = FailMode::NoFail;
+    auto nm = findChild(pt, Production::DEF_CMD_NAME);
+    name = txt(nm);
+}
+
+static std::vector<CmdParam> buildParmList(const spParseTree& pt) {
+    std::vector<CmdParam> parms;
+    for (auto c = down(pt); c; c = nxt(c))
+        if (is(c, Production::DEF_CMD_PARM)) parms.push_back(buildCmdParm(c));
+    return parms;
+}
+
+static std::string getRetVal(const spParseTree& pt) {
+    auto rv = findChild(pt, Production::DEF_CMD_RETVAL);
+    if (!rv) return {};
+    auto id = down(rv); // IDENTIFIER group
+    return collectIdent(id);
+}
+
+static CmdSignature buildSignature(const spParseTree& pt) {
+    if (!pt) return RegularSig{};
+
+    if (is(pt, Production::DEF_CMD_REGULAR)) {
+        RegularSig rs;
+        auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
+        if (nameSpec) parseNameSpec(nameSpec, rs.name, rs.failMode);
+        auto parms = findChild(pt, Production::DEF_CMD_PARMS);
+        if (parms) {
+            rs.params = buildParmList(parms);
+            rs.returnVal = getRetVal(parms);
+        }
+        auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
+        if (imparms) rs.implicitParams = buildParmList(imparms);
+        return rs;
+    }
+    if (is(pt, Production::DEF_CMD_VCOMMAND)) {
+        VCommandSig vs;
+        auto recvs = findChild(pt, Production::DEF_CMD_RECEIVERS);
+        if (recvs) {
+            for (auto c = down(recvs); c; c = nxt(c))
+                if (is(c, Production::DEF_CMD_RECEIVER))
+                    vs.receivers.push_back(buildCmdReceiver(c));
+        }
+        auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
+        if (nameSpec) parseNameSpec(nameSpec, vs.name, vs.failMode);
+        auto parms = findChild(pt, Production::DEF_CMD_PARMS);
+        if (parms) vs.params = buildParmList(parms);
+        auto retval = findChild(pt, Production::DEF_CMD_RETVAL);
+        if (retval) vs.returnVal = collectIdent(down(retval));
+        auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
+        if (imparms) vs.implicitParams = buildParmList(imparms);
+        return vs;
+    }
+    if (is(pt, Production::DEF_CMD_CTOR)) {
+        ConstructorSig cs;
+        auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
+        if (recv) cs.receiver = buildCmdReceiver(recv);
+        for (auto c = down(pt); c; c = nxt(c))
+            if (is(c, Production::DEF_CMD_PARM)) cs.params.push_back(buildCmdParm(c));
+        return cs;
+    }
+    if (is(pt, Production::DEF_CMD_RECEIVER_ATSTACK)) {
+        DestructorSig ds;
+        auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
+        if (recv) ds.receiver = buildCmdReceiver(recv);
+        return ds;
+    }
+    if (is(pt, Production::DEF_CMD_RECEIVER_ATSTACK_FAIL)) {
+        FailHandlerSig fs;
+        auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
+        if (recv) fs.receiver = buildCmdReceiver(recv);
+        return fs;
+    }
+    return RegularSig{};
+}
+
+// ========================================================================
+// Top-level definition builders
+// ========================================================================
+
+// Find the first signature-kind child of a DEF_CMD/DEF_CMD_DECL/DEF_CMD_INTRINSIC node
+static spParseTree findSigChild(const spParseTree& pt) {
+    for (auto c = down(pt); c; c = nxt(c)) {
+        auto p = c->production;
+        if (p == Production::DEF_CMD_REGULAR || p == Production::DEF_CMD_VCOMMAND ||
+            p == Production::DEF_CMD_CTOR || p == Production::DEF_CMD_RECEIVER_ATSTACK ||
+            p == Production::DEF_CMD_RECEIVER_ATSTACK_FAIL)
+            return c;
+    }
+    return nullptr;
+}
+
+static TopLevelDef buildTopLevel(const spParseTree& pt) {
+    auto p = pt->production;
+
+    if (p == Production::DEF_ALIAS) {
+        AliasDecl ad;
+        ad.line = locL(pt); ad.col = locC(pt);
+        auto tn = findChild(pt, Production::TYPEDEF_NAME_Q);
+        if (tn) ad.name = collectTypeName(down(tn));
+        auto te = findChild(pt, Production::TYPE_EXPR);
+        if (te) ad.type = buildTypeExpr(te);
+        return ad;
+    }
+    if (p == Production::DEF_DOMAIN) {
+        DomainDecl dd;
+        dd.line = locL(pt); dd.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_DOMAIN_NAME);
+        if (nm) dd.name = collectTypeName(down(nm));
+        auto par = findChild(pt, Production::DEF_DOMAIN_PARENT);
+        if (par) {
+            auto tn = down(par);
+            if (tn && is(tn, Production::TYPENAME))  {
+                NamedType nt; nt.name = txt(tn);
+                nt.line = locL(tn); nt.col = locC(tn);
+                dd.parent = std::make_shared<TypeNode>(std::move(nt));
+            } else if (tn && is(tn, Production::DEF_DOMAIN_PARENT_RANGE)) {
+                RangeType rt; rt.line = locL(tn); rt.col = locC(tn);
+                auto sz = findChild(tn, Production::DEF_DOMAIN_PARENT_RANGE_SIZE);
+                if (sz) rt.size = txt(down(sz));
+                auto et = findChild(tn, Production::DEF_DOMAIN_PARENT_RANGE_TYPE);
+                if (et) {
+                    NamedType elem; elem.name = txt(down(et));
+                    elem.line = locL(et); elem.col = locC(et);
+                    rt.element = std::make_shared<TypeNode>(std::move(elem));
+                }
+                dd.parent = std::make_shared<TypeNode>(std::move(rt));
+            }
+        }
+        return dd;
+    }
+    if (p == Production::DEF_ENUM) {
+        EnumDecl ed;
+        ed.line = locL(pt); ed.col = locC(pt);
+        auto etn = findChild(pt, Production::DEF_ENUM_TYPENAME);
+        if (etn) ed.enumTypeName = txt(etn);
+        auto en = findChild(pt, Production::DEF_ENUM_NAME);
+        if (en) ed.enumName = txt(en);
+        // Items: pairs of DEF_ENUM_ITEM_NAME + LITERAL
+        auto kids = allChildren(pt);
+        for (size_t i = 0; i < kids.size(); ++i) {
+            if (is(kids[i], Production::DEF_ENUM_ITEM_NAME)) {
+                EnumItem item;
+                item.name = txt(kids[i]);
+                item.line = locL(kids[i]); item.col = locC(kids[i]);
+                // Next sibling should be a literal
+                if (i + 1 < kids.size()) item.value = txt(kids[i + 1]);
+                ed.items.push_back(std::move(item));
+            }
+        }
+        return ed;
+    }
+    if (p == Production::DEF_RECORD) {
+        RecordDecl rd;
+        rd.line = locL(pt); rd.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_RECORD_NAME);
+        if (nm) rd.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        auto flds = findChild(pt, Production::DEF_RECORD_FIELDS);
+        if (flds) rd.fields = buildRecordFields(flds);
+        return rd;
+    }
+    if (p == Production::DEF_OBJECT) {
+        ObjectDecl od;
+        od.line = locL(pt); od.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_OBJECT_NAME);
+        if (nm) od.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        auto flds = findChild(pt, Production::DEF_OBJECT_FIELDS);
+        if (flds) od.fields = buildObjectFields(flds);
+        return od;
+    }
+    if (p == Production::DEF_UNION) {
+        UnionDecl ud;
+        ud.line = locL(pt); ud.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_UNION_NAME);
+        if (nm) ud.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        auto cands = findChild(pt, Production::DEF_UNION_CANDIDATES);
+        if (cands) ud.candidates = buildUnionCandidates(cands);
+        return ud;
+    }
+    if (p == Production::DEF_VARIANT) {
+        VariantDecl vd;
+        vd.line = locL(pt); vd.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_VARIANT_NAME);
+        if (nm) vd.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        auto cands = findChild(pt, Production::DEF_VARIANT_CANDIDATES);
+        if (cands) vd.candidates = buildVariantCandidates(cands);
+        return vd;
+    }
+    if (p == Production::DEF_INSTANCE) {
+        InstanceDecl id;
+        id.line = locL(pt); id.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_INSTANCE_NAME);
+        if (nm) {
+            auto tdnq = findChild(nm, Production::TYPEDEF_NAME_Q);
+            if (tdnq) id.name = collectTypeName(down(tdnq));
+        }
+        auto types = findChild(pt, Production::DEF_INSTANCE_TYPES);
+        if (types) {
+            InstanceType cur;
+            for (auto c = down(types); c; c = nxt(c)) {
+                if (is(c, Production::TYPENAME)) {
+                    if (!cur.typeName.empty()) { id.types.push_back(std::move(cur)); cur = {}; }
+                    cur.typeName = txt(c);
+                    cur.line = locL(c); cur.col = locC(c);
+                } else if (is(c, Production::DEF_INSTANCE_DELEGATE)) {
+                    cur.delegate = collectIdent(down(c));
+                }
+            }
+            if (!cur.typeName.empty()) id.types.push_back(std::move(cur));
+        }
+        return id;
+    }
+    if (p == Production::DEF_CMD_DECL) {
+        CmdDecl cd;
+        cd.line = locL(pt); cd.col = locC(pt);
+        auto sig = findSigChild(pt);
+        if (sig) cd.signature = buildSignature(sig);
+        return cd;
+    }
+    if (p == Production::DEF_CMD_INTRINSIC) {
+        IntrinsicDecl intd;
+        intd.line = locL(pt); intd.col = locC(pt);
+        // Intrinsic always has DEF_CMD_REGULAR form (name_spec + parms + imparms as direct children)
+        RegularSig rs;
+        auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
+        if (nameSpec) parseNameSpec(nameSpec, rs.name, rs.failMode);
+        auto parms = findChild(pt, Production::DEF_CMD_PARMS);
+        if (parms) { rs.params = buildParmList(parms); rs.returnVal = getRetVal(parms); }
+        auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
+        if (imparms) rs.implicitParams = buildParmList(imparms);
+        intd.signature = std::move(rs);
+        return intd;
+    }
+    if (p == Production::DEF_CMD) {
+        CmdDef cd;
+        cd.line = locL(pt); cd.col = locC(pt);
+        auto sig = findSigChild(pt);
+        if (sig) cd.signature = buildSignature(sig);
+        auto body = findChild(pt, Production::DEF_CMD_BODY);
+        if (body) cd.body = buildCmdBody(body);
+        return cd;
+    }
+    if (p == Production::DEF_CLASS) {
+        ClassDecl cls;
+        cls.line = locL(pt); cls.col = locC(pt);
+        auto nm = findChild(pt, Production::DEF_CLASS_NAME);
+        if (nm) cls.name = txt(down(nm));
+        auto cmds = findChild(pt, Production::DEF_CLASS_CMDS);
+        if (cmds) {
+            for (auto c = down(cmds); c; c = nxt(c)) {
+                if (is(c, Production::DEF_CMD_DECL)) {
+                    CmdDecl cd; cd.line = locL(c); cd.col = locC(c);
+                    auto sig2 = findSigChild(c);
+                    if (sig2) cd.signature = buildSignature(sig2);
+                    cls.members.push_back(std::move(cd));
+                } else if (is(c, Production::DEF_CMD)) {
+                    CmdDef cdef; cdef.line = locL(c); cdef.col = locC(c);
+                    auto sig2 = findSigChild(c);
+                    if (sig2) cdef.signature = buildSignature(sig2);
+                    auto body = findChild(c, Production::DEF_CMD_BODY);
+                    if (body) cdef.body = buildCmdBody(body);
+                    cls.members.push_back(std::move(cdef));
+                }
+            }
+        }
+        return cls;
+    }
+    if (p == Production::DEF_PROGRAM) {
+        ProgramDecl pd;
+        pd.line = locL(pt); pd.col = locC(pt);
+        auto inv = down(pt); // first child is CALL_INVOKE result
+        if (inv) pd.entryPoint = buildInvokeExpr(inv);
+        return pd;
+    }
+    if (p == Production::DEF_TEST) {
+        TestDecl td;
+        td.line = locL(pt); td.col = locC(pt);
+        auto str = findChild(pt, Production::STRING);
+        if (str) td.label = txt(str);
+        auto cg = findChild(pt, Production::CALL_GROUP);
+        if (cg) td.body = buildCallGroup(cg);
+        return td;
+    }
+    // Fallback: return an empty alias
+    return AliasDecl{};
+}
+
+// ========================================================================
+// Entry point
+// ========================================================================
+
+std::shared_ptr<CompilationUnit> buildAst(const spParseTree& pt) {
+    if (!pt || !is(pt, Production::COMPILATION_UNIT))
+        return nullptr;
+
+    auto cu = std::make_shared<CompilationUnit>();
+    cu->line = locL(pt); cu->col = locC(pt);
+
+    for (auto c = down(pt); c; c = nxt(c)) {
+        auto p = c->production;
+
+        if (p == Production::DEF_MODULE) {
+            auto mod = std::make_shared<ModuleDecl>();
+            mod->line = locL(c); mod->col = locC(c);
+            auto mn = findChild(c, Production::DEF_MODULE_NAME);
+            if (mn) mod->name = collectTypeName(down(mn));
+            cu->module = mod;
+            continue;
+        }
+        if (p == Production::DEF_IMPORT) {
+            auto imp = std::make_shared<ImportDecl>();
+            imp->line = locL(c); imp->col = locC(c);
+            auto file = findChild(c, Production::DEF_IMPORT_FILE);
+            auto std_ = findChild(c, Production::DEF_IMPORT_STANDARD);
+            if (file) {
+                imp->kind = ImportDecl::Kind::File;
+                auto fn = findChild(file, Production::DEF_IMPORT_FILENAME);
+                if (fn) imp->path = txt(fn);
+                auto al = findChild(file, Production::DEF_IMPORT_ALIAS);
+                if (al) imp->alias = collectTypeName(down(al));
+            } else if (std_) {
+                imp->kind = ImportDecl::Kind::Standard;
+                // Name: the TYPENAME child (not the alias)
+                for (auto sc = down(std_); sc; sc = nxt(sc)) {
+                    if (is(sc, Production::DEF_IMPORT_ALIAS))
+                        imp->alias = collectTypeName(down(sc));
+                    else if (is(sc, Production::TYPENAME))
+                        imp->name = txt(sc);
+                }
+            }
+            cu->imports.push_back(imp);
+            continue;
+        }
+        // All other top-level definitions
+        cu->definitions.push_back(buildTopLevel(c));
+    }
+
+    return cu;
+}
+
+} // namespace basis

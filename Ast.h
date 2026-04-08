@@ -3,426 +3,799 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 #include <cstddef>
-/*
+
 namespace basis {
 
-// Forward declarations of all concrete node types
-struct CompilationUnit;
-struct ModuleDecl;
-struct ImportDecl;
-struct TypeExpr;
-struct AliasDecl;
-struct DomainDecl;
-struct EnumDecl;
-struct EnumItem;
-struct FieldDecl;
-struct RecordDecl;
-struct ObjectDecl;
-struct InstanceType;
-struct InstanceDecl;
-struct CmdDecl;
-struct CmdDef;
-struct IntrinsicDecl;
-struct ClassDecl;
-struct ProgramDecl;
-struct TestDecl;
-struct CmdBody;
-struct CallGroup;
-struct CallInvoke;
-struct CallAssignment;
-struct CallExpression;
-struct Block;
-struct Literal;
-struct IdentifierExpr;
-struct SubcallExpr;
-struct CallQuote;
-struct CmdLiteral;
-struct CallParameter;
+// ========================================================================
+// Forward declarations of variant wrapper types
+// ========================================================================
+struct TypeNode;
+struct ExprNode;
 
-// ---- Visitor interface ----
-struct Visitor {
-    virtual ~Visitor() = default;
-    virtual void visit(CompilationUnit&) = 0;
-    virtual void visit(ModuleDecl&)      = 0;
-    virtual void visit(ImportDecl&)      = 0;
-    virtual void visit(TypeExpr&)        = 0;
-    virtual void visit(AliasDecl&)       = 0;
-    virtual void visit(DomainDecl&)      = 0;
-    virtual void visit(EnumDecl&)        = 0;
-    virtual void visit(EnumItem&)        = 0;
-    virtual void visit(FieldDecl&)       = 0;
-    virtual void visit(RecordDecl&)      = 0;
-    virtual void visit(ObjectDecl&)      = 0;
-    virtual void visit(InstanceType&)    = 0;
-    virtual void visit(InstanceDecl&)    = 0;
-    virtual void visit(CmdDecl&)         = 0;
-    virtual void visit(CmdDef&)          = 0;
-    virtual void visit(IntrinsicDecl&)   = 0;
-    virtual void visit(ClassDecl&)       = 0;
-    virtual void visit(ProgramDecl&)     = 0;
-    virtual void visit(TestDecl&)        = 0;
-    virtual void visit(CmdBody&)         = 0;
-    virtual void visit(CallGroup&)       = 0;
-    virtual void visit(CallInvoke&)      = 0;
-    virtual void visit(CallAssignment&)  = 0;
-    virtual void visit(CallExpression&)  = 0;
-    virtual void visit(Block&)           = 0;
-    virtual void visit(Literal&)         = 0;
-    virtual void visit(IdentifierExpr&)  = 0;
-    virtual void visit(SubcallExpr&)     = 0;
-    virtual void visit(CallQuote&)       = 0;
-    virtual void visit(CmdLiteral&)      = 0;
-    virtual void visit(CallParameter&)   = 0;
-};
+using TypeNodePtr = std::shared_ptr<TypeNode>;
+using ExprNodePtr = std::shared_ptr<ExprNode>;
 
-// ---- Base node ----
-struct AstNode {
-    size_t line = 0;
-    size_t col  = 0;
-    virtual ~AstNode() = default;
-    virtual void accept(Visitor&) = 0;
-};
-using spAstNode = std::shared_ptr<AstNode>;
-
-// ---- TypeExpr ----
-// Covers TYPE_EXPR, TYPE_EXPR_DOMAIN, TYPE_EXPR_CMD, TYPE_EXPR_PTR, TYPE_EXPR_RANGE,
-// TYPE_NAME_Q, TYPEDEF_NAME_Q and their argument/parameter sub-productions.
-struct TypeExpr : AstNode {
-    enum class Kind    { Named, Pointer, Range, Command, Domain };
-    enum class CmdKind { NoFail, MayFail, Fails };
-
-    Kind    kind    = Kind::Named;
-    CmdKind cmdKind = CmdKind::NoFail;
-
-    std::string                          typeName;   // for Named/Domain: qualified text
-    std::vector<std::shared_ptr<TypeExpr>> typeArgs; // type arguments / parameters
-    int                                  ptrDepth = 0;
-    std::shared_ptr<TypeExpr>            inner;      // Pointer inner type / Range element
-    std::string                          rangeSize;  // empty = unbounded
-    std::vector<std::shared_ptr<TypeExpr>> cmdArgs;  // Command arg types
-    bool                                 writeable = false;
-
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Module / Import ----
-struct ModuleDecl : AstNode {
-    std::string name;   // qualified typename text
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-struct ImportDecl : AstNode {
-    enum class Kind { File, Standard };
-    Kind        kind      = Kind::Standard;
-    std::string path;       // file path string literal (Kind::File)
-    std::string qualifier;  // optional prefix e.g. "Std" in "Std:Core" (Kind::Standard)
-    std::string name;       // module name (Kind::Standard)
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Enum ----
-struct EnumItem : AstNode {
+// ========================================================================
+// Small helper / child structs (not in any variant themselves)
+// ========================================================================
+struct EnumItem {
     std::string name;
     std::string value;   // literal text
-    void accept(Visitor& v) override { v.visit(*this); }
+    size_t line = 0, col = 0;
 };
 
-struct EnumDecl : AstNode {
-    std::string enumName;
-    std::string typeName;   // optional second typename (empty if absent)
-    std::vector<std::shared_ptr<EnumItem>> items;
-    void accept(Visitor& v) override { v.visit(*this); }
+struct FieldDecl {
+    TypeNodePtr type;
+    std::string name;
+    size_t line = 0, col = 0;
 };
 
-// ---- Record / Object fields (shared FieldDecl) ----
-struct FieldDecl : AstNode {
-    std::shared_ptr<TypeExpr> type;
-    std::string               name;
-    void accept(Visitor& v) override { v.visit(*this); }
+struct UnionCandidate {
+    TypeNodePtr domain;
+    std::string name;
+    size_t line = 0, col = 0;
 };
 
-struct RecordDecl : AstNode {
-    std::string                             name;
-    std::vector<std::shared_ptr<FieldDecl>> fields;
-    void accept(Visitor& v) override { v.visit(*this); }
+struct VariantCandidate {
+    TypeNodePtr type;
+    std::string name;
+    size_t line = 0, col = 0;
 };
 
-struct ObjectDecl : AstNode {
-    std::string                             name;
-    std::vector<std::shared_ptr<FieldDecl>> fields;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Instance ----
-struct InstanceType : AstNode {
+struct InstanceType {
     std::string typeName;
     std::string delegate;   // identifier inside (...), empty if absent
-    void accept(Visitor& v) override { v.visit(*this); }
+    size_t line = 0, col = 0;
 };
 
-struct InstanceDecl : AstNode {
-    std::string                                name;
-    std::vector<std::shared_ptr<InstanceType>> types;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Alias / Domain ----
-struct AliasDecl : AstNode {
-    std::string               name;
-    std::shared_ptr<TypeExpr> type;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-struct DomainDecl : AstNode {
-    std::string               name;
-    std::shared_ptr<TypeExpr> parent;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Command parameters / receivers / signature (plain structs, not nodes) ----
 struct CmdParam {
-    std::shared_ptr<TypeExpr> type;
-    std::string               name;
-    bool                      isTypeVar   = false;
-    std::string               typeVarName;   // the T in (T : SomeType)
+    TypeNodePtr type;
+    std::string name;
+    bool        isTypeVar   = false;
+    std::string typeVarName;   // the T in (T : SomeType)
 };
 
 struct CmdReceiver {
-    std::shared_ptr<TypeExpr> type;
-    std::string               name;
+    TypeNodePtr type;
+    std::string name;
 };
 
-struct CmdSignature {
-    enum class Kind { Regular, VCommand, Constructor, Destructor, FailHandler };
-    Kind                     kind    = Kind::Regular;
+struct CallParam {
+    bool        isEmpty = false;
+    ExprNodePtr expr;   // null when isEmpty
+    size_t line = 0, col = 0;
+};
+
+struct SuffixOp {
+    enum class Kind { Deref, Index, Addr };
+    Kind        kind = Kind::Deref;
+    ExprNodePtr indexLoc;   // Index: location expression
+    ExprNodePtr indexExt;   // Index: optional extent expression
+};
+
+// ========================================================================
+// TypeNode alternatives
+// ========================================================================
+struct NamedType {
     std::string              name;
-    bool                     mayFail = false;
-    bool                     fails   = false;
+    std::vector<TypeNodePtr> typeArgs;
+    bool                     writeable = false;
+    size_t line = 0, col = 0;
+};
+
+struct PtrType {
+    int         depth = 1;
+    TypeNodePtr inner;
+    size_t line = 0, col = 0;
+};
+
+struct RangeType {
+    std::string size;       // empty = unbounded
+    TypeNodePtr element;    // optional element type
+    size_t line = 0, col = 0;
+};
+
+struct CmdTypeArg {
+    TypeNodePtr type;
+    bool        writeable = false;
+};
+
+struct CmdType {
+    enum class Kind { NoFail, MayFail, Fails };
+    Kind                     kind = Kind::NoFail;
+    std::vector<CmdTypeArg>  args;
+    size_t line = 0, col = 0;
+};
+
+struct InlineRecordType {
+    std::string              scopeName;   // optional
+    std::vector<FieldDecl>   fields;
+    size_t line = 0, col = 0;
+};
+
+struct InlineObjectType {
+    std::string              scopeName;
+    std::vector<FieldDecl>   fields;
+    size_t line = 0, col = 0;
+};
+
+struct InlineUnionType {
+    std::string                  scopeName;
+    std::vector<UnionCandidate>  candidates;
+    size_t line = 0, col = 0;
+};
+
+struct InlineVariantType {
+    std::string                    scopeName;
+    std::vector<VariantCandidate>  candidates;
+    size_t line = 0, col = 0;
+};
+
+// ---- TypeNode wrapper ----
+struct TypeNode {
+    using Variant = std::variant<
+        NamedType, PtrType, RangeType, CmdType,
+        InlineRecordType, InlineObjectType, InlineUnionType, InlineVariantType>;
+    Variant v;
+    template<typename T> TypeNode(T&& alt) : v(std::forward<T>(alt)) {}
+};
+
+// ========================================================================
+// ExprNode alternatives
+// ========================================================================
+struct LiteralExpr {
+    std::string text;
+    size_t line = 0, col = 0;
+};
+
+struct IdentifierExpr {
+    std::string text;
+    bool        isAlloc = false;   // true when prefixed with #
+    size_t line = 0, col = 0;
+};
+
+struct EnumDerefExpr {
+    std::string typeName;
+    std::string memberName;
+    size_t line = 0, col = 0;
+};
+
+struct CallCommandExpr {
+    ExprNodePtr                target;    // IdentifierExpr or QuoteExpr
+    std::vector<CallParam>     params;
+    size_t line = 0, col = 0;
+};
+
+struct CallConstructorExpr {
+    TypeNodePtr                typeName;
+    std::vector<CallParam>     params;
+    size_t line = 0, col = 0;
+};
+
+struct CallVCommandExpr {
+    std::vector<std::string>   receivers;
+    std::string                name;
+    std::vector<CallParam>     params;
+    size_t line = 0, col = 0;
+};
+
+struct CallFailExpr {
+    ExprNodePtr expr;
+    size_t line = 0, col = 0;
+};
+
+struct SuffixExpr {
+    ExprNodePtr            base;
+    std::vector<SuffixOp>  suffixes;
+    size_t line = 0, col = 0;
+};
+
+struct BinaryExpr {
+    struct OpTerm {
+        std::string op;
+        ExprNodePtr term;
+    };
+    ExprNodePtr          first;
+    std::vector<OpTerm>  rest;
+    size_t line = 0, col = 0;
+};
+
+// Forward-declare CallGroup so QuoteExpr / CmdLiteralExpr can reference it
+struct CallGroup;
+
+struct QuoteExpr {
+    enum class Kind { Subquote, BlockNoFail, BlockMayFail, BlockFail };
+    Kind                         kind = Kind::Subquote;
+    ExprNodePtr                  invoke;   // Subquote: optional invoke
+    std::shared_ptr<CallGroup>   group;    // Block quotes: body group
+    size_t line = 0, col = 0;
+};
+
+struct CmdLiteralExpr {
+    enum class Kind { NoFail, MayFail, MustFail };
+    Kind                         kind = Kind::NoFail;
+    std::vector<CmdParam>        params;
+    std::shared_ptr<CallGroup>   body;
+    size_t line = 0, col = 0;
+};
+
+// ---- ExprNode wrapper ----
+struct ExprNode {
+    using Variant = std::variant<
+        LiteralExpr, IdentifierExpr, EnumDerefExpr,
+        CallCommandExpr, CallConstructorExpr, CallVCommandExpr, CallFailExpr,
+        SuffixExpr, BinaryExpr, QuoteExpr, CmdLiteralExpr>;
+    Variant v;
+    template<typename T> ExprNode(T&& alt) : v(std::forward<T>(alt)) {}
+};
+
+// ========================================================================
+// Statement-level types
+// ========================================================================
+struct AssignStat {
+    ExprNodePtr target;   // IdentifierExpr (possibly alloc)
+    ExprNodePtr value;    // the RHS subcall expression
+    size_t line = 0, col = 0;
+};
+
+struct ExprStat {
+    ExprNodePtr expr;     // wraps a BinaryExpr or single-term expression
+    size_t line = 0, col = 0;
+};
+
+struct Block {
+    enum class Kind {
+        DoWhen, DoWhenMulti, DoWhenFail, DoWhenSelect,
+        DoElse, DoBlock, DoRewind,
+        DoRecover, DoRecoverSpec,
+        DoOnExit, DoOnExitFail
+    };
+    Kind                         kind = Kind::DoBlock;
+    // DoRecoverSpec fields
+    TypeNodePtr                  recoverType;   // optional TYPE_NAME_Q
+    std::string                  recoverIdent;  // bound identifier
+    ExprNodePtr                  recoverExpr;   // or CALL_EXPR_TERM fallback
+    std::shared_ptr<CallGroup>   body;
+    size_t line = 0, col = 0;
+};
+
+// StatNode: one element of a CallGroup
+struct StatNode {
+    using Variant = std::variant<AssignStat, ExprStat, Block>;
+    Variant v;
+    template<typename T> StatNode(T&& alt) : v(std::forward<T>(alt)) {}
+};
+
+// CALL_GROUP: sequence of statements
+struct CallGroup {
+    std::vector<StatNode> statements;
+    size_t line = 0, col = 0;
+};
+
+// DEF_CMD_BODY: = _ | = CALL_GROUP
+struct CmdBody {
+    bool                       isEmpty = false;
+    std::shared_ptr<CallGroup> group;   // null when isEmpty
+    size_t line = 0, col = 0;
+};
+
+// ========================================================================
+// Command signature alternatives
+// ========================================================================
+enum class FailMode { NoFail, MayFail, Fails };
+
+struct RegularSig {
+    std::string            name;
+    FailMode               failMode = FailMode::NoFail;
+    std::vector<CmdParam>  params;
+    std::vector<CmdParam>  implicitParams;
+    std::string            returnVal;
+};
+
+struct VCommandSig {
     std::vector<CmdReceiver> receivers;
+    std::string              name;
+    FailMode                 failMode = FailMode::NoFail;
     std::vector<CmdParam>    params;
     std::vector<CmdParam>    implicitParams;
     std::string              returnVal;
 };
 
-// ---- Command declarations / definitions ----
-struct CmdDecl : AstNode {
-    CmdSignature signature;
-    void accept(Visitor& v) override { v.visit(*this); }
+struct ConstructorSig {
+    CmdReceiver            receiver;
+    std::vector<CmdParam>  params;
 };
 
-struct IntrinsicDecl : AstNode {
-    CmdSignature signature;
-    void accept(Visitor& v) override { v.visit(*this); }
+struct DestructorSig {
+    CmdReceiver receiver;
 };
 
-// Forward-declared here; defined below after statement nodes.
-struct CmdBody;
+struct FailHandlerSig {
+    CmdReceiver receiver;
+};
 
-struct CmdDef : AstNode {
+using CmdSignature = std::variant<
+    RegularSig, VCommandSig, ConstructorSig, DestructorSig, FailHandlerSig>;
+
+// ========================================================================
+// Top-level declaration types
+// ========================================================================
+struct ModuleDecl {
+    std::string name;
+    size_t line = 0, col = 0;
+};
+
+struct ImportDecl {
+    enum class Kind { File, Standard };
+    Kind        kind      = Kind::Standard;
+    std::string path;
+    std::string alias;
+    std::string name;
+    size_t line = 0, col = 0;
+};
+
+struct AliasDecl {
+    std::string name;
+    TypeNodePtr type;
+    size_t line = 0, col = 0;
+};
+
+struct DomainDecl {
+    std::string name;
+    TypeNodePtr parent;
+    size_t line = 0, col = 0;
+};
+
+struct EnumDecl {
+    std::string            enumTypeName;   // optional constraining typename
+    std::string            enumName;
+    std::vector<EnumItem>  items;
+    size_t line = 0, col = 0;
+};
+
+struct RecordDecl {
+    std::string            name;
+    std::vector<FieldDecl> fields;
+    size_t line = 0, col = 0;
+};
+
+struct ObjectDecl {
+    std::string            name;
+    std::vector<FieldDecl> fields;
+    size_t line = 0, col = 0;
+};
+
+struct UnionDecl {
+    std::string                  name;
+    std::vector<UnionCandidate>  candidates;
+    size_t line = 0, col = 0;
+};
+
+struct VariantDecl {
+    std::string                    name;
+    std::vector<VariantCandidate>  candidates;
+    size_t line = 0, col = 0;
+};
+
+struct InstanceDecl {
+    std::string                  name;
+    std::vector<InstanceType>    types;
+    size_t line = 0, col = 0;
+};
+
+struct CmdDecl {
+    CmdSignature signature;
+    size_t line = 0, col = 0;
+};
+
+struct IntrinsicDecl {
+    CmdSignature signature;
+    size_t line = 0, col = 0;
+};
+
+struct CmdDef {
     CmdSignature              signature;
-    std::shared_ptr<CmdBody>  body;   // nullptr when body is DEF_CMD_EMPTY (_)
-    void accept(Visitor& v) override { v.visit(*this); }
+    std::shared_ptr<CmdBody>  body;
+    size_t line = 0, col = 0;
 };
 
-// ---- Class ----
-struct ClassDecl : AstNode {
-    std::string              name;
-    std::vector<spAstNode>   members;   // CmdDecl or CmdDef nodes
-    void accept(Visitor& v) override { v.visit(*this); }
+// ClassMember variant
+using ClassMember = std::variant<CmdDecl, CmdDef>;
+
+struct ClassDecl {
+    std::string                name;
+    std::vector<ClassMember>   members;
+    size_t line = 0, col = 0;
 };
 
-// ---- Program / Test ----
-struct ProgramDecl : AstNode {
-    spAstNode entryPoint;   // CallInvoke node
-    void accept(Visitor& v) override { v.visit(*this); }
+struct ProgramDecl {
+    ExprNodePtr entryPoint;   // a call invoke expression
+    size_t line = 0, col = 0;
 };
 
-struct TestDecl : AstNode {
-    std::string label;
-    spAstNode   body;   // CallGroup node
-    void accept(Visitor& v) override { v.visit(*this); }
+struct TestDecl {
+    std::string                label;
+    std::shared_ptr<CallGroup> body;
+    size_t line = 0, col = 0;
 };
 
-// ---- Statement / expression nodes ----
+// TopLevelDef variant
+using TopLevelDef = std::variant<
+    AliasDecl, DomainDecl, EnumDecl, RecordDecl, ObjectDecl,
+    UnionDecl, VariantDecl, InstanceDecl,
+    CmdDecl, IntrinsicDecl, CmdDef, ClassDecl,
+    ProgramDecl, TestDecl>;
 
-// Literal covers DECIMAL, HEXNUMBER, BINARY, NUMBER, STRING
-struct Literal : AstNode {
-    std::string text;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// Covers IDENTIFIER (possibly qualified) and ALLOC_IDENTIFIER (#ident)
-struct IdentifierExpr : AstNode {
-    std::string text;
-    bool        isAlloc = false;   // true when prefixed with #
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_PARAMETER: either empty (_) or an expression
-struct CallParameter : AstNode {
-    bool      isEmpty = false;
-    spAstNode expr;   // SubcallExpr or IdentifierExpr; null when isEmpty
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_INVOKE: vcommand, constructor, or regular command call
-struct CallInvoke : AstNode {
-    enum class Kind { Command, Constructor, VCommand };
-    Kind                               kind = Kind::Command;
-    std::string                        target;     // command name / type name
-    std::string                        subquote;   // non-empty when target is a subquote
-    std::vector<std::string>           receivers;  // VCommand receiver identifiers
-    std::vector<std::shared_ptr<CallParameter>> params;
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_ASSIGNMENT: target <- expr [| expr]* [op rhs]*
-struct CallAssignment : AstNode {
-    std::shared_ptr<IdentifierExpr>    target;
-    std::vector<spAstNode>             exprs;    // SubcallExpr chain (pipe-separated)
-    std::vector<std::pair<std::string, spAstNode>> postOps; // operator + rhs
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_EXPRESSION: term op term [op term]*  (requires at least one operator)
-struct CallExpression : AstNode {
-    std::vector<spAstNode>   terms;     // alternating: term, op-as-IdentifierExpr, term ...
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// SUBCALL_EXPRESSION: optional-operator expression used inside assignments/params
-struct SubcallExpr : AstNode {
-    std::vector<spAstNode>   terms;     // same layout as CallExpression
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_QUOTE / block quotes
-struct CallQuote : AstNode {
-    enum class Kind { Subquote, NoFail, MayFail, Fails };
-    Kind      kind = Kind::Subquote;
-    spAstNode body;   // CallInvoke (subquote) or CallGroup (block); null if empty
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_CMD_LITERAL: inline command lambda  :<  ?<  !<
-struct CmdLiteral : AstNode {
-    TypeExpr::CmdKind            cmdKind = TypeExpr::CmdKind::NoFail;
-    std::vector<CmdParam>        params;
-    spAstNode                    body;   // CallGroup
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// BLOCK: BLOCK_HEADER + CALL_GROUP
-struct Block : AstNode {
-    enum class Kind {
-        DoWhen, DoWhenMulti, DoWhenFail, DoElse, DoUnless,
-        DoBlock, DoRewind, DoRecover, DoRecoverSpec,
-        OnExit, OnExitFail
-    };
-    Kind        kind = Kind::DoBlock;
-    std::string recoverType;   // DoRecoverSpec: type name
-    std::string recoverName;   // DoRecoverSpec: bound identifier
-    spAstNode   body;          // CallGroup
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// CALL_GROUP: sequence of statements
-struct CallGroup : AstNode {
-    std::vector<spAstNode> statements;   // CallAssignment | CallExpression | CallInvoke | Block
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// DEF_CMD_BODY: = _ | = CALL_GROUP
-struct CmdBody : AstNode {
-    bool                      isEmpty = false;
-    std::shared_ptr<CallGroup> group;   // null when isEmpty
-    void accept(Visitor& v) override { v.visit(*this); }
-};
-
-// ---- Top-level compilation unit ----
-struct CompilationUnit : AstNode {
-    std::shared_ptr<ModuleDecl>              module;       // nullable
+// ========================================================================
+// Compilation unit (root)
+// ========================================================================
+struct CompilationUnit {
+    std::shared_ptr<ModuleDecl>              module;
     std::vector<std::shared_ptr<ImportDecl>> imports;
-    std::vector<spAstNode>                   definitions;  // any top-level Decl node
-    void accept(Visitor& v) override { v.visit(*this); }
+    std::vector<TopLevelDef>                 definitions;
+    size_t line = 0, col = 0;
 };
 
-// ---- DefaultVisitor: walks the tree by default ----
-// Placed after all node definitions so inline method bodies can reference member fields.
-struct DefaultVisitor : Visitor {
-    // Leaf nodes (no AstNode children)
-    void visit(ModuleDecl&)      override {}
-    void visit(ImportDecl&)      override {}
-    void visit(EnumItem&)        override {}
-    void visit(InstanceType&)    override {}
-    void visit(Literal&)         override {}
-    void visit(IdentifierExpr&)  override {}
+// ========================================================================
+// Traverser base class
+// ========================================================================
+struct Traverser {
+    virtual ~Traverser() = default;
 
-    // Nodes whose only AstNode children are TypeExprs
-    void visit(TypeExpr& n) override {
-        if (n.inner) n.inner->accept(*this);
-        for (auto& a : n.typeArgs) a->accept(*this);
-        for (auto& a : n.cmdArgs)  a->accept(*this);
+    // ---- virtual visit hooks (override in subclasses) ----
+    virtual void visit(CompilationUnit&) {}
+    virtual void visit(ModuleDecl&)      {}
+    virtual void visit(ImportDecl&)      {}
+    // type nodes
+    virtual void visit(NamedType&)         {}
+    virtual void visit(PtrType&)           {}
+    virtual void visit(RangeType&)         {}
+    virtual void visit(CmdType&)           {}
+    virtual void visit(InlineRecordType&)  {}
+    virtual void visit(InlineObjectType&)  {}
+    virtual void visit(InlineUnionType&)   {}
+    virtual void visit(InlineVariantType&) {}
+    // expression nodes
+    virtual void visit(LiteralExpr&)         {}
+    virtual void visit(IdentifierExpr&)      {}
+    virtual void visit(EnumDerefExpr&)       {}
+    virtual void visit(CallCommandExpr&)     {}
+    virtual void visit(CallConstructorExpr&) {}
+    virtual void visit(CallVCommandExpr&)    {}
+    virtual void visit(CallFailExpr&)        {}
+    virtual void visit(SuffixExpr&)          {}
+    virtual void visit(BinaryExpr&)          {}
+    virtual void visit(QuoteExpr&)           {}
+    virtual void visit(CmdLiteralExpr&)      {}
+    // statement nodes
+    virtual void visit(AssignStat&)  {}
+    virtual void visit(ExprStat&)    {}
+    virtual void visit(Block&)       {}
+    // structure nodes
+    virtual void visit(CallGroup&)   {}
+    virtual void visit(CmdBody&)     {}
+    // declaration nodes
+    virtual void visit(AliasDecl&)     {}
+    virtual void visit(DomainDecl&)    {}
+    virtual void visit(EnumDecl&)      {}
+    virtual void visit(RecordDecl&)    {}
+    virtual void visit(ObjectDecl&)    {}
+    virtual void visit(UnionDecl&)     {}
+    virtual void visit(VariantDecl&)   {}
+    virtual void visit(InstanceDecl&)  {}
+    virtual void visit(CmdDecl&)       {}
+    virtual void visit(IntrinsicDecl&) {}
+    virtual void visit(CmdDef&)        {}
+    virtual void visit(ClassDecl&)     {}
+    virtual void visit(ProgramDecl&)   {}
+    virtual void visit(TestDecl&)      {}
+    // signature nodes
+    virtual void visit(RegularSig&)     {}
+    virtual void visit(VCommandSig&)    {}
+    virtual void visit(ConstructorSig&) {}
+    virtual void visit(DestructorSig&)  {}
+    virtual void visit(FailHandlerSig&) {}
+
+    // ---- virtual revisit hooks: called after child traversal (override in subclasses) ----
+    virtual void revisit(CompilationUnit&) {}
+    // type nodes
+    virtual void revisit(NamedType&)         {}
+    virtual void revisit(PtrType&)           {}
+    virtual void revisit(RangeType&)         {}
+    virtual void revisit(CmdType&)           {}
+    virtual void revisit(InlineRecordType&)  {}
+    virtual void revisit(InlineObjectType&)  {}
+    virtual void revisit(InlineUnionType&)   {}
+    virtual void revisit(InlineVariantType&) {}
+    // expression nodes
+    virtual void revisit(CallCommandExpr&)     {}
+    virtual void revisit(CallConstructorExpr&) {}
+    virtual void revisit(CallVCommandExpr&)    {}
+    virtual void revisit(CallFailExpr&)        {}
+    virtual void revisit(SuffixExpr&)          {}
+    virtual void revisit(BinaryExpr&)          {}
+    virtual void revisit(QuoteExpr&)           {}
+    virtual void revisit(CmdLiteralExpr&)      {}
+    // statement nodes
+    virtual void revisit(AssignStat&)  {}
+    virtual void revisit(ExprStat&)    {}
+    virtual void revisit(Block&)       {}
+    // structure nodes
+    virtual void revisit(CallGroup&)   {}
+    virtual void revisit(CmdBody&)     {}
+    // declaration nodes
+    virtual void revisit(AliasDecl&)     {}
+    virtual void revisit(DomainDecl&)    {}
+    virtual void revisit(RecordDecl&)    {}
+    virtual void revisit(ObjectDecl&)    {}
+    virtual void revisit(UnionDecl&)     {}
+    virtual void revisit(VariantDecl&)   {}
+    virtual void revisit(CmdDecl&)       {}
+    virtual void revisit(IntrinsicDecl&) {}
+    virtual void revisit(CmdDef&)        {}
+    virtual void revisit(ClassDecl&)     {}
+    virtual void revisit(ProgramDecl&)   {}
+    virtual void revisit(TestDecl&)      {}
+    // signature nodes
+    virtual void revisit(RegularSig&)     {}
+    virtual void revisit(VCommandSig&)    {}
+    virtual void revisit(ConstructorSig&) {}
+    virtual void revisit(DestructorSig&)  {}
+    virtual void revisit(FailHandlerSig&) {}
+
+
+    // ---- non-virtual traverse: encode child walking ----
+    // variant dispatchers
+    void traverse(TypeNode& n)    { std::visit([this](auto& a){ traverse(a); }, n.v); }
+    void traverse(ExprNode& n)    { std::visit([this](auto& a){ traverse(a); }, n.v); }
+    void traverse(StatNode& n)    { std::visit([this](auto& a){ traverse(a); }, n.v); }
+    void traverse(CmdSignature& s){ std::visit([this](auto& a){ traverse(a); }, s); }
+    void traverse(TopLevelDef& d) { std::visit([this](auto& a){ traverse(a); }, d); }
+    void traverse(ClassMember& m) { std::visit([this](auto& a){ traverse(a); }, m); }
+
+    // pointer helpers
+    void traverse(TypeNodePtr& p) { if (p) traverse(*p); }
+    void traverse(ExprNodePtr& p) { if (p) traverse(*p); }
+
+    // ---- per-type traverse methods ----
+    void traverse(CompilationUnit& n) {
+        visit(n);
+        if (n.module) traverse(*n.module);
+        for (auto& i : n.imports) if (i) traverse(*i);
+        for (auto& d : n.definitions) traverse(d);
+        revisit(n);
     }
-    void visit(FieldDecl& n)  override { if (n.type) n.type->accept(*this); }
-    void visit(AliasDecl& n)  override { if (n.type) n.type->accept(*this); }
-    void visit(DomainDecl& n) override { if (n.parent) n.parent->accept(*this); }
+    void traverse(ModuleDecl& n)  { visit(n); }
+    void traverse(ImportDecl& n)  { visit(n); }
 
-    // Nodes with list children
-    void visit(EnumDecl& n)     override { for (auto& i : n.items)      i->accept(*this); }
-    void visit(RecordDecl& n)   override { for (auto& f : n.fields)     f->accept(*this); }
-    void visit(ObjectDecl& n)   override { for (auto& f : n.fields)     f->accept(*this); }
-    void visit(InstanceDecl& n) override { for (auto& t : n.types)      t->accept(*this); }
-    void visit(ClassDecl& n)    override { for (auto& m : n.members)    m->accept(*this); }
-    void visit(CallGroup& n)    override { for (auto& s : n.statements) s->accept(*this); }
-
-    // Command declarations: walk TypeExprs in signature receivers/params/implicitParams
-    void visit(CmdDecl& n)       override { visitSignature(*this, n.signature); }
-    void visit(IntrinsicDecl& n) override { visitSignature(*this, n.signature); }
-    void visit(CmdDef& n)        override {
-        visitSignature(*this, n.signature);
-        if (n.body) n.body->accept(*this);
+    // type nodes
+    void traverse(NamedType& n) {
+        visit(n);
+        for (auto& a : n.typeArgs) traverse(a);
+        revisit(n);
+    }
+    void traverse(PtrType& n) {
+        visit(n);
+        traverse(n.inner);
+        revisit(n);
+    }
+    void traverse(RangeType& n) {
+        visit(n);
+        traverse(n.element);
+        revisit(n);
+    }
+    void traverse(CmdType& n) {
+        visit(n);
+        for (auto& a : n.args) traverse(a.type);
+        revisit(n);
+    }
+    void traverse(InlineRecordType& n) {
+        visit(n);
+        for (auto& f : n.fields) traverse(f.type);
+        revisit(n);
+    }
+    void traverse(InlineObjectType& n) {
+        visit(n);
+        for (auto& f : n.fields) traverse(f.type);
+        revisit(n);
+    }
+    void traverse(InlineUnionType& n) {
+        visit(n);
+        for (auto& c : n.candidates) traverse(c.domain);
+        revisit(n);
+    }
+    void traverse(InlineVariantType& n) {
+        visit(n);
+        for (auto& c : n.candidates) traverse(c.type);
+        revisit(n);
     }
 
-    // Nodes with a single body child
-    void visit(CmdBody& n)       override { if (n.group)       n.group->accept(*this); }
-    void visit(ProgramDecl& n)   override { if (n.entryPoint)  n.entryPoint->accept(*this); }
-    void visit(TestDecl& n)      override { if (n.body)        n.body->accept(*this); }
-    void visit(Block& n)         override { if (n.body)        n.body->accept(*this); }
-    void visit(CallQuote& n)     override { if (n.body)        n.body->accept(*this); }
-    void visit(CmdLiteral& n)    override { if (n.body)        n.body->accept(*this); }
-    void visit(CallParameter& n) override { if (n.expr)        n.expr->accept(*this); }
-
-    // Expression nodes
-    void visit(CallInvoke& n)    override { for (auto& p : n.params) p->accept(*this); }
-    void visit(CallExpression& n) override { for (auto& t : n.terms) t->accept(*this); }
-    void visit(SubcallExpr& n)   override { for (auto& t : n.terms)  t->accept(*this); }
-    void visit(CallAssignment& n) override {
-        if (n.target) n.target->accept(*this);
-        for (auto& e : n.exprs) e->accept(*this);
-        for (auto& [op, rhs] : n.postOps) if (rhs) rhs->accept(*this);
+    // expression nodes
+    void traverse(LiteralExpr& n)    { visit(n); }
+    void traverse(IdentifierExpr& n) { visit(n); }
+    void traverse(EnumDerefExpr& n)  { visit(n); }
+    void traverse(CallCommandExpr& n) {
+        visit(n);
+        traverse(n.target);
+        for (auto& p : n.params) traverse(p.expr);
+        revisit(n);
+    }
+    void traverse(CallConstructorExpr& n) {
+        visit(n);
+        traverse(n.typeName);
+        for (auto& p : n.params) traverse(p.expr);
+        revisit(n);
+    }
+    void traverse(CallVCommandExpr& n) {
+        visit(n);
+        for (auto& p : n.params) traverse(p.expr);
+        revisit(n);
+    }
+    void traverse(CallFailExpr& n) {
+        visit(n);
+        traverse(n.expr);
+        revisit(n);
+    }
+    void traverse(SuffixExpr& n) {
+        visit(n);
+        traverse(n.base);
+        for (auto& s : n.suffixes) {
+            traverse(s.indexLoc);
+            traverse(s.indexExt);
+        }
+        revisit(n);
+    }
+    void traverse(BinaryExpr& n) {
+        visit(n);
+        traverse(n.first);
+        for (auto& ot : n.rest) traverse(ot.term);
+        revisit(n);
+    }
+    void traverse(QuoteExpr& n) {
+        visit(n);
+        traverse(n.invoke);
+        if (n.group) traverse(*n.group);
+        revisit(n);
+    }
+    void traverse(CmdLiteralExpr& n) {
+        visit(n);
+        for (auto& p : n.params) traverse(p.type);
+        if (n.body) traverse(*n.body);
+        revisit(n);
     }
 
-    // Top-level unit
-    void visit(CompilationUnit& n) override {
-        if (n.module) n.module->accept(*this);
-        for (auto& i : n.imports)     i->accept(*this);
-        for (auto& d : n.definitions) d->accept(*this);
+    // statement nodes
+    void traverse(AssignStat& n) {
+        visit(n);
+        traverse(n.target);
+        traverse(n.value);
+        revisit(n);
+    }
+    void traverse(ExprStat& n) {
+        visit(n);
+        traverse(n.expr);
+        revisit(n);
+    }
+    void traverse(Block& n) {
+        visit(n);
+        traverse(n.recoverType);
+        traverse(n.recoverExpr);
+        if (n.body) traverse(*n.body);
+        revisit(n);
+    }
+    void traverse(CallGroup& n) {
+        visit(n);
+        for (auto& s : n.statements) traverse(s);
+        revisit(n);
+    }
+    void traverse(CmdBody& n) {
+        visit(n);
+        if (n.group) traverse(*n.group);
+        revisit(n);
     }
 
-protected:
-    // Walk TypeExprs in a CmdSignature's receivers, params, and implicitParams
-    static void visitSignature(Visitor& v, const CmdSignature& sig) {
-        for (auto& r : sig.receivers)      { if (r.type) r.type->accept(v); }
-        for (auto& p : sig.params)         { if (p.type) p.type->accept(v); }
-        for (auto& p : sig.implicitParams) { if (p.type) p.type->accept(v); }
+    // declaration nodes
+    void traverse(AliasDecl& n) {
+        visit(n);
+        traverse(n.type);
+        revisit(n);
+    }
+    void traverse(DomainDecl& n) {
+        visit(n);
+        traverse(n.parent);
+        revisit(n);
+    }
+    void traverse(EnumDecl& n) { visit(n); }
+    void traverse(RecordDecl& n) {
+        visit(n);
+        for (auto& f : n.fields) traverse(f.type);
+        revisit(n);
+    }
+    void traverse(ObjectDecl& n) {
+        visit(n);
+        for (auto& f : n.fields) traverse(f.type);
+        revisit(n);
+    }
+    void traverse(UnionDecl& n) {
+        visit(n);
+        for (auto& c : n.candidates) traverse(c.domain);
+        revisit(n);
+    }
+    void traverse(VariantDecl& n) {
+        visit(n);
+        for (auto& c : n.candidates) traverse(c.type);
+        revisit(n);
+    }
+    void traverse(InstanceDecl& n) { visit(n); }
+    void traverse(CmdDecl& n) {
+        visit(n);
+        traverse(n.signature);
+        revisit(n);
+    }
+    void traverse(IntrinsicDecl& n) {
+        visit(n);
+        traverse(n.signature);
+        revisit(n);
+    }
+    void traverse(CmdDef& n) {
+        visit(n);
+        traverse(n.signature);
+        if (n.body) traverse(*n.body);
+        revisit(n);
+    }
+    void traverse(ClassDecl& n) {
+        visit(n);
+        for (auto& m : n.members) traverse(m);
+        revisit(n);
+    }
+    void traverse(ProgramDecl& n) {
+        visit(n);
+        traverse(n.entryPoint);
+        revisit(n);
+    }
+    void traverse(TestDecl& n) {
+        visit(n);
+        if (n.body) traverse(*n.body);
+        revisit(n);
+    }
+
+    // signature nodes
+    void traverse(RegularSig& n) {
+        visit(n);
+        for (auto& p : n.params) traverse(p.type);
+        for (auto& p : n.implicitParams) traverse(p.type);
+        revisit(n);
+    }
+    void traverse(VCommandSig& n) {
+        visit(n);
+        for (auto& r : n.receivers) traverse(r.type);
+        for (auto& p : n.params) traverse(p.type);
+        for (auto& p : n.implicitParams) traverse(p.type);
+        revisit(n);
+    }
+    void traverse(ConstructorSig& n) {
+        visit(n);
+        traverse(n.receiver.type);
+        for (auto& p : n.params) traverse(p.type);
+        revisit(n);
+    }
+    void traverse(DestructorSig& n) {
+        visit(n);
+        traverse(n.receiver.type);
+        revisit(n);
+    }
+    void traverse(FailHandlerSig& n) {
+        visit(n);
+        traverse(n.receiver.type);
+        revisit(n);
     }
 };
 
 } // namespace basis
-*/
+
 #endif // AST_H
 
 
