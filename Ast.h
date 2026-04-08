@@ -18,37 +18,37 @@ struct ExprNode;
 using TypeNodePtr = std::shared_ptr<TypeNode>;
 using ExprNodePtr = std::shared_ptr<ExprNode>;
 
+struct Located {
+    size_t line = 0;
+    size_t col = 0;
+};
+
 // ========================================================================
 // Small helper / child structs (not in any variant themselves)
 // ========================================================================
-struct EnumItem {
+struct EnumItem : Located {
     std::string name;
     std::string value;   // literal text
-    size_t line = 0, col = 0;
 };
 
-struct FieldDecl {
+struct FieldDecl : Located {
     TypeNodePtr type;
     std::string name;
-    size_t line = 0, col = 0;
 };
 
-struct UnionCandidate {
+struct UnionCandidate : Located {
     TypeNodePtr domain;
     std::string name;
-    size_t line = 0, col = 0;
 };
 
-struct VariantCandidate {
+struct VariantCandidate : Located {
     TypeNodePtr type;
     std::string name;
-    size_t line = 0, col = 0;
 };
 
-struct InstanceType {
+struct InstanceType : Located {
     std::string typeName;
     std::string delegate;   // identifier inside (...), empty if absent
-    size_t line = 0, col = 0;
 };
 
 struct CmdParam {
@@ -63,10 +63,9 @@ struct CmdReceiver {
     std::string name;
 };
 
-struct CallParam {
+struct CallParam : Located {
     bool        isEmpty = false;
     ExprNodePtr expr;   // null when isEmpty
-    size_t line = 0, col = 0;
 };
 
 struct SuffixOp {
@@ -79,23 +78,20 @@ struct SuffixOp {
 // ========================================================================
 // TypeNode alternatives
 // ========================================================================
-struct NamedType {
+struct NamedType : Located {
     std::string              name;
     std::vector<TypeNodePtr> typeArgs;
     bool                     writeable = false;
-    size_t line = 0, col = 0;
 };
 
-struct PtrType {
+struct PtrType : Located {
     int         depth = 1;
     TypeNodePtr inner;
-    size_t line = 0, col = 0;
 };
 
-struct RangeType {
+struct RangeType : Located {
     std::string size;       // empty = unbounded
     TypeNodePtr element;    // optional element type
-    size_t line = 0, col = 0;
 };
 
 struct CmdTypeArg {
@@ -103,35 +99,30 @@ struct CmdTypeArg {
     bool        writeable = false;
 };
 
-struct CmdType {
+struct CmdType : Located {
     enum class Kind { NoFail, MayFail, Fails };
     Kind                     kind = Kind::NoFail;
     std::vector<CmdTypeArg>  args;
-    size_t line = 0, col = 0;
 };
 
-struct InlineRecordType {
+struct InlineRecordType : Located {
     std::string              scopeName;   // optional
     std::vector<FieldDecl>   fields;
-    size_t line = 0, col = 0;
 };
 
-struct InlineObjectType {
+struct InlineObjectType : Located {
     std::string              scopeName;
     std::vector<FieldDecl>   fields;
-    size_t line = 0, col = 0;
 };
 
-struct InlineUnionType {
+struct InlineUnionType : Located {
     std::string                  scopeName;
     std::vector<UnionCandidate>  candidates;
-    size_t line = 0, col = 0;
 };
 
-struct InlineVariantType {
+struct InlineVariantType : Located {
     std::string                    scopeName;
     std::vector<VariantCandidate>  candidates;
-    size_t line = 0, col = 0;
 };
 
 // ---- TypeNode wrapper ----
@@ -146,80 +137,69 @@ struct TypeNode {
 // ========================================================================
 // ExprNode alternatives
 // ========================================================================
-struct LiteralExpr {
+struct LiteralExpr : Located {
     std::string text;
-    size_t line = 0, col = 0;
 };
 
-struct IdentifierExpr {
+struct IdentifierExpr : Located {
     std::string text;
     bool        isAlloc = false;   // true when prefixed with #
-    size_t line = 0, col = 0;
 };
 
-struct EnumDerefExpr {
+struct EnumDerefExpr : Located {
     std::string typeName;
     std::string memberName;
-    size_t line = 0, col = 0;
 };
 
-struct CallCommandExpr {
+struct CallCommandExpr : Located {
     ExprNodePtr                target;    // IdentifierExpr or QuoteExpr
     std::vector<CallParam>     params;
-    size_t line = 0, col = 0;
 };
 
-struct CallConstructorExpr {
+struct CallConstructorExpr : Located {
     TypeNodePtr                typeName;
     std::vector<CallParam>     params;
-    size_t line = 0, col = 0;
 };
 
-struct CallVCommandExpr {
+struct CallVCommandExpr : Located {
     std::vector<std::string>   receivers;
     std::string                name;
     std::vector<CallParam>     params;
-    size_t line = 0, col = 0;
 };
 
-struct CallFailExpr {
+struct CallFailExpr : Located {
     ExprNodePtr expr;
-    size_t line = 0, col = 0;
 };
 
-struct SuffixExpr {
+struct SuffixExpr : Located {
     ExprNodePtr            base;
     std::vector<SuffixOp>  suffixes;
-    size_t line = 0, col = 0;
 };
 
-struct BinaryExpr {
+struct BinaryExpr : Located {
     struct OpTerm {
         std::string op;
         ExprNodePtr term;
     };
     ExprNodePtr          first;
     std::vector<OpTerm>  rest;
-    size_t line = 0, col = 0;
 };
 
 // Forward-declare CallGroup so QuoteExpr / CmdLiteralExpr can reference it
 struct CallGroup;
 
-struct QuoteExpr {
+struct QuoteExpr : Located {
     enum class Kind { Subquote, BlockNoFail, BlockMayFail, BlockFail };
     Kind                         kind = Kind::Subquote;
     ExprNodePtr                  invoke;   // Subquote: optional invoke
     std::shared_ptr<CallGroup>   group;    // Block quotes: body group
-    size_t line = 0, col = 0;
 };
 
-struct CmdLiteralExpr {
+struct CmdLiteralExpr : Located {
     enum class Kind { NoFail, MayFail, MustFail };
     Kind                         kind = Kind::NoFail;
     std::vector<CmdParam>        params;
     std::shared_ptr<CallGroup>   body;
-    size_t line = 0, col = 0;
 };
 
 // ---- ExprNode wrapper ----
@@ -235,18 +215,16 @@ struct ExprNode {
 // ========================================================================
 // Statement-level types
 // ========================================================================
-struct AssignStat {
+struct AssignStat : Located {
     ExprNodePtr target;   // IdentifierExpr (possibly alloc)
     ExprNodePtr value;    // the RHS subcall expression
-    size_t line = 0, col = 0;
 };
 
-struct ExprStat {
+struct ExprStat : Located {
     ExprNodePtr expr;     // wraps a BinaryExpr or single-term expression
-    size_t line = 0, col = 0;
 };
 
-struct Block {
+struct Block : Located {
     enum class Kind {
         DoWhen, DoWhenMulti, DoWhenFail, DoWhenSelect,
         DoElse, DoBlock, DoRewind,
@@ -259,7 +237,6 @@ struct Block {
     std::string                  recoverIdent;  // bound identifier
     ExprNodePtr                  recoverExpr;   // or CALL_EXPR_TERM fallback
     std::shared_ptr<CallGroup>   body;
-    size_t line = 0, col = 0;
 };
 
 // StatNode: one element of a CallGroup
@@ -270,16 +247,14 @@ struct StatNode {
 };
 
 // CALL_GROUP: sequence of statements
-struct CallGroup {
+struct CallGroup : Located {
     std::vector<StatNode> statements;
-    size_t line = 0, col = 0;
 };
 
 // DEF_CMD_BODY: = _ | = CALL_GROUP
-struct CmdBody {
+struct CmdBody : Located {
     bool                       isEmpty = false;
     std::shared_ptr<CallGroup> group;   // null when isEmpty
-    size_t line = 0, col = 0;
 };
 
 // ========================================================================
@@ -323,103 +298,87 @@ using CmdSignature = std::variant<
 // ========================================================================
 // Top-level declaration types
 // ========================================================================
-struct ModuleDecl {
+struct ModuleDecl : Located {
     std::string name;
-    size_t line = 0, col = 0;
 };
 
-struct ImportDecl {
+struct ImportDecl : Located {
     enum class Kind { File, Standard };
     Kind        kind      = Kind::Standard;
     std::string path;
     std::string alias;
     std::string name;
-    size_t line = 0, col = 0;
 };
 
-struct AliasDecl {
+struct AliasDecl : Located {
     std::string name;
     TypeNodePtr type;
-    size_t line = 0, col = 0;
 };
 
-struct DomainDecl {
+struct DomainDecl : Located {
     std::string name;
     TypeNodePtr parent;
-    size_t line = 0, col = 0;
 };
 
-struct EnumDecl {
+struct EnumDecl : Located {
     std::string            enumTypeName;   // optional constraining typename
     std::string            enumName;
     std::vector<EnumItem>  items;
-    size_t line = 0, col = 0;
 };
 
-struct RecordDecl {
+struct RecordDecl : Located {
     std::string            name;
     std::vector<FieldDecl> fields;
-    size_t line = 0, col = 0;
 };
 
-struct ObjectDecl {
+struct ObjectDecl : Located {
     std::string            name;
     std::vector<FieldDecl> fields;
-    size_t line = 0, col = 0;
 };
 
-struct UnionDecl {
+struct UnionDecl : Located {
     std::string                  name;
     std::vector<UnionCandidate>  candidates;
-    size_t line = 0, col = 0;
 };
 
-struct VariantDecl {
+struct VariantDecl : Located {
     std::string                    name;
     std::vector<VariantCandidate>  candidates;
-    size_t line = 0, col = 0;
 };
 
-struct InstanceDecl {
+struct InstanceDecl : Located {
     std::string                  name;
     std::vector<InstanceType>    types;
-    size_t line = 0, col = 0;
 };
 
-struct CmdDecl {
+struct CmdDecl : Located {
     CmdSignature signature;
-    size_t line = 0, col = 0;
 };
 
-struct IntrinsicDecl {
+struct IntrinsicDecl : Located {
     CmdSignature signature;
-    size_t line = 0, col = 0;
 };
 
-struct CmdDef {
+struct CmdDef : Located {
     CmdSignature              signature;
     std::shared_ptr<CmdBody>  body;
-    size_t line = 0, col = 0;
 };
 
 // ClassMember variant
 using ClassMember = std::variant<CmdDecl, CmdDef>;
 
-struct ClassDecl {
+struct ClassDecl : Located {
     std::string                name;
     std::vector<ClassMember>   members;
-    size_t line = 0, col = 0;
 };
 
-struct ProgramDecl {
+struct ProgramDecl : Located {
     ExprNodePtr entryPoint;   // a call invoke expression
-    size_t line = 0, col = 0;
 };
 
-struct TestDecl {
+struct TestDecl : Located {
     std::string                label;
     std::shared_ptr<CallGroup> body;
-    size_t line = 0, col = 0;
 };
 
 // TopLevelDef variant
@@ -432,11 +391,10 @@ using TopLevelDef = std::variant<
 // ========================================================================
 // Compilation unit (root)
 // ========================================================================
-struct CompilationUnit {
+struct CompilationUnit : Located {
     std::shared_ptr<ModuleDecl>              module;
     std::vector<std::shared_ptr<ImportDecl>> imports;
     std::vector<TopLevelDef>                 definitions;
-    size_t line = 0, col = 0;
 };
 
 // ========================================================================
