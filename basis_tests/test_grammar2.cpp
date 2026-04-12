@@ -62,6 +62,272 @@ namespace {
         std::cerr << "================================" << std::endl;
         return false;
     }
+
+    std::string_view productionName(Production p) {
+        switch (p) {
+            case Production::DECIMAL:                   return "DECIMAL";
+            case Production::HEXNUMBER:                 return "HEXNUMBER";
+            case Production::BINARY:                    return "BINARY";
+            case Production::NUMBER:                    return "NUMBER";
+            case Production::STRING:                    return "STRING";
+            case Production::IDENTIFIER:                return "IDENTIFIER";
+            case Production::TYPENAME:                  return "TYPENAME";
+            case Production::QUALIFIED_TYPENAME:        return "QUALIFIED_TYPENAME";
+            case Production::IDENTIFIER_QUALIFIER:      return "IDENTIFIER_QUALIFIER";
+            case Production::ALIAS:                     return "ALIAS";
+            case Production::CLASS:                     return "CLASS";
+            case Production::COMMAND:                   return "COMMAND";
+            case Production::DECLARE:                   return "DECLARE";
+            case Production::DOMAIN:                    return "DOMAIN";
+            case Production::ENUMERATION:               return "ENUMERATION";
+            case Production::IMPORT:                    return "IMPORT";
+            case Production::INSTANCE:                  return "INSTANCE";
+            case Production::INTRINSIC:                 return "INTRINSIC";
+            case Production::MODULE:                    return "MODULE";
+            case Production::OBJECT:                    return "OBJECT";
+            case Production::PROGRAM:                   return "PROGRAM";
+            case Production::RECORD:                    return "RECORD";
+            case Production::TEST:                      return "TEST";
+            case Production::AMBANG:                    return "AMBANG";
+            case Production::AMPERSAND:                 return "AMPERSAND";
+            case Production::AMPHORA:                   return "AMPHORA";
+            case Production::APOSTROPHE:                return "APOSTROPHE";
+            case Production::ASTERISK:                  return "ASTERISK";
+            case Production::BANG:                      return "BANG";
+            case Production::BANGBRACE:                 return "BANGBRACE";
+            case Production::BANGLANGLE:                return "BANGLANGLE";
+            case Production::CARAT:                     return "CARAT";
+            case Production::COMMA:                     return "COMMA";
+            case Production::COLON:                     return "COLON";
+            case Production::COLANGLE:                  return "COLANGLE";
+            case Production::COLBRACE:                  return "COLBRACE";
+            case Production::DCOLON:                    return "DCOLON";
+            case Production::DOLLAR:                    return "DOLLAR";
+            case Production::EQUALS:                    return "EQUALS";
+            case Production::EXTRACT:                   return "EXTRACT";
+            case Production::GREQUALS:                  return "GREQUALS";
+            case Production::INSERT:                    return "INSERT";
+            case Production::LANGLE:                    return "LANGLE";
+            case Production::LEQUALS:                   return "LEQUALS";
+            case Production::LARROW:                    return "LARROW";
+            case Production::LBRACE:                    return "LBRACE";
+            case Production::LBRACKET:                  return "LBRACKET";
+            case Production::LPAREN:                    return "LPAREN";
+            case Production::MINUS:                     return "MINUS";
+            case Production::PERCENT:                   return "PERCENT";
+            case Production::PIPE:                      return "PIPE";
+            case Production::PLUS:                      return "PLUS";
+            case Production::POUND:                     return "POUND";
+            case Production::QBRACE:                    return "QBRACE";
+            case Production::QLANGLE:                   return "QLANGLE";
+            case Production::QMARK:                     return "QMARK";
+            case Production::QMINUS:                    return "QMINUS";
+            case Production::DQMARK:                    return "DQMARK";
+            case Production::RANGLE:                    return "RANGLE";
+            case Production::RARROW:                    return "RARROW";
+            case Production::RBRACE:                    return "RBRACE";
+            case Production::RBRACKET:                  return "RBRACKET";
+            case Production::RPAREN:                    return "RPAREN";
+            case Production::SLASH:                     return "SLASH";
+            case Production::UNDERSCORE:                return "UNDERSCORE";
+            case Production::LITERAL:                   return "LITERAL";
+            case Production::DEF_ENUM:                  return "DEF_ENUM";
+            case Production::DEF_ENUM_NAME:             return "DEF_ENUM_NAME";
+            case Production::DEF_ENUM_TYPENAME:         return "DEF_ENUM_TYPENAME";
+            case Production::DEF_ENUM_ITEM_NAME:        return "DEF_ENUM_ITEM_NAME";
+            case Production::DEF_ENUM_ITEM_LIST:        return "DEF_ENUM_ITEM_LIST";
+            case Production::TYPEDEF_NAME_Q:            return "TYPEDEF_NAME_Q";
+            case Production::TYPEDEF_PARMS:             return "TYPEDEF_PARMS";
+            case Production::TYPEDEF_PARM_TYPE:         return "TYPEDEF_PARM_TYPE";
+            case Production::TYPEDEF_PARM_VALUE:        return "TYPEDEF_PARM_VALUE";
+            case Production::TYPE_NAME_Q:               return "TYPE_NAME_Q";
+            case Production::TYPE_NAME_ARGS:            return "TYPE_NAME_ARGS";
+            case Production::TYPE_ARG_TYPE:             return "TYPE_ARG_TYPE";
+            case Production::TYPE_ARG_VALUE:            return "TYPE_ARG_VALUE";
+            case Production::TYPE_EXPR_PTR:             return "TYPE_EXPR_PTR";
+            case Production::TYPE_EXPR_RANGE:           return "TYPE_EXPR_RANGE";
+            case Production::TYPE_EXPR_RANGE_FIXED:     return "TYPE_EXPR_RANGE_FIXED";
+            case Production::TYPE_EXPR:                 return "TYPE_EXPR";
+            case Production::TYPE_EXPR_CMD:             return "TYPE_EXPR_CMD";
+            case Production::TYPE_CMDEXPR_ARG:          return "TYPE_CMDEXPR_ARG";
+            case Production::TYPE_EXPR_DOMAIN:          return "TYPE_EXPR_DOMAIN";
+            case Production::TYPE_ARG_WRITEABLE:        return "TYPE_ARG_WRITEABLE";
+            case Production::TYPE_CMD_NOFAIL:           return "TYPE_CMD_NOFAIL";
+            case Production::TYPE_CMD_MAYFAIL:          return "TYPE_CMD_MAYFAIL";
+            case Production::TYPE_CMD_FAILS:            return "TYPE_CMD_FAILS";
+            case Production::DEF_ALIAS:                 return "DEF_ALIAS";
+            case Production::DEF_MODULE:                return "DEF_MODULE";
+            case Production::DEF_MODULE_NAME:           return "DEF_MODULE_NAME";
+            case Production::DEF_PROGRAM:               return "DEF_PROGRAM";
+            case Production::DEF_TEST:                  return "DEF_TEST";
+            case Production::DEF_IMPORT:                return "DEF_IMPORT";
+            case Production::DEF_IMPORT_FILE:           return "DEF_IMPORT_FILE";
+            case Production::DEF_IMPORT_STANDARD:       return "DEF_IMPORT_STANDARD";
+            case Production::DEF_IMPORT_ALIAS:          return "DEF_IMPORT_ALIAS";
+            case Production::DEF_IMPORT_FILENAME:       return "DEF_IMPORT_FILENAME";
+            case Production::DEF_DOMAIN:                return "DEF_DOMAIN";
+            case Production::DEF_DOMAIN_NAME:           return "DEF_DOMAIN_NAME";
+            case Production::DEF_DOMAIN_PARENT:         return "DEF_DOMAIN_PARENT";
+            case Production::DEF_DOMAIN_PARENT_TYPE:    return "DEF_DOMAIN_PARENT_TYPE";
+            case Production::DEF_DOMAIN_PARENT_RANGE:          return "DEF_DOMAIN_PARENT_RANGE";
+            case Production::DEF_DOMAIN_PARENT_RANGE_SIZE:     return "DEF_DOMAIN_PARENT_RANGE_SIZE";
+            case Production::DEF_DOMAIN_PARENT_RANGE_TYPE:     return "DEF_DOMAIN_PARENT_RANGE_TYPE";
+            case Production::DEF_RECORD:                return "DEF_RECORD";
+            case Production::DEF_RECORD_NAME:           return "DEF_RECORD_NAME";
+            case Production::DEF_RECORD_FIELDS:         return "DEF_RECORD_FIELDS";
+            case Production::DEF_RECORD_FIELD:          return "DEF_RECORD_FIELD";
+            case Production::DEF_RECORD_FIELD_NAME:     return "DEF_RECORD_FIELD_NAME";
+            case Production::DEF_RECORD_FIELD_DOMAIN:   return "DEF_RECORD_FIELD_DOMAIN";
+            case Production::DEF_OBJECT:                return "DEF_OBJECT";
+            case Production::DEF_OBJECT_NAME:           return "DEF_OBJECT_NAME";
+            case Production::DEF_OBJECT_FIELDS:         return "DEF_OBJECT_FIELDS";
+            case Production::DEF_OBJECT_FIELD:          return "DEF_OBJECT_FIELD";
+            case Production::DEF_OBJECT_FIELD_NAME:     return "DEF_OBJECT_FIELD_NAME";
+            case Production::DEF_OBJECT_FIELD_TYPE:     return "DEF_OBJECT_FIELD_TYPE";
+            case Production::DEF_UNION:                 return "DEF_UNION";
+            case Production::DEF_UNION_NAME:            return "DEF_UNION_NAME";
+            case Production::DEF_UNION_CANDIDATES:      return "DEF_UNION_CANDIDATES";
+            case Production::DEF_UNION_CANDIDATE:       return "DEF_UNION_CANDIDATE";
+            case Production::DEF_UNION_CANDIDATE_DOMAIN:  return "DEF_UNION_CANDIDATE_DOMAIN";
+            case Production::DEF_UNION_CANDIDATE_NAME:  return "DEF_UNION_CANDIDATE_NAME";
+            case Production::DEF_VARIANT:               return "DEF_VARIANT";
+            case Production::DEF_VARIANT_NAME:          return "DEF_VARIANT_NAME";
+            case Production::DEF_VARIANT_CANDIDATES:    return "DEF_VARIANT_CANDIDATES";
+            case Production::DEF_VARIANT_CANDIDATE:     return "DEF_VARIANT_CANDIDATE";
+            case Production::DEF_VARIANT_CANDIDATE_TYPE:  return "DEF_VARIANT_CANDIDATE_TYPE";
+            case Production::DEF_VARIANT_CANDIDATE_NAME: return "DEF_VARIANT_CANDIDATE_NAME";
+            case Production::DEF_INLINE_SCOPE_NAME:     return "DEF_INLINE_SCOPE_NAME";
+            case Production::DEF_INLINE_RECORD:         return "DEF_INLINE_RECORD";
+            case Production::DEF_INLINE_UNION:          return "DEF_INLINE_UNION";
+            case Production::DEF_INLINE_OBJECT:         return "DEF_INLINE_OBJECT";
+            case Production::DEF_INLINE_VARIANT:        return "DEF_INLINE_VARIANT";
+            case Production::DEF_CLASS:                 return "DEF_CLASS";
+            case Production::DEF_CLASS_NAME:            return "DEF_CLASS_NAME";
+            case Production::DEF_CLASS_CMDS:            return "DEF_CLASS_CMDS";
+            case Production::DEF_INSTANCE:              return "DEF_INSTANCE";
+            case Production::DEF_INSTANCE_NAME:         return "DEF_INSTANCE_NAME";
+            case Production::DEF_INSTANCE_DELEGATE:     return "DEF_INSTANCE_DELEGATE";
+            case Production::DEF_INSTANCE_TYPES:        return "DEF_INSTANCE_TYPES";
+            case Production::DEF_CMD:                   return "DEF_CMD";
+            case Production::DEF_CMD_DECL:              return "DEF_CMD_DECL";
+            case Production::DEF_CMD_INTRINSIC:         return "DEF_CMD_INTRINSIC";
+            case Production::DEF_CMD_RECEIVERS:         return "DEF_CMD_RECEIVERS";
+            case Production::DEF_CMD_RECEIVER_ATSTACK:  return "DEF_CMD_RECEIVER_ATSTACK";
+            case Production::DEF_CMD_RECEIVER_ATSTACK_FAIL: return "DEF_CMD_RECEIVER_ATSTACK_FAIL";
+            case Production::DEF_CMD_RECEIVER:          return "DEF_CMD_RECEIVER";
+            case Production::DEF_CMD_CTOR:              return "DEF_CMD_CTOR";
+            case Production::DEF_CMD_VCOMMAND:          return "DEF_CMD_VCOMMAND";
+            case Production::DEF_CMD_REGULAR:           return "DEF_CMD_REGULAR";
+            case Production::DEF_CMD_NAME_SPEC:         return "DEF_CMD_NAME_SPEC";
+            case Production::DEF_CMD_NAME:              return "DEF_CMD_NAME";
+            case Production::DEF_CMD_FAILS:             return "DEF_CMD_FAILS";
+            case Production::DEF_CMD_MAYFAIL:           return "DEF_CMD_MAYFAIL";
+            case Production::DEF_CMD_PARMS:             return "DEF_CMD_PARMS";
+            case Production::DEF_CMD_PARM:              return "DEF_CMD_PARM";
+            case Production::DEF_CMD_PARMTYPE_NAME:     return "DEF_CMD_PARMTYPE_NAME";
+            case Production::DEF_CMD_PARMTYPE_VAR:      return "DEF_CMD_PARMTYPE_VAR";
+            case Production::DEF_CMD_PARM_TYPE:         return "DEF_CMD_PARM_TYPE";
+            case Production::DEF_CMD_PARM_NAME:         return "DEF_CMD_PARM_NAME";
+            case Production::DEF_CMD_IMPARMS:           return "DEF_CMD_IMPARMS";
+            case Production::DEF_CMD_RETVAL:            return "DEF_CMD_RETVAL";
+            case Production::DEF_CMD_BODY:              return "DEF_CMD_BODY";
+            case Production::DEF_CMD_EMPTY:             return "DEF_CMD_EMPTY";
+            case Production::CALL_GROUP:                return "CALL_GROUP";
+            case Production::CALL_CONSTRUCTOR:          return "CALL_CONSTRUCTOR";
+            case Production::CALL_COMMAND:              return "CALL_COMMAND";
+            case Production::CALL_VCOMMAND:             return "CALL_VCOMMAND";
+            case Production::CALL_FAIL:                 return "CALL_FAIL";
+            case Production::CALL_ASSIGNMENT:           return "CALL_ASSIGNMENT";
+            case Production::CALL_EXPRESSION:           return "CALL_EXPRESSION";
+            case Production::SUBCALL_EXPRESSION:        return "SUBCALL_EXPRESSION";
+            case Production::CALL_EXPR_ADDR:            return "CALL_EXPR_ADDR";
+            case Production::CALL_EXPR_DEREF:           return "CALL_EXPR_DEREF";
+            case Production::CALL_EXPR_INDEX:           return "CALL_EXPR_INDEX";
+            case Production::CALL_EXPRINDEX_LOC:        return "CALL_EXPRINDEX_LOC";
+            case Production::CALL_EXPRINDEX_EXT:        return "CALL_EXPRINDEX_EXT";
+            case Production::CALL_OPERATOR:             return "CALL_OPERATOR";
+            case Production::CALL_OPER_SCOPE:           return "CALL_OPER_SCOPE";
+            case Production::CALL_OPER_CHOICE:          return "CALL_OPER_CHOICE";
+            case Production::CALL_OPER_ADD:             return "CALL_OPER_ADD";
+            case Production::CALL_OPER_SUBTRACT:        return "CALL_OPER_SUBTRACT";
+            case Production::CALL_OPER_MULTIPLY:        return "CALL_OPER_MULTIPLY";
+            case Production::CALL_OPER_DIVIDE:          return "CALL_OPER_DIVIDE";
+            case Production::CALL_OPER_LESSTHAN:        return "CALL_OPER_LESSTHAN";
+            case Production::CALL_OPER_GREATERTHAN:     return "CALL_OPER_GREATERTHAN";
+            case Production::CALL_OPER_LESSTHAN_EQ:     return "CALL_OPER_LESSTHAN_EQ";
+            case Production::CALL_OPER_GREATERTHAN_EQ:  return "CALL_OPER_GREATERTHAN_EQ";
+            case Production::CALL_OPER_EQUALS:          return "CALL_OPER_EQUALS";
+            case Production::CALL_OPER_INSERT:          return "CALL_OPER_INSERT";
+            case Production::CALL_OPER_EXTRACT:         return "CALL_OPER_EXTRACT";
+            case Production::CALL_QUOTE:                return "CALL_QUOTE";
+            case Production::CALL_CMD_TARGET:           return "CALL_CMD_TARGET";
+            case Production::CALL_PARAMETER:            return "CALL_PARAMETER";
+            case Production::CALL_PARM_EMPTY:           return "CALL_PARM_EMPTY";
+            case Production::CALL_PARM_EXPR:            return "CALL_PARM_EXPR";
+            case Production::CALL_IDENTIFIER:           return "CALL_IDENTIFIER";
+            case Production::CALL_QUOTED:               return "CALL_QUOTED";
+            case Production::CALL_BLOCK_NOFAIL:         return "CALL_BLOCK_NOFAIL";
+            case Production::CALL_BLOCK_FAIL:           return "CALL_BLOCK_FAIL";
+            case Production::CALL_CMD_LITERAL:          return "CALL_CMD_LITERAL";
+            case Production::CALL_CMDLIT_NOFAIL:        return "CALL_CMDLIT_NOFAIL";
+            case Production::CALL_CMDLIT_MAYFAIL:       return "CALL_CMDLIT_MAYFAIL";
+            case Production::CALL_CMDLIT_MUSTFAIL:      return "CALL_CMDLIT_MUSTFAIL";
+            case Production::CALL_BLOCK_MAYFAIL:        return "CALL_BLOCK_MAYFAIL";
+            case Production::ALLOC_IDENTIFIER:          return "ALLOC_IDENTIFIER";
+            case Production::ON_EXIT:                   return "ON_EXIT";
+            case Production::ON_EXIT_FAIL:              return "ON_EXIT_FAIL";
+            case Production::DO_WHEN:                   return "DO_WHEN";
+            case Production::DO_WHEN_MULTI:             return "DO_WHEN_MULTI";
+            case Production::DO_WHEN_FAIL:              return "DO_WHEN_FAIL";
+            case Production::DO_WHEN_SELECT:            return "DO_WHEN_SELECT";
+            case Production::DO_ELSE:                   return "DO_ELSE";
+            case Production::DO_UNLESS:                 return "DO_UNLESS";
+            case Production::DO_BLOCK:                  return "DO_BLOCK";
+            case Production::DO_REWIND:                 return "DO_REWIND";
+            case Production::DO_RECOVER:                return "DO_RECOVER";
+            case Production::DO_RECOVER_SPEC:           return "DO_RECOVER_SPEC";
+            case Production::DO_ON_EXIT:                return "DO_ON_EXIT";
+            case Production::DO_ON_EXIT_FAIL:           return "DO_ON_EXIT_FAIL";
+            case Production::RECOVER_SPEC:              return "RECOVER_SPEC";
+            case Production::ENUM_DEREF:                return "ENUM_DEREF";
+            case Production::COMPILATION_UNIT:          return "COMPILATION_UNIT";
+        }
+        return "UNKNOWN";
+    }
+
+
+    std::string treeStr(const spParseTree& node) {
+        if (!node) return "";
+        auto name = std::string(productionName(node->production));
+        if (node->spDown) {
+            std::string s = name + "(";
+            for (auto child = node->spDown; child; child = child->spNext) {
+                if (child != node->spDown) s += ",";
+                s += treeStr(child);
+            }
+            return s + ")";
+        }
+        return name;
+    }
+
+    bool treeEq(const std::string& actual, const std::string& expected) {
+        auto strip = [](const std::string& s) {
+            std::string r;
+            for (char c : s) if (!std::isspace((unsigned char)c)) r += c;
+            return r;
+        };
+        return strip(actual) == strip(expected);
+    }
+
+    bool testParse(SPPF parseFn, const std::string& text, const std::string& parseText) {
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
+        Parser parser(tokens, parseFn);
+        if (!( parser.parse() && parser.allTokensConsumed())) return false;
+        if ( parser.parseTree == nullptr ) return false;
+        return treeEq(parseText,treeStr(parser.parseTree));
+    }
 }
 
 TEST_CASE("Grammar2::COMPILATION_UNIT - empty and minimal") {
@@ -663,15 +929,19 @@ TEST_CASE("Grammar2::COMPILATION_UNIT - all 15 definition types together") {
 
 TEST_CASE("Grammar2::DEF_MODULE") {
     Grammar2& grammar = getGrammar();
-    CHECK(testParse(grammar.DEF_MODULE, ".module MyModule", Production::DEF_MODULE));
-    CHECK(testParse(grammar.DEF_MODULE, ".module Std::Collections", Production::DEF_MODULE));
-    CHECK(testParse(grammar.DEF_MODULE, ".module A::B::C", Production::DEF_MODULE));
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module"));  // missing name
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module MyModule:"));  // extra colon
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module MyModule: Int"));  // extra content
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, "module MyModule"));  // missing dot
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module 123"));  // numeric name
-    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module my_module"));  // identifier instead of typename
+    // Single-part name: TYPENAME_UNQUALIFIED leaf
+    CHECK(testParse(grammar.DEF_MODULE, ".module MyModule",
+        "DEF_MODULE(DEF_MODULE_NAME(TYPENAME))" ));
+    // Two-part qualified name
+    CHECK(testParse(grammar.DEF_MODULE, ".module Std::Collections",
+        "DEF_MODULE(DEF_MODULE_NAME(QUALIFIED_TYPENAME(TYPENAME, TYPENAME)))" ));
+    // Three-part qualified name
+    CHECK(testParse(grammar.DEF_MODULE, ".module A::B::C",
+       "DEF_MODULE(DEF_MODULE_NAME(QUALIFIED_TYPENAME(TYPENAME, TYPENAME, TYPENAME)))"));
+    // Negative: missing name
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module"));
+    // Negative: lowercase (identifier, not typename)
+    CHECK_FALSE(testParse(grammar.DEF_MODULE, ".module myModule"));
 }
 
 // =============================================================================
