@@ -8,60 +8,6 @@
 using namespace basis;
 
 namespace {
-    // parser takes the token list by reference, so be sure to put the result onto the stack so
-    // we don't end up wth a dangling reference problem (which caused a flaky test that took
-    // forever to diagnose)
-    std::list<spToken> tokenize(const std::string& text, bool& success) {
-        std::istringstream input(text);
-        Lexer lexer(input, false);
-        success = lexer.scan();
-        return lexer.output;
-    }
-
-    bool testParse(SPPF parseFn, const std::string& text) {
-        bool lexSuccess = false;
-        std::list<spToken> tokens = tokenize(text, lexSuccess);
-        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
-        Parser parser(tokens, parseFn);
-        return parser.parse() && parser.allTokensConsumed();
-    }
-
-    bool testParse(SPPF parseFn, const std::string& text, Production expected) {
-        bool lexSuccess = false;
-        std::list<spToken> tokens = tokenize(text, lexSuccess);
-        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
-        Parser parser(tokens, parseFn);
-        return parser.parse() && parser.allTokensConsumed()
-            && parser.parseTree != nullptr && parser.parseTree->production == expected;
-    }
-
-    bool debugTestParse(SPPF parseFn, const std::string& text, Production expected) {
-        bool lexSuccess = false;
-        std::list<spToken> tokens = tokenize(text, lexSuccess);
-        if (!lexSuccess) {
-            std::cerr << "Lexing failed" << std::endl;
-            return false;  // Lexing failed, so parsing fails
-        }
-        Parser parser(tokens, parseFn);
-        bool parseResult = parser.parse();
-        bool allConsumed = parser.allTokensConsumed();
-        bool hasTree = parser.parseTree != nullptr;
-        bool correctProduction = hasTree && parser.parseTree->production == expected;
-
-        if (parseResult && allConsumed && correctProduction) return true;
-
-        std::cerr << std::endl << "=== DEBUG TEST PARSE FAILURE ===" << std::endl;
-        std::cerr << "parse() returned: " << (parseResult ? "true" : "false") << std::endl;
-        std::cerr << "allTokensConsumed(): " << (allConsumed ? "true" : "false") << std::endl;
-        std::cerr << "parseTree != nullptr: " << (hasTree ? "true" : "false") << std::endl;
-        if (hasTree) {
-            std::cerr << "parseTree->production: " << static_cast<int>(parser.parseTree->production)
-                      << " (expected: " << static_cast<int>(expected) << ")" << std::endl;
-        }
-        std::cerr << "Parser error: " << parser.getError();
-        std::cerr << "================================" << std::endl;
-        return false;
-    }
 
     std::string_view productionName(Production p) {
         switch (p) {
@@ -294,7 +240,60 @@ namespace {
         }
         return "UNKNOWN";
     }
+    // parser takes the token list by reference, so be sure to put the result onto the stack so
+    // we don't end up wth a dangling reference problem (which caused a flaky test that took
+    // forever to diagnose)
+    std::list<spToken> tokenize(const std::string& text, bool& success) {
+        std::istringstream input(text);
+        Lexer lexer(input, false);
+        success = lexer.scan();
+        return lexer.output;
+    }
 
+    bool testParse(SPPF parseFn, const std::string& text) {
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
+        Parser parser(tokens, parseFn);
+        return parser.parse() && parser.allTokensConsumed();
+    }
+
+    bool testParse(SPPF parseFn, const std::string& text, Production expected) {
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) return false;  // Lexing failed, so parsing fails
+        Parser parser(tokens, parseFn);
+        return parser.parse() && parser.allTokensConsumed()
+            && parser.parseTree != nullptr && parser.parseTree->production == expected;
+    }
+
+    bool debugTestParse(SPPF parseFn, const std::string& text, Production expected) {
+        bool lexSuccess = false;
+        std::list<spToken> tokens = tokenize(text, lexSuccess);
+        if (!lexSuccess) {
+            std::cerr << "Lexing failed" << std::endl;
+            return false;  // Lexing failed, so parsing fails
+        }
+        Parser parser(tokens, parseFn);
+        bool parseResult = parser.parse();
+        bool allConsumed = parser.allTokensConsumed();
+        bool hasTree = parser.parseTree != nullptr;
+        bool correctProduction = hasTree && parser.parseTree->production == expected;
+
+        if (parseResult && allConsumed && correctProduction) return true;
+
+        std::cerr << std::endl << "=== DEBUG TEST PARSE FAILURE ===" << std::endl;
+        std::cerr << "parse() returned: " << (parseResult ? "true" : "false") << std::endl;
+        std::cerr << "allTokensConsumed(): " << (allConsumed ? "true" : "false") << std::endl;
+        std::cerr << "parseTree != nullptr: " << (hasTree ? "true" : "false") << std::endl;
+        if (hasTree) {
+            std::cerr << "parseTree->production: " << static_cast<int>(parser.parseTree->production)
+                      << " (expected: " << static_cast<int>(expected) << ")" << std::endl;
+        }
+        std::cerr << "Parser error: " << parser.getError();
+        std::cerr << "================================" << std::endl;
+        return false;
+    }
 
     std::string treeStr(const spParseTree& node) {
         if (!node) return "";
