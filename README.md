@@ -8,7 +8,7 @@ There is no greater technical obscurity than creating a new programming language
 ### Practical Upshot:
 The core differentiating reasons for going through the effort of making this language are:
 - Direct smenantic match to Hexagonal Architecture... the langauge makes Hexagonal Architecture the natural way to code
-- Bounded scope of side effects to simplify review of AI-generated code
+- Bounded scope of side effects will simplify review of AI-generated code
 - Stylistic support for high and low level coding tasks
 
 ### Guiding Principles:
