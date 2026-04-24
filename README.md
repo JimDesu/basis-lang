@@ -5,7 +5,13 @@ This's one of several projects being done at the pace of a parent's spare time, 
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  The general conception is to bring the benefits of "pure" programming languages to the imperative world, in a way that's simple to learn and easy to read.  In a world that depends on open source code now -- and will soon depend on reviewing vibe-coded code for correctness -- clarity and concision are paramount.  
 
-Guiding Principles:
+### Practical Upshot:
+The core differentiating reasons for going through the effort of making this language are:
+- Direct smenantic match to Hexagonal Architecture... the langauge makes Hexagonal Architecture the natural way to code
+- Bounded scope of side effects to simplify review of AI-generated code
+- Stylistic support for high and low level coding tasks
+
+### Guiding Principles:
 - Strong typing saves lives &#9786;
 - No non-local state access
 - The fundamental datatype is a buffer
@@ -18,7 +24,6 @@ Guiding Principles:
 - Syntactic sugar is superior to semantic sugar
 - Fexprs and macros, not fexprs vs macros
 - Syntactic whitespace improves legibility 
-
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
