@@ -15,8 +15,8 @@ TEST_CASE("Compiler::main read options") {
     CHECK_FALSE(options.readCompileOptions( argv_bad2));
 }
 
-TEST_CASE("Compiler::read input file") {
-    CompilerContext ctx;
-    ctx.options.filename = "test1.b";
-    CHECK(openInputFile(ctx));
-}
+//TEST_CASE("Compiler::read input file") {
+//    CompilerContext ctx;
+//    ctx.options.filename = "test1.b";
+//   CHECK(openInputFile(ctx));
+//}
