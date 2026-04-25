@@ -147,7 +147,7 @@ void Grammar2::initTypeExpressions() {
    // n.b. ordering is important because of shared prefix
    TYPEDEF_PARMS = group(Production::TYPEDEF_PARMS,
        all(LBRACKET, separated(any(TYPEDEF_PARM_VALUE, TYPEDEF_PARM_TYPE), COMMA), RBRACKET) );
-   TYPEDEF_NAME_Q = group(Production::TYPEDEF_NAME_Q, all(TYPENAME, maybe(TYPEDEF_PARMS)) );
+   TYPEDEF_NAME_Q = any( group(Production::TYPEDEF_NAME_Q, all(TYPENAME, TYPEDEF_PARMS) ), TYPENAME );
 
    TYPE_EXPR = group(Production::TYPE_EXPR,
          any(
@@ -197,16 +197,14 @@ void Grammar2::initTestDefinitions() {
 }
 
 void Grammar2::initImports() {
-    DEF_IMPORT_FILE = group(Production::DEF_IMPORT_FILE, all(
-        maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
-        as(Production::DEF_IMPORT_FILENAME, STRING) ));
+    DEF_IMPORT_FILE = as(Production::DEF_IMPORT_FILENAME, STRING);
 
-    DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD, all(
-        maybe(group(Production::DEF_IMPORT_ALIAS,all(TYPENAME_UNQUALIFIED, COLON))),
-        TYPENAME ));
+    DEF_IMPORT_STANDARD = group(Production::DEF_IMPORT_STANDARD, TYPENAME);
 
     DEF_IMPORT = exclusiveGroup(Production::DEF_IMPORT,
-        all(IMPORT, any(DEF_IMPORT_FILE, DEF_IMPORT_STANDARD)));
+        all( IMPORT,
+             maybe( group(Production::DEF_IMPORT_ALIAS, all(TYPENAME_UNQUALIFIED, COLON)) ),
+             any(DEF_IMPORT_FILE, DEF_IMPORT_STANDARD) ));
 }
 
 void Grammar2::initDomainTypes() {

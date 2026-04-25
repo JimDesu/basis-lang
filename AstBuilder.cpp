@@ -90,6 +90,18 @@ static std::string collectTypeName(const spParseTree& pt) {
     return txt(pt);
 }
 
+// Extract a type name from a TYPEDEF_NAME_Q node (parameterized) or a bare
+// TYPENAME/QUALIFIED_TYPENAME node (unparameterized — new grammar passes through).
+// Also handles wrapping "name group" nodes (e.g. DEF_RECORD_NAME) by descending once.
+static std::string nameFromTypedefNameQ(const spParseTree& pt) {
+    if (!pt) return {};
+    if (is(pt, Production::TYPEDEF_NAME_Q))       return collectTypeName(down(pt));
+    if (is(pt, Production::TYPENAME) ||
+        is(pt, Production::QUALIFIED_TYPENAME))    return collectTypeName(pt);
+    // Wrapper group (e.g. DEF_RECORD_NAME) — look at its sole child.
+    return nameFromTypedefNameQ(down(pt));
+}
+
 // Collect text from IDENTIFIER group (with optional qualifiers)
 static std::string collectIdent(const spParseTree& pt) {
     if (!pt) return {};
@@ -310,15 +322,19 @@ static TypeNodePtr buildTypeExpr(const spParseTree& pt) {
     if (!c) return nullptr;
 
     if (is(c, Production::TYPEDEF_NAME_Q)) {
-        // Named type: extract typename from TYPEDEF_NAME_Q
-        // TYPEDEF_NAME_Q has TYPENAME + optional TYPEDEF_PARMS
-        // But TYPE_EXPR uses TYPE_NAME_Q via TYPEDEF_NAME_Q
-        // For type expressions, map to NamedType
+        // Named type with parameters: TYPEDEF_NAME_Q(TYPENAME, TYPEDEF_PARMS)
         NamedType nt;
         nt.line = locL(c); nt.col = locC(c);
         auto tn = down(c); // TYPENAME or QUALIFIED_TYPENAME
         nt.name = collectTypeName(tn);
         // TYPEDEF_PARMS not used here (definition-side only)
+        return std::make_shared<TypeNode>(std::move(nt));
+    }
+    // Bare TYPENAME or QUALIFIED_TYPENAME: TYPEDEF_NAME_Q with no parms passes through.
+    if (is(c, Production::TYPENAME) || is(c, Production::QUALIFIED_TYPENAME)) {
+        NamedType nt;
+        nt.line = locL(c); nt.col = locC(c);
+        nt.name = collectTypeName(c);
         return std::make_shared<TypeNode>(std::move(nt));
     }
     if (is(c, Production::TYPE_NAME_Q))
@@ -866,8 +882,15 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
     if (p == Production::DEF_ALIAS) {
         AliasDecl ad;
         ad.line = locL(pt); ad.col = locC(pt);
-        auto tn = findChild(pt, Production::TYPEDEF_NAME_Q);
-        if (tn) ad.name = collectTypeName(down(tn));
+        // Name: TYPEDEF_NAME_Q when parameterized, bare TYPENAME/QUALIFIED_TYPENAME otherwise.
+        for (auto c = down(pt); c; c = nxt(c)) {
+            if (is(c, Production::TYPEDEF_NAME_Q) ||
+                is(c, Production::TYPENAME) ||
+                is(c, Production::QUALIFIED_TYPENAME)) {
+                ad.name = nameFromTypedefNameQ(c);
+                break;
+            }
+        }
         auto te = findChild(pt, Production::TYPE_EXPR);
         if (te) ad.type = buildTypeExpr(te);
         return ad;
@@ -924,7 +947,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         RecordDecl rd;
         rd.line = locL(pt); rd.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_RECORD_NAME);
-        if (nm) rd.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        if (nm) rd.name = nameFromTypedefNameQ(nm);
         auto flds = findChild(pt, Production::DEF_RECORD_FIELDS);
         if (flds) rd.fields = buildRecordFields(flds);
         return rd;
@@ -933,7 +956,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         ObjectDecl od;
         od.line = locL(pt); od.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_OBJECT_NAME);
-        if (nm) od.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        if (nm) od.name = nameFromTypedefNameQ(nm);
         auto flds = findChild(pt, Production::DEF_OBJECT_FIELDS);
         if (flds) od.fields = buildObjectFields(flds);
         return od;
@@ -942,7 +965,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         UnionDecl ud;
         ud.line = locL(pt); ud.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_UNION_NAME);
-        if (nm) ud.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        if (nm) ud.name = nameFromTypedefNameQ(nm);
         auto cands = findChild(pt, Production::DEF_UNION_CANDIDATES);
         if (cands) ud.candidates = buildUnionCandidates(cands);
         return ud;
@@ -951,7 +974,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         VariantDecl vd;
         vd.line = locL(pt); vd.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_VARIANT_NAME);
-        if (nm) vd.name = collectTypeName(down(findChild(nm, Production::TYPEDEF_NAME_Q)));
+        if (nm) vd.name = nameFromTypedefNameQ(nm);
         auto cands = findChild(pt, Production::DEF_VARIANT_CANDIDATES);
         if (cands) vd.candidates = buildVariantCandidates(cands);
         return vd;
@@ -960,10 +983,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         InstanceDecl id;
         id.line = locL(pt); id.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_INSTANCE_NAME);
-        if (nm) {
-            auto tdnq = findChild(nm, Production::TYPEDEF_NAME_Q);
-            if (tdnq) id.name = collectTypeName(down(tdnq));
-        }
+        if (nm) id.name = nameFromTypedefNameQ(nm);
         auto types = findChild(pt, Production::DEF_INSTANCE_TYPES);
         if (types) {
             InstanceType cur;
@@ -1080,22 +1100,19 @@ std::shared_ptr<CompilationUnit> buildAst(const spParseTree& pt) {
         if (p == Production::DEF_IMPORT) {
             auto imp = std::make_shared<ImportDecl>();
             imp->line = locL(c); imp->col = locC(c);
-            auto file = findChild(c, Production::DEF_IMPORT_FILE);
-            auto std_ = findChild(c, Production::DEF_IMPORT_STANDARD);
-            if (file) {
-                imp->kind = ImportDecl::Kind::File;
-                auto fn = findChild(file, Production::DEF_IMPORT_FILENAME);
-                if (fn) imp->path = txt(fn);
-                auto al = findChild(file, Production::DEF_IMPORT_ALIAS);
-                if (al) imp->alias = collectTypeName(down(al));
-            } else if (std_) {
-                imp->kind = ImportDecl::Kind::Standard;
-                // Name: the TYPENAME child (not the alias)
-                for (auto sc = down(std_); sc; sc = nxt(sc)) {
-                    if (is(sc, Production::DEF_IMPORT_ALIAS))
-                        imp->alias = collectTypeName(down(sc));
-                    else if (is(sc, Production::TYPENAME))
-                        imp->name = txt(sc);
+            // Walk direct children of DEF_IMPORT (flat structure after grammar refactoring).
+            // DEF_IMPORT_ALIAS  — leaf, renamed TYPENAME_UNQUALIFIED
+            // DEF_IMPORT_FILENAME — leaf, renamed STRING  (file import)
+            // DEF_IMPORT_STANDARD — leaf (simple name) or group (qualified name, children are TYPENAME leaves)
+            for (auto sc = down(c); sc; sc = nxt(sc)) {
+                if (is(sc, Production::DEF_IMPORT_ALIAS)) {
+                    imp->alias = txt(down(sc)); // group node; child is the TYPENAME leaf
+                } else if (is(sc, Production::DEF_IMPORT_FILENAME)) {
+                    imp->kind = ImportDecl::Kind::File;
+                    imp->path = txt(sc);
+                } else if (is(sc, Production::DEF_IMPORT_STANDARD)) {
+                    imp->kind = ImportDecl::Kind::Standard;
+                    imp->name = collectTypeName(down(sc)); // child is TYPENAME or QUALIFIED_TYPENAME
                 }
             }
             cu->imports.push_back(imp);
