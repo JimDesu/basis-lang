@@ -13,10 +13,10 @@ namespace basis {
         public:
             explicit Lexer(std::istream& inputStream, bool emit = true) : emitErrors(emit),
                 output(), input(inputStream), indents(), parenStack(), braceStack(), bracketStack(), lineNumber(1), columnNumber(0),readChar(0),
-                checks{ &checkComment, &checkWhitespace, &checkHex, &checkBinary, &checkNumeric,
-                    &checkTypename, &checkIdentifier, &checkResWord, &checkString, &checkPunct },
-                reads { &readComment, &readWhitespace, &readHex, &readBinary, &readNumeric,
-                    &readTypename, &readIdentifier, &readResWord, &readString, &readPunct } {}
+                checks{ &Lexer::checkComment, &Lexer::checkWhitespace, &Lexer::checkHex, &Lexer::checkBinary, &Lexer::checkNumeric,
+                    &Lexer::checkTypename, &Lexer::checkIdentifier, &Lexer::checkResWord, &Lexer::checkString, &Lexer::checkPunct },
+                reads { &Lexer::readComment, &Lexer::readWhitespace, &Lexer::readHex, &Lexer::readBinary, &Lexer::readNumeric,
+                    &Lexer::readTypename, &Lexer::readIdentifier, &Lexer::readResWord, &Lexer::readString, &Lexer::readPunct } {}
             ~Lexer();
             std::list<spToken> output;
             bool scan();
