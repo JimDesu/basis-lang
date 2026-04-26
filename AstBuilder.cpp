@@ -832,10 +832,11 @@ static CmdSignature buildSignature(const spParseTree& pt) {
         auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
         BUILD_ASSERT(nameSpec, "DEF_CMD_REGULAR missing DEF_CMD_NAME_SPEC");
         parseNameSpec(nameSpec, rs.name, rs.failMode);
-        auto parms = findChild(pt, Production::DEF_CMD_PARMS);
-        BUILD_ASSERT(parms, "DEF_CMD_REGULAR missing DEF_CMD_PARMS");
-        rs.params = buildParmList(parms);
-        rs.returnVal = getRetVal(parms);
+        // DEF_CMD_PARMS is optional: e.g. `.cmd run = body` has no parameters.
+        if (auto parms = findChild(pt, Production::DEF_CMD_PARMS)) {
+            rs.params = buildParmList(parms);
+            rs.returnVal = getRetVal(parms);
+        }
         auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
         if (imparms) rs.implicitParams = buildParmList(imparms);
         return rs;
@@ -1048,15 +1049,16 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
     if (p == Production::DEF_CMD_INTRINSIC) {
         IntrinsicDecl intd;
         intd.line = locL(pt); intd.col = locC(pt);
-        // Intrinsic always has DEF_CMD_REGULAR form (name_spec + parms + imparms as direct children)
+        // Intrinsic uses DEF_CMD_REGULAR form (name_spec + optional parms + optional imparms
+        // as direct children).
         RegularSig rs;
         auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
         BUILD_ASSERT(nameSpec, "DEF_CMD_INTRINSIC missing DEF_CMD_NAME_SPEC");
         parseNameSpec(nameSpec, rs.name, rs.failMode);
-        auto parms = findChild(pt, Production::DEF_CMD_PARMS);
-        BUILD_ASSERT(parms, "DEF_CMD_INTRINSIC missing DEF_CMD_PARMS");
-        rs.params = buildParmList(parms);
-        rs.returnVal = getRetVal(parms);
+        if (auto parms = findChild(pt, Production::DEF_CMD_PARMS)) {
+            rs.params = buildParmList(parms);
+            rs.returnVal = getRetVal(parms);
+        }
         auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
         if (imparms) rs.implicitParams = buildParmList(imparms);
         intd.signature = std::move(rs);

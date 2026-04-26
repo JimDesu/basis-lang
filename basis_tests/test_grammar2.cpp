@@ -6775,6 +6775,55 @@ TEST_CASE("Grammar2::DEF_INSTANCE") {
             "),"
             "DEF_INSTANCE_TYPES(TYPENAME,TYPENAME)"
         ")"));
+
+    // Delegate ( name ) syntax
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface (myImpl)",
+        "DEF_INSTANCE("
+            "DEF_INSTANCE_NAME(TYPENAME),"
+            "DEF_INSTANCE_TYPES("
+                "TYPENAME,"
+                "DEF_INSTANCE_DELEGATE(IDENTIFIER(IDENTIFIER_NAME))"
+            ")"
+        ")"));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance User: Serializable (mySerial), Comparable (myComp)",
+        "DEF_INSTANCE("
+            "DEF_INSTANCE_NAME(TYPENAME),"
+            "DEF_INSTANCE_TYPES("
+                "TYPENAME,"
+                "DEF_INSTANCE_DELEGATE(IDENTIFIER(IDENTIFIER_NAME)),"
+                "TYPENAME,"
+                "DEF_INSTANCE_DELEGATE(IDENTIFIER(IDENTIFIER_NAME))"
+            ")"
+        ")"));
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface (Std::myImpl)",
+        "DEF_INSTANCE("
+            "DEF_INSTANCE_NAME(TYPENAME),"
+            "DEF_INSTANCE_TYPES("
+                "TYPENAME,"
+                "DEF_INSTANCE_DELEGATE(IDENTIFIER(IDENTIFIER_QUALIFIER,IDENTIFIER_NAME))"
+            ")"
+        ")"));
+    // Mix: one delegated, one not
+    CHECK(testParse(grammar.DEF_INSTANCE, ".instance Map[K, V]: Container (hashImpl), Iterable",
+        "DEF_INSTANCE("
+            "DEF_INSTANCE_NAME("
+                "TYPEDEF_NAME_Q("
+                    "TYPENAME,"
+                    "TYPEDEF_PARMS("
+                        "TYPEDEF_PARM_TYPE(TYPE_NAME_Q(TYPENAME)),"
+                        "TYPEDEF_PARM_TYPE(TYPE_NAME_Q(TYPENAME))"
+                    ")"
+                ")"
+            "),"
+            "DEF_INSTANCE_TYPES("
+                "TYPENAME,"
+                "DEF_INSTANCE_DELEGATE(IDENTIFIER(IDENTIFIER_NAME)),"
+                "TYPENAME"
+            ")"
+        ")"));
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface ()"));  // empty delegate
+    CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget: Interface (Default)"));  // typename, not identifier
+
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance widget: Interface"));  // lowercase type name
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget interface"));  // missing colon
     CHECK_FALSE(testParse(grammar.DEF_INSTANCE, ".instance Widget:"));  // missing interface
@@ -14807,6 +14856,8 @@ TEST_CASE("Grammar2::BLOCK") {
         ")"));
     CHECK(testParse(grammar.BLOCK, "?- cleanup",
         "DO_WHEN_FAIL(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
+    CHECK(testParse(grammar.BLOCK, "?: select",
+        "DO_WHEN_SELECT(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
     CHECK(testParse(grammar.BLOCK, "- fallback",
         "DO_ELSE(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
     CHECK(testParse(grammar.BLOCK, "% execute",
