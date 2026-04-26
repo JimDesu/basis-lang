@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "Diagnostic.h"
 #include "RollbackGuard.h"
 #include "ParseObject.h"
 #include "Token.h"
@@ -40,6 +41,7 @@ namespace basis {
         // test support; will not be used at runtime
         bool allTokensConsumed() const;
         std::string getError() const;
+        Diagnostic  getErrorDiagnostic() const;
 
         spParseTree parseTree;
 

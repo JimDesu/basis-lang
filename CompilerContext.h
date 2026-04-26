@@ -5,13 +5,14 @@
 #include <iostream>
 
 #include "CompileOptions.h"
+#include "Diagnostic.h"
 
 namespace basis {
     struct CompilerContext {
         ~CompilerContext();
         std::ifstream inputFile;
         CompileOptions options;
-
+        Diagnostics    diagnostics;
     };
 
 } // basis

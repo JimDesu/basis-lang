@@ -77,6 +77,24 @@ namespace basis {
         return ss.str();
     }
 
+    Diagnostic Parser::getErrorDiagnostic() const {
+        Diagnostic d;
+        d.severity = Severity::Error;
+        d.phase    = Phase::Parse;
+        if (furthestPosition == tokens.cend()) {
+            d.message = "unexpected end of input";
+            return d;
+        }
+        const Token* t = furthestPosition->get();
+        d.loc = SourceLoc{t->lineNumber, t->columnNumber};
+        d.message = "unexpected token: " + t->text;
+        if (t->bound) {
+            d.relatedLoc = SourceLoc{t->bound->lineNumber, t->bound->columnNumber};
+            d.related    = "bound to: " + t->bound->text;
+        }
+        return d;
+    }
+
     // Discard implementation
     Discard::Discard(TokenType type) : type(type) {}
 

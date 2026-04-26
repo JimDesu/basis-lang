@@ -248,7 +248,7 @@ namespace {
     // forever to diagnose)
     std::list<spToken> tokenize(const std::string& text, bool& success) {
         std::istringstream input(text);
-        Lexer lexer(input, false);
+        Lexer lexer(input, discardDiagnostics());
         success = lexer.scan();
         return lexer.output;
     }

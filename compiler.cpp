@@ -19,19 +19,19 @@ int compile(std::vector<std::string> arguments) {
         std::cerr << "Error opening input file: " << ctx.options.filename << std::endl;
         return 1;
     }
-    Lexer lexer(ctx.inputFile);
-    if ( !lexer.scan() ) {
-        std::cerr << "Error scanning input file: " << ctx.options.filename << std::endl;
-        return 1;
-    }
-    Parser parser(lexer.output, getGrammar().COMPILATION_UNIT);
-    if ( !parser.parse() ) {
-        std::cerr << "Error parsing input file: " << ctx.options.filename << std::endl;
-        std::cerr << parser.getError();
-        return 1;
+
+    Lexer lexer(ctx.inputFile, ctx.diagnostics);
+    lexer.scan();
+
+    if ( !ctx.diagnostics.hasFatal() ) {
+        Parser parser(lexer.output, getGrammar().COMPILATION_UNIT);
+        if ( !parser.parse() ) {
+            ctx.diagnostics.report(parser.getErrorDiagnostic());
+        }
     }
 
-    return 0;
+    printDiagnostics(std::cerr, ctx.diagnostics);
+    return ctx.diagnostics.hasErrors() ? 1 : 0;
 }
 
 void usage() {

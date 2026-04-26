@@ -6,13 +6,17 @@
 #include <map>
 #include <stack>
 
+#include "Diagnostic.h"
 #include "Token.h"
 
 namespace basis {
     class Lexer {
         public:
-            explicit Lexer(std::istream& inputStream, bool emit = true) : emitErrors(emit),
-                output(), input(inputStream), indents(), parenStack(), braceStack(), bracketStack(), lineNumber(1), columnNumber(0),readChar(0),
+            // Errors are reported into the provided Diagnostics. Pass
+            // discardDiagnostics() if you don't care to inspect them.
+            explicit Lexer(std::istream& inputStream, Diagnostics& diags = discardDiagnostics()) :
+                output(), diagnostics(diags), input(inputStream), indents(), parenStack(), braceStack(), bracketStack(),
+                lineNumber(1), columnNumber(0),readChar(0),
                 checks{ &Lexer::checkComment, &Lexer::checkWhitespace, &Lexer::checkHex, &Lexer::checkBinary, &Lexer::checkNumeric,
                     &Lexer::checkTypename, &Lexer::checkIdentifier, &Lexer::checkResWord, &Lexer::checkString, &Lexer::checkPunct },
                 reads { &Lexer::readComment, &Lexer::readWhitespace, &Lexer::readHex, &Lexer::readBinary, &Lexer::readNumeric,
@@ -21,7 +25,7 @@ namespace basis {
             std::list<spToken> output;
             bool scan();
         private:
-            bool emitErrors;
+            Diagnostics& diagnostics;
             static bool isIdentifierChar(char c);
             void writeError(const std::string& message, const Token* pToken) const;
             const static std::map<std::string, TokenType> resWords;

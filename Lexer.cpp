@@ -124,11 +124,9 @@ bool Lexer::isIdentifierChar(char c) {
 }
 
 void Lexer::writeError(const std::string& message, const Token* pToken) const {
-    if ( emitErrors ) {
-        std::cerr << message
-                  << " at line " << pToken->lineNumber
-                  << " column "  << pToken->columnNumber << std::endl;
-    }
+    diagnostics.error(Phase::Lex,
+                      SourceLoc{pToken->lineNumber, pToken->columnNumber},
+                      message);
 }
 
 bool Lexer::readComment() {

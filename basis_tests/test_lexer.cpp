@@ -18,7 +18,7 @@ void testLexSingleToken(const std::string& input, TokenType expectedType) {
 
 basis::Lexer lexInput(const std::string& input, bool expectSuccess = true) {
     std::istringstream inputStream(input);
-    basis::Lexer lexer(inputStream, false);
+    basis::Lexer lexer(inputStream, basis::discardDiagnostics());
     bool scanResult = lexer.scan();
     CHECK_EQ(scanResult, expectSuccess);
     return lexer;

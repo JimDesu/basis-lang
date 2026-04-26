@@ -14,7 +14,7 @@ namespace {
 
 std::shared_ptr<CompilationUnit> parseCompilationUnit(const std::string& text) {
     std::istringstream input(text);
-    Lexer lexer(input, false);
+    Lexer lexer(input, discardDiagnostics());
     REQUIRE(lexer.scan());
 
     Parser parser(lexer.output, getGrammar().COMPILATION_UNIT);

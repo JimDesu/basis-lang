@@ -37,7 +37,7 @@ namespace basis {
     // equality check.
     inline bool testAst(std::string_view input, std::string_view expected) {
         std::istringstream in{std::string{input}};
-        Lexer lexer(in, false);
+        Lexer lexer(in, discardDiagnostics());
         if (!lexer.scan()) {
             MESSAGE("lexer.scan() failed for input: " << input);
             return false;
