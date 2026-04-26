@@ -4,6 +4,13 @@
 
 namespace basis {
 
+// Hard contract check between the AstBuilder and the parser. Use only for
+// shape preconditions whose violation indicates a grammar/AstBuilder drift —
+// not for genuinely optional children. Throws std::logic_error so doctest
+// surfaces the failure clearly.
+#define BUILD_ASSERT(cond, msg) \
+    do { if (!(cond)) throw std::logic_error(std::string("AstBuilder: ") + (msg)); } while (0)
+
 // ========================================================================
 // Parse-tree navigation helpers
 // ========================================================================
@@ -93,37 +100,53 @@ static std::string collectTypeName(const spParseTree& pt) {
 // Extract a type name from a TYPEDEF_NAME_Q node (parameterized) or a bare
 // TYPENAME/QUALIFIED_TYPENAME node (unparameterized — new grammar passes through).
 // Also handles wrapping "name group" nodes (e.g. DEF_RECORD_NAME) by descending once.
-static std::string nameFromTypedefNameQ(const spParseTree& pt) {
+static std::string collectDefName(const spParseTree& pt) {
     if (!pt) return {};
     if (is(pt, Production::TYPEDEF_NAME_Q))       return collectTypeName(down(pt));
     if (is(pt, Production::TYPENAME) ||
         is(pt, Production::QUALIFIED_TYPENAME))    return collectTypeName(pt);
     // Wrapper group (e.g. DEF_RECORD_NAME) — look at its sole child.
-    return nameFromTypedefNameQ(down(pt));
+    return collectDefName(down(pt));
 }
 
-// Collect text from IDENTIFIER group (with optional qualifiers)
-static std::string collectIdent(const spParseTree& pt) {
-    if (!pt) return {};
+// Collect a structured Identifier from an IDENTIFIER (or ALLOC_IDENTIFIER) parse node.
+static Identifier collectIdentifier(const spParseTree& pt) {
+    Identifier id;
+    if (!pt) return id;
+    if (is(pt, Production::ALLOC_IDENTIFIER)) {
+        return collectIdentifier(down(pt));
+    }
     if (is(pt, Production::IDENTIFIER)) {
-        std::string r;
         for (auto c = down(pt); c; c = nxt(c)) {
             if (c->production == Production::IDENTIFIER_QUALIFIER)
-                r += txt(c) + "::";
-            else if (c->production == Production::IDENTIFIER)
-                r += txt(c);
+                id.qualifiers.push_back(txt(c));
+            else if (c->production == Production::IDENTIFIER_NAME)
+                id.name = txt(c);
         }
-        return r;
+        return id;
     }
-    if (is(pt, Production::ALLOC_IDENTIFIER)) {
-        // children: IDENTIFIER group (POUND was discarded)
-        return collectIdent(down(pt));
-    }
-    return txt(pt);
+    id.name = txt(pt);
+    return id;
+}
+
+// Flat-string convenience: qualifiers joined by "::" with trailing "::name".
+static std::string collectIdent(const spParseTree& pt) {
+    Identifier id = collectIdentifier(pt);
+    std::string r;
+    for (auto& q : id.qualifiers) r += q + "::";
+    r += id.name;
+    return r;
 }
 
 static bool isAllocIdent(const spParseTree& pt) {
     return is(pt, Production::ALLOC_IDENTIFIER);
+}
+
+// True for either a bare TYPENAME leaf or a QUALIFIED_TYPENAME group; i.e.,
+// either shape of typename the grammar can produce. Use this in alternation
+// branches that admit a typename so the qualified case is not silently missed.
+static bool isAnyTypename(const spParseTree& pt) {
+    return is(pt, Production::TYPENAME) || is(pt, Production::QUALIFIED_TYPENAME);
 }
 
 // ========================================================================
@@ -222,7 +245,7 @@ static std::vector<FieldDecl> buildRecordFields(const spParseTree& pt) {
         auto dom = findChild(c, Production::DEF_RECORD_FIELD_DOMAIN);
         f.type = buildTypeExprDomain(dom ? down(dom) : nullptr);
         auto nm = findChild(c, Production::DEF_RECORD_FIELD_NAME);
-        f.name = collectIdent(nm ? down(nm) : nullptr);
+        f.name = txt(nm);
         fields.push_back(std::move(f));
     }
     return fields;
@@ -237,7 +260,7 @@ static std::vector<FieldDecl> buildObjectFields(const spParseTree& pt) {
         auto tp = findChild(c, Production::DEF_OBJECT_FIELD_TYPE);
         f.type = buildTypeExpr(tp ? down(tp) : nullptr);
         auto nm = findChild(c, Production::DEF_OBJECT_FIELD_NAME);
-        f.name = collectIdent(nm ? down(nm) : nullptr);
+        f.name = txt(nm);
         fields.push_back(std::move(f));
     }
     return fields;
@@ -252,7 +275,7 @@ static std::vector<UnionCandidate> buildUnionCandidates(const spParseTree& pt) {
         auto dom = findChild(c, Production::DEF_UNION_CANDIDATE_DOMAIN);
         uc.domain = buildTypeExprDomain(dom ? down(dom) : nullptr);
         auto nm = findChild(c, Production::DEF_UNION_CANDIDATE_NAME);
-        uc.name = collectIdent(nm ? down(nm) : nullptr);
+        uc.name = txt(nm);
         cands.push_back(std::move(uc));
     }
     return cands;
@@ -267,7 +290,7 @@ static std::vector<VariantCandidate> buildVariantCandidates(const spParseTree& p
         auto tp = findChild(c, Production::DEF_VARIANT_CANDIDATE_TYPE);
         vc.type = buildTypeExpr(tp ? down(tp) : nullptr);
         auto nm = findChild(c, Production::DEF_VARIANT_CANDIDATE_NAME);
-        vc.name = collectIdent(nm ? down(nm) : nullptr);
+        vc.name = txt(nm);
         cands.push_back(std::move(vc));
     }
     return cands;
@@ -277,7 +300,7 @@ static TypeNodePtr buildInlineType(const spParseTree& pt) {
     if (!pt) return nullptr;
     auto scopeNode = findChild(pt, Production::DEF_INLINE_SCOPE_NAME);
     std::string scopeName;
-    if (scopeNode) scopeName = txt(findChild(scopeNode, Production::IDENTIFIER));
+    if (scopeNode) scopeName = txt(findChild(scopeNode, Production::IDENTIFIER_NAME));
 
     if (is(pt, Production::DEF_INLINE_RECORD)) {
         InlineRecordType irt;
@@ -456,12 +479,12 @@ static ExprNodePtr buildPrimaryExpr(const spParseTree& pt) {
     }
     // Identifier
     if (p == Production::IDENTIFIER) {
-        IdentifierExpr ie; ie.text = collectIdent(pt);
+        IdentifierExpr ie; ie.ident = collectIdentifier(pt);
         ie.line = locL(pt); ie.col = locC(pt);
         return std::make_shared<ExprNode>(std::move(ie));
     }
     if (p == Production::ALLOC_IDENTIFIER) {
-        IdentifierExpr ie; ie.text = collectIdent(pt); ie.isAlloc = true;
+        IdentifierExpr ie; ie.ident = collectIdentifier(pt); ie.isAlloc = true;
         ie.line = locL(pt); ie.col = locC(pt);
         return std::make_shared<ExprNode>(std::move(ie));
     }
@@ -470,7 +493,7 @@ static ExprNodePtr buildPrimaryExpr(const spParseTree& pt) {
         EnumDerefExpr ed;
         ed.line = locL(pt); ed.col = locC(pt);
         auto c = down(pt);
-        ed.typeName = txt(c);        // TYPENAME
+        ed.typeName = collectTypeName(c);
         ed.memberName = collectIdent(nxt(c)); // IDENTIFIER
         return std::make_shared<ExprNode>(std::move(ed));
     }
@@ -700,7 +723,7 @@ static StatNode buildStatement(const spParseTree& pt) {
             // First child: ALLOC_IDENTIFIER or IDENTIFIER
             auto& tgt = kids[0];
             IdentifierExpr ie;
-            ie.text = collectIdent(tgt);
+            ie.ident = collectIdentifier(tgt);
             ie.isAlloc = isAllocIdent(tgt);
             ie.line = locL(tgt); ie.col = locC(tgt);
             as.target = std::make_shared<ExprNode>(std::move(ie));
@@ -798,23 +821,21 @@ static std::vector<CmdParam> buildParmList(const spParseTree& pt) {
 
 static std::string getRetVal(const spParseTree& pt) {
     auto rv = findChild(pt, Production::DEF_CMD_RETVAL);
-    if (!rv) return {};
-    auto id = down(rv); // IDENTIFIER group
-    return collectIdent(id);
+    return rv ? txt(rv) : std::string{};
 }
 
 static CmdSignature buildSignature(const spParseTree& pt) {
-    if (!pt) return RegularSig{};
+    BUILD_ASSERT(pt, "buildSignature: null parse tree");
 
     if (is(pt, Production::DEF_CMD_REGULAR)) {
         RegularSig rs;
         auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
-        if (nameSpec) parseNameSpec(nameSpec, rs.name, rs.failMode);
+        BUILD_ASSERT(nameSpec, "DEF_CMD_REGULAR missing DEF_CMD_NAME_SPEC");
+        parseNameSpec(nameSpec, rs.name, rs.failMode);
         auto parms = findChild(pt, Production::DEF_CMD_PARMS);
-        if (parms) {
-            rs.params = buildParmList(parms);
-            rs.returnVal = getRetVal(parms);
-        }
+        BUILD_ASSERT(parms, "DEF_CMD_REGULAR missing DEF_CMD_PARMS");
+        rs.params = buildParmList(parms);
+        rs.returnVal = getRetVal(parms);
         auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
         if (imparms) rs.implicitParams = buildParmList(imparms);
         return rs;
@@ -822,17 +843,17 @@ static CmdSignature buildSignature(const spParseTree& pt) {
     if (is(pt, Production::DEF_CMD_VCOMMAND)) {
         VCommandSig vs;
         auto recvs = findChild(pt, Production::DEF_CMD_RECEIVERS);
-        if (recvs) {
-            for (auto c = down(recvs); c; c = nxt(c))
-                if (is(c, Production::DEF_CMD_RECEIVER))
-                    vs.receivers.push_back(buildCmdReceiver(c));
-        }
+        BUILD_ASSERT(recvs, "DEF_CMD_VCOMMAND missing DEF_CMD_RECEIVERS");
+        for (auto c = down(recvs); c; c = nxt(c))
+            if (is(c, Production::DEF_CMD_RECEIVER))
+                vs.receivers.push_back(buildCmdReceiver(c));
         auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
-        if (nameSpec) parseNameSpec(nameSpec, vs.name, vs.failMode);
+        BUILD_ASSERT(nameSpec, "DEF_CMD_VCOMMAND missing DEF_CMD_NAME_SPEC");
+        parseNameSpec(nameSpec, vs.name, vs.failMode);
         auto parms = findChild(pt, Production::DEF_CMD_PARMS);
         if (parms) vs.params = buildParmList(parms);
         auto retval = findChild(pt, Production::DEF_CMD_RETVAL);
-        if (retval) vs.returnVal = collectIdent(down(retval));
+        if (retval) vs.returnVal = txt(retval);
         auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
         if (imparms) vs.implicitParams = buildParmList(imparms);
         return vs;
@@ -840,7 +861,8 @@ static CmdSignature buildSignature(const spParseTree& pt) {
     if (is(pt, Production::DEF_CMD_CTOR)) {
         ConstructorSig cs;
         auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
-        if (recv) cs.receiver = buildCmdReceiver(recv);
+        BUILD_ASSERT(recv, "DEF_CMD_CTOR missing DEF_CMD_RECEIVER");
+        cs.receiver = buildCmdReceiver(recv);
         for (auto c = down(pt); c; c = nxt(c))
             if (is(c, Production::DEF_CMD_PARM)) cs.params.push_back(buildCmdParm(c));
         return cs;
@@ -848,16 +870,19 @@ static CmdSignature buildSignature(const spParseTree& pt) {
     if (is(pt, Production::DEF_CMD_RECEIVER_ATSTACK)) {
         DestructorSig ds;
         auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
-        if (recv) ds.receiver = buildCmdReceiver(recv);
+        BUILD_ASSERT(recv, "DEF_CMD_RECEIVER_ATSTACK missing DEF_CMD_RECEIVER");
+        ds.receiver = buildCmdReceiver(recv);
         return ds;
     }
     if (is(pt, Production::DEF_CMD_RECEIVER_ATSTACK_FAIL)) {
         FailHandlerSig fs;
         auto recv = findChild(pt, Production::DEF_CMD_RECEIVER);
-        if (recv) fs.receiver = buildCmdReceiver(recv);
+        BUILD_ASSERT(recv, "DEF_CMD_RECEIVER_ATSTACK_FAIL missing DEF_CMD_RECEIVER");
+        fs.receiver = buildCmdReceiver(recv);
         return fs;
     }
-    return RegularSig{};
+    BUILD_ASSERT(false, "buildSignature: unknown signature production");
+    return RegularSig{}; // unreachable
 }
 
 // ========================================================================
@@ -884,27 +909,29 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         ad.line = locL(pt); ad.col = locC(pt);
         // Name: TYPEDEF_NAME_Q when parameterized, bare TYPENAME/QUALIFIED_TYPENAME otherwise.
         for (auto c = down(pt); c; c = nxt(c)) {
-            if (is(c, Production::TYPEDEF_NAME_Q) ||
-                is(c, Production::TYPENAME) ||
-                is(c, Production::QUALIFIED_TYPENAME)) {
-                ad.name = nameFromTypedefNameQ(c);
+            if (is(c, Production::TYPEDEF_NAME_Q) || isAnyTypename(c)) {
+                ad.name = collectDefName(c);
                 break;
             }
         }
+        BUILD_ASSERT(!ad.name.empty(), "DEF_ALIAS missing name");
         auto te = findChild(pt, Production::TYPE_EXPR);
-        if (te) ad.type = buildTypeExpr(te);
+        BUILD_ASSERT(te, "DEF_ALIAS missing TYPE_EXPR");
+        ad.type = buildTypeExpr(te);
         return ad;
     }
     if (p == Production::DEF_DOMAIN) {
         DomainDecl dd;
         dd.line = locL(pt); dd.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_DOMAIN_NAME);
-        if (nm) dd.name = collectTypeName(down(nm));
+        BUILD_ASSERT(nm, "DEF_DOMAIN missing DEF_DOMAIN_NAME");
+        dd.name = collectTypeName(down(nm));
         auto par = findChild(pt, Production::DEF_DOMAIN_PARENT);
-        if (par) {
+        BUILD_ASSERT(par, "DEF_DOMAIN missing DEF_DOMAIN_PARENT");
+        {
             auto tn = down(par);
-            if (tn && is(tn, Production::TYPENAME))  {
-                NamedType nt; nt.name = txt(tn);
+            if (tn && isAnyTypename(tn))  {
+                NamedType nt; nt.name = collectTypeName(tn);
                 nt.line = locL(tn); nt.col = locC(tn);
                 dd.parent = std::make_shared<TypeNode>(std::move(nt));
             } else if (tn && is(tn, Production::DEF_DOMAIN_PARENT_RANGE)) {
@@ -913,7 +940,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
                 if (sz) rt.size = txt(down(sz));
                 auto et = findChild(tn, Production::DEF_DOMAIN_PARENT_RANGE_TYPE);
                 if (et) {
-                    NamedType elem; elem.name = txt(down(et));
+                    NamedType elem; elem.name = collectTypeName(down(et));
                     elem.line = locL(et); elem.col = locC(et);
                     rt.element = std::make_shared<TypeNode>(std::move(elem));
                 }
@@ -947,50 +974,60 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         RecordDecl rd;
         rd.line = locL(pt); rd.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_RECORD_NAME);
-        if (nm) rd.name = nameFromTypedefNameQ(nm);
+        BUILD_ASSERT(nm, "DEF_RECORD missing DEF_RECORD_NAME");
+        rd.name = collectDefName(nm);
         auto flds = findChild(pt, Production::DEF_RECORD_FIELDS);
-        if (flds) rd.fields = buildRecordFields(flds);
+        BUILD_ASSERT(flds, "DEF_RECORD missing DEF_RECORD_FIELDS");
+        rd.fields = buildRecordFields(flds);
         return rd;
     }
     if (p == Production::DEF_OBJECT) {
         ObjectDecl od;
         od.line = locL(pt); od.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_OBJECT_NAME);
-        if (nm) od.name = nameFromTypedefNameQ(nm);
+        BUILD_ASSERT(nm, "DEF_OBJECT missing DEF_OBJECT_NAME");
+        od.name = collectDefName(nm);
         auto flds = findChild(pt, Production::DEF_OBJECT_FIELDS);
-        if (flds) od.fields = buildObjectFields(flds);
+        BUILD_ASSERT(flds, "DEF_OBJECT missing DEF_OBJECT_FIELDS");
+        od.fields = buildObjectFields(flds);
         return od;
     }
     if (p == Production::DEF_UNION) {
         UnionDecl ud;
         ud.line = locL(pt); ud.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_UNION_NAME);
-        if (nm) ud.name = nameFromTypedefNameQ(nm);
+        BUILD_ASSERT(nm, "DEF_UNION missing DEF_UNION_NAME");
+        ud.name = collectDefName(nm);
         auto cands = findChild(pt, Production::DEF_UNION_CANDIDATES);
-        if (cands) ud.candidates = buildUnionCandidates(cands);
+        BUILD_ASSERT(cands, "DEF_UNION missing DEF_UNION_CANDIDATES");
+        ud.candidates = buildUnionCandidates(cands);
         return ud;
     }
     if (p == Production::DEF_VARIANT) {
         VariantDecl vd;
         vd.line = locL(pt); vd.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_VARIANT_NAME);
-        if (nm) vd.name = nameFromTypedefNameQ(nm);
+        BUILD_ASSERT(nm, "DEF_VARIANT missing DEF_VARIANT_NAME");
+        vd.name = collectDefName(nm);
         auto cands = findChild(pt, Production::DEF_VARIANT_CANDIDATES);
-        if (cands) vd.candidates = buildVariantCandidates(cands);
+        BUILD_ASSERT(cands, "DEF_VARIANT missing DEF_VARIANT_CANDIDATES");
+        vd.candidates = buildVariantCandidates(cands);
         return vd;
     }
     if (p == Production::DEF_INSTANCE) {
         InstanceDecl id;
         id.line = locL(pt); id.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_INSTANCE_NAME);
-        if (nm) id.name = nameFromTypedefNameQ(nm);
+        BUILD_ASSERT(nm, "DEF_INSTANCE missing DEF_INSTANCE_NAME");
+        id.name = collectDefName(nm);
         auto types = findChild(pt, Production::DEF_INSTANCE_TYPES);
-        if (types) {
+        BUILD_ASSERT(types, "DEF_INSTANCE missing DEF_INSTANCE_TYPES");
+        {
             InstanceType cur;
             for (auto c = down(types); c; c = nxt(c)) {
-                if (is(c, Production::TYPENAME)) {
+                if (isAnyTypename(c)) {
                     if (!cur.typeName.empty()) { id.types.push_back(std::move(cur)); cur = {}; }
-                    cur.typeName = txt(c);
+                    cur.typeName = collectTypeName(c);
                     cur.line = locL(c); cur.col = locC(c);
                 } else if (is(c, Production::DEF_INSTANCE_DELEGATE)) {
                     cur.delegate = collectIdent(down(c));
@@ -1004,7 +1041,8 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         CmdDecl cd;
         cd.line = locL(pt); cd.col = locC(pt);
         auto sig = findSigChild(pt);
-        if (sig) cd.signature = buildSignature(sig);
+        BUILD_ASSERT(sig, "DEF_CMD_DECL missing signature child");
+        cd.signature = buildSignature(sig);
         return cd;
     }
     if (p == Production::DEF_CMD_INTRINSIC) {
@@ -1013,9 +1051,12 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         // Intrinsic always has DEF_CMD_REGULAR form (name_spec + parms + imparms as direct children)
         RegularSig rs;
         auto nameSpec = findChild(pt, Production::DEF_CMD_NAME_SPEC);
-        if (nameSpec) parseNameSpec(nameSpec, rs.name, rs.failMode);
+        BUILD_ASSERT(nameSpec, "DEF_CMD_INTRINSIC missing DEF_CMD_NAME_SPEC");
+        parseNameSpec(nameSpec, rs.name, rs.failMode);
         auto parms = findChild(pt, Production::DEF_CMD_PARMS);
-        if (parms) { rs.params = buildParmList(parms); rs.returnVal = getRetVal(parms); }
+        BUILD_ASSERT(parms, "DEF_CMD_INTRINSIC missing DEF_CMD_PARMS");
+        rs.params = buildParmList(parms);
+        rs.returnVal = getRetVal(parms);
         auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS);
         if (imparms) rs.implicitParams = buildParmList(imparms);
         intd.signature = std::move(rs);
@@ -1025,32 +1066,37 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         CmdDef cd;
         cd.line = locL(pt); cd.col = locC(pt);
         auto sig = findSigChild(pt);
-        if (sig) cd.signature = buildSignature(sig);
+        BUILD_ASSERT(sig, "DEF_CMD missing signature child");
+        cd.signature = buildSignature(sig);
         auto body = findChild(pt, Production::DEF_CMD_BODY);
-        if (body) cd.body = buildCmdBody(body);
+        BUILD_ASSERT(body, "DEF_CMD missing DEF_CMD_BODY");
+        cd.body = buildCmdBody(body);
         return cd;
     }
     if (p == Production::DEF_CLASS) {
         ClassDecl cls;
         cls.line = locL(pt); cls.col = locC(pt);
         auto nm = findChild(pt, Production::DEF_CLASS_NAME);
-        if (nm) cls.name = txt(down(nm));
+        BUILD_ASSERT(nm, "DEF_CLASS missing DEF_CLASS_NAME");
+        cls.name = txt(down(nm));
         auto cmds = findChild(pt, Production::DEF_CLASS_CMDS);
-        if (cmds) {
-            for (auto c = down(cmds); c; c = nxt(c)) {
-                if (is(c, Production::DEF_CMD_DECL)) {
-                    CmdDecl cd; cd.line = locL(c); cd.col = locC(c);
-                    auto sig2 = findSigChild(c);
-                    if (sig2) cd.signature = buildSignature(sig2);
-                    cls.members.push_back(std::move(cd));
-                } else if (is(c, Production::DEF_CMD)) {
-                    CmdDef cdef; cdef.line = locL(c); cdef.col = locC(c);
-                    auto sig2 = findSigChild(c);
-                    if (sig2) cdef.signature = buildSignature(sig2);
-                    auto body = findChild(c, Production::DEF_CMD_BODY);
-                    if (body) cdef.body = buildCmdBody(body);
-                    cls.members.push_back(std::move(cdef));
-                }
+        BUILD_ASSERT(cmds, "DEF_CLASS missing DEF_CLASS_CMDS");
+        for (auto c = down(cmds); c; c = nxt(c)) {
+            if (is(c, Production::DEF_CMD_DECL)) {
+                CmdDecl cd; cd.line = locL(c); cd.col = locC(c);
+                auto sig2 = findSigChild(c);
+                BUILD_ASSERT(sig2, "DEF_CMD_DECL in class missing signature child");
+                cd.signature = buildSignature(sig2);
+                cls.members.push_back(std::move(cd));
+            } else if (is(c, Production::DEF_CMD)) {
+                CmdDef cdef; cdef.line = locL(c); cdef.col = locC(c);
+                auto sig2 = findSigChild(c);
+                BUILD_ASSERT(sig2, "DEF_CMD in class missing signature child");
+                cdef.signature = buildSignature(sig2);
+                auto body = findChild(c, Production::DEF_CMD_BODY);
+                BUILD_ASSERT(body, "DEF_CMD in class missing DEF_CMD_BODY");
+                cdef.body = buildCmdBody(body);
+                cls.members.push_back(std::move(cdef));
             }
         }
         return cls;
@@ -1059,20 +1105,23 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         ProgramDecl pd;
         pd.line = locL(pt); pd.col = locC(pt);
         auto inv = down(pt); // first child is CALL_INVOKE result
-        if (inv) pd.entryPoint = buildInvokeExpr(inv);
+        BUILD_ASSERT(inv, "DEF_PROGRAM missing entry-point invoke child");
+        pd.entryPoint = buildInvokeExpr(inv);
         return pd;
     }
     if (p == Production::DEF_TEST) {
         TestDecl td;
         td.line = locL(pt); td.col = locC(pt);
         auto str = findChild(pt, Production::STRING);
-        if (str) td.label = txt(str);
+        BUILD_ASSERT(str, "DEF_TEST missing STRING label");
+        td.label = txt(str);
         auto cg = findChild(pt, Production::CALL_GROUP);
-        if (cg) td.body = buildCallGroup(cg);
+        BUILD_ASSERT(cg, "DEF_TEST missing CALL_GROUP body");
+        td.body = buildCallGroup(cg);
         return td;
     }
-    // Fallback: return an empty alias
-    return AliasDecl{};
+    BUILD_ASSERT(false, "buildTopLevel: unknown top-level production");
+    return AliasDecl{}; // unreachable
 }
 
 // ========================================================================

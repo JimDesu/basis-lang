@@ -141,9 +141,16 @@ struct LiteralExpr : Located {
     std::string text;
 };
 
+// Qualified or unqualified identifier reference. `qualifiers` holds any
+// `Std::Core::` prefix segments in order; `name` is the trailing identifier.
+struct Identifier {
+    std::vector<std::string> qualifiers;
+    std::string              name;
+};
+
 struct IdentifierExpr : Located {
-    std::string text;
-    bool        isAlloc = false;   // true when prefixed with #
+    Identifier ident;
+    bool       isAlloc = false;   // true when prefixed with #
 };
 
 struct EnumDerefExpr : Located {

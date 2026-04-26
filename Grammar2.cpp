@@ -43,7 +43,7 @@ void Grammar2::initIdentifiers() {
 
    IDENTIFIER = group(Production::IDENTIFIER, all(
        maybe(oneOrMore(all(as(Production::IDENTIFIER_QUALIFIER, TYPENAME_UNQUALIFIED), DCOLON))),
-       match(Production::IDENTIFIER, TokenType::IDENTIFIER)));
+       match(Production::IDENTIFIER_NAME, TokenType::IDENTIFIER)));
 }
 
 void Grammar2::initPunctuation() {
@@ -221,7 +221,7 @@ void Grammar2::initDomainTypes() {
 void Grammar2::initRecordTypes() {
     DEF_RECORD_FIELD = group(Production::DEF_RECORD_FIELD,
        all(group(Production::DEF_RECORD_FIELD_DOMAIN, TYPE_EXPR_DOMAIN),
-            group(Production::DEF_RECORD_FIELD_NAME, IDENTIFIER)) );
+            match(Production::DEF_RECORD_FIELD_NAME, TokenType::IDENTIFIER)) );
      DEF_RECORD_FIELDS = group(Production::DEF_RECORD_FIELDS,
         separated(DEF_RECORD_FIELD, COMMA) );
      DEF_RECORD = exclusiveGroup(Production::DEF_RECORD,
@@ -229,14 +229,14 @@ void Grammar2::initRecordTypes() {
      DEF_INLINE_RECORD = boundedGroup(Production::DEF_INLINE_RECORD,
         all(RECORD,
             maybe(group(Production::DEF_INLINE_SCOPE_NAME,
-                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON) )),
+                all(match(Production::IDENTIFIER_NAME, TokenType::IDENTIFIER), COLON) )),
             DEF_RECORD_FIELDS ));
 }
 
 void Grammar2::initObjectTypes() {
     DEF_OBJECT_FIELD = group(Production::DEF_OBJECT_FIELD,
         all(group(Production::DEF_OBJECT_FIELD_TYPE, TYPE_EXPR),
-            group(Production::DEF_OBJECT_FIELD_NAME, IDENTIFIER)) );
+            match(Production::DEF_OBJECT_FIELD_NAME, TokenType::IDENTIFIER)) );
     DEF_OBJECT_FIELDS = group(Production::DEF_OBJECT_FIELDS,
        separated(DEF_OBJECT_FIELD, COMMA) );
     DEF_OBJECT = exclusiveGroup(Production::DEF_OBJECT,
@@ -244,14 +244,14 @@ void Grammar2::initObjectTypes() {
     DEF_INLINE_OBJECT = boundedGroup(Production::DEF_INLINE_OBJECT,
         all(OBJECT,
             maybe(group(Production::DEF_INLINE_SCOPE_NAME,
-                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON) )),
+                all(match(Production::IDENTIFIER_NAME, TokenType::IDENTIFIER), COLON) )),
             DEF_OBJECT_FIELDS ));
 }
 
 void Grammar2::initUnionTypes() {
     DEF_UNION_CANDIDATE = group(Production::DEF_UNION_CANDIDATE,
         all(group(Production::DEF_UNION_CANDIDATE_DOMAIN, TYPE_EXPR_DOMAIN),
-            group(Production::DEF_UNION_CANDIDATE_NAME, IDENTIFIER)));
+            match(Production::DEF_UNION_CANDIDATE_NAME, TokenType::IDENTIFIER)));
     DEF_UNION_CANDIDATES = group(Production::DEF_UNION_CANDIDATES,
         separated(DEF_UNION_CANDIDATE, COMMA));
     DEF_UNION = exclusiveGroup(Production::DEF_UNION,
@@ -259,14 +259,14 @@ void Grammar2::initUnionTypes() {
     DEF_INLINE_UNION = boundedGroup(Production::DEF_INLINE_UNION,
         all(UNION,
             maybe(group(Production::DEF_INLINE_SCOPE_NAME,
-                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON))),
+                all(match(Production::IDENTIFIER_NAME, TokenType::IDENTIFIER), COLON))),
             DEF_UNION_CANDIDATES));
 }
 
 void Grammar2::initVariantTypes() {
     DEF_VARIANT_CANDIDATE = group(Production::DEF_VARIANT_CANDIDATE,
         all(group(Production::DEF_VARIANT_CANDIDATE_TYPE, TYPE_EXPR),
-            group(Production::DEF_VARIANT_CANDIDATE_NAME, IDENTIFIER)));
+            match(Production::DEF_VARIANT_CANDIDATE_NAME, TokenType::IDENTIFIER)));
     DEF_VARIANT_CANDIDATES = group(Production::DEF_VARIANT_CANDIDATES,
         separated(DEF_VARIANT_CANDIDATE, COMMA));
     DEF_VARIANT = exclusiveGroup(Production::DEF_VARIANT,
@@ -274,7 +274,7 @@ void Grammar2::initVariantTypes() {
     DEF_INLINE_VARIANT = boundedGroup(Production::DEF_INLINE_VARIANT,
         all(VARIANT,
             maybe(group(Production::DEF_INLINE_SCOPE_NAME,
-                all(match(Production::IDENTIFIER, TokenType::IDENTIFIER), COLON))),
+                all(match(Production::IDENTIFIER_NAME, TokenType::IDENTIFIER), COLON))),
             DEF_VARIANT_CANDIDATES));
 }
 
@@ -310,8 +310,7 @@ void Grammar2::initCommandDefinitions() {
        DCOLON ));
    DEF_CMD_IMPARMS = prefix(SLASH, group(Production::DEF_CMD_IMPARMS,
       separated(DEF_CMD_PARM, COMMA)) );
-   DEF_CMD_RETVAL = prefix(RARROW, group(Production::DEF_CMD_RETVAL,
-      IDENTIFIER) );
+   DEF_CMD_RETVAL = prefix(RARROW, match(Production::DEF_CMD_RETVAL, TokenType::IDENTIFIER));
    DEF_CMD_PARM_LIST = separated(DEF_CMD_PARM, COMMA);
    // For regular commands - requires parameters if return value is present
    DEF_CMD_PARMS = prefix(COLON, group(Production::DEF_CMD_PARMS,

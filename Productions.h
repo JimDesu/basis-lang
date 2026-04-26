@@ -13,6 +13,7 @@ namespace basis {
         STRING,
         // identifiers
         IDENTIFIER,
+        IDENTIFIER_NAME,
         TYPENAME,
         QUALIFIED_TYPENAME,
         IDENTIFIER_QUALIFIER,

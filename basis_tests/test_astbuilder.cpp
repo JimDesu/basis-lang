@@ -115,7 +115,7 @@ TEST_CASE("AstBuilder preserves exact binary operator text and suffix operators"
     CHECK_EQ(expr.rest[1].op, "<=");
 
     const auto& lhs = requireExpr<SuffixExpr>(expr.first);
-    CHECK_EQ(requireCommandTargetIdentifier(lhs.base).text, "ptr");
+    CHECK_EQ(requireCommandTargetIdentifier(lhs.base).ident.name, "ptr");
     REQUIRE(lhs.suffixes.size() == 3);
     CHECK(lhs.suffixes[0].kind == SuffixOp::Kind::Deref);
     CHECK(lhs.suffixes[1].kind == SuffixOp::Kind::Index);
@@ -123,10 +123,10 @@ TEST_CASE("AstBuilder preserves exact binary operator text and suffix operators"
     CHECK_EQ(requireExpr<LiteralExpr>(lhs.suffixes[1].indexLoc).text, "0");
 
     const auto& middle = requireExpr<SuffixExpr>(expr.rest[0].term);
-    CHECK_EQ(requireCommandTargetIdentifier(middle.base).text, "data");
+    CHECK_EQ(requireCommandTargetIdentifier(middle.base).ident.name, "data");
     REQUIRE(middle.suffixes.size() == 1);
     CHECK(middle.suffixes[0].kind == SuffixOp::Kind::Addr);
-    CHECK_EQ(requireCommandTargetIdentifier(expr.rest[1].term).text, "limit");
+    CHECK_EQ(requireCommandTargetIdentifier(expr.rest[1].term).ident.name, "limit");
 }
 
 TEST_CASE("AstBuilder preserves command literal kind") {
