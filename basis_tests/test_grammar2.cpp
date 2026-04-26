@@ -4049,9 +4049,43 @@ TEST_CASE("Grammar2::DEF_ENUM") {
     // enumeration with a type
     CHECK(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye = 0, salmon = 1",
         "DEF_ENUM(DEF_ENUM_TYPENAME,DEF_ENUM_NAME,DEF_ENUM_ITEM_NAME,NUMBER,DEF_ENUM_ITEM_NAME,NUMBER)"));
+    // Items without literals
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Color: red, green, blue",
+        "DEF_ENUM(DEF_ENUM_NAME,DEF_ENUM_ITEM_NAME,DEF_ENUM_ITEM_NAME,DEF_ENUM_ITEM_NAME)"));
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Mode: defaults",
+        "DEF_ENUM(DEF_ENUM_NAME,DEF_ENUM_ITEM_NAME)"));
+    // Mixed: some items with literals, some without
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Status: active = 0, pending, done = 2",
+        "DEF_ENUM("
+            "DEF_ENUM_NAME,"
+            "DEF_ENUM_ITEM_NAME,NUMBER,"
+            "DEF_ENUM_ITEM_NAME,"
+            "DEF_ENUM_ITEM_NAME,NUMBER"
+        ")"));
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Status: active, pending = 1, done",
+        "DEF_ENUM("
+            "DEF_ENUM_NAME,"
+            "DEF_ENUM_ITEM_NAME,"
+            "DEF_ENUM_ITEM_NAME,NUMBER,"
+            "DEF_ENUM_ITEM_NAME"
+        ")"));
+    // Mixed with typename constraint
+    CHECK(testParse(grammar.DEF_ENUM, ".enum T Color: red, green = 1",
+        "DEF_ENUM(DEF_ENUM_TYPENAME,DEF_ENUM_NAME,DEF_ENUM_ITEM_NAME,DEF_ENUM_ITEM_NAME,NUMBER)"));
+    // String literals also acceptable as values
+    CHECK(testParse(grammar.DEF_ENUM, ".enum Suit: clubs = \"c\", diamonds, hearts = \"h\", spades",
+        "DEF_ENUM("
+            "DEF_ENUM_NAME,"
+            "DEF_ENUM_ITEM_NAME,STRING,"
+            "DEF_ENUM_ITEM_NAME,"
+            "DEF_ENUM_ITEM_NAME,STRING,"
+            "DEF_ENUM_ITEM_NAME"
+        ")"));
     CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum A B fish: sockeye = 0, salmon = 1"));
     CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: sockeye= 0,\nsalmon = 1"));
     CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum T Fish: Sockeye= 0, Salmon = 1"));
+    // `name =` without a literal still fails (the literal is required after `=`).
+    CHECK_FALSE(testParse(grammar.DEF_ENUM, ".enum X: a =, b"));
 }
 
 // =============================================================================

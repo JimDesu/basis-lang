@@ -170,7 +170,7 @@ void Grammar2::initTypeExpressions() {
 
 void Grammar2::initEnumerations() {
    DEF_ENUM_ITEM_LIST = separated(
-       all(match(Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER), EQUALS, LITERAL),
+       all(match(Production::DEF_ENUM_ITEM_NAME, TokenType::IDENTIFIER), maybe(all(EQUALS, LITERAL))),
        COMMA);
    DEF_ENUM_NAME2 = all(
        match(Production::DEF_ENUM_TYPENAME, TokenType::TYPENAME),

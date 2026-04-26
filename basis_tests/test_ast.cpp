@@ -87,6 +87,49 @@ TEST_CASE("Ast::EnumDecl") {
                 "EnumItem('inactive','1')"
             ")"
         ")"));
+    // Items without literal values: serialization omits the value position.
+    CHECK(testAst(".enum Color: red, green, blue",
+        "CompilationUnit("
+            "EnumDecl('Color',EnumItem('red'),EnumItem('green'),EnumItem('blue'))"
+        ")"));
+    CHECK(testAst(".enum Mode: defaults",
+        "CompilationUnit(EnumDecl('Mode',EnumItem('defaults')))"));
+    // Mixed: each item's value is preserved alongside its name independently.
+    CHECK(testAst(".enum Status: active = 0, pending, done = 2",
+        "CompilationUnit("
+            "EnumDecl('Status',"
+                "EnumItem('active','0'),"
+                "EnumItem('pending'),"
+                "EnumItem('done','2')"
+            ")"
+        ")"));
+    CHECK(testAst(".enum Status: active, pending = 1, done",
+        "CompilationUnit("
+            "EnumDecl('Status',"
+                "EnumItem('active'),"
+                "EnumItem('pending','1'),"
+                "EnumItem('done')"
+            ")"
+        ")"));
+    // Mixed with type constraint
+    CHECK(testAst(".enum T Color: red, green = 1",
+        "CompilationUnit("
+            "EnumDecl('Color',constraint='T',"
+                "EnumItem('red'),"
+                "EnumItem('green','1')"
+            ")"
+        ")"));
+    // String-literal values for some items, missing values for others.
+    // (txt() on a STRING token returns the unquoted content.)
+    CHECK(testAst(".enum Suit: clubs = \"c\", diamonds, hearts = \"h\", spades",
+        "CompilationUnit("
+            "EnumDecl('Suit',"
+                "EnumItem('clubs','c'),"
+                "EnumItem('diamonds'),"
+                "EnumItem('hearts','h'),"
+                "EnumItem('spades')"
+            ")"
+        ")"));
 }
 
 // =============================================================================

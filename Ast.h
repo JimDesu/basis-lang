@@ -2,6 +2,7 @@
 #define AST_H
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -27,8 +28,8 @@ struct Located {
 // Small helper / child structs (not in any variant themselves)
 // ========================================================================
 struct EnumItem : Located {
-    std::string name;
-    std::string value;   // literal text
+    std::string                name;
+    std::optional<std::string> value;   // literal text; empty when item declared without `= <literal>`
 };
 
 struct FieldDecl : Located {

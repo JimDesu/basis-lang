@@ -149,6 +149,16 @@ static bool isAnyTypename(const spParseTree& pt) {
     return is(pt, Production::TYPENAME) || is(pt, Production::QUALIFIED_TYPENAME);
 }
 
+// True when `p` is one of the productions that the LITERAL alternation can
+// produce. Used to distinguish a literal value from neighbouring siblings
+// in flattened parse-tree contexts (e.g., enum items where the trailing
+// `= <literal>` is optional).
+static bool isLiteralProd(Production p) {
+    return p == Production::DECIMAL || p == Production::HEXNUMBER ||
+           p == Production::BINARY || p == Production::NUMBER ||
+           p == Production::STRING;
+}
+
 // ========================================================================
 // Forward declarations of builder functions
 // ========================================================================
@@ -957,17 +967,20 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         if (etn) ed.enumTypeName = txt(etn);
         auto en = findChild(pt, Production::DEF_ENUM_NAME);
         if (en) ed.enumName = txt(en);
-        // Items: pairs of DEF_ENUM_ITEM_NAME + LITERAL
+        // Items: a flattened DEF_ENUM_ITEM_NAME, optionally followed by a
+        // literal sibling (one of DECIMAL/HEXNUMBER/BINARY/NUMBER/STRING).
+        // The `= <literal>` part is optional in the grammar, so a name may be
+        // followed by another DEF_ENUM_ITEM_NAME instead — guard accordingly.
         auto kids = allChildren(pt);
         for (size_t i = 0; i < kids.size(); ++i) {
-            if (is(kids[i], Production::DEF_ENUM_ITEM_NAME)) {
-                EnumItem item;
-                item.name = txt(kids[i]);
-                item.line = locL(kids[i]); item.col = locC(kids[i]);
-                // Next sibling should be a literal
-                if (i + 1 < kids.size()) item.value = txt(kids[i + 1]);
-                ed.items.push_back(std::move(item));
+            if (!is(kids[i], Production::DEF_ENUM_ITEM_NAME)) continue;
+            EnumItem item;
+            item.name = txt(kids[i]);
+            item.line = locL(kids[i]); item.col = locC(kids[i]);
+            if (i + 1 < kids.size() && isLiteralProd(kids[i + 1]->production)) {
+                item.value = txt(kids[i + 1]);
             }
+            ed.items.push_back(std::move(item));
         }
         return ed;
     }

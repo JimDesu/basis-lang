@@ -78,8 +78,10 @@ public:
     void emit(const EnumItem& it) {
         out += "EnumItem(";
         emitStr(it.name);
-        out += ",";
-        emitStr(it.value);
+        if (it.value) {
+            out += ",";
+            emitStr(*it.value);
+        }
         out += ")";
     }
 
