@@ -60,6 +60,7 @@ namespace basis {
         SPPF OBJECT;
         SPPF PROGRAM;
         SPPF RECORD;
+        SPPF SUBCOMMAND;
         SPPF TEST;
         SPPF FAIL;
         SPPF UNION;
@@ -189,6 +190,8 @@ namespace basis {
 
         // Command definitions
         SPPF DEF_CMD;
+        SPPF DEF_SUB;
+        SPPF DEF_SUBS;
         SPPF DEF_CMD_DECL;
         SPPF DEF_CMD_INTRINSIC;
         SPPF DEF_CMD_SIGNATURE;

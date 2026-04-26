@@ -156,6 +156,8 @@ namespace {
             case Production::DEF_INSTANCE_DELEGATE:     return "DEF_INSTANCE_DELEGATE";
             case Production::DEF_INSTANCE_TYPES:        return "DEF_INSTANCE_TYPES";
             case Production::DEF_CMD:                   return "DEF_CMD";
+            case Production::DEF_SUB:                   return "DEF_SUB";
+            case Production::DEF_SUBS:                  return "DEF_SUBS";
             case Production::DEF_CMD_DECL:              return "DEF_CMD_DECL";
             case Production::DEF_CMD_INTRINSIC:         return "DEF_CMD_INTRINSIC";
             case Production::DEF_CMD_RECEIVERS:         return "DEF_CMD_RECEIVERS";
@@ -22290,4 +22292,130 @@ TEST_CASE("Grammar2::CALL_EXPR_INDEX - single and dual index") {
                 "CALL_EXPRINDEX_EXT(SUBCALL_EXPRESSION(CALL_EXPRESSION(NUMBER)))"
             ")"
         ")"));
+}
+
+// =============================================================================
+// DEF_SUB - Subcommand definitions (nested .sub procedures inside a .cmd)
+// =============================================================================
+
+TEST_CASE("Grammar2::DEF_SUB - simple subcommand inside .cmd") {
+    Grammar2& grammar = getGrammar();
+    // Subs follow the `=` of the parent's body and precede the body's call
+    // group. Indentation places subs and the trailing call group at the
+    // same indent level (under the `.cmd` line).
+
+    // A .cmd with one .sub before the body's call group
+    CHECK(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y = work\n"
+        " run",
+        "DEF_CMD("
+            "DEF_CMD_REGULAR("
+                "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                "DEF_CMD_PARMS("
+                    "DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)"
+                ")"
+            "),"
+            "DEF_CMD_BODY("
+                "DEF_SUBS("
+                    "DEF_SUB("
+                        "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                        "DEF_CMD_PARMS("
+                            "DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)"
+                        "),"
+                        "DEF_CMD_BODY(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
+                    ")"
+                "),"
+                "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
+            ")"
+        ")"));
+
+    // Multiple subs at same level
+    CHECK(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x =\n"
+        " .sub a: Int y = work1\n"
+        " .sub b: Int z = work2\n"
+        " run",
+        "DEF_CMD("
+            "DEF_CMD_REGULAR("
+                "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME))"
+            "),"
+            "DEF_CMD_BODY("
+                "DEF_SUBS("
+                    "DEF_SUB("
+                        "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                        "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)),"
+                        "DEF_CMD_BODY(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
+                    "),"
+                    "DEF_SUB("
+                        "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                        "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)),"
+                        "DEF_CMD_BODY(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
+                    ")"
+                "),"
+                "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
+            ")"
+        ")"));
+
+    // Nested subs: inner sub's body itself contains a DEF_SUBS section.
+    CHECK(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y =\n"
+        "  .sub grandchild: Int z = inner\n"
+        "  work\n"
+        " run",
+        "DEF_CMD("
+            "DEF_CMD_REGULAR("
+                "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME))"
+            "),"
+            "DEF_CMD_BODY("
+                "DEF_SUBS("
+                    "DEF_SUB("
+                        "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                        "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)),"
+                        "DEF_CMD_BODY("
+                            "DEF_SUBS("
+                                "DEF_SUB("
+                                    "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                                    "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME)),"
+                                    "DEF_CMD_BODY(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
+                                ")"
+                            "),"
+                            "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
+                        ")"
+                    ")"
+                "),"
+                "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
+            ")"
+        ")"));
+
+    // .sub is optional — a regular .cmd with no subs still parses
+    CHECK(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x = run",
+        "DEF_CMD("
+            "DEF_CMD_REGULAR("
+                "DEF_CMD_NAME_SPEC(DEF_CMD_NAME),"
+                "DEF_CMD_PARMS(DEF_CMD_PARM(DEF_CMD_PARMTYPE_NAME(TYPE_EXPR(TYPENAME)),DEF_CMD_PARM_NAME))"
+            "),"
+            "DEF_CMD_BODY(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
+        ")"));
+}
+
+TEST_CASE("Grammar2::DEF_SUB - negative cases") {
+    Grammar2& grammar = getGrammar();
+    // .sub with VCommand-like signature is not allowed (only DEF_CMD_REGULAR form)
+    CHECK_FALSE(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x =\n"
+        " .sub Widget w:: action: Int y = work\n"
+        " run"));
+    // .sub without a body is not allowed
+    CHECK_FALSE(testParse(grammar.DEF_CMD,
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y\n"
+        " run"));
+    // .sub at the top level (without a parent .cmd) is not allowed
+    CHECK_FALSE(testParse(grammar.COMPILATION_UNIT,
+        ".sub child: Int y = work\n"));
 }

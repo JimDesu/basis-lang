@@ -31,6 +31,7 @@ namespace basis {
         OBJECT,
         PROGRAM,
         RECORD,
+        SUBCOMMAND,
         TEST,
         // punctuation
         AMBANG,
@@ -173,6 +174,8 @@ namespace basis {
         DEF_INSTANCE_TYPES,
         // -- command definitions/declarations
         DEF_CMD,
+        DEF_SUB,
+        DEF_SUBS,
         DEF_CMD_DECL,
         DEF_CMD_INTRINSIC,
         DEF_CMD_RECEIVERS,

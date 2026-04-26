@@ -36,6 +36,7 @@ const std::map<std::string, TokenType> Lexer::resWords {
     {".object", TokenType::OBJECT},
     {".program", TokenType::PROGRAM},
     {".record", TokenType::RECORD},
+    {".sub", TokenType::SUBCOMMAND},
     {".test", TokenType::TEST},
     {".union", TokenType::UNION},
     {".variant", TokenType::VARIANT}

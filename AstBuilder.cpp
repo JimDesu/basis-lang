@@ -184,6 +184,7 @@ static std::shared_ptr<CallGroup> buildCallGroup(const spParseTree& pt);
 static CmdParam buildCmdParm(const spParseTree& pt);
 static CmdReceiver buildCmdReceiver(const spParseTree& pt);
 static CmdSignature buildSignature(const spParseTree& pt);
+static CmdDef buildCmdDefFromNode(const spParseTree& pt);
 static std::vector<FieldDecl> buildRecordFields(const spParseTree& pt);
 static std::vector<FieldDecl> buildObjectFields(const spParseTree& pt);
 
@@ -781,6 +782,13 @@ static std::shared_ptr<CmdBody> buildCmdBody(const spParseTree& pt) {
     if (!pt) return nullptr;
     auto body = std::make_shared<CmdBody>();
     body->line = locL(pt); body->col = locC(pt);
+    // Optional DEF_SUBS appears between the `=` and the body's content.
+    if (auto subs = findChild(pt, Production::DEF_SUBS)) {
+        for (auto s = down(subs); s; s = nxt(s)) {
+            if (is(s, Production::DEF_SUB))
+                body->subs.push_back(buildCmdDefFromNode(s));
+        }
+    }
     if (findChild(pt, Production::DEF_CMD_EMPTY)) {
         body->isEmpty = true;
     } else {
@@ -910,7 +918,7 @@ static CmdSignature buildSignature(const spParseTree& pt) {
 // Top-level definition builders
 // ========================================================================
 
-// Find the first signature-kind child of a DEF_CMD/DEF_CMD_DECL/DEF_CMD_INTRINSIC node
+// Find the first signature-kind child of a DEF_CMD/DEF_CMD_DECL/DEF_CMD_INTRINSIC/DEF_SUB node
 static spParseTree findSigChild(const spParseTree& pt) {
     for (auto c = down(pt); c; c = nxt(c)) {
         auto p = c->production;
@@ -920,6 +928,42 @@ static spParseTree findSigChild(const spParseTree& pt) {
             return c;
     }
     return nullptr;
+}
+
+// Build a CmdDef from a DEF_CMD or DEF_SUB parse-tree node. Both share the
+// same AST shape; the structural differences are: (a) DEF_CMD's signature is
+// wrapped in one of the disambiguating DEF_CMD_REGULAR / DEF_CMD_VCOMMAND /
+// etc. groups; DEF_SUB's signature is the regular form, inlined directly as
+// children of DEF_SUB; and (b) DEF_SUB only allows the regular form (the
+// grammar enforces that). Nested subs are reached via the DEF_CMD_BODY's
+// optional DEF_SUBS — buildCmdBody handles that recursion.
+static CmdDef buildCmdDefFromNode(const spParseTree& pt) {
+    CmdDef cd;
+    cd.line = locL(pt); cd.col = locC(pt);
+    if (is(pt, Production::DEF_SUB)) {
+        // DEF_SUB has DEF_CMD_NAME_SPEC / DEF_CMD_PARMS / DEF_CMD_IMPARMS as
+        // direct children (no wrapping DEF_CMD_REGULAR group).
+        RegularSig rs;
+        auto ns = findChild(pt, Production::DEF_CMD_NAME_SPEC);
+        BUILD_ASSERT(ns, "DEF_SUB missing DEF_CMD_NAME_SPEC");
+        parseNameSpec(ns, rs.name, rs.failMode);
+        if (auto parms = findChild(pt, Production::DEF_CMD_PARMS)) {
+            rs.params = buildParmList(parms);
+            rs.returnVal = getRetVal(parms);
+        }
+        if (auto imparms = findChild(pt, Production::DEF_CMD_IMPARMS)) {
+            rs.implicitParams = buildParmList(imparms);
+        }
+        cd.signature = std::move(rs);
+    } else {
+        auto sig = findSigChild(pt);
+        BUILD_ASSERT(sig, "DEF_CMD missing signature child");
+        cd.signature = buildSignature(sig);
+    }
+    auto body = findChild(pt, Production::DEF_CMD_BODY);
+    BUILD_ASSERT(body, "DEF_CMD/DEF_SUB missing DEF_CMD_BODY");
+    cd.body = buildCmdBody(body);
+    return cd;
 }
 
 static TopLevelDef buildTopLevel(const spParseTree& pt) {
@@ -1088,15 +1132,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
         return intd;
     }
     if (p == Production::DEF_CMD) {
-        CmdDef cd;
-        cd.line = locL(pt); cd.col = locC(pt);
-        auto sig = findSigChild(pt);
-        BUILD_ASSERT(sig, "DEF_CMD missing signature child");
-        cd.signature = buildSignature(sig);
-        auto body = findChild(pt, Production::DEF_CMD_BODY);
-        BUILD_ASSERT(body, "DEF_CMD missing DEF_CMD_BODY");
-        cd.body = buildCmdBody(body);
-        return cd;
+        return buildCmdDefFromNode(pt);
     }
     if (p == Production::DEF_CLASS) {
         ClassDecl cls;
@@ -1114,14 +1150,7 @@ static TopLevelDef buildTopLevel(const spParseTree& pt) {
                 cd.signature = buildSignature(sig2);
                 cls.members.push_back(std::move(cd));
             } else if (is(c, Production::DEF_CMD)) {
-                CmdDef cdef; cdef.line = locL(c); cdef.col = locC(c);
-                auto sig2 = findSigChild(c);
-                BUILD_ASSERT(sig2, "DEF_CMD in class missing signature child");
-                cdef.signature = buildSignature(sig2);
-                auto body = findChild(c, Production::DEF_CMD_BODY);
-                BUILD_ASSERT(body, "DEF_CMD in class missing DEF_CMD_BODY");
-                cdef.body = buildCmdBody(body);
-                cls.members.push_back(std::move(cdef));
+                cls.members.push_back(buildCmdDefFromNode(c));
             }
         }
         return cls;

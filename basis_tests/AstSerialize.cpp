@@ -280,9 +280,13 @@ public:
 
     void emit(const CmdBody& b) {
         out += "CmdBody(";
+        bool first = true;
+        for (auto& sub : b.subs) { open(first); out += "sub="; emit(sub); }
         if (b.isEmpty) {
+            open(first);
             out += "empty";
         } else if (b.group) {
+            open(first);
             emit(*b.group);
         }
         out += ")";

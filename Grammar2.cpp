@@ -104,6 +104,7 @@ void Grammar2::initReservedWords() {
    OBJECT = discard(TokenType::OBJECT);
    PROGRAM = discard(TokenType::PROGRAM);
    RECORD = discard(TokenType::RECORD);
+   SUBCOMMAND = discard(TokenType::SUBCOMMAND);
    TEST = discard(TokenType::TEST);
    FAIL = discard(TokenType::FAIL);
    UNION = discard(TokenType::UNION);
@@ -344,7 +345,23 @@ void Grammar2::initCommandDefinitions() {
        group(Production::DEF_CMD_REGULAR, DEF_CMD_REGULAR_FORM) );
 
    DEF_CMD_DECL = exclusiveGroup(Production::DEF_CMD_DECL, all(DECLARE, DEF_CMD_SIGNATURE));
-   DEF_CMD = exclusiveGroup(Production::DEF_CMD, all(COMMAND, DEF_CMD_SIGNATURE, forward(DEF_CMD_BODY)));
+
+   // Subcommand: nested procedure-style definition. Same shape as a top-level
+   // .cmd but only the DEF_CMD_REGULAR signature form is allowed. A sub's body
+   // is itself a DEF_CMD_BODY, and DEF_CMD_BODY admits an optional DEF_SUBS
+   // following the `=`, so nested sub-definitions arise naturally through
+   // body recursion. DEF_SUBS is defined first via forward reference to
+   // DEF_SUB so the recursion resolves at parse time.
+   DEF_SUBS = group(Production::DEF_SUBS, oneOrMore(forward(DEF_SUB)));
+   // DEF_SUB admits only DEF_CMD_REGULAR_FORM, so the inner DEF_CMD_REGULAR
+   // group wrapper that DEF_CMD uses to disambiguate alternatives carries no
+   // information here. Inline the regular form directly — the same pattern
+   // DEF_CMD_INTRINSIC uses.
+   DEF_SUB = exclusiveGroup(Production::DEF_SUB,
+       all(SUBCOMMAND, DEF_CMD_REGULAR_FORM, forward(DEF_CMD_BODY)) );
+
+   DEF_CMD = exclusiveGroup(Production::DEF_CMD,
+       all(COMMAND, DEF_CMD_SIGNATURE, forward(DEF_CMD_BODY)) );
 }
 
 void Grammar2::initClassTypes() {
@@ -448,8 +465,10 @@ void Grammar2::initCommandBody() {
     CALL_GROUP = group(Production::CALL_GROUP,
         oneOrMore(any(CALL_ASSIGNMENT, CALL_EXPRESSION, BLOCK)) );
     DEF_CMD_EMPTY = group(Production::DEF_CMD_EMPTY, UNDERSCORE);
-    DEF_CMD_BODY = group(Production::DEF_CMD_BODY,all(
-        discard(TokenType::EQUALS), any(DEF_CMD_EMPTY, CALL_GROUP) ));
+    DEF_CMD_BODY = group(Production::DEF_CMD_BODY, all(
+        discard(TokenType::EQUALS),
+        maybe(DEF_SUBS),
+        any(DEF_CMD_EMPTY, CALL_GROUP) ));
 }
 
 void Grammar2::initCompilationUnit() {

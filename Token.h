@@ -34,6 +34,7 @@ namespace basis {
         OBJECT,
         PROGRAM,
         RECORD,
+        SUBCOMMAND,
         TEST,
         FAIL,
         UNION,

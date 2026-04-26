@@ -259,8 +259,13 @@ struct CallGroup : Located {
     std::vector<StatNode> statements;
 };
 
-// DEF_CMD_BODY: = _ | = CALL_GROUP
+// Forward declaration so CmdBody can hold a vector<CmdDef> for nested .sub
+// definitions. CmdDef (defined further down) holds a shared_ptr<CmdBody>.
+struct CmdDef;
+
+// DEF_CMD_BODY: `= maybe(.sub ...) (_ | call-group)`
 struct CmdBody : Located {
+    std::vector<CmdDef>        subs;     // subs that follow `=` and precede the call group
     bool                       isEmpty = false;
     std::shared_ptr<CallGroup> group;   // null when isEmpty
 };
@@ -369,7 +374,7 @@ struct IntrinsicDecl : Located {
 
 struct CmdDef : Located {
     CmdSignature              signature;
-    std::shared_ptr<CmdBody>  body;
+    std::shared_ptr<CmdBody>  body;     // body holds any nested subs (in CmdBody::subs)
 };
 
 // ClassMember variant
@@ -659,6 +664,7 @@ struct Traverser {
     }
     void traverse(CmdBody& n) {
         visit(n);
+        for (auto& sub : n.subs) traverse(sub);
         if (n.group) traverse(*n.group);
         revisit(n);
     }

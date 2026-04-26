@@ -414,6 +414,90 @@ TEST_CASE("Ast::CmdDef") {
         ")"));
 }
 
+TEST_CASE("Ast::CmdDef - with .sub subcommands") {
+    // Single sub before the call group
+    CHECK(testAst(
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y = work\n"
+        " run",
+        "CompilationUnit("
+            "CmdDef("
+                "RegularSig('parent',param=CmdParam(NamedType('Int'),'x')),"
+                "CmdBody("
+                    "sub=CmdDef("
+                        "RegularSig('child',param=CmdParam(NamedType('Int'),'y')),"
+                        "CmdBody(CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('work')))))"
+                    "),"
+                    "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('run'))))"
+                ")"
+            ")"
+        ")"));
+    // Multiple subs at the same level
+    CHECK(testAst(
+        ".cmd parent: Int x =\n"
+        " .sub a: Int y = work1\n"
+        " .sub b: Int z = work2\n"
+        " run",
+        "CompilationUnit("
+            "CmdDef("
+                "RegularSig('parent',param=CmdParam(NamedType('Int'),'x')),"
+                "CmdBody("
+                    "sub=CmdDef("
+                        "RegularSig('a',param=CmdParam(NamedType('Int'),'y')),"
+                        "CmdBody(CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('work1')))))"
+                    "),"
+                    "sub=CmdDef("
+                        "RegularSig('b',param=CmdParam(NamedType('Int'),'z')),"
+                        "CmdBody(CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('work2')))))"
+                    "),"
+                    "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('run'))))"
+                ")"
+            ")"
+        ")"));
+    // Nested subs (sub inside a sub via the inner CmdBody.subs)
+    CHECK(testAst(
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y =\n"
+        "  .sub grandchild: Int z = inner\n"
+        "  work\n"
+        " run",
+        "CompilationUnit("
+            "CmdDef("
+                "RegularSig('parent',param=CmdParam(NamedType('Int'),'x')),"
+                "CmdBody("
+                    "sub=CmdDef("
+                        "RegularSig('child',param=CmdParam(NamedType('Int'),'y')),"
+                        "CmdBody("
+                            "sub=CmdDef("
+                                "RegularSig('grandchild',param=CmdParam(NamedType('Int'),'z')),"
+                                "CmdBody(CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('inner')))))"
+                            "),"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('work'))))"
+                        ")"
+                    "),"
+                    "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('run'))))"
+                ")"
+            ")"
+        ")"));
+    // sub paired with empty body marker
+    CHECK(testAst(
+        ".cmd parent: Int x =\n"
+        " .sub child: Int y = work\n"
+        " _",
+        "CompilationUnit("
+            "CmdDef("
+                "RegularSig('parent',param=CmdParam(NamedType('Int'),'x')),"
+                "CmdBody("
+                    "sub=CmdDef("
+                        "RegularSig('child',param=CmdParam(NamedType('Int'),'y')),"
+                        "CmdBody(CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('work')))))"
+                    "),"
+                    "empty"
+                ")"
+            ")"
+        ")"));
+}
+
 // =============================================================================
 // Class definitions
 // =============================================================================
