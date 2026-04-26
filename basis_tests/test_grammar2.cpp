@@ -15319,15 +15319,18 @@ TEST_CASE("Grammar2::DEF_CMD_BODY") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt\n| recover: error",
         "DEF_CMD_BODY("
             "CALL_GROUP("
-                "CALL_EXPRESSION("
-                    "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
-                    "CALL_OPERATOR(CALL_OPER_CHOICE),"
-                    "CALL_COMMAND("
-                        "CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)),"
-                        "CALL_PARAMETER("
-                            "CALL_PARM_EXPR("
-                                "SUBCALL_EXPRESSION("
-                                    "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))"
+                "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))),"
+                "DO_RECOVER("
+                    "CALL_GROUP("
+                        "CALL_EXPRESSION("
+                            "CALL_COMMAND("
+                                "CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)),"
+                                "CALL_PARAMETER("
+                                    "CALL_PARM_EXPR("
+                                        "SUBCALL_EXPRESSION("
+                                            "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))"
+                                        ")"
+                                    ")"
                                 ")"
                             ")"
                         ")"
@@ -15414,10 +15417,9 @@ TEST_CASE("Grammar2::DEF_CMD_BODY") {
                                 ")"
                             ")"
                         ")"
-                    "),"
-                    "CALL_OPERATOR(CALL_OPER_CHOICE),"
-                    "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
-                ")"
+                    ")"
+                "),"
+                "DO_RECOVER(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"
             ")"
         ")"));
     CHECK(testParse(grammar.DEF_CMD_BODY, "= _",
@@ -15810,10 +15812,9 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
     CHECK(testParse(grammar.DEF_CMD_BODY, "= doIt\n| recover\n@ cleanup",
         "DEF_CMD_BODY("
             "CALL_GROUP("
-                "CALL_EXPRESSION("
-                    "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
-                    "CALL_OPERATOR(CALL_OPER_CHOICE),"
-                    "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
+                "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))),"
+                "DO_RECOVER("
+                    "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
                 "),"
                 "DO_ON_EXIT("
                     "CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))))"
@@ -15846,15 +15847,18 @@ TEST_CASE("Grammar2::DEF_CMD_BODY - complex scenarios") {
                         ")"
                     ")"
                 "),"
-                "CALL_EXPRESSION("
-                    "CALL_VCOMMAND(IDENTIFIER(IDENTIFIER_NAME),IDENTIFIER(IDENTIFIER_NAME)),"
-                    "CALL_OPERATOR(CALL_OPER_SUBTRACT),"
-                    "CALL_CONSTRUCTOR("
-                        "TYPE_NAME_Q(TYPENAME),"
-                        "CALL_PARAMETER("
-                            "CALL_PARM_EXPR("
-                                "SUBCALL_EXPRESSION("
-                                    "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))"
+                "CALL_EXPRESSION(CALL_VCOMMAND(IDENTIFIER(IDENTIFIER_NAME),IDENTIFIER(IDENTIFIER_NAME))),"
+                "DO_ELSE("
+                    "CALL_GROUP("
+                        "CALL_EXPRESSION("
+                            "CALL_CONSTRUCTOR("
+                                "TYPE_NAME_Q(TYPENAME),"
+                                "CALL_PARAMETER("
+                                    "CALL_PARM_EXPR("
+                                        "SUBCALL_EXPRESSION("
+                                            "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))"
+                                        ")"
+                                    ")"
                                 ")"
                             ")"
                         ")"
@@ -21879,4 +21883,411 @@ TEST_CASE("Grammar2::DEF_INLINE_VARIANT") {
     CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant int circle")); // lowercase type
     CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Int Circle")); // uppercase candidate name
     CHECK_FALSE(testParse(grammar.DEF_INLINE_VARIANT, ".variant Point: Int x")); // uppercase scope name
+}
+
+// =============================================================================
+// Direct entry-point coverage for productions previously tested only via
+// parent grammars. Added as part of a coverage-gap audit.
+// =============================================================================
+
+TEST_CASE("Grammar2::TYPE_EXPR_CMD") {
+    Grammar2& grammar = getGrammar();
+    // Each kind, no args
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<>",
+        "TYPE_EXPR_CMD(TYPE_CMD_NOFAIL)"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<>",
+        "TYPE_EXPR_CMD(TYPE_CMD_MAYFAIL)"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<>",
+        "TYPE_EXPR_CMD(TYPE_CMD_FAILS)"));
+    // Single arg, each kind
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int>",
+        "TYPE_EXPR_CMD(TYPE_CMD_NOFAIL,TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)))"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "?<Int>",
+        "TYPE_EXPR_CMD(TYPE_CMD_MAYFAIL,TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)))"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, "!<Int>",
+        "TYPE_EXPR_CMD(TYPE_CMD_FAILS,TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)))"));
+    // Multiple args
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int, String>",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)),"
+            "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME))"
+        ")"));
+    // Writeable (apostrophe) marker
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int'>",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME),TYPE_ARG_WRITEABLE)"
+        ")"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<Int', String>",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME),TYPE_ARG_WRITEABLE),"
+            "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME))"
+        ")"));
+    // Pointer-prefixed arg. The grammar's `all(TYPE_EXPR_PTR, forward(TYPE_CMDEXPR_ARG))`
+    // alternative produces a nested TYPE_CMDEXPR_ARG; multi-level `^^` adds
+    // sibling TYPE_EXPR_PTR nodes via the inner `oneOrMore`.
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^Int>",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG("
+                "TYPE_EXPR_PTR,"
+                "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME))"
+            ")"
+        ")"));
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<^^Int>",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG("
+                "TYPE_EXPR_PTR,TYPE_EXPR_PTR,"
+                "TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME))"
+            ")"
+        ")"));
+    // Nested CMD requires a space between the two closing `>`s — otherwise
+    // the lexer combines them as a single DRANGLE token.
+    CHECK(testParse(grammar.TYPE_EXPR_CMD, ":<:<Int> >",
+        "TYPE_EXPR_CMD("
+            "TYPE_CMD_NOFAIL,"
+            "TYPE_CMDEXPR_ARG("
+                "TYPE_EXPR_CMD(TYPE_CMD_NOFAIL,TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)))"
+            ")"
+        ")"));
+    // Negatives
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<"));        // unclosed
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "<Int>"));     // missing kind prefix
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<Int,>"));   // trailing comma
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, "::<Int>"));   // wrong prefix
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_CMD, ":<:<Int>>")); // DRANGLE token; needs space
+}
+
+TEST_CASE("Grammar2::TYPE_EXPR_DOMAIN") {
+    Grammar2& grammar = getGrammar();
+    // Bare named type
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Int",
+        "TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))"));
+    // Qualified named type
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "Std::Core::Foo",
+        "TYPE_EXPR_DOMAIN(TYPE_NAME_Q(QUALIFIED_TYPENAME(TYPENAME,TYPENAME,TYPENAME)))"));
+    // Parameterized named type
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "List[Int]",
+        "TYPE_EXPR_DOMAIN("
+            "TYPE_NAME_Q(TYPENAME,TYPE_NAME_ARGS(TYPE_ARG_TYPE(TYPE_NAME_Q(TYPENAME))))"
+        ")"));
+    // Fixed-size range with element type
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]Int",
+        "TYPE_EXPR_DOMAIN("
+            "TYPE_EXPR_RANGE(NUMBER),"
+            "TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))"
+        ")"));
+    // Fixed-size range with identifier size
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[size]Int",
+        "TYPE_EXPR_DOMAIN("
+            "TYPE_EXPR_RANGE(IDENTIFIER(IDENTIFIER_NAME)),"
+            "TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))"
+        ")"));
+    // Fixed-size range without element type
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, "[10]",
+        "TYPE_EXPR_DOMAIN(TYPE_EXPR_RANGE(NUMBER))"));
+    // Inline record
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, ".record Int x, Int y",
+        "TYPE_EXPR_DOMAIN("
+            "DEF_INLINE_RECORD("
+                "DEF_RECORD_FIELDS("
+                    "DEF_RECORD_FIELD("
+                        "DEF_RECORD_FIELD_DOMAIN(TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))),"
+                        "DEF_RECORD_FIELD_NAME"
+                    "),"
+                    "DEF_RECORD_FIELD("
+                        "DEF_RECORD_FIELD_DOMAIN(TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))),"
+                        "DEF_RECORD_FIELD_NAME"
+                    ")"
+                ")"
+            ")"
+        ")"));
+    // Inline union
+    CHECK(testParse(grammar.TYPE_EXPR_DOMAIN, ".union Int i, Float f",
+        "TYPE_EXPR_DOMAIN("
+            "DEF_INLINE_UNION("
+                "DEF_UNION_CANDIDATES("
+                    "DEF_UNION_CANDIDATE("
+                        "DEF_UNION_CANDIDATE_DOMAIN(TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))),"
+                        "DEF_UNION_CANDIDATE_NAME"
+                    "),"
+                    "DEF_UNION_CANDIDATE("
+                        "DEF_UNION_CANDIDATE_DOMAIN(TYPE_EXPR_DOMAIN(TYPE_NAME_Q(TYPENAME))),"
+                        "DEF_UNION_CANDIDATE_NAME"
+                    ")"
+                ")"
+            ")"
+        ")"));
+    // Negatives — domain context disallows pointer / unbounded range / cmd type
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "^Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ":<Int>"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, "[]Int"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ".object Int x"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_DOMAIN, ".variant Int x"));
+}
+
+TEST_CASE("Grammar2::TYPE_EXPR_VECTOR") {
+    Grammar2& grammar = getGrammar();
+    // Bare unbounded vector
+    CHECK(testParse(grammar.TYPE_EXPR_VECTOR, "[]",
+        "TYPE_EXPR_RANGE"));
+    // Bounded with number
+    CHECK(testParse(grammar.TYPE_EXPR_VECTOR, "[10]",
+        "TYPE_EXPR_RANGE(NUMBER)"));
+    // Bounded with identifier
+    CHECK(testParse(grammar.TYPE_EXPR_VECTOR, "[size]",
+        "TYPE_EXPR_RANGE(IDENTIFIER(IDENTIFIER_NAME))"));
+    // Negatives
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR, "[10"));      // unclosed
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR, "[10, 20]")); // commas not allowed
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR, "10"));       // missing brackets
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR, "[Int]"));    // typename not allowed (only IDENTIFIER or NUMBER)
+}
+
+TEST_CASE("Grammar2::TYPE_EXPR_VECTOR_FIXED") {
+    Grammar2& grammar = getGrammar();
+    // Number size required
+    CHECK(testParse(grammar.TYPE_EXPR_VECTOR_FIXED, "[10]",
+        "TYPE_EXPR_RANGE(NUMBER)"));
+    // Identifier size also accepted
+    CHECK(testParse(grammar.TYPE_EXPR_VECTOR_FIXED, "[size]",
+        "TYPE_EXPR_RANGE(IDENTIFIER(IDENTIFIER_NAME))"));
+    // Negative: unbounded `[]` not allowed for fixed-size
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR_FIXED, "[]"));
+    CHECK_FALSE(testParse(grammar.TYPE_EXPR_VECTOR_FIXED, "[Int]"));
+}
+
+TEST_CASE("Grammar2::TYPE_EXPR_PTR") {
+    Grammar2& grammar = getGrammar();
+    // TYPE_EXPR_PTR is `oneOrMore(as(TYPE_EXPR_PTR, CARAT))` — no enclosing
+    // group, so we test it through the parent TYPE_EXPR. Each `^` produces
+    // a sibling TYPE_EXPR_PTR node inside the parent.
+    CHECK(testParse(grammar.TYPE_EXPR, "^Int",
+        "TYPE_EXPR(TYPE_EXPR_PTR,TYPE_EXPR(TYPENAME))"));
+    CHECK(testParse(grammar.TYPE_EXPR, "^^Int",
+        "TYPE_EXPR(TYPE_EXPR_PTR,TYPE_EXPR_PTR,TYPE_EXPR(TYPENAME))"));
+    CHECK(testParse(grammar.TYPE_EXPR, "^^^Int",
+        "TYPE_EXPR(TYPE_EXPR_PTR,TYPE_EXPR_PTR,TYPE_EXPR_PTR,TYPE_EXPR(TYPENAME))"));
+    CHECK(testParse(grammar.TYPE_EXPR, "^^^^Int",
+        "TYPE_EXPR("
+            "TYPE_EXPR_PTR,TYPE_EXPR_PTR,TYPE_EXPR_PTR,TYPE_EXPR_PTR,"
+            "TYPE_EXPR(TYPENAME)"
+        ")"));
+    // Pointer to vector
+    CHECK(testParse(grammar.TYPE_EXPR, "^[]Int",
+        "TYPE_EXPR("
+            "TYPE_EXPR_PTR,"
+            "TYPE_EXPR(TYPE_EXPR_RANGE,TYPE_EXPR(TYPENAME))"
+        ")"));
+    // Pointer to command type
+    CHECK(testParse(grammar.TYPE_EXPR, "^:<Int>",
+        "TYPE_EXPR("
+            "TYPE_EXPR_PTR,"
+            "TYPE_EXPR("
+                "TYPE_EXPR_CMD(TYPE_CMD_NOFAIL,TYPE_CMDEXPR_ARG(TYPE_NAME_Q(TYPENAME)))"
+            ")"
+        ")"));
+}
+
+TEST_CASE("Grammar2::CALL_EXPR_TERM") {
+    Grammar2& grammar = getGrammar();
+    // CALL_EXPR_TERM is a bare `all(any(...), maybe(suffix))` with no
+    // enclosing group, so we test it through CALL_EXPRESSION (which wraps
+    // a single term in a CALL_EXPRESSION node when no operators are present).
+
+    // Branch 1: LITERAL — number, string, hex
+    CHECK(testParse(grammar.CALL_EXPRESSION, "42",
+        "CALL_EXPRESSION(NUMBER)"));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "\"hello\"",
+        "CALL_EXPRESSION(STRING)"));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "0xFF",
+        "CALL_EXPRESSION(HEXNUMBER)"));
+
+    // Branch 2: ENUM_DEREF — `Type[member]`
+    CHECK(testParse(grammar.CALL_EXPRESSION, "Color[red]",
+        "CALL_EXPRESSION(ENUM_DEREF(TYPENAME,IDENTIFIER(IDENTIFIER_NAME)))"));
+
+    // Branch 3: forward(CALL_INVOKE) — bare identifier becomes CALL_COMMAND
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x",
+        "CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))"));
+
+    // Branch 4: IDENTIFIER fallback — qualified identifier
+    // (Note: in this position the parser routes most identifiers through
+    // CALL_INVOKE / CALL_COMMAND. The bare-IDENTIFIER branch is a fallback.)
+
+    // Branch 5: parenthesized SUBCALL_EXPRESSION
+    CHECK(testParse(grammar.CALL_EXPRESSION, "(x)",
+        "CALL_EXPRESSION("
+            "SUBCALL_EXPRESSION("
+                "CALL_EXPRESSION("
+                    "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
+                ")"
+            ")"
+        ")"));
+
+    // Term followed by suffix operators
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x^",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_DEREF"
+        ")"));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "x&",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_ADDR"
+        ")"));
+}
+
+TEST_CASE("Grammar2::RECOVER_SPEC") {
+    Grammar2& grammar = getGrammar();
+    // First form: `Type ident` — TYPE_NAME_Q followed by IDENTIFIER
+    CHECK(testParse(grammar.RECOVER_SPEC, "Int err",
+        "RECOVER_SPEC(TYPE_NAME_Q(TYPENAME),IDENTIFIER(IDENTIFIER_NAME))"));
+    // First form with parameterized type
+    CHECK(testParse(grammar.RECOVER_SPEC, "Errors[NotFound] code",
+        "RECOVER_SPEC("
+            "TYPE_NAME_Q(TYPENAME,TYPE_NAME_ARGS(TYPE_ARG_TYPE(TYPE_NAME_Q(TYPENAME)))),"
+            "IDENTIFIER(IDENTIFIER_NAME)"
+        ")"));
+    // First form with qualified type
+    CHECK(testParse(grammar.RECOVER_SPEC, "Std::Error e",
+        "RECOVER_SPEC("
+            "TYPE_NAME_Q(QUALIFIED_TYPENAME(TYPENAME,TYPENAME)),"
+            "IDENTIFIER(IDENTIFIER_NAME)"
+        ")"));
+
+    // Second form: CALL_EXPR_TERM (string literal)
+    CHECK(testParse(grammar.RECOVER_SPEC, "\"some string\"",
+        "RECOVER_SPEC(STRING)"));
+    // Second form: number
+    CHECK(testParse(grammar.RECOVER_SPEC, "42",
+        "RECOVER_SPEC(NUMBER)"));
+    // Second form: bare identifier — routes through CALL_EXPR_TERM ->
+    // CALL_INVOKE -> CALL_COMMAND -> CALL_CMD_TARGET -> IDENTIFIER.
+    CHECK(testParse(grammar.RECOVER_SPEC, "err",
+        "RECOVER_SPEC("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
+        ")"));
+
+    // Negatives
+    CHECK_FALSE(testParse(grammar.RECOVER_SPEC, ""));     // empty
+    CHECK_FALSE(testParse(grammar.RECOVER_SPEC, "Int"));  // typename alone is neither form
+    // `Errors[NotFound]` (would-be ENUM_DEREF) actually fails here because the
+    // parser greedy-matches TYPE_NAME_Q in the first alternative and does not
+    // backtrack to retry as CALL_EXPR_TERM. Documented as a known parser
+    // limitation rather than a grammar guarantee.
+    CHECK_FALSE(testParse(grammar.RECOVER_SPEC, "Errors[NotFound]"));
+}
+
+TEST_CASE("Grammar2::DEF_CMD_EMPTY") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_CMD_EMPTY, "_",
+        "DEF_CMD_EMPTY"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_EMPTY, ""));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_EMPTY, "x"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_EMPTY, "__"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_EMPTY, "_a"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_EMPTY, "0"));
+}
+
+TEST_CASE("Grammar2::DEF_CMD_NAME - direct entry-point coverage") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_CMD_NAME, "doIt",     "DEF_CMD_NAME"));
+    CHECK(testParse(grammar.DEF_CMD_NAME, "snake_case_name", "DEF_CMD_NAME"));
+    CHECK(testParse(grammar.DEF_CMD_NAME, "camelCase","DEF_CMD_NAME"));
+    CHECK(testParse(grammar.DEF_CMD_NAME, "x",        "DEF_CMD_NAME"));
+    // Negatives
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "TypeName"));  // typename, not ident
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "123"));        // numeric
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, ""));            // empty
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "_under"));      // leading underscore not valid for IDENTIFIER
+    CHECK_FALSE(testParse(grammar.DEF_CMD_NAME, "doIt other")); // extra tokens
+}
+
+TEST_CASE("Grammar2::DEF_CMD_PARM_NAME - direct entry-point coverage") {
+    Grammar2& grammar = getGrammar();
+    CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "x",         "DEF_CMD_PARM_NAME"));
+    CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "ctx",       "DEF_CMD_PARM_NAME"));
+    CHECK(testParse(grammar.DEF_CMD_PARM_NAME, "snake_var", "DEF_CMD_PARM_NAME"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_NAME, "Type"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_NAME, "123"));
+    CHECK_FALSE(testParse(grammar.DEF_CMD_PARM_NAME, ""));
+}
+
+TEST_CASE("Grammar2::TYPE_NAME_Q - parameterized vs unparameterized") {
+    Grammar2& grammar = getGrammar();
+    // Bare typename, no args (the maybe(TYPE_NAME_ARGS) absent path)
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Int",
+        "TYPE_NAME_Q(TYPENAME)"));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Std::Core::Foo",
+        "TYPE_NAME_Q(QUALIFIED_TYPENAME(TYPENAME,TYPENAME,TYPENAME))"));
+    // Parameterized
+    CHECK(testParse(grammar.TYPE_NAME_Q, "List[Int]",
+        "TYPE_NAME_Q(TYPENAME,TYPE_NAME_ARGS(TYPE_ARG_TYPE(TYPE_NAME_Q(TYPENAME))))"));
+    CHECK(testParse(grammar.TYPE_NAME_Q, "Map[String, Int]",
+        "TYPE_NAME_Q("
+            "TYPENAME,"
+            "TYPE_NAME_ARGS("
+                "TYPE_ARG_TYPE(TYPE_NAME_Q(TYPENAME)),"
+                "TYPE_ARG_TYPE(TYPE_NAME_Q(TYPENAME))"
+            ")"
+        ")"));
+    // Empty arg list — disallowed
+    CHECK_FALSE(testParse(grammar.TYPE_NAME_Q, "List[]"));
+}
+
+TEST_CASE("Grammar2::CALL_EXPR_INDEX - single and dual index") {
+    Grammar2& grammar = getGrammar();
+    // Single index `arr[i]`
+    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i]",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_INDEX("
+                "CALL_EXPRINDEX_LOC("
+                    "SUBCALL_EXPRESSION("
+                        "CALL_EXPRESSION("
+                            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
+                        ")"
+                    ")"
+                ")"
+            ")"
+        ")"));
+    // Dual index `arr[i, j]` — exercises the optional CALL_EXPRINDEX_EXT
+    // branch. Note: in the dual-index form the parser routes the first
+    // (LOC) operand through the bare-IDENTIFIER alternative of
+    // CALL_EXPR_TERM rather than the CALL_INVOKE -> CALL_COMMAND chain
+    // used in the single-index form, so the LOC subtree differs.
+    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[i, j]",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_INDEX("
+                "CALL_EXPRINDEX_LOC("
+                    "SUBCALL_EXPRESSION(CALL_EXPRESSION(IDENTIFIER(IDENTIFIER_NAME)))"
+                "),"
+                "CALL_EXPRINDEX_EXT("
+                    "SUBCALL_EXPRESSION("
+                        "CALL_EXPRESSION("
+                            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME)))"
+                        ")"
+                    ")"
+                ")"
+            ")"
+        ")"));
+    // Numeric indices
+    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0]",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_INDEX(CALL_EXPRINDEX_LOC(SUBCALL_EXPRESSION(CALL_EXPRESSION(NUMBER))))"
+        ")"));
+    CHECK(testParse(grammar.CALL_EXPRESSION, "arr[0, 1]",
+        "CALL_EXPRESSION("
+            "CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))),"
+            "CALL_EXPR_INDEX("
+                "CALL_EXPRINDEX_LOC(SUBCALL_EXPRESSION(CALL_EXPRESSION(NUMBER))),"
+                "CALL_EXPRINDEX_EXT(SUBCALL_EXPRESSION(CALL_EXPRESSION(NUMBER)))"
+            ")"
+        ")"));
 }

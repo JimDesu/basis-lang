@@ -425,8 +425,8 @@ void Grammar2::initCommandBody() {
     CALL_FAIL = boundedGroup(Production::CALL_FAIL, all(FAIL, forward(CALL_EXPRESSION)));
     CALL_INVOKE = any(CALL_VCOMMAND, CALL_CONSTRUCTOR, CALL_COMMAND, CALL_FAIL);
 
-    CALL_EXPRESSION = group(Production::CALL_EXPRESSION,
-       all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)))) );
+    CALL_EXPRESSION = group(Production::CALL_EXPRESSION, bound(
+       all(CALL_EXPR_TERM, maybe(oneOrMore(all(CALL_OPERATOR, CALL_EXPR_TERM)))) ));
 
     CALL_ASSIGNMENT = boundedGroup(Production::CALL_ASSIGNMENT, all(CALL_IDENTIFIER, LARROW, SUBCALL_EXPRESSION));
 

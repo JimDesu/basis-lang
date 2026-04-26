@@ -789,6 +789,83 @@ TEST_CASE("Ast::CompilationUnit - realistic mix") {
 }
 
 // =============================================================================
+// Coverage gap mirrors — AST shapes for grammar features added in the
+// coverage audit. Each grammar TEST_CASE that introduced a new shape has a
+// corresponding AST test here.
+// =============================================================================
+
+TEST_CASE("Ast::Type - RangeType identifier-size") {
+    CHECK(testAst(".alias T: [size]Int",
+        "CompilationUnit(AliasDecl('T',RangeType('size',NamedType('Int'))))"));
+    CHECK(testAst(".alias T: [10]",
+        "CompilationUnit(AliasDecl('T',RangeType('10')))"));
+    CHECK(testAst(".alias T: [size]",
+        "CompilationUnit(AliasDecl('T',RangeType('size')))"));
+}
+
+TEST_CASE("Ast::Expr - SuffixExpr dual-index") {
+    CHECK(testAst(".test \"x\" = arr[i, j]",
+        "CompilationUnit("
+            "TestDecl('x',"
+                "CallGroup("
+                    "ExprStat("
+                        "SuffixExpr("
+                            "CallCommandExpr(IdentifierExpr('arr')),"
+                            "Index("
+                                "IdentifierExpr('i'),"
+                                "CallCommandExpr(IdentifierExpr('j'))"
+                            ")"
+                        ")"
+                    ")"
+                ")"
+            ")"
+        ")"));
+    // Numeric form
+    CHECK(testAst(".test \"x\" = arr[0, 1]",
+        "CompilationUnit("
+            "TestDecl('x',"
+                "CallGroup("
+                    "ExprStat("
+                        "SuffixExpr("
+                            "CallCommandExpr(IdentifierExpr('arr')),"
+                            "Index(LiteralExpr('0'),LiteralExpr('1'))"
+                        ")"
+                    ")"
+                ")"
+            ")"
+        ")"));
+}
+
+// (DoRecoverSpec AST tests omitted: in a `.cmd` body context the leading `|`
+// of a recover spec collides with the `|` choice operator that would extend
+// the preceding expression, so a clean test input requires resolving that
+// parser-level ambiguity first. The grammar-level coverage remains via
+// Grammar2::BLOCK tests, which exercise grammar.BLOCK directly.)
+
+TEST_CASE("Ast::Type - PtrType deep chains") {
+    CHECK(testAst(".alias T: ^^Int",
+        "CompilationUnit(AliasDecl('T',PtrType(2,NamedType('Int'))))"));
+    CHECK(testAst(".alias T: ^^^Int",
+        "CompilationUnit(AliasDecl('T',PtrType(3,NamedType('Int'))))"));
+    CHECK(testAst(".alias T: ^^^^Int",
+        "CompilationUnit(AliasDecl('T',PtrType(4,NamedType('Int'))))"));
+    // Pointer to range
+    CHECK(testAst(".alias T: ^[]Int",
+        "CompilationUnit("
+            "AliasDecl('T',PtrType(1,RangeType('',NamedType('Int'))))"
+        ")"));
+    // Pointer to command type
+    CHECK(testAst(".alias T: ^:<Int>",
+        "CompilationUnit("
+            "AliasDecl('T',"
+                "PtrType(1,"
+                    "CmdType(NoFail,CmdTypeArg(false,NamedType('Int')))"
+                ")"
+            ")"
+        ")"));
+}
+
+// =============================================================================
 // Bulk tests paralleling each TEST_CASE in test_grammar2.cpp.
 //
 // Coverage approach: every positive (CHECK, not CHECK_FALSE) grammar test
@@ -3067,15 +3144,15 @@ TEST_CASE("Ast::DEF_RECORD") {
         ")"));
     CHECK(testAst(
         ".record Buffer[Int size]: [size]Byte data",
-        "CompilationUnit(RecordDecl('Buffer',FieldDecl(RangeType('',NamedType('Byte')),'data')))"));
+        "CompilationUnit(RecordDecl('Buffer',FieldDecl(RangeType('size',NamedType('Byte')),'data')))"));
     CHECK(testAst(
         ".record Matrix[Int rows, Int cols]: [rows][cols]Float values",
         "CompilationUnit("
-            "RecordDecl('Matrix',FieldDecl(RangeType('',RangeType('',NamedType('Float'))),'values'))"
+            "RecordDecl('Matrix',FieldDecl(RangeType('rows',RangeType('cols',NamedType('Float'))),'values'))"
         ")"));
     CHECK(testAst(
         ".record Array[T, Int size]: [size]T elements",
-        "CompilationUnit(RecordDecl('Array',FieldDecl(RangeType('',NamedType('T')),'elements')))"));
+        "CompilationUnit(RecordDecl('Array',FieldDecl(RangeType('size',NamedType('T')),'elements')))"));
     CHECK(testAst(
         ".record Container: List[Int] items",
         "CompilationUnit(RecordDecl('Container',FieldDecl(NamedType('List',NamedType('Int')),'items')))"));
@@ -3179,10 +3256,10 @@ TEST_CASE("Ast::DEF_RECORD_FIELD") {
         ")"));
     CHECK(testAst(
         ".record R: [size]Byte data",
-        "CompilationUnit(RecordDecl('R',FieldDecl(RangeType('',NamedType('Byte')),'data')))"));
+        "CompilationUnit(RecordDecl('R',FieldDecl(RangeType('size',NamedType('Byte')),'data')))"));
     CHECK(testAst(
         ".record R: [width][height]Int grid",
-        "CompilationUnit(RecordDecl('R',FieldDecl(RangeType('',RangeType('',NamedType('Int'))),'grid')))"));
+        "CompilationUnit(RecordDecl('R',FieldDecl(RangeType('width',RangeType('height',NamedType('Int'))),'grid')))"));
     CHECK(testAst(
         ".record R: [10]List[String] items",
         "CompilationUnit("
@@ -3193,7 +3270,7 @@ TEST_CASE("Ast::DEF_RECORD_FIELD") {
         "CompilationUnit("
             "RecordDecl("
                 "'R',"
-                "FieldDecl(RangeType('',RangeType('',NamedType('Matrix',NamedType('Float')))),'data')"
+                "FieldDecl(RangeType('rows',RangeType('cols',NamedType('Matrix',NamedType('Float')))),'data')"
             ")"
         ")"));
     CHECK(testAst(
@@ -3258,10 +3335,10 @@ TEST_CASE("Ast::DEF_OBJECT_FIELD") {
         ")"));
     CHECK(testAst(
         ".object O: [size]Byte data",
-        "CompilationUnit(ObjectDecl('O',FieldDecl(RangeType('',NamedType('Byte')),'data')))"));
+        "CompilationUnit(ObjectDecl('O',FieldDecl(RangeType('size',NamedType('Byte')),'data')))"));
     CHECK(testAst(
         ".object O: [width][height]Int grid",
-        "CompilationUnit(ObjectDecl('O',FieldDecl(RangeType('',RangeType('',NamedType('Int'))),'grid')))"));
+        "CompilationUnit(ObjectDecl('O',FieldDecl(RangeType('width',RangeType('height',NamedType('Int'))),'grid')))"));
     CHECK(testAst(
         ".object O: []String strings",
         "CompilationUnit(ObjectDecl('O',FieldDecl(RangeType('',NamedType('String')),'strings')))"));
@@ -3464,7 +3541,7 @@ TEST_CASE("Ast::DEF_OBJECT") {
         "CompilationUnit("
             "ObjectDecl("
                 "'Buffer',"
-                "FieldDecl(RangeType('',NamedType('Byte')),'data'),"
+                "FieldDecl(RangeType('size',NamedType('Byte')),'data'),"
                 "FieldDecl(NamedType('Int'),'size')"
             ")"
         ")"));
@@ -3565,7 +3642,7 @@ TEST_CASE("Ast::DEF_UNION_CANDIDATE") {
         "CompilationUnit(UnionDecl('U',UnionCandidate(RangeType('3',NamedType('Float')),'vec')))"));
     CHECK(testAst(
         ".union U: [size]Byte buf",
-        "CompilationUnit(UnionDecl('U',UnionCandidate(RangeType('',NamedType('Byte')),'buf')))"));
+        "CompilationUnit(UnionDecl('U',UnionCandidate(RangeType('size',NamedType('Byte')),'buf')))"));
     CHECK(testAst(
         ".union U: .record Int x, Int y pt",
         "CompilationUnit("
@@ -10388,12 +10465,9 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'-',"
-                                "CallCommandExpr(IdentifierExpr('fallback'))"
-                            ")"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoElse,"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('fallback'))))"
                         ")"
                     ")"
                 ")"
@@ -10421,8 +10495,10 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat(SuffixExpr(CallCommandExpr(IdentifierExpr('init')),Deref)),"
-                        "ExprStat(CallCommandExpr(IdentifierExpr('retry')))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRewind,"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('retry'))))"
+                        ")"
                     ")"
                 ")"
             ")"
@@ -10435,12 +10511,9 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'|',"
-                                "CallCommandExpr(IdentifierExpr('recover'))"
-                            ")"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRecover,"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('recover'))))"
                         ")"
                     ")"
                 ")"
@@ -10454,7 +10527,7 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat(BinaryExpr(CallCommandExpr(IdentifierExpr('init')),'|',null)),"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
                         "Block("
                             "DoRecoverSpec,"
                             "type=NamedType('Failtype'),"
@@ -10473,7 +10546,7 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat(BinaryExpr(CallCommandExpr(IdentifierExpr('init')),'|',null)),"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
                         "Block("
                             "DoRecoverSpec,"
                             "type=NamedType('Failtype',NamedType('T')),"
@@ -10698,15 +10771,16 @@ TEST_CASE("Ast::BLOCK") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'|',"
-                                "CallVCommandExpr("
-                                    "'recover',"
-                                    "receiver='a',"
-                                    "receiver='b',"
-                                    "CallParam(CallCommandExpr(IdentifierExpr('error')))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRecover,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "CallVCommandExpr("
+                                        "'recover',"
+                                        "receiver='a',"
+                                        "receiver='b',"
+                                        "CallParam(CallCommandExpr(IdentifierExpr('error')))"
+                                    ")"
                                 ")"
                             ")"
                         ")"
@@ -10949,13 +11023,14 @@ TEST_CASE("Ast::DEF_CMD_BODY") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('doIt')),"
-                                "'|',"
-                                "CallCommandExpr("
-                                    "IdentifierExpr('recover'),"
-                                    "CallParam(CallCommandExpr(IdentifierExpr('error')))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('doIt'))),"
+                        "Block(DoRecover,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "CallCommandExpr("
+                                        "IdentifierExpr('recover'),"
+                                        "CallParam(CallCommandExpr(IdentifierExpr('error')))"
+                                    ")"
                                 ")"
                             ")"
                         ")"
@@ -11030,14 +11105,13 @@ TEST_CASE("Ast::DEF_CMD_BODY") {
                     "CallGroup("
                         "Block(DoBlock,CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('doIt'))))),"
                         "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr("
-                                    "IdentifierExpr('process'),"
-                                    "CallParam(CallCommandExpr(IdentifierExpr('x')))"
-                                "),"
-                                "'|',"
-                                "CallCommandExpr(IdentifierExpr('recover'))"
+                            "CallCommandExpr("
+                                "IdentifierExpr('process'),"
+                                "CallParam(CallCommandExpr(IdentifierExpr('x')))"
                             ")"
+                        "),"
+                        "Block(DoRecover,"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('recover'))))"
                         ")"
                     ")"
                 ")"
@@ -11355,12 +11429,9 @@ TEST_CASE("Ast::DEF_CMD_BODY - complex scenarios") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('doIt')),"
-                                "'|',"
-                                "CallCommandExpr(IdentifierExpr('recover'))"
-                            ")"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('doIt'))),"
+                        "Block(DoRecover,"
+                            "CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('recover'))))"
                         "),"
                         "Block(DoOnExit,CallGroup(ExprStat(CallCommandExpr(IdentifierExpr('cleanup')))))"
                     ")"
@@ -11389,13 +11460,15 @@ TEST_CASE("Ast::DEF_CMD_BODY - complex scenarios") {
                                 ")"
                             ")"
                         "),"
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallVCommandExpr('init',receiver='obj'),"
-                                "'-',"
-                                "CallConstructorExpr("
-                                    "NamedType('Container'),"
-                                    "CallParam(CallCommandExpr(IdentifierExpr('size')))"
+                        "ExprStat(CallVCommandExpr('init',receiver='obj')),"
+                        "Block("
+                            "DoElse,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "CallConstructorExpr("
+                                        "NamedType('Container'),"
+                                        "CallParam(CallCommandExpr(IdentifierExpr('size')))"
+                                    ")"
                                 ")"
                             ")"
                         "),"
@@ -11993,15 +12066,18 @@ TEST_CASE("Ast::BLOCK - with CALL_EXPRESSION") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'-',"
-                                "CallCommandExpr(IdentifierExpr('a')),"
-                                "'+',"
-                                "CallCommandExpr(IdentifierExpr('b')),"
-                                "'+',"
-                                "CallCommandExpr(IdentifierExpr('c'))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoElse,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "BinaryExpr("
+                                        "CallCommandExpr(IdentifierExpr('a')),"
+                                        "'+',"
+                                        "CallCommandExpr(IdentifierExpr('b')),"
+                                        "'+',"
+                                        "CallCommandExpr(IdentifierExpr('c'))"
+                                    ")"
+                                ")"
                             ")"
                         ")"
                     ")"
@@ -12049,17 +12125,21 @@ TEST_CASE("Ast::BLOCK - with CALL_EXPRESSION") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat(SuffixExpr(CallCommandExpr(IdentifierExpr('init')),Deref)),"
-                        "ExprStat("
-                            "BinaryExpr("
-                                "SuffixExpr("
-                                    "CallCommandExpr(IdentifierExpr('arr')),"
-                                    "Index(CallCommandExpr(IdentifierExpr('i')))"
-                                "),"
-                                "'+',"
-                                "SuffixExpr("
-                                    "CallCommandExpr(IdentifierExpr('arr')),"
-                                    "Index(CallCommandExpr(IdentifierExpr('j')))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRewind,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "BinaryExpr("
+                                        "SuffixExpr("
+                                            "CallCommandExpr(IdentifierExpr('arr')),"
+                                            "Index(CallCommandExpr(IdentifierExpr('i')))"
+                                        "),"
+                                        "'+',"
+                                        "SuffixExpr("
+                                            "CallCommandExpr(IdentifierExpr('arr')),"
+                                            "Index(CallCommandExpr(IdentifierExpr('j')))"
+                                        ")"
+                                    ")"
                                 ")"
                             ")"
                         ")"
@@ -12075,13 +12155,16 @@ TEST_CASE("Ast::BLOCK - with CALL_EXPRESSION") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'|',"
-                                "SuffixExpr(CallCommandExpr(IdentifierExpr('ptr')),Deref),"
-                                "'+',"
-                                "CallCommandExpr(IdentifierExpr('offset'))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRecover,"
+                            "CallGroup("
+                                "ExprStat("
+                                    "BinaryExpr("
+                                        "SuffixExpr(CallCommandExpr(IdentifierExpr('ptr')),Deref),"
+                                        "'+',"
+                                        "CallCommandExpr(IdentifierExpr('offset'))"
+                                    ")"
+                                ")"
                             ")"
                         ")"
                     ")"
@@ -12252,15 +12335,14 @@ TEST_CASE("Ast::BLOCK - with CALL_EXPRESSION") {
                 "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
                 "CmdBody("
                     "CallGroup("
-                        "ExprStat("
-                            "BinaryExpr("
-                                "CallCommandExpr(IdentifierExpr('init')),"
-                                "'-',"
-                                "CallCommandExpr(IdentifierExpr('doIt'))"
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoElse,"
+                            "CallGroup("
+                                "ExprStat(CallCommandExpr(IdentifierExpr('doIt'))),"
+                                "ExprStat(BinaryExpr(IdentifierExpr('a'),'+',CallCommandExpr(IdentifierExpr('b')))),"
+                                "ExprStat(CallCommandExpr(IdentifierExpr('finalize')))"
                             ")"
-                        "),"
-                        "ExprStat(BinaryExpr(IdentifierExpr('a'),'+',CallCommandExpr(IdentifierExpr('b')))),"
-                        "ExprStat(CallCommandExpr(IdentifierExpr('finalize')))"
+                        ")"
                     ")"
                 ")"
             ")"
@@ -15882,7 +15964,7 @@ TEST_CASE("Ast::TYPE_EXPR") {
         "CompilationUnit(AliasDecl('T',RangeType('10',NamedType('Int'))))"));
     CHECK(testAst(
         ".alias T: [size]Int",
-        "CompilationUnit(AliasDecl('T',RangeType('',NamedType('Int'))))"));
+        "CompilationUnit(AliasDecl('T',RangeType('size',NamedType('Int'))))"));
     CHECK(testAst(
         ".alias T: [][]Int",
         "CompilationUnit(AliasDecl('T',RangeType('',RangeType('',NamedType('Int')))))"));
@@ -16099,7 +16181,7 @@ TEST_CASE("Ast::DEF_INLINE_RECORD") {
         ")"));
     CHECK(testAst(
         ".alias T: .record [size]Byte data",
-        "CompilationUnit(AliasDecl('T',InlineRecordType(FieldDecl(RangeType('',NamedType('Byte')),'data'))))"));
+        "CompilationUnit(AliasDecl('T',InlineRecordType(FieldDecl(RangeType('size',NamedType('Byte')),'data'))))"));
     CHECK(testAst(
         ".alias T: .record [4][4]Float matrix",
         "CompilationUnit("
@@ -16342,7 +16424,7 @@ TEST_CASE("Ast::DEF_INLINE_UNION") {
     CHECK(testAst(
         ".alias T: .union [size]Byte buf",
         "CompilationUnit("
-            "AliasDecl('T',InlineUnionType(UnionCandidate(RangeType('',NamedType('Byte')),'buf')))"
+            "AliasDecl('T',InlineUnionType(UnionCandidate(RangeType('size',NamedType('Byte')),'buf')))"
         ")"));
     CHECK(testAst(
         ".alias T: .union List[Int] items",

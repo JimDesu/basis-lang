@@ -159,6 +159,16 @@ static bool isLiteralProd(Production p) {
            p == Production::STRING;
 }
 
+// Return the textual representation of a TYPE_EXPR_RANGE size operand. The
+// grammar admits either a NUMBER (a token leaf — txt() works directly) or
+// an IDENTIFIER (a group node whose token text lives one level deeper, so
+// txt() on the group itself returns empty).
+static std::string rangeSizeText(const spParseTree& sz) {
+    if (!sz) return {};
+    if (is(sz, Production::IDENTIFIER)) return collectIdent(sz);
+    return txt(sz);
+}
+
 // ========================================================================
 // Forward declarations of builder functions
 // ========================================================================
@@ -236,7 +246,7 @@ static TypeNodePtr buildCmdExprArgType(const spParseTree& pt) {
     if (is(c, Production::TYPE_EXPR_RANGE)) {
         RangeType rt; rt.line = locL(c); rt.col = locC(c);
         auto sizeNode = down(c);
-        if (sizeNode) rt.size = txt(sizeNode);
+        rt.size = rangeSizeText(sizeNode);
         auto elemNode = nxt(c); // optional TYPE_CMDEXPR_ARG sibling
         if (elemNode && is(elemNode, Production::TYPE_CMDEXPR_ARG))
             rt.element = buildCmdExprArgType(elemNode);
@@ -380,7 +390,7 @@ static TypeNodePtr buildTypeExpr(const spParseTree& pt) {
         RangeType rt;
         rt.line = locL(c); rt.col = locC(c);
         auto sizeNode = down(c);
-        if (sizeNode) rt.size = txt(sizeNode);
+        rt.size = rangeSizeText(sizeNode);
         auto elemSibling = nxt(c);
         if (elemSibling && is(elemSibling, Production::TYPE_EXPR))
             rt.element = buildTypeExpr(elemSibling);
@@ -418,7 +428,7 @@ static TypeNodePtr buildTypeExprDomain(const spParseTree& pt) {
         RangeType rt;
         rt.line = locL(c); rt.col = locC(c);
         auto sizeNode = down(c);
-        if (sizeNode) rt.size = txt(sizeNode);
+        rt.size = rangeSizeText(sizeNode);
         auto elemSibling = nxt(c);
         if (elemSibling && is(elemSibling, Production::TYPE_EXPR_DOMAIN))
             rt.element = buildTypeExprDomain(elemSibling);
