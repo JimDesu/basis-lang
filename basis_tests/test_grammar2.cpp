@@ -14900,6 +14900,9 @@ TEST_CASE("Grammar2::BLOCK") {
         "DO_BLOCK(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
     CHECK(testParse(grammar.BLOCK, "^ retry",
         "DO_REWIND(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
+    // DO_REWIND's call group is optional: a bare `^` is permitted.
+    CHECK(testParse(grammar.BLOCK, "^",
+        "DO_REWIND"));
     CHECK(testParse(grammar.BLOCK, "| recover",
         "DO_RECOVER(CALL_GROUP(CALL_EXPRESSION(CALL_COMMAND(CALL_CMD_TARGET(IDENTIFIER(IDENTIFIER_NAME))))))"));
     CHECK(testParse(grammar.BLOCK, "| Failtype f-> recover",

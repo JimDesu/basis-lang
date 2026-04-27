@@ -458,7 +458,7 @@ void Grammar2::initCommandBody() {
         boundedGroup(Production::DO_ON_EXIT_FAIL, all(AMBANG, forward(CALL_GROUP))),
         boundedGroup(Production::DO_ELSE, all(MINUS, forward(CALL_GROUP))),
         boundedGroup(Production::DO_BLOCK, all(PERCENT, forward(CALL_GROUP))),
-        boundedGroup(Production::DO_REWIND, all(CARAT, forward(CALL_GROUP))),
+        boundedGroup(Production::DO_REWIND, all(CARAT, maybe(forward(CALL_GROUP)))),
         boundedGroup(Production::DO_RECOVER_SPEC, all(PIPE, RECOVER_SPEC, RARROW, forward(CALL_GROUP))),
         boundedGroup(Production::DO_RECOVER, all(PIPE, forward(CALL_GROUP))) );
 

@@ -10587,6 +10587,21 @@ TEST_CASE("Ast::BLOCK") {
                 ")"
             ")"
         ")"));
+    // DoRewind with no body — bare `^` is allowed.
+    CHECK(testAst(
+        ".cmd run: Int x = init\n"
+        " ^",
+        "CompilationUnit("
+            "CmdDef("
+                "RegularSig('run',param=CmdParam(NamedType('Int'),'x')),"
+                "CmdBody("
+                    "CallGroup("
+                        "ExprStat(CallCommandExpr(IdentifierExpr('init'))),"
+                        "Block(DoRewind)"
+                    ")"
+                ")"
+            ")"
+        ")"));
     CHECK(testAst(
         ".cmd run: Int x = init\n"
         " | recover",
