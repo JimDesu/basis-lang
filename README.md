@@ -61,6 +61,9 @@ $$
 $$
 
 ## Overview
+
+(Much more complete draft under construction now; please take what's below provisionally.)
+
 #### Hello World
 Once things are in place, hello world will look like this.  Note that all text following semicolons are ignored as comments
 ```
