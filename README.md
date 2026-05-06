@@ -62,9 +62,9 @@ $$
 
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. Section §10 lists the six topic-organized design references where each of these surfaces is treated in depth. Section §11 catalogs implementation status. Section §12 is open questions and roadmap.
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. 
  
-Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. The references in §10 are the canonical statements; this document is a reader's overview of the language as a whole, written so that someone arriving cold can form a coherent mental picture.
+Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
  
 ## 1. At a Glance
  
