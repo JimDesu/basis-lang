@@ -436,7 +436,7 @@ void Grammar2::initCommandBody() {
     CALL_COMMAND = boundedGroup(Production::CALL_COMMAND,
         all(CALL_CMD_TARGET, maybe(all(COLON, separated(CALL_PARAMETER, COMMA)))) );
     // special handling to enable multiple dispatch
-    CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMAND,
+    CALL_VCOMMAND = boundedGroup(Production::CALL_VCOMMANDo,
         all(LPAREN, separated(IDENTIFIER, COMMA), RPAREN, DCOLON, IDENTIFIER,
             maybe(all(COLON, separated(CALL_PARAMETER, COMMA))) ));
     CALL_FAIL = boundedGroup(Production::CALL_FAIL, all(FAIL, forward(CALL_EXPRESSION)));
