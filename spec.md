@@ -975,3 +975,267 @@ Under typed failures (§4.9), the lattice refines: each `failing(M)` and `mixed(
 A typechecker implementation may begin with the un-refined six-state lattice and add the failure-set component incrementally; dropping the failure-set component recovers the un-refined lattice exactly. *Open question: OQ-26.3 — whether `| Name name -> body` narrows the propagating set precisely (set minus at-or-below closure) or conservatively (no narrowing).* See Appendix I.
  
 ---
+
+on 5 · MD
+## 5. Types
+ 
+This section defines the type forms of Basis. Every value the language admits inhabits exactly one of the forms enumerated here. The forms partition into two categories — buffer-backed (§§5.2–5.7) and non-buffer (§§5.10–5.15) — with three additional facilities (aliases §5.8, enums §5.9, and the cross-cutting subsumption rule §5.5) that operate over both. Each form's surface declaration syntax is given here in sketch; the full grammar is in Appendix B. Each form's construction surface — how values of the form are introduced and assigned — is in §7. Each form's interaction with parameter modes and class dispatch is in §6 and §9 respectively.
+ 
+### 5.1 The Two-Layer Split
+ 
+Every type in Basis falls into exactly one of two categories. The split is structural: it determines what positions a type may inhabit, how it is initialized, how it composes with other types, and how the static analyses treat it.
+ 
+**Buffer-backed types** are types whose representation reduces — transitively — to bytes. Buffer-backed values are byte-copyable, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. The category includes the buffer primitives `[N]` and `[]`, typed buffers `[N]T` and `[]T`, domains, records, and unions. Aliases that resolve to a buffer-backed type are buffer-backed; enums whose enumerated-type is buffer-backed are buffer-backed.
+ 
+**Non-buffer types** are types whose representation includes references, identity, dispatch information, or other non-byte semantics. The category includes pointers, command-typed values (the `:<...>`, `?<...>`, `!<...>` family), fexpr-typed values (the `:<*>`, `?<*>`, `!<*>` family), objects, and variants.
+ 
+The split is enforced by a **containment rule**: a buffer-backed type may contain only buffer-backed types. A record's fields must all be buffer-backed; a union's candidates must all be buffer-backed; a typed buffer `[N]T` requires `T` to be buffer-backed; a domain's parent must be buffer-backed. Non-buffer types may appear only at top-level positions — slots introduced via `#`, parameters, receivers — or as fields of objects or candidates of variants. Object fields and variant candidates are unrestricted as to category; they may hold buffer-backed or non-buffer types freely.
+ 
+The grammar enforces this distinction directly: record-field and union-candidate type expressions admit only the buffer-backed forms; object-field and variant-candidate type expressions admit any type. No grammar change is needed to enforce the rule — the two-tier type-expression non-terminal has the partition built in.
+ 
+The containment rule's load-bearing consequence is that mutation either succeeds fully or fails fully (principle 4, §1.2). A record's bytes are unambiguously a byte-aggregate, copy-restored to the caller's slot atomically on success and not at all on failure. A record-with-pointers would punch a hole in this — the pointer copies, the pointee doesn't, and partial-failure semantics drift. The containment rule eliminates the concern at the type level rather than relying on convention or analysis.
+ 
+The split also determines whole-slot initialization tracking (§6.14): a buffer-backed slot is one byte-aggregate, not a graph, and tracking it as a unit is sound because no field can have non-byte semantics. The static analyses treat each form per its category, with the guarantees of one category not silently leaking into the other.
+ 
+### 5.2 Buffer Primitives
+ 
+The bracket form `[N]` denotes an `N`-byte buffer; the form `[]` denotes an unbounded byte buffer. The forms `[N]T` and `[]T` denote buffers laid out as a sequence of `T`-values, sized to `N` elements or unbounded respectively. Buffers are the substrate over which all value-like types are interpreted: a `[4]` is four bytes — what those bytes *mean* (a 32-bit integer, an RGBA pixel, a packed pair of 16-bit values, a Unicode code point) is determined by the domain layered on top of it (§5.3).
+ 
+**Indexing into a buffer-shaped value uses the suffix `[index]` syntax.** Indexing is failable: out-of-bounds is a first-class failure, not undefined behavior. Indexing on a domain works because domains are themselves buffer-backed, transitively reducing to a buffer; whether indexing is *meaningful* on a particular domain (versus syntactically permitted but not idiomatic) is a domain-specific concern that the standard library and user code resolve at the domain level.
+ 
+**C-style pointer arithmetic is not supported.** Stepping through buffer contents requires `[i]`. The restriction reflects two design commitments: indexing is a first-class operation that produces a checked failure on out-of-range access, while pointer arithmetic admits no analogous check; and the language reserves implementation latitude on pointer representation (§5.10), including handles that may relocate, which arithmetic against a stable address would alias incorrectly after relocation.
+ 
+There are no privileged primitive types in Basis. The standard library defines `Int32`, `UInt32`, `Float32`, `Int8`, and similar names as domains over buffer-primitives of appropriate size, with associated intrinsics for arithmetic and comparison. User-defined domains use the same mechanism — there is no conceptual distinction between standard-library domains and user domains. The buffer primitives are the unifying substrate; everything else is a refinement.
+ 
+### 5.3 Domains
+ 
+A **domain** is a new type declared in terms of a parent type, where the parent must reduce — transitively, through any aliases — to a buffer-backed type. The declaration form is:
+ 
+    .domain Inches : Int32
+    .domain Centimeters : Int32
+    .domain RGBA8 : [4]
+    .domain Tagged : [12]
+ 
+Pointers, command-typed values, fexpr-typed values, objects, and variants cannot serve as domain parents because the purpose of a domain is to give a refined interpretation to a definite chunk of bytes — a non-buffer parent has no chunk of bytes to interpret. The constraint is structural and enforced at the grammar level.
+ 
+**Domains form a parent–child hierarchy with one-directional implicit upcasting.** A value of a child domain is implicitly accepted wherever the parent domain is expected, but a value of the parent domain is *not* implicitly a value of any specific child. So an `Inches` value is implicitly an `Int32`; an `Int32` value is not implicitly an `Inches`. **Sibling domains do not implicitly convert.** `Inches` and `Centimeters`, both parented at `Int32`, are mutually incomparable for implicit conversion; an explicit constructor invocation is required to move between them.
+ 
+The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Witnesses for class dispatch are constructed at the relevant slot boundary based on the slot's declared type at that point — a witness constructed for an upcast value uses the upcast slot's type, with no mechanism (and no reason) to look back to a value's earlier slot history. The full rule for when buffer-backed dispatch identity is captured at a class-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-class-typed buffer-backed parameters, is in §9.18.
+ 
+Domains are first-class types: they may be parameters, fields, receivers of class methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child → parent) and child declarations do not widen the upcast set for any existing type. The asymmetry with the failure-message hierarchy (§4.9), which is closed for downstream extension, is intentional: domain-hierarchy openness does not introduce the silent-widening risk that motivates the failure-tag closure.
+ 
+### 5.4 Records
+ 
+A **record** is a contiguous, byte-addressable buffer with named field offsets. Record values are value-like: copyable as bytes, with no identity beyond byte-content, and laid out at deterministic offsets within their containing storage. The declaration form is:
+ 
+    .record Point : Int32 x, Int32 y
+    .record RGBA   : UInt8 red, UInt8 green, UInt8 blue, UInt8 alpha
+    .record Header : UInt16 version, UInt32 length, [4] reserved
+ 
+Record fields are constrained to buffer-backed types (the containment rule of §5.1), reflecting the requirement that every field have a definite byte width and offset. A record's total byte size is the sum of its fields' sizes plus any padding the implementation introduces for alignment; the surface specification does not currently pin down padding rules. Whether the language commits to deterministic record layout, admits implementation-determined padding subject to a stability convention, or admits per-record `.packed` annotations is registered as a minor open question; the catalog entry is in Appendix I.
+ 
+Records are **nominally typed** (§5.1's containment rule makes the structural matching well-defined; nominality is the choice on top): two `.record` declarations with identical field structure produce two distinct types. Values of one are not interchangeable with values of the other on the basis of structural similarity alone. The discipline is uniform across the type system; it is what gives module-exposed types their abstraction story.
+ 
+Records compose: a record may have a field whose type is another record, and the inner record's bytes lay out within the outer record's bytes contiguously at the inner record's offset. This is the natural way to express compound buffer-backed structures.
+ 
+The record/object split (§5.11) is the surface manifestation of the buffer-backed/non-buffer division: records are byte-aggregates with no identity beyond their contents; objects are identity-bearing aggregates whose fields may include non-buffer types. The choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics — not a graded distinction, but a categorical one.
+ 
+Records also admit **inline forms** — anonymous declarations within a field or candidate position. An inline record nested inside an outer record's field declaration produces a nominally distinct type per declaration site; the same field structure appearing in two separate outer records yields two distinct inline types. Named records are typically preferred for re-use; inline forms are a convenience for one-off compound structure inside another declaration.
+ 
+### 5.5 Buffer-Backed Subsumption
+ 
+Buffer-backed types compose under a **uniform parent-chain subsumption** relation that operates across domains, records, unions, and the primitive buffer forms together. A value of any buffer-backed type subsumes upward through its parent chain — every ancestor along the chain accepts it implicitly — terminating at the relevant `[N]` or `[]` primitive. **An `Inches` is implicitly an `Int32`; an `Int32` is implicitly a `[4]`; a `[4]` is implicitly a `[]`.** A `Point` (record over an `[8]`-byte representation) is implicitly an `[8]`, and an `[8]` is implicitly a `[]`. The chain extends through every named refinement on the way; nothing is special about the named-domain step versus the record-to-primitive step.
+ 
+**Sibling buffer-backed types subsume to their common ancestor without peer-conversion.** Two domains parented at `Int32` — `Inches` and `Centimeters` — are mutually incomparable as types; they do not implicitly convert to each other. Each individually subsumes upward through the shared `Int32` ancestor: a context expecting `Int32` accepts either; a context expecting `[4]` accepts either; a context expecting `[]` accepts either. A context expecting `Inches` rejects a `Centimeters` value, and a context expecting `Centimeters` rejects an `Inches` value. The sibling-to-common-ancestor pattern is what makes domain hierarchies usable for unit-style refinements without admitting silent unit conversions.
+ 
+The subsumption is **type-acceptance, not value-rewriting**. The bytes are unchanged at the upcast boundary; the static analysis accepts the value at the broader type. Methods and class witnesses are selected at each slot boundary based on the slot's declared type at that point — different types may interpret the same bytes differently, and a witness constructed at any class-typed slot boundary reflects that boundary's slot type rather than any earlier slot type the value passed through. The rule for when buffer-backed dispatch identity is captured at a class-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-class-typed buffer-backed parameters, is in §9.18.
+ 
+The subsumption rule is one-directional: child to parent, never the reverse. A value of a parent type does not implicitly become a child value. Constructing a child value from a parent value requires an explicit constructor invocation (§3.9), which the typechecker recognizes as a deliberate cross-type movement.
+ 
+A separate buffer-backed subsumption rule applies to unions: the **union → candidate-or-parent byte-reinterpretation** rule (§5.7) admits a union value into any buffer-backed slot whose type is on the parent chain of *at least one* of the union's declared candidates. This rule is given its own subsection because it differs from the parent-chain subsumption rule in two important respects: it is existential across the candidate set, not universal; and it is **not Liskov-preserving**, since the bytes' meaning depends on which candidate is currently active in the union — a property the language does not track.
+ 
+The narrowness of the implicit-conversion story across buffer-backed types is a deliberate design commitment. Implicit conversions are a routine source of reasoning errors in languages that admit them. The parent-chain rule is the minimum that makes refinement-style domain hierarchies usable; the union byte-reinterpretation rule is the buffer-backed-side answer to the discriminated-overlay question that variants answer differently (§5.12). Every other type-crossing — record to record, sibling domain to sibling domain, anything to or from a non-buffer type — is explicit, requiring a constructor invocation, an interpretive cast against a union, or the dynamic-narrowing operator `-<` (§7.14).
+ 
+### 5.6 Unions
+ 
+A **union** is a byte-level overlay of declared candidate types. The union's storage is `max(candidate-sizes)` bytes; assigning a candidate value writes that candidate's bytes into the overlay. The declaration form is:
+ 
+    .union Number : Int32, Float32
+    .union AnyFour : Int32, [4], RGBA8
+ 
+Union candidates must be buffer-backed (the containment rule of §5.1). This is what makes the byte-overlay coherent: every candidate has a definite byte-width, and the overlay is the maximum.
+ 
+**The union carries no language-level discriminator.** A union slot is *just bytes*; the language tracks neither which candidate is currently active nor any tag identifying it. Discrimination is the user's responsibility — typically by storing an enumeration value alongside the union in a containing record, or by deriving the active candidate from contextual information already implicit in the program.
+ 
+The choice not to attach a language-level discriminator to unions is structural. A discriminator on every union would force a discriminator-byte allocation cost on every union and would commit the language to a witness mechanism inside the buffer-backed side of the type system. Both costs are inappropriate for the lower-level coding role unions occupy: programs that want safe tagged sums use **variants** (§5.12), which carry both a tag and a witness; programs that want byte-overlay efficiency at the cost of programmer-managed discrimination use unions. The two surfaces serve different needs, and the distinction is preserved by giving each its own discrimination model. The union/variant pair is the buffer-backed/non-buffer surface manifestation of the byte-overlay-versus-tagged-sum design choice.
+ 
+Unions are nominally typed (§5.4): two `.union` declarations with identical candidate sets produce two distinct types. Inline forms are admitted, with the per-declaration-site nominal-distinctness rule applying as for records.
+ 
+Reading a candidate value out of a union is **interpretive casting** — a reinterpretation of the union's bytes at a candidate-typed slot view. The typechecker enforces only that the cast's target type is one of the union's declared candidates; it does not verify which candidate is actually active. The construction surface for interpretive casting is part of the broader byte-reinterpretation story (§5.7) and is treated in §7 alongside the rest of the construction surface.
+ 
+### 5.7 Union → Candidate-or-Parent Byte-Reinterpretation
+ 
+A union value implicitly subsumes — by zero-cost byte reinterpretation — to any buffer-backed type `T` such that `T` appears on the standard buffer-backed subsumption chain (§5.5) of *at least one* declared candidate of the union. The relation is the union's reading rule: a union value flows into any context expecting a candidate's type or any of that candidate's ancestors.
+ 
+The relation is **existential** across the candidate set, not universal. A union with candidates `{A, B, C}` where `A`'s parent chain reaches `T`, regardless of whether `B`'s or `C`'s chain reaches `T`, admits the subsumption to `T`. The user's reading: if some candidate's bytes could plausibly be interpreted as `T`, the language admits the operation; the responsibility for ensuring the union's bytes *are* a valid `T`-value at the moment of reading rests with the user's discrimination machinery.
+ 
+The relation is **one-way**: a union value flows into a `T`-typed slot. The reverse direction — a `T`-typed value into a union slot — is a construction operation handled by the standard surface (constructor invocation or aggregate literal targeting the union type); the implicit subsumption does not run backward.
+ 
+The relation is **not Liskov-preserving**. The bytes are the same across the reinterpretation, but their *meaning* depends on which candidate is currently active in the union, which the language does not track. The user-side reading: the language admits the byte-reinterpretation, but the semantic validity — that the bytes the union currently holds *are*, in fact, a valid `T`-value — is the user's responsibility. The discipline is the C-style discipline: a union is a tool for byte-aliasing across known structurally-compatible representations; the user manages the discriminator and the validity. Under the standing lens of §1.5, the reinterpretation is *byte-reinterpretation subsumption*, distinct from the Liskov-preserving parent-chain subsumption of §5.5; the two are kept terminologically separate to avoid silently conflating them.
+ 
+The dynamic-narrowing operator `-<` (§7.14) **does** apply to union slots. The admissibility test is the same existential parent-chain rule as the implicit byte-reinterpretation subsumption above: `-<` from a union to a target type `T` succeeds when `T` appears on the parent chain of *at least one* declared candidate, and fails when `T` lies on no candidate's chain. A union with candidates `{Int32, Int64}` admits `-<` to `[4]` (on `Int32`'s parent chain) and to `[8]` (on `Int64`'s parent chain), but fails `-<` to `[3]` or `[5]` — neither candidate reduces to those types. Unlike `-<` on variants and object hierarchies — which carry language-tracked tags or runtime type information for the operator to test — `-<` on a union has no runtime discriminator to consult; the admissibility check is made entirely at typecheck against the union's declared candidate set. The user-asserted-byte-validity discipline above still applies: an admissible `-<` is a byte-reinterpretation at runtime, and the user's discrimination machinery remains responsible for ensuring the union's bytes in fact represent a valid target-typed value.
+ 
+The same `-<` operator also extends to class-typed targets on unions, under a stricter admissibility rule. **`-<` from a union to a class `C` succeeds when *exactly one* of the union's declared candidates is an instance of `C`, and fails otherwise.** When admissible, the constructed class-typed value carries the witness for the pair (qualifying-candidate, `C`); selection is fully static. A union with candidates `{Int32, Float32}` where only `Int32` has a `Showable` instance admits `-<` to `Showable`, producing a `Showable`-typed value with the (`Int32`, `Showable`) witness. The same union where *both* candidates implement `Showable` rejects `-<` to `Showable` as ambiguous: the language has no runtime discriminator to pick between the candidate witnesses, and the user must instead narrow to a specific candidate type first (`-<` to `Int32`, for instance) and let the resulting candidate-typed value flow into the class-typed slot through ordinary subsumption. A union where no candidate is an instance of `C` also rejects.
+ 
+The exactly-one rule differs from the existential rule for buffer-backed targets because the underlying mechanisms differ. A buffer-backed target is a byte-view; the result type determines byte interpretation directly, so existential admissibility suffices. A class target requires constructing a witness specific to a particular candidate, so the rule must determine that candidate uniquely. Existential admissibility cannot pick between competing candidate witnesses; universal admissibility cannot either, since unions carry no runtime tag for per-candidate selection at use time. Singularity is the unique rule that produces a determinate static witness selection.
+ 
+The class-target case is **`-<`-only** — explicit, never implicit. A union value does not implicitly subsume to a class-typed slot via the candidate-level instance rule, even when exactly one candidate qualifies. The reason is interaction with a separate, orthogonal possibility: a union type may itself be declared as an instance of a class — `.instance MyUnion: Showable` is a well-formed declaration that gives the union type its own `Showable` methods, with the union's bytes interpreted at that level rather than at any candidate's. When such a declaration is in scope, implicit subsumption from a `MyUnion` value to a `Showable`-typed slot uses the union's own instance, with the witness (`MyUnion`, `Showable`). Were the candidate-level rule also admitted implicitly, the two mechanisms would compete at the same use site and the language would have to choose one over the other silently. Keeping the candidate-level case explicit at `-<` keeps the two paths distinct: a direct pass (implicit subsumption) uses the union's own class instance, when declared; `-<` to a class uses a candidate's class instance, under the exactly-one rule. A programmer who wants a particular candidate's class instance in the multi-match case narrows to that candidate type first and lets the resulting value flow into the class-typed slot through the standard subsumption story.
+ 
+The user-asserted-byte-validity discipline carries over to the class-target case. The witness selected by `-<` is the candidate's witness, and methods dispatched through it read the union's bytes as that candidate's bytes. The user's discrimination machinery remains responsible for ensuring the union's bytes do in fact represent a valid value of that candidate at the moment of the `-<`.
+ 
+### 5.8 Aliases
+ 
+An **alias** is a synonym — purely a human-ergonomics tool. The declaration form is:
+ 
+    .alias UserId : Int64
+    .alias Cookie : [16]
+ 
+The alias name and its right-hand side are interchangeable in both directions in all contexts; aliases erase entirely from the type system's perspective. They introduce no new type identity. A `UserId` is the same type as `Int64`; a `Cookie` is the same type as `[16]`.
+ 
+Aliases are useful as **type-level abstraction barriers**: a module exposes `.alias UserId : Int64`, downstream code uses `UserId` everywhere, and a later implementation change to (say) `[16]` (a UUID) requires changing only the alias declaration, assuming the change is otherwise compatible. The downstream code reads the same; the type identity has not changed because the alias erases.
+ 
+Aliases compose with domains: a domain's parent may be an alias, which transparently resolves to the underlying type. The combination is permitted but rarely needed.
+ 
+The line between alias and domain is the line between *no new type identity* and *new type identity with implicit-upcast to the parent*. An alias erases; a domain with the same right-hand side does not. The choice between them is the choice between a renaming-only abstraction and a typing-distinct refinement. A program that wants `UserId` to *not* be substitutable with arbitrary `Int64` values uses a domain (`.domain UserId : Int64`); a program that wants a clearer name for `Int64` without distinguishing it from other `Int64`-typed values uses an alias.
+ 
+### 5.9 Enums
+ 
+An **enumeration** is a compile-time-constant collection of named values of a single type. The declaration admits two surface forms:
+ 
+    .enum Severity : info = 0, warning = 1, error = 2
+    .enum HttpCode Status : ok = 200, notFound = 404, serverError = 500
+ 
+The **one-name form** (`.enum Severity : ...`) names the enum's type (here `Severity`); the values' representational type is inferred from the literal values. The **two-name form** (`.enum HttpCode Status : ...`) makes the representational type explicit (here `HttpCode`) and names the enum's type second (here `Status`). The two-name form is the form to use when the literal values must inhabit a non-default representational type — for example, a domain over `Int16` with associated invariants — and a constructor is available that is callable on each literal. The two names are not a "second-level grouping"; they are simply *type constraint* and *enum type*, with no nesting semantics.
+ 
+Enum values are compile-time constants. They are read-only at every use site, with values fixed at module compile time, and they participate in the type system as values of the enum's type — not as a special category. An enum's type is a buffer-backed type (it inherits the buffer-backed-ness of its representational type) and may serve as a record field, union candidate, parameter, receiver, and so on, on the same terms as any other buffer-backed type.
+ 
+Enums are **the language's single principled exception to the no-non-local-state principle.** A reference to an enum value is, structurally, a reference to non-local state — the value lives at module scope, not in any frame. The language admits this exception because enums are *constants*: they cannot be mutated, they have no per-thread or per-frame state, and they exist solely for the convenience of naming a fixed set of distinguished values. Whether enum values are constructed up-front at module load or computed on-demand at first use is implementation-dependent and not visible to the language.
+ 
+The principle behind the exception is precise: it admits *compile-time-constant non-local read*, nothing more. Mutable module-level state, ambient context, thread-local storage, and module-level singletons all remain forbidden. Enums are the carve-out, and the language does not extend the carve-out by analogy to other constructs.
+ 
+### 5.10 Pointers
+ 
+A **pointer type** is written `^T`. The caret is a type-prefix and may stack: `^^T` is a pointer to a pointer to `T`. Pointers are non-buffer types — they reference other storage rather than carrying byte-content directly — and may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots (introduced via `#`), parameters, receivers, object fields, and variant candidates.
+ 
+The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in §7 and §6.5 respectively.
+ 
+The language commits to **abstracted pointer semantics**. The user-visible meaning of `^T` is "pointer to `T`." Whether the runtime implementation is a thin pointer (carrying only the pointee's address), a fat pointer (carrying the address plus dispatch metadata), or a handle (a pointer to a pointer, supporting relocation by the allocator) is an implementation choice, made per type by the compiler, and not user-visible. The implementation latitude permits the compiler to choose, on a per-`T` basis, the representation that best serves `T`'s actual needs: a thin pointer for a small fixed-size buffer-backed `T`; a fat pointer for an object-typed `T`, supporting class dispatch; a handle for any `T` allocated in a relocation-supporting allocator.
+ 
+User-visible operations on `^T` are uniform across these choices: dereference, address-of, indexing into a buffer-typed pointee via `p[i]`, member access for object pointees, dispatch via `::`. The user reasons about pointers in the abstract; the implementation chooses the concrete shape.
+ 
+**No C-style pointer arithmetic.** Stepping through buffer contents requires `p[i]`. Incrementing a pointer to advance through an array is not supported. Indexing produces a first-class failure on out-of-range access; pointer arithmetic would not. The restriction is also necessary for the handle implementation to be valid — a handle's underlying address may move, and an arithmetic offset against it would alias the wrong target after relocation.
+ 
+A `^Object` parameter is conceptually a double-indirection. Object-typed values are themselves indirections (objects are stack/heap-allocated with potentially non-contiguous fields, accessed via fat pointers); a `^Object` therefore points to a *slot* containing an object reference, and a writeable `^Object` parameter allows the callee to point that slot at a different object on success. The double-indirection structure is what lets writeable-`^Object` parameters serve as object-yielding result slots in the no-return-values world.
+ 
+Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-local-state principle: the pointer is itself a parameter (or transitively reachable from one through the provision chain), and operations through the pointer touch storage that arrived by explicit provision. The transitive READ contract (§6.5) refines this rule along access paths rooted at READ parameters: writes through a `^T` reached by such a path are forbidden, while writes through a `^T` reached by a REFERENCE-rooted or PRODUCE-rooted path are permitted normally.
+ 
+### 5.11 Objects
+ 
+An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type — buffer-backed *or* non-buffer — including pointers, command-typed values, fexpr-typed values (subject to fexpr-specific restrictions; §8), other objects, and variants. The declaration form is:
+ 
+    .object Logger : String name, ^File output, Severity threshold
+    .object Cache  : [4096] storage, Int32 used, ^Cache next
+ 
+Object-typed values are reference-semantics in the sense that they are normally manipulated through fat pointers to the object's storage rather than as bytes. The object's fields may be discontiguously laid out — the language does not commit to a particular field-layout strategy for objects, since the absence of a byte-aggregate constraint frees the implementation from offset-stability requirements that records carry.
+ 
+The record/object split (§5.4) is the core split of the buffer-backed/non-buffer division. Records *cannot* contain pointers, command-typed values, fexpr-typed values, objects, or variants; objects *can* contain anything. Records have no identity beyond byte-content; objects have identity that survives byte-content equivalence. The two are not a graded distinction — they are categorically separated, and the choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics.
+ 
+Objects are nominally typed: two `.object` declarations with identical field structure produce two distinct types.
+ 
+**Object lifetime ceiling.** The frame in which an object's storage is introduced is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the frame that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime — object types are first-class types — but every object *value* is bound to an introducing frame. The frame-ownership lens (§1.5) makes the rule concrete: an object lives in a frame's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. The lifetime ceiling is whichever frame ends up holding the slot at the binding moment.
+ 
+**Frame-exit hooks via `@` and `@!` (§3.12) are tied to the frame slot holding the object, not to the object's identity transitively.** A class declaring `@` for an object type fires the handler when the *frame slot* holding the object retires. An object embedded as a field of another aggregate — a field of another object, or transported via an unusual containment — does not fire its `@` handler when that container retires; only the object directly held in a frame slot does. The discipline is **frame-lifetime-tied, not object-lifetime-tied**, which is more restrictive than C++'s destructor mechanism and is intentionally so: the language's at-stack mechanism is the single carve-out from the no-hidden-control-flow principle, and the more restrictive rule keeps the carve-out narrow.
+ 
+Object types may have class instances declared for them (§9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's class membership is a property of the object's type, not of any particular object value, and is determined at the type-declaration site or at instance-declaration sites.
+ 
+### 5.12 Variants
+ 
+A **variant** is a non-buffer tagged sum. Variant candidates may be of any type — buffer-backed or non-buffer — including pointers, objects, command-typed values, other variants, records, and domains. The declaration form is:
+ 
+    .variant Shape : Circle, Rectangle, Polygon
+ 
+The Record–Object–Union–Variant parallel is exact at the buffer-backed/non-buffer axis (§5.4 / §5.6 / §5.11): records and unions are buffer-backed; objects and variants are non-buffer. The variant-side surface answers the discriminated-overlay question that the union-side (§5.6) answers with a user-tracked discriminator: a variant carries both a tag identifying the active candidate and a class-witness component participating in class-system dispatch — the witness's specific role and population are class-system territory and are detailed in §9.
+ 
+A variant value's runtime representation is a **3-word slot** — a triple of:
+ 
+- **Tag identifier.** A small-integer identifier for the active candidate, slot-sized (32 bits comfortable, with spare bits available for occupancy or other small flags). The tag identifies which candidate the variant is currently storing or, distinctly, the absent state (§5.13).
+- **Candidate pointer.** Pointer-sized; references the candidate value's storage. The storage is laid out per the candidate's type — a record candidate carries that record's bytes; an object candidate carries that object's identity-bearing storage; a pointer candidate carries a pointer-shaped value at the indirection's other end.
+- **Class witness.** Pointer-sized; carries class-dispatch information for the variant value. The witness's role and population conditions are class-system territory; see §9 for the class-system mechanics that interact with the variant slot's witness component.
+The same 3-word slot pattern appears in three places in the language: failure values (§4.1), variant slots (here), and Case-B class-typed parameter slots (§9.7–§9.9). The pattern is uniform across these uses; the witness component is what makes class dispatch on a slot's currently-active value coherent without the consumer knowing the concrete candidate type.
+ 
+Variants are reference-semantics: variant values are normally manipulated through pointers to the variant's storage, parallel to objects. A variant value is non-buffer and may not appear in a buffer-backed position; it may appear in a top-level slot, in an object field, in a variant candidate (forming nested variants), or in any position the containment rule of §5.1 admits non-buffer types.
+ 
+Variants are nominally typed: two `.variant` declarations with identical candidate sets produce two distinct types. The variant declaration's full surface — including any candidate parameterization and any hierarchy structure — is given in Appendix B; the variant construction surface is in §7.12.
+ 
+### 5.13 The Absent State
+ 
+Every variant slot inherently admits an **absent state** in addition to its declared candidate states. A variant in the absent state has no active candidate: its tag identifies "no candidate here," its candidate pointer is null, and its witness is correspondingly null.
+ 
+The absent state is **intrinsic to variants alone**. No other type in the language has a "may-be-absent" form. Pointers, objects, command-typed values, fexpr-typed values, records, unions, aliases, enums, and named domains all contain what their type declaration says they contain — there is no slot for the absence of a value. Variants are the language's null-pointer-inclusive data structures *without* admitting NULL into the type system: the absent state is a structural property of variants, surfaced through the normal type-system mechanisms, not a special case grafted onto every reference type.
+ 
+A bare introduction of a variant slot — `# SomeVariant x` with no initializer — produces a variant slot in the absent state. The 3-word slot's all-zero pattern (zero tag, null candidate pointer, null witness) is the absent state, by construction. The bare-introduction form is admitted for variants and for no other non-buffer type: pointers, command-typed values, fexpr-typed values, and objects all reject bare introduction because they have no zero-default representation that the language admits. Variants alone admit a zero-default, and that zero-default *is* the absent state.
+ 
+A variant declared with exactly one candidate is the language's idiomatic optional: a slot of that variant type is either absent or holds the single candidate's value. The absent state stands for "no value present"; the candidate state stands for "value present." The pattern composes with the rest of the variant machinery — testing for absent uses the `?- _ -< v` form, and engaging on the candidate uses a `?: 'narrow -< v` form (§7.13) — without any dedicated optional-type machinery beyond the variant declaration itself.
+ 
+The absent state is *always* a path through any variant. Code that operates on a variant's candidate must either explicitly handle the absent case or rely on a default arm in a `?:` chain catching it. The structural visibility of the absent path is what differentiates Basis variants from null-bearing reference types in languages where NULL is admitted everywhere a pointer is admitted: the absent state is acknowledged at the type level, surfaced syntactically through `_`, and addressed through standard composition rather than ignored until runtime.
+ 
+The construction surface for variants — including the `${Candidate <- value}` form for non-absent introduction and the `_` markers in `-<` operations and aggregate literals — is treated in §7.12 alongside the rest of the variant construction story. The dynamic-narrowing operator `-<` and its absent-state forms (`_ -< v` to test non-absence, `v -< _` to clear to absent) are in §7.14.
+ 
+### 5.14 Command-Typed Values
+ 
+A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits four constructional forms that produce command-typed values — command reference, command literal, lambda, and fexpr — enumerated in §3.15 and detailed in §8. The type system describes command-typed values uniformly through the same family of type expressions.
+ 
+The type-expression forms for ordinary command-typed values are:
+ 
+    :<paramTypes>          ; never-fails command-typed value
+    ?<paramTypes>          ; may-fail command-typed value
+    !<paramTypes>          ; must-fail command-typed value
+ 
+The angle-bracket list is a sequence of **parameter types only**, with no parameter names — at the type level there is nothing to refer to a name as. Mode markers in the list use the **suffix-on-type** placement of the nameless-context rule (§3.3): `Type` (no marker, READ), `Type'` (PRODUCE), `Type&` (REFERENCE). Pointer parameters carry the pointer-marker as prefix and the mode-marker as suffix on opposite sides — a pointer-to-`Int32` as a reference parameter is `^Int32&`, with `^` and `&` visually distinct on opposite ends of the type.
+ 
+Examples:
+ 
+    :<Int32, Int32>        ; never-fails command-typed value taking two Int32 (READ) parameters
+    ?<Int32', String>      ; may-fail command-typed value with a productive Int32 and a READ String
+    !<^Int32&>             ; must-fail command-typed value with a reference parameter of type ^Int32
+ 
+Command-typed values are non-buffer types — they carry dispatch metadata and (for capture-bearing forms) capture information that does not reduce to bytes. They may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots, parameters, receivers, object fields, and variant candidates (subject to the fexpr-specific restrictions of §5.15 for fexpr-typed values).
+ 
+Command-typed values support every operation a value supports: binding to slots, passing as parameters, storing in object fields and variant candidates, capture by lambdas and fexprs (within the rules of §8), partial application (§9.14), and direct invocation. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the class declared for `name` minus the receiver position. The full operational mechanics of dispatch are in §9.
+ 
+**The failure-mode marks on command-typed values follow the subsumption rule of §4.2.** A `:`-marked value is acceptable wherever a `?`-marked value is expected; a `!`-marked value is similarly acceptable; a `?`-marked value is not interchangeable with `:` or `!`. Subsumption is on the failure mark axis only. **Parameter modes and parameter types are invariant** under mark subsumption: a `:<Int32'>` is not interchangeable with `:<Int32>` or `:<Int32&>`. Invariance is essential for soundness — the per-mode discipline at the call site (productive obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
+ 
+The interaction with class dispatch — when a class method's signature is a command-typed value with given marks and modes, and how instances supply their per-receiver implementations — is in §9. The interaction with overloading (multiple commands sharing a name) is in §9.16.
+ 
+### 5.15 Fexpr-Typed Values
+ 
+**Fexpr-typed values** are nominally distinct from ordinary command-typed values at the type level. A fexpr is the user-defined-control-flow-combinator form: a body written with implicit access to the surrounding command's locals, bounded by its defining frame, and operating on the defining frame's state through implicit captures. The full fexpr mechanism is in §8.5; this section gives the type-side surface only.
+ 
+The type-expression forms for fexpr-typed values are:
+ 
+    :<*>                   ; never-fails fexpr-typed value
+    ?<*>                   ; may-fail fexpr-typed value
+    !<*>                   ; must-fail fexpr-typed value
+ 
+The `*` inside the angle brackets denotes "this is a fexpr — opaque-to-invoker by design, ceiling-fixed to the defining frame." The `*` displaces the parameter-type list because fexprs have no invoker-side parameter surface beyond the failure mark: captures are lexical, drawn implicitly from the defining frame by free-name resolution, and the invoker's only commitment is to respect the failure-mark.
+ 
+The typing rules for the fexpr family:
+ 
+- **No subsumption between fexpr-typed and ordinary command-typed values.** A `:<*>` is not a `:<>`; a `?<*>` is not a `?<>`; a `!<*>` is not a `!<>`. The two families are nominally distinct, with no implicit conversion in either direction. The buffer-backed-hierarchy subsumption rules of §5.5 do not apply across the boundary; the failure-mark subsumption of §4.2 does not cross the boundary either. The two families have a **family boundary** that subsumption does not cross.
+- **The standard mark-subsumption rule applies symmetrically within the fexpr family.** A `:<*>` is acceptable in a `?<*>`-typed slot (per `:` ⊑ `?`); a `!<*>` is acceptable in a `?<*>`-typed slot (per `!` ⊑ `?`). Mark subsumption operates within each family identically; what does not cross is the family-distinguishing `*` marker.
+- **The typechecker enforces the defining-frame ceiling structurally.** Fexpr-typed values are recognized syntactically (by the `<*>` marker) and forbidden from assignment to anything that could outlive their defining frame: object fields holding fexpr-typed values are restricted; productive parameters of fexpr type are forbidden; pointers to fexpr-typed slots are forbidden; bare-identifier copy of fexpr values is forbidden; capture of fexpr values by lambdas is forbidden. The full enumeration of fexpr restrictions A–G is in §8.13; the type-side commitment recorded here is that the family-distinguishing type marker `<*>` is what makes the structural enforcement possible.
+The motivating concern for the nominal distinction is ceiling-tracking. Under the defining-frame ceiling rule, the typechecker must distinguish fexpr-typed values from ordinary command-typed values syntactically — otherwise a fexpr would be assignable to any `:<>` slot and would escape its defining-frame ceiling. The `<*>` marker provides the required syntactic distinction at parameter declarations, in any other type-position where a fexpr-typed slot must be specifically declared, and at the assignment positions that the structural restrictions test.
+ 
+The interaction of fexpr-typed parameters with class-method dispatch — including the `FexprFailure` standard tag, the fexpr-relevance taint axis parallel to the READ contract, and the per-instance defaults-incompatibility — is in §9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in §8.5's Restriction C and §8 generally.
+ 
+The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language — buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values — together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (§5.1), a clear construction surface (§7), and a clear interaction with parameter modes (§6) and class dispatch (§9). The compositions among them are governed by the containment rule (§5.1) and the subsumption rules (§5.5, §5.7, §4.2, §5.15); every other type-crossing is explicit.
