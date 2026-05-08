@@ -976,7 +976,6 @@ A typechecker implementation may begin with the un-refined six-state lattice and
  
 ---
 
-on 5 · MD
 ## 5. Types
  
 This section defines the type forms of Basis. Every value the language admits inhabits exactly one of the forms enumerated here. The forms partition into two categories — buffer-backed (§§5.2–5.7) and non-buffer (§§5.10–5.15) — with three additional facilities (aliases §5.8, enums §5.9, and the cross-cutting subsumption rule §5.5) that operate over both. Each form's surface declaration syntax is given here in sketch; the full grammar is in Appendix B. Each form's construction surface — how values of the form are introduced and assigned — is in §7. Each form's interaction with parameter modes and class dispatch is in §6 and §9 respectively.
@@ -1239,3 +1238,229 @@ The motivating concern for the nominal distinction is ceiling-tracking. Under th
 The interaction of fexpr-typed parameters with class-method dispatch — including the `FexprFailure` standard tag, the fexpr-relevance taint axis parallel to the READ contract, and the per-instance defaults-incompatibility — is in §9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in §8.5's Restriction C and §8 generally.
  
 The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language — buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values — together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (§5.1), a clear construction surface (§7), and a clear interaction with parameter modes (§6) and class dispatch (§9). The compositions among them are governed by the containment rule (§5.1) and the subsumption rules (§5.5, §5.7, §4.2, §5.15); every other type-crossing is explicit.
+
+---
+## 6. Parameters and Mode Markers
+
+This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of three modes — READ, PRODUCE, or REFERENCE — that together determine the contract between caller and callee at that position. The mode markers are part of the identifier itself in named contexts and migrate to type-suffix position in nameless contexts. Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, §6.14) verifies that productive parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, §6.5; fexpr-relevance, §6.15) verify that read-only contracts and ceiling bounds are preserved across access paths.
+
+The §3 surface for declaring parameters and receivers introduced the three modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table introduced in §3.10 is restated here in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
+
+### 6.1 The Three Modes
+
+A parameter or receiver in Basis carries one of three **modes** — **READ**, **PRODUCE**, or **REFERENCE** — that determine the contract between caller and callee at that position. The modes are roles, not directions: each describes what the callee is permitted or obligated to do; the caller's side of the contract is derivable from the callee's. The names were chosen to make the permissions/obligations character explicit, retiring the older "in-mode / productive / reference" calling-convention vocabulary that the prior naming implied.
+
+**READ** — the bare-name form, no marker. The callee may read through any access path reached from the parameter; it may not write through any such path. The transitive read-only contract (§6.5) makes this commitment trustworthy: the language statically prevents the value from being smuggled into a writeable position downstream. The caller's slot is bit-identical to its pre-call state after the call regardless of outcome.
+
+**PRODUCE** — marked with `'` on the name (e.g., `'result`). The callee is statically obligated to write the parameter's slot exactly once on every successful return path — the **write-once-on-success** rule (§6.13). The caller may pass either an initialized or an uninitialized slot. On success, the produced value is committed to the caller's slot via copy-restore (§6.4); on failure, the caller's slot is bit-identical to its pre-call state.
+
+**REFERENCE** — marked with `&` on the name (e.g., `&counter`). The callee may read the parameter, may write the parameter, may do neither — there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read and reading uninitialized is forbidden by the whole-slot tracking discipline (§6.14). Copy-restore semantics apply on the writeability axis: on success, any write the callee performs is committed back to the caller's slot; on failure, no write-back occurs.
+
+The three modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in §6.7 (the R1 and R2 rules) and §6.8 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary — call-by-value for READ, copy-restore for PRODUCE and REFERENCE — with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
+
+### 6.2 Marker Placement
+
+The mode markers `'` and `&` are **part of the identifier itself**, not separate marker tokens. The lexer recognizes `'name`, `&name`, and `name` as three identifier shapes of the same name. Every read and every write inside the command body uses the marker that matches the parameter's mode — a body that has a productive parameter `'result` writes `'result <- value`, never `result <- value`. The marker is visible at every use site, not only at the declaration. The same-scope rule (§6.3) prevents the three shapes from coexisting in the same scope.
+
+The placement convention varies by syntactic context, depending on whether names are available to carry the marker.
+
+**Named contexts** are positions where parameters or bindings carry names — parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries (§6.10), local introductions. In named contexts, the marker travels with the name in identifier-shape:
+
+    Int 'result            ; PRODUCE parameter
+    Logger &counter        ; REFERENCE parameter
+    Showable s             ; READ parameter
+
+The full type-bearing form is `Type 'name`, `Type &name`, or `Type name`, with the type preceding the (mode-marked) name. The form `name : Type` is not Basis syntax in any binding position.
+
+**Nameless contexts** are positions where parameter types are listed without names — command-type expressions (§5.14, §5.15) most prominently, and any other type-position where a parameter type appears unaccompanied by a binding name. In nameless contexts, the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`:
+
+    :<Int>                 ; READ parameter (no marker)
+    :<Int'>                ; PRODUCE parameter (suffix `'`)
+    :<Int&>                ; REFERENCE parameter (suffix `&`)
+    :<^Int>                ; READ parameter of pointer-to-Int type
+    :<^Int'>               ; PRODUCE parameter of pointer-to-Int type
+    :<^Int&>               ; REFERENCE parameter of pointer-to-Int type
+
+A pointer-to-`Int32` as a reference parameter is `^Int32&`, with `^` as prefix and `&` as suffix on opposite sides of the type — visually distinct, no token blob. The two markers serve unrelated roles: `^` is a type former, indicating the parameter's type is a pointer; `&` is a mode marker on the parameter position the type inhabits. Their visual separation reflects that role separation.
+
+The two placements agree on what the markers mean — `'` is PRODUCE and `&` is REFERENCE in both — and differ only on placement to suit the surrounding syntax. The named-context placement attaches the marker to the binding name because there is one; the nameless-context placement attaches the marker to the type because there is no name to attach it to.
+
+### 6.3 The Same-Scope Rule
+
+Within any scope, **two-or-more identifiers that differ only by mode-character marking must not coexist.** The rule is symmetric across all three pairs: `x` and `'x` are mutually exclusive; `x` and `&x` are mutually exclusive; `'x` and `&x` are mutually exclusive. The rule applies both to identifiers introduced into a scope by binding (parameters, receivers, captures, local slots) and to command-parameter-list declarations: a command may not be declared with two parameters whose names collide modulo marker.
+
+The motivation is reader confidence. Two textually-similar names referring to genuinely different slots in the same context produce a class of subtle reader-bugs — did this read from the productive slot or the reference slot? Forbidding the coexistence costs a rename; the benefit is that scope-local reasoning never has to disambiguate near-identical names.
+
+A separate concern is passing a single slot at multiple modes in one call. A caller passing a value `x` into a callee may legitimately pass `x` at one parameter position and `'x` (or `&x`) at another in the same call. The same-scope rule does not forbid this — the call-site argument list is not a scope, and the modes refer to roles at the call boundary, not to identifiers in the caller's scope. The aliasing concern this raises — the same caller-slot bound under two mode contracts simultaneously — is an aliasing question, separately addressed by the rule that disallows binding a single slot at PRODUCE and REFERENCE positions in the same call (since the resulting aliasing would defeat copy-restore failure-atomicity).
+
+### 6.4 Call-Boundary Mechanics
+
+The call-boundary mechanics realize the per-mode contracts at the operational level. The type-system rules of §§6.1–6.3 and the static analyses of §§6.5, 6.13, 6.14 commit to behavior; the call-boundary mechanism is what makes that behavior real.
+
+**READ parameters** are passed by value at the observable level. The callee receives a copy of the caller's slot. The caller's slot is bit-identical to its pre-call state after the call, regardless of whether the call succeeds or fails. Implementation latitude: the implementation may pass READ parameters by reference under the hood, since the transitive READ contract (§6.5) precludes the writes that would make by-reference observable; the language commits to by-value at the *observable* level only.
+
+**PRODUCE and REFERENCE parameters** are passed by **call-by-copy-restore**. The callee receives a copy of the caller's slot value, operates on the copy, and on *successful* return the (possibly-modified) copy is written back to the caller's slot. On *failure*, no write-back occurs; the caller's slot is bit-identical to its pre-call state.
+
+The copy-restore mechanism is the operational realization of the language's "mutation either succeeds fully or fails fully" principle (§1.2.4). Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs. The pre-call state of the caller's slot is preserved by the structure of the convention rather than by explicit restoration logic.
+
+The pointer case composes cleanly. For a parameter of pointer type `^T`, the *pointer value* itself is what's copied (READ) or copy-restored (PRODUCE / REFERENCE), not the pointee. A writeable `^T` (i.e., `^T'` or `^T&` per the nameless-context rule of §6.2, or `^T 'name` / `^T &name` per the named-context rule) lets the callee swap which `T` the caller's slot points at; a non-writeable `^T` does not. The pointee's storage is reached *through* the pointer; reads and writes through the pointer touch storage that, by the no-non-local-state principle's provision-chain rule (§1.4), was reached by explicit provision.
+
+For PRODUCE parameters specifically, the caller's slot may be uninitialized at the call boundary, and the copy-restore mechanism handles the initialization gracefully: the callee's local copy is a fresh slot of the parameter type that the callee is statically obligated to fill via the productive write, and on success the produced value is committed to the caller's slot. On failure the caller's slot remains in its pre-call state, which for a fresh `#`-introduction was uninitialized — the initialization analysis (§6.14) tracks this as the slot remaining uninitialized after the failed call. The caller's analysis records the call's two outcomes as separate edges on the failure-state lattice (§4.13), with the initialization analysis joining the per-edge results.
+
+### 6.5 The Transitive READ Contract
+
+A READ parameter introduces a contract: the callee may not write through any access path reached from the parameter. **Reachability is transitive** through pointer dereference, field access, indexing, and any other operation that extends an access path rooted at the parameter.
+
+The contract is callee-side and verified at type-checking. A callee whose body would write through any reachable access path fails to type-check, regardless of whether that write would be "observable" at any particular call site. The discipline is structural; the language does not check for aliasing between the READ parameter and other writeable positions and then conditionally permit the write. The forbidding is unconditional: from a READ parameter's perspective, the storage it reaches is read-only.
+
+The contract operates on **access paths**, not on storage locations (§1.5 standing lens). The same storage may be reached at runtime through multiple access paths simultaneously, one of which is READ-rooted and another of which is REFERENCE-rooted; writes through the REFERENCE-rooted path are permitted while writes through the READ-rooted path are forbidden. The language does not detect aliasing; it tracks paths.
+
+The mechanism is enforced via a flow-sensitive **taint** property on slots and slot-views, propagated jointly with the failure-state lattice (§4.13) and the initialization analysis (§6.14) over the same CFG walk. The transfer-function rules:
+
+- A READ parameter introduces a tainted slot at the callee's frame entry.
+- Operations that yield slot-views reached through a tainted slot produce tainted slot-views — pointer dereference, field access, indexing, and any other access-path-extending operation propagate the taint.
+- A `<-` assignment from a tainted source taints the destination slot.
+- An attempt to write through a tainted slot-view, including via `^T` dereference, is a static error.
+
+The classification of which operations propagate taint and which produce a fresh untainted value — for example, reading a record's `Int32` field from a tainted record-slot, where the resulting `Int32` value's bytes are byte-disjoint from any reference into the record's storage — is the OQ-2.2 question. The provisional rule is: if the operation yields a value whose representation includes any reference into storage reached from the tainted source, the result is tainted; otherwise the result is untainted. Cases that need precise treatment include objects with non-buffer-backed fields (whose fields may be pointers, variants, command-typed values, or other objects, so reading such a field through a tainted object yields a tainted slot-view), variants over non-buffer candidates (extracting a candidate yields a tainted slot-view), and pointer dereference where the pointee's storage is reached through the tainted source. Domain values extracted from a tainted record's bytes are the contrasting case — the bytes are read and reinterpreted as a domain value, with the result byte-disjoint and untainted. The buffer-backed containment rule (§1.5, §5.1) eliminates the cases that would otherwise be problematic: records, unions, and typed buffers cannot contain non-buffer-backed components, so reading a buffer-backed field of a tainted buffer-backed compound never yields a slot-view onto storage outside the byte-aggregate itself. The full transfer-function table is in Appendix E. *Open question: OQ-2.2.* See Appendix I.
+
+A forbidden pointer-write pattern follows directly from the rule: a write through a `^T` reached from a READ parameter's binding is a static error. The `^T` is itself read-only-through-this-access for the duration of the call.
+
+The contract composes with the capture mechanisms (§§6.10, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (§3.15), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
+
+### 6.6 The Frame-Ownership Reading
+
+The transitive READ contract is callee-side: it constrains what the callee's body may do during its own execution, in its own frame. The contract does not propagate across the call boundary into the caller's analysis.
+
+**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, and access-path taint are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A PRODUCE or REFERENCE output of a downstream call appears in the caller's frame as a **freshly-bound local** — a local whose access path is rooted at the local itself, not at any of the caller's parameters. Taint on the caller's local is determined by the local's own access paths within the caller's body, independent of whatever taint analysis took place inside the callee.
+
+A concrete pattern illustrates the locality. A callee `getField: ^MyObj o, ^FieldT 'fp` is permitted to write a pointer-into-`o`'s-field into `'fp`. The callee's body has a READ access path on `o` and a writeable access path on `'fp`; the productive write composes a value of type `^FieldT` from the READ-rooted access path. The write is permitted because the callee's contract on `o` is satisfied — there is no write through `o` — and the result is a fresh value of pointer type produced into `'fp`. After the call, the caller's resulting `^FieldT` slot is a fresh local in the caller's frame; the caller's analysis tracks that local on its own access paths, with no inherited taint from the call.
+
+The frame-ownership lens is sufficient because each frame's signature carries the contracts that frame is responsible for. The callee's signature tells the callee's body what its parameters are, what their modes are, and what contracts its body must satisfy locally. The caller's signature tells the caller's body what its own parameters are. Each frame is its own analysis context. The discipline migrates to the frame that has the right context; the language does not propagate analysis state across the call boundary.
+
+The aliasing question — whether a fresh local in the caller's frame might at runtime alias storage the caller passed at READ — is intentionally not addressed by the static taint analyses. The language tracks access paths, not storage locations (§1.5 standing lens). The READ contract's static soundness is the callee-side commitment that the callee will not perform writes through its own READ-rooted paths; the caller's analysis is its own concern, with the caller's signature determining what the caller's body may do. The two-sided locality is what keeps the analyses tractable.
+
+### 6.7 The R1 and R2 Receiver Rules
+
+Receivers participate in the same three-mode discipline as parameters, but the receiver-mode rules carry an additional structural constraint that parameters do not. The receiver in a method dispatch must exist as a real value at runtime, regardless of the receiver's declared mode, because dispatch resolves a method-bearing value from the receiver's type and invokes it on the receiver's value. Dispatching on an uninitialized slot is meaningless. Two rules govern receiver-mode mechanics uniformly across signature shapes:
+
+**R1 — call-site initialization.** At any method call site, every receiver must be initialized at the call boundary, regardless of the receiver's declared mode. This is uniform across PRODUCE, REFERENCE, and READ receivers. The R1 rule is the structural commitment that makes dispatch well-defined: the receiver's runtime type identifies the instance dictionary (§9), and that identification requires a real value. PRODUCE receivers are initialized at the call site even though the callee will write them on success — initialization-then-overwrite is the rule, not initialization-on-success.
+
+**R2 — callee-body obligation.** The body of a method, with respect to a receiver of mode `M`, has the same callee-side obligations as a parameter of mode `M` would have. PRODUCE receivers must be written exactly once on every successful return path. REFERENCE receivers carry no write obligation; the body may read, write, or do neither. READ receivers may read through any access path reached from the receiver but may not write through any such path (the transitive READ contract of §6.5). The R2 rule preserves the per-mode discipline at the callee body, identical to non-receiver parameters.
+
+R1 lifts the caller-side obligation uniformly across all receiver modes — always initialized at the call site. R2 keeps the callee-side variation that the writeability marker is for. The two rules together say: dispatch always operates on a real receiver, and the mode marker tells the callee what it commits to doing with that receiver.
+
+R1 and R2 apply to multi-receiver methods (§3.11) per receiver independently. Different receivers in a tuple may carry different modes; the per-receiver R1 and R2 rules apply to each per its declared mode. A multi-receiver method `(Logger logger, Counter &c) :: report: ...` has logger at READ (R1 requires logger initialized at the call site; R2 forbids the body from writing through any access path reached from logger) and counter at REFERENCE (R1 requires counter initialized; R2 imposes no obligation on whether the body writes counter).
+
+### 6.8 Receiver Modes by Signature Shape
+
+Each signature shape restricts the set of valid receiver modes to those that are semantically meaningful for that shape. The table summarizes the per-shape restrictions:
+
+| Signature shape | Valid receiver modes | Forbidden modes |
+| --- | --- | --- |
+| Constructor | PRODUCE only | READ, REFERENCE |
+| Method (single- or multi-receiver) | PRODUCE, REFERENCE, READ | none |
+| At-stack `@` | REFERENCE, READ | PRODUCE |
+| At-stack `@!` | REFERENCE, READ | PRODUCE |
+
+The reasoning behind the per-shape restrictions:
+
+**Constructor receivers must be PRODUCE.** A constructor's job is to fill the receiver slot. A REFERENCE constructor receiver would mean "construct drawing on the receiver's existing state" — which is in-place modification, not construction; the method-with-REFERENCE-receiver case (§3.10) covers that idiom. A READ constructor receiver would mean "construct a thing the caller cannot observe" — forcibly producing an inaccessible object, which has no purpose. The PRODUCE-only rule preserves the constructor's defining feature: at a successful return, the receiver slot holds the constructed value.
+
+**At-stack receivers cannot be PRODUCE.** At-stack methods (§3.12) run at frame exit on objects that exist; productive mode would mean "construct the object as part of cleanup," which is meaningless — the object's existence is the precondition for cleanup, not its outcome. READ at-stack receivers are useful for observation-only cleanup, such as logging an object's final state at frame exit; REFERENCE at-stack receivers are the typical case for resource-managing types. PRODUCE on an at-stack receiver is forbidden by the table and would be a structural violation.
+
+**Method receivers admit all three modes.** The mode is declared per method; the choice between READ, REFERENCE, and PRODUCE is the choice between externalized-effect, in-place-mutation, and re-initialize semantics (§6.9). Each mode is structurally meaningful for methods, and the language admits them all.
+
+The table is restated from §3.10 here in the context of the R1 and R2 rules of §6.7, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a PRODUCE receiver carries the write-once obligation, a REFERENCE receiver carries no obligation, a READ receiver carries the transitive READ contract.
+
+### 6.9 Idiomatic Uses by Mode
+
+Each parameter or receiver mode has a distinctive idiomatic use; the choice of mode at a declaration site is a design decision about what the position commits to.
+
+**READ — externalized effect.** The callee operates *through* the receiver or parameter without modifying its slot. Logging is the canonical case for READ receivers: `logger :: log: message` writes a log entry; the logger's slot is unchanged from the caller's vantage, while the world (the log file, the stream) is changed. The receiver mediates an effect external to itself. The pattern preserves the no-non-local-state principle (§1.4): the receiver is a parameter, so accessing its connection-state is local; the external effect happens through some lower-level command that itself takes the connection-state as a parameter at REFERENCE or PRODUCE mode. READ parameters serve the same role at non-receiver positions — a value the callee inspects without mutating, with the transitive contract guaranteeing the inspection cannot leak into mutation downstream.
+
+**REFERENCE — in-place modification.** The callee may read the slot's current state and may modify it; the slot's identity is preserved across the call. State transitions on objects, in-place updates on counters or buffers, the "modify if needed" idiom — all use REFERENCE receivers or REFERENCE parameters. The mode commits to nothing: the body may read, write, or do neither. The lack of obligation is what makes REFERENCE the natural choice when the callee's behavior depends on data: the callee inspects state, decides whether to update, and does so or not as its logic dictates.
+
+**PRODUCE — re-initialize the slot.** The callee commits to writing the slot on every successful return path. For non-receiver parameters, this is the natural shape of "output through a writeable parameter slot": the caller introduces a fresh slot via `#`, the callee fills it, and the caller binds the resulting value. For receivers, PRODUCE describes a "factory method" or "complete reset" operation that happens to dispatch on the receiver's existing type: the receiver is initialized at the call site (per R1), the callee dispatches based on its current type, and the callee overwrites it on success. Unusual but coherent.
+
+The three modes form a complete discipline: every parameter and receiver in the language belongs to exactly one of them, and the choice is structural — the language has no "default" mode, no mode that emerges from absence of declaration. The READ mode appears as the bare-name form (no marker); it is the no-marker case in the syntax, but it is no less a deliberate declaration than the other two.
+
+### 6.10 Capture-List Mode Constraints
+
+Lambda forms (§8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of §6.2 — `'name`, `&name`, or bare `name` for PRODUCE, REFERENCE, and READ respectively.
+
+**Only READ and REFERENCE modes are admitted in lambda capture lists; PRODUCE is forbidden.** Capturing a productive obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` through ceiling-flattening of reference captures (§8.4), at which point the productive slot may no longer exist. Second, lambdas have multi-invocation semantics — deferring a productive write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The productive obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
+
+Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (§8.5; `reference-lambda-and-fexpr.md` §8.3). A free name in a fexpr body that binds a productive parameter `'name` in the defining frame accesses the slot at PRODUCE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of §5.15 / §6.15), so the productive slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
+
+The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or REFERENCE value — whether captured explicitly via a lambda's slash list or implicitly via a fexpr's free-name resolution — carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
+
+### 6.11 Implicit Context Parameters Across Modes
+
+Implicit context parameters (§3.6) — parameters listed after the `/` separator in a command's signature, filled at the call site by uniqueness-of-type from the caller's lexical scope — admit all three modes. An implicit parameter declared `Logger logger` is a READ implicit; one declared `Logger &counter` is a REFERENCE implicit; one declared `Int 'result` is a PRODUCE implicit. The resolution mechanism treats the modes uniformly: at the call site, the typechecker locates a value in the caller's lexical scope whose type matches the implicit parameter's declared type, and supplies that identifier as the argument with the implicit's declared mode contract.
+
+The mode contracts at implicit parameters follow the same R1-and-R2-style discipline: at the call site, REFERENCE and READ implicits require an initialized matching slot in the caller's scope; PRODUCE implicits require either an initialized or uninitialized matching slot (the productive write makes either acceptable on the callee side). The caller's analysis records the implicit's call-site role exactly as it would for an explicit argument at the same mode.
+
+A constraint specific to implicit context parameters: **implicit parameters cannot carry default declarations from class instances.** Where a class declares a method whose signature includes implicit parameters, the resolution at the dispatch site uses the dispatching frame's lexical scope, not the instance's defining-frame scope; the instance has no role in supplying values for the implicit slots. The motivation is to keep implicit resolution lexically transparent: the values come from where the call is made, not from where the dispatched implementation was defined. The constraint composes with the class-system mechanics in §9 without further interaction.
+
+Internal grammar of the slash-list — whether commas are required, how the slash binds against indentation, how the implicit list interacts with the `-> name` clause — is OQ-20, forwarded to the typechecker-implementation thread; the spec admits the modes uniformly and forwards the syntactic detail.
+
+### 6.12 Parameter-Mode Invariance Under Mark Subsumption
+
+The failure-mode marks (§4.2) form a subsumption order: `:` ⊑ `?` and `!` ⊑ `?`, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>` or `:<Int32&>`; a `?<String'>` value is not interchangeable with `?<String>` or `?<String&>`. The subsumption relation is solely on the failure-mark axis.
+
+The invariance is essential for soundness. The per-mode static rules at the call site break if the mode is permitted to vary. A productive parameter discharges a write-once obligation; substituting a READ parameter would lose the obligation entirely; substituting a REFERENCE parameter would lose the write-once-on-success commitment in favor of no commitment. A reference parameter requires its slot initialized at the call site; substituting a productive parameter would change the precondition (productive admits uninitialized); substituting a READ parameter would lose the writeability axis entirely. None of these substitutions preserve the per-mode contract, and none of them preserve the static analyses' soundness.
+
+The type-system rule recorded here is that `Type X` and `Type Y` for distinct mode markings X and Y are **distinct types** that do not stand in any subsumption relation, on either side of the failure-mark axis. The invariance applies symmetrically at PRODUCE, REFERENCE, and READ; no pair of modes is exchangeable. The mark axis and the mode axis are orthogonal, and subsumption operates on the mark axis alone.
+
+The invariance composes with the buffer-backed-hierarchy subsumption rules (§5.5) without conflict: a `:<Inches>` value may be acceptable at a `:<Int32>`-typed slot under the buffer-backed parent-chain rule, since `Inches` subsumes to `Int32` in the underlying parameter type. But the mode markers must match. A `:<Inches'>` value is not acceptable at a `:<Int32>`-typed slot, because the productive marker is missing on the latter; the parent-chain subsumption applies to the parameter type, not to the parameter type and mode together.
+
+### 6.13 Productive Write-Once
+
+A productive parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle (§1.2.4) commits that productive slots are never partially written when a command fails.
+
+The rule is structural, not stylistic. There is no "you may write twice if you also clear in between" alternative, and there is no in-place-update form for productive parameters. The body must produce exactly one write to each productive slot per successful path. Failure to write a productive parameter on some successful path is a static error; writing it more than once on the same path is also a static error.
+
+The compute-then-commit pattern (§3.4) is the natural shape that satisfies the rule. The body computes its inputs into local slots, then performs a single productive `<-` write near its end. The pattern composes with the atomic-compound-construction guarantee (§7.11): an aggregate literal `${...}` is a single expression that produces a complete value, and a productive write of an aggregate literal is a single write.
+
+The discipline composes with the failure-state-lattice analysis (§4.13). The body's CFG is walked with both the failure-state lattice and the initialization analysis (§6.14) jointly; the typechecker confirms that every path to a `clear`-state exit has performed exactly one write to each productive parameter. The §4.13 well-formedness rule for body conformance — that conformance quantifies over reachable exits only, with non-terminating bodies vacuously conformant — applies here: a body with no reachable successful exit (a `!`-marked body, or a divergent body) imposes no productive-write obligation, since the universal quantification over reachable successful exits has an empty domain.
+
+The interaction with REFERENCE parameters is stable. REFERENCE parameters may be written zero, one, or many times across any path; the write-once rule applies only to PRODUCE parameters. A method that writes a REFERENCE parameter twice on the same path is well-formed; the same method written with a PRODUCE parameter would be ill-formed.
+
+The interaction with the `-> name` result designator (§3.7) is direct: a PRODUCE-typed `-> 'name` produces a post-write-back value in expression position; the post-write-back value is observable only when the call succeeded, since the productive write occurred on success per the write-once rule.
+
+### 6.14 Whole-Slot Tracking
+
+The initialization analysis tracks each slot as a unit, not as a graph of fields. A buffer-backed compound — a record, a union, a typed buffer — is initialized when its bytes are written as a whole; partial-field initialization is not a state the analysis tracks. The discipline applies uniformly across all type forms: buffer-backed types (records, unions, typed buffers, domains) and non-buffer types (pointers, command-typed values, fexpr-typed values, objects, variants) are each tracked as one slot per declaration, not as graphs of constituents.
+
+The whole-slot tracking is what makes "exactly one write" a coherent statement for compounds (§6.13). A productive record parameter is written by a single aggregate-literal write that produces all its fields in one operation; the analysis records the slot as initialized after the write, with no intermediate state where some fields are written and others are not. The atomic compound construction guarantee (§7.11) is the construction-side facet of the same rule: an aggregate literal constructs the whole compound at once, with no observable per-field intermediate state.
+
+The discipline eliminates whole categories of static-analysis questions. A record-with-pointers would punch a hole in per-slot tracking — the pointer copies, the pointee doesn't — but the buffer-backed containment rule (§1.5, §5.1) forbids buffer-backed types from containing pointers, and the rule extends transitively to all the buffer-backed compounds. The cases that presuppose a buffer-backed structure containing non-buffer-backed components are not Basis cases; the analysis can treat each buffer-backed slot as a uniform byte-aggregate without per-field decomposition.
+
+For variants (§5.13), the absent state is a structural property of the type, not a partially-initialized state. A bare introduction `# SomeVariant x` produces a variant slot in the absent state; the slot is *initialized* in the analysis's sense — the absent state is a distinguishable, well-formed state of the variant — but holds no candidate. Variant operations that move the slot from absent to a non-absent candidate, or back to absent (via `v -< _`, §7.14), are whole-slot writes per the same rule as record-aggregate writes.
+
+For non-buffer types other than variants — pointers, command-typed values, fexpr-typed values, objects — the slot has no zero-default state, and bare introduction is not admitted. A `# ^Int32 x` declaration is a static error; an initializing form (`#x <- ...` or `Type: #x, ...` in argument position) is required. The whole-slot tracking treats these slots as initialized only after a complete write; partial states are not modeled.
+
+The implementation of the analysis is a forward-flow walk over the body's CFG, joining initialization states at convergent nodes; the join of `init` and `init` is `init`, of `uninit` and `uninit` is `uninit`, and `init` joined with `uninit` is a contradiction at the join point that gates a use of the slot at that point. The full transfer-function table is in Appendix E. The analysis runs in parallel with the failure-state lattice (§4.13) and the taint analyses (§§6.5, 6.15) over the same CFG with the same join points but with independent transfer functions per analysis.
+
+### 6.15 Fexpr-Relevance Taint
+
+A second taint axis operates parallel to the READ-taint discipline (§6.5): the **fexpr-relevance** taint. The two axes are orthogonal — a slot may be untainted, READ-tainted, fexpr-relevance-tainted, or both — and propagate by independent transfer functions on the same CFG walk.
+
+The fexpr-relevance taint exists to enforce the **defining-frame ceiling** property of fexpr-typed values (§5.15). A fexpr cannot escape upward, cannot be stored in a long-lived position, cannot be captured by a value that outlives its defining frame. The taint axis is what tracks "this slot or value is reached from a fexpr-typed slot whose ceiling is the fexpr's defining frame `D`," propagating that information through the per-frame analysis so that any assignment that would violate the ceiling is a static error.
+
+The sources of fexpr-relevance taint are fexpr-typed values — values of type `:<*>`, `?<*>`, or `!<*>` — and any slot that holds one. A parameter of fexpr type and a binding from a fexpr expression both produce fexpr-relevance-tainted slots. The taint propagates per the same rule pattern as READ-taint: operations that yield slot-views reached through a fexpr-relevance-tainted slot produce fexpr-relevance-tainted slot-views; assignments from a tainted source taint the destination; capture by a closure propagates the taint into the closure body, subject to the structural restrictions enumerated below.
+
+The enforcement points where fexpr-relevance taint blocks an operation are the structural restrictions enumerated in §5.15 (and detailed in §8.13 as restrictions A–G):
+
+- Object fields holding fexpr-typed values are restricted — an object's lifetime ceiling is the introducing frame, but a fexpr's ceiling is its defining frame `D`, which may be deeper; assignment is permitted only when the object's ceiling is at-or-below the fexpr's `D`.
+- Productive parameters of fexpr type are forbidden — a fexpr cannot be the productive output of a call, since the produced value would escape the callee's frame upward.
+- Pointers to fexpr-typed slots are forbidden — a pointer would let the fexpr escape its ceiling via indirection.
+- Bare-identifier copy of a fexpr value into a non-fexpr-typed slot is forbidden — the copy would erase the fexpr type information and bypass the structural enforcement.
+- Capture of fexpr-typed values by lambdas is forbidden — a lambda's capture-list ceiling is the lambda's defining frame, not the fexpr's, and the two need not coincide.
+
+The propagation is **per-frame and ceiling-bound to the fexpr's `D`**. The taint flows through the local analysis until it reaches an enforcement point, where the typechecker either confirms the assignment respects the ceiling or rejects it. Fexpr-relevance taint, like READ-taint (§6.6), does not propagate across frame boundaries: a fexpr-typed parameter passed to a callee enters the callee's frame as a fresh fexpr-typed slot, with the type-level discipline enforced afresh in the callee's analysis. The structural restrictions enumerated above are absolute — they apply at every assignment and storage point regardless of which frame the operation occurs in — so each frame can enforce the ceiling discipline locally without needing to know specific identities of upstream frames.
+
+The interaction with method dispatch — admitting fexpr-typed parameters in methods, the `FexprFailure` standard message, and the per-instance defaults-incompatibility — is in §9.20. The full transfer-function table for the fexpr-relevance analysis, parallel to the READ-taint table, is in Appendix E.
+
+The two taint axes operate on access paths in the same way (§1.5 standing lens), with independent enforcement points. A value may carry both taints simultaneously — for example, a fexpr-typed value derived from a READ parameter — with each axis independently constraining the operations the value participates in. The READ-taint forbids writes through any access path reached from the value; the fexpr-relevance taint forbids assignments that would escape the fexpr's defining-frame ceiling. The two restrictions compose without conflict: a value that satisfies both constraints is admitted at any operation that respects both.
