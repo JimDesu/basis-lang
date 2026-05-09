@@ -976,6 +976,7 @@ A typechecker implementation may begin with the un-refined six-state lattice and
  
 ---
 
+on 5 · MD
 ## 5. Types
  
 This section defines the type forms of Basis. Every value the language admits inhabits exactly one of the forms enumerated here. The forms partition into two categories — buffer-backed (§§5.2–5.7) and non-buffer (§§5.10–5.15) — with three additional facilities (aliases §5.8, enums §5.9, and the cross-cutting subsumption rule §5.5) that operate over both. Each form's surface declaration syntax is given here in sketch; the full grammar is in Appendix B. Each form's construction surface — how values of the form are introduced and assigned — is in §7. Each form's interaction with parameter modes and class dispatch is in §6 and §9 respectively.
@@ -1240,6 +1241,7 @@ The interaction of fexpr-typed parameters with class-method dispatch — includi
 The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language — buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values — together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (§5.1), a clear construction surface (§7), and a clear interaction with parameter modes (§6) and class dispatch (§9). The compositions among them are governed by the containment rule (§5.1) and the subsumption rules (§5.5, §5.7, §4.2, §5.15); every other type-crossing is explicit.
 
 ---
+
 ## 6. Parameters and Mode Markers
 
 This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of three modes — READ, PRODUCE, or REFERENCE — that together determine the contract between caller and callee at that position. The mode markers are part of the identifier itself in named contexts and migrate to type-suffix position in nameless contexts. Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, §6.14) verifies that productive parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, §6.5; fexpr-relevance, §6.15) verify that read-only contracts and ceiling bounds are preserved across access paths.
@@ -1464,3 +1466,416 @@ The propagation is **per-frame and ceiling-bound to the fexpr's `D`**. The taint
 The interaction with method dispatch — admitting fexpr-typed parameters in methods, the `FexprFailure` standard message, and the per-instance defaults-incompatibility — is in §9.20. The full transfer-function table for the fexpr-relevance analysis, parallel to the READ-taint table, is in Appendix E.
 
 The two taint axes operate on access paths in the same way (§1.5 standing lens), with independent enforcement points. A value may carry both taints simultaneously — for example, a fexpr-typed value derived from a READ parameter — with each axis independently constraining the operations the value participates in. The READ-taint forbids writes through any access path reached from the value; the fexpr-relevance taint forbids assignments that would escape the fexpr's defining-frame ceiling. The two restrictions compose without conflict: a value that satisfies both constraints is admitted at any operation that respects both.
+---
+
+## 7. Construction and Initialization
+
+This section specifies how values are constructed and how slots are initialized in Basis. Every construction in the language flows through the `<-` operator (§7.1), which writes a value into a slot and enforces the failure-atomicity discipline (§7.18). The right-hand side of `<-` accepts five distinct surface shapes (§7.3), each fitting a subset of left-hand-side types: parenthesized command call, aggregate literal `${...}`, sequence literal `$[...]`, bare identifier, and bare literal. The construction surfaces compose with the language's existing mechanisms — the failure system (§4), the parameter-mode discipline (§6), the type system (§5) — without introducing new control-flow primitives.
+
+The `.implicit` mechanism (§7.8) admits bare literals at typed slots by registering type-conversion constructors. The `-<` dynamic-narrowing operator (§7.14, §7.15) is the runtime counterpart to `<-` for narrowing across type hierarchies, applied uniformly across variants, class hierarchies, and unions. The `=` defaults declaration (§7.10) supplies type-level default values for buffer-backed types whose bytes do not have a meaningful zero. The atomic compound construction discipline (§7.11) is the structural shape that satisfies the productive write-once obligation (§6.13) for compound types.
+
+### 7.1 The `<-` Operator
+
+The `<-` operator is the runtime placement primitive. It writes a value into a slot, observing the slot's parameter-mode contract and the language's failure-atomicity discipline. The operator appears in three syntactic positions:
+
+- **Local introduction.** `#x <- value` introduces a fresh local slot `x` and binds it to the right-hand value; `# T x <- value` is the explicitly-typed variant (§7.2). The introduced slot's type is the right-hand value's type when no explicit type is supplied.
+- **Productive write.** `'r <- value` writes a productive parameter or receiver. Under the write-once-on-success rule (§6.13), this is typically the constructor body's single Phase 2 commit (§7.11).
+- **Slot rewrite.** `&x <- value` rewrites the slot bound to a REFERENCE-mode parameter (where `&` is the parameter's mode marker per §6.2); `x <- value` rewrites a regular previously-initialized local (where the bare-name form applies). In both cases the slot must already be initialized at the point of the write; the write replaces its value. PRODUCE parameters do not admit rewrite — the write-once rule allows only one write per successful path.
+
+In all three positions, the typechecker enforces failure-atomicity (§7.18): a may-fail right-hand side whose evaluation fails leaves the left-hand slot in its pre-write state. For productive and reference writes, the pre-write state is the slot's contents before the `<-` evaluation began. For local introductions, the pre-write state is the slot's pre-introduction status — uninitialized for `#x <- value` whose right-hand side fails, since the `#`-introduction-with-initializer is a single atomic operation that either completes or does not.
+
+### 7.2 Local Introduction Syntax
+
+Local introduction has two surface forms:
+
+    #x <- value              ; introduce x; type inferred from value
+    # T x <- value           ; introduce x of type T; T is the upper bound
+
+The unmarked form `#x <- value` introduces a local slot whose type is the right-hand value's type. The introduced slot accepts subsequent assignments at the inferred type.
+
+The typed form `# T x <- value` declares the slot's type explicitly. The declared type T serves as the **upper bound** for the slot: subsequent assignments to `x` must produce a value acceptable at type T per the buffer-backed subsumption rules (§5.5) or the standard type-compatibility rules. The typed form is universally available; it costs nothing where unnecessary and is required in two cases:
+
+- **Bare-literal initializers whose literal type admits multiple `.implicit` targets.** Without an explicit type, the typechecker cannot determine which `.implicit` constructor (§7.8) to apply. `# Float32 x <- 3.14` resolves to the `Float32`-from-`Decimal` constructor; `# Float64 x <- 3.14` resolves to the `Float64`-from-`Decimal` constructor. The unmarked form `#x <- 3.14` is rejected when multiple `.implicit` constructors match the literal's source type.
+- **Bare introduction without initializer.** The form `# T x` (no `<- value`) is admitted only for variant types and for buffer-backed types whose bytes have a meaningful zero or have an `=` default declared (§7.10). For variants, the introduction produces an absent-state slot (§5.13); the equivalent `# T x <- ${}` initializer form (§7.4) is also admitted. For buffer-backed types with zero-meaningful bytes, the introduction produces a zero-filled slot. For other types, bare introduction is a static error and an initializing form is required.
+
+The upper-bound semantics of typed introduction is uniform with the language's other type-bound positions: a parameter's declared type is the upper bound for the parameter, an object field's declared type is the upper bound for the field, and so on. A subsequent assignment to a typed local is type-checked against the local's declared type, not against the value-type the local currently holds.
+
+### 7.3 The Five RHS Shapes
+
+The right-hand side of `<-` accepts five distinct surface shapes, each fitting a subset of left-hand-side types:
+
+| Shape | Surface | LHS types accepted | Section |
+| --- | --- | --- | --- |
+| Parenthesized call | `(cmd: args)` | Any (the cmd's productive output type) | §3.13 |
+| Aggregate literal | `${...}` | Records, objects, unions, variants | §7.4 |
+| Sequence literal | `$[...]` | Buffer primitives `[N]` / `[]`; typed buffers `[N]T` / `[]T` | §7.5 |
+| Bare identifier | `name` | Buffer-backed types, pointers, command-typed values | §7.6 |
+| Bare literal | `42`, `3.14`, `"hello"`, `0x41`, etc. | Whatever a matching `.implicit` constructor accepts | §7.7 |
+
+The typechecker dispatches semantics on the right-hand-side shape and the left-hand-side type. Each shape's well-formedness against an LHS type is decided independently of context; a shape-vs-type mismatch is reported as a single error at the `<-` site, naming the LHS type and the shape encountered.
+
+A summary acceptance matrix:
+
+| LHS type category | Call | `${...}` | `$[...]` | Bare ident | Bare literal |
+| --- | --- | --- | --- | --- | --- |
+| Buffer primitive `[N]` / `[]` | yes | — | yes | yes (copy) | via `.implicit` |
+| Typed buffer `[N]T` / `[]T` | yes | — | yes | yes (copy) | via `.implicit` |
+| Plain domain | yes | — | — | yes (copy, on type-compat) | via `.implicit` |
+| Record | yes | yes | — | yes (copy, identical type) | via `.implicit` |
+| Union | yes | yes | — | yes (copy, identical type) | via `.implicit` |
+| Object | yes | yes (named) | — | no (identity-bearing; §7.6) | via `.implicit` |
+| Variant | yes | yes | — | no (reference-semantics; §7.6) | via `.implicit` |
+| Pointer `^T` | yes | — | — | yes (copy of pointer value) | — |
+| Command-typed value | yes | — | — | yes (copy of command value) | — |
+| Literal — Integer / Decimal / Hex / String | yes | — | — | yes (copy, identical kind) | yes (matching kind only) |
+| Literal — Aggregate | yes | yes (Aggregate Literal only — Rule 1, §7.4) | — | yes (copy) | — |
+| Literal — Sequence | yes | — | yes (Sequence Literal only — Rule 1, §7.5) | yes (copy) | — |
+
+A dash indicates the shape is ill-formed for that LHS type; any `<-` form not listed under the LHS row is a static error.
+
+### 7.4 Aggregate Literals and Initialization Temporaries
+
+The surface form `${...}` serves two roles, distinguished by the kinds of values it contains:
+
+- An **Aggregate Literal** — a passive raw-data value with literal-kind tags at each position (§7.7), held directly when assigned to an `Aggregate`-typed slot or used as a constructor source.
+- An **initialization temporary** — a non-Literal construction surface used to fill the fields of a record, object, union, or variant atomically. The temporary is consumed at the placement boundary and does not persist as a runtime value.
+
+Both roles share the same syntax — opening token `${`, closing `}`, comma-separated entries either named (`fieldName <- value`) or positional (`value, value, ...`). The typechecker classifies any particular `${...}` per content, by these rules:
+
+1. If the construct contains only Literals, it is an **Aggregate Literal**.
+2. If the construct contains both Literals and non-Literals, it is an **initialization temporary**; each Literal at a structured position is bridged to that position's expected type via `.implicit` conversion (§7.8) — the same rule that applies to bare literals at non-Literal LHS positions (§7.7).
+3. If the construct contains only non-Literals, it is an **initialization temporary**, with no `.implicit` conversion needed (each element is consumed at its position's expected type directly).
+
+A **Literal** in this rule means a bare literal value written directly in source (`3.14`, `"hello"`, `0x41`, etc.) or a nested `${...}` / `$[...]` whose contents make it a Literal under the same rules. A **non-Literal** means an identifier, a constructor call, or any expression yielding a typed value.
+
+The opening token `${` is unambiguous (the `$` character has no other use in current Basis source); the closing `}` is the matching brace. Inside the construct, `<-` is reused at the field-name-to-value separator position.
+
+The empty form `${}` is a single token denoting a construct with no field entries; vacuously all-Literal under Rule 1, it is an Aggregate Literal. It is well-formed in two cases: when the LHS type is a record or object whose every field is defaulted (via `=` declarations, §7.10), in which case the literal constructs the all-defaulted value; and when the LHS type is a variant, in which case the literal produces the variant's absent state. The variant case is equivalent to bare introduction `# T x` with no initializer (§7.2): both forms produce an absent-state variant slot, and a programmer may use either at any contextually-typed variant LHS position.
+
+**Field-name nominal matching.** The typechecker matches the construct's field names to the LHS type's declared field names. The matching is nominal, not positional: `${y <- 2, x <- 1}` and `${x <- 1, y <- 2}` are equivalent for an LHS type whose declared fields are `x` then `y`. Repeated field names are rejected at parse time. Field names not declared on the LHS type generate a compiler warning and are silently dropped at runtime; the discrepancy surfaces to the user without defeating tooling that emits constructs from heterogeneous sources. Required fields must be present unless covered by a default (`=` declaration, §7.10); a defaulted field may be omitted with a suppressible warning. Variant-typed fields are always required, with `_` as the absent value (§7.16).
+
+**Positional form under contextual clarity.** The positional surface `${value, value, ...}` is admitted when the LHS type is contextually explicit — when the typechecker can determine the LHS type at the construct's position without reference to its contents. The contextually-clear positions are:
+
+- The right-hand side of a typed local introduction `# T x <- ${...}`.
+- An argument at a typed parameter position.
+- The right-hand side of a productive write `'r <- ${...}` (the receiver's declared type provides context).
+- The value of an outer construct's entry whose field is typed.
+
+A positional construct in a context where the LHS type is not contextually explicit is rejected with a static error. The user resolves by switching to the named form (always well-formed) or by introducing a typed local. The element-to-field assignment under positional form is by declaration order: the LHS type's first declared field receives the first entry, the second receives the second, and so on. Defaults cannot be omitted from the positional form (the omission would create an off-by-one alignment hazard); a positional construct for an LHS type with a defaulted field must either supply a value for that field or switch to the named form.
+
+**Aggregate-typed slots and positional field access.** A slot of literal type `Aggregate` (§7.7, §7.9) holds an Aggregate Literal value directly without further structural matching against a named record-or-object type. A `# Aggregate a <- ${...}` introduction admits an Aggregate Literal — named or positional — and the literal becomes the slot's held value. **`Aggregate`-typed slots accept only Aggregate Literals (Rule 1)**; an initialization temporary (Rule 2 or Rule 3) is not assignable to an `Aggregate`-typed slot, since init temps do not persist as runtime values. The typechecker rejects `# Aggregate a <- ${...}` whose RHS classifies as an init temp.
+
+The motivating use case for `Aggregate`-typed slots is indirect passing: a single Aggregate Literal value can be held in a slot, and its fields used as constructor arguments at multiple call sites — rather than re-emitting the literal at each. The pattern is most useful when the aggregate captures parameters that initialize multiple objects with related shape; literal-to-typed conversion happens through the constructors at each call site, the same as anywhere else in the language (§7.8).
+
+For an `Aggregate`-typed slot whose value was supplied as a positional literal — no field names declared — the fields are accessible by 1-based positional index via the scope operator `::`:
+
+    # Aggregate a <- ${"fish", "normal", 3.7}
+    # String name <- a::1                          ; "fish"
+    # String mode <- a::2                          ; "normal"
+    # Float64 weight <- (Float64: a::3)            ; convert the Decimal field 3.7 to Float64
+
+Each Aggregate Literal (and Sequence Literal, §7.5) instance carries anonymous **literal-kind information** about each position — the per-position literal kind (`String`, `Integer`, `Decimal`, `Hex`, `Aggregate`, `Sequence`) is recorded by the typechecker per literal — so downstream constructor calls using the slot's fields are checkable against what's actually there. In the example above, `a::3` is statically known to carry a `Decimal` literal (from the third position of the initializing literal), so the constructor call `(Float64: a::3)` is well-formed when a `Float64`-from-`Decimal` constructor is in scope. Writing `(Float64: a::2)` instead would be a static error: the typechecker sees the request as `Float64`-from-`String` and rejects it unless a `Float64`-from-`String` constructor is in scope. The tracking is per-literal-instance, not a structural type the slot's `Aggregate` annotation declares; and the tracked information is the literal-kind tag only — literal values do not participate in the general typesystem (no class instances, no polymorphism, no variant or union candidacy, §7.7), so the tracking machinery covers exactly what literals support and no more.
+
+For an `Aggregate`-typed slot whose value was supplied as a named literal, fields are accessible by declared name (`a::weight`, `a::name`, etc.). The positional-index form is admitted for unnamed-field aggregates only; mixing positional indices with named-form aggregates is a static error.
+
+The same disambiguation rules and constraints apply to `$[...]` (Sequence Literals and sequence-shaped initialization temporaries, §7.5).
+
+### 7.5 Sequence Literals
+
+A sequence-shaped construct — `$[value, value, ...]` — initializes a positional, vector-like target. The same disambiguation rules of §7.4 apply: a `$[...]` containing only Literals is a **Sequence Literal**; a `$[...]` containing both Literals and non-Literals is an **initialization temporary** with literals bridged to each position's expected type via `.implicit` conversion (§7.8); a `$[...]` containing only non-Literals is an initialization temporary with each element consumed at its expected type directly. **`Sequence`-typed slots accept only Sequence Literals (Rule 1)**; an init temp is not assignable to a `Sequence`-typed slot.
+
+The form initializes a buffer primitive `[N]` or `[]`, or a typed buffer `[N]T` or `[]T`. The opening token `$[` is unambiguous; the closing `]` is the matching bracket. The empty form `$[]` is a single token denoting a construct with zero elements; vacuously all-Literal, it is a Sequence Literal. It is well-formed for `[0]T` (the zero-length typed buffer) and for `[]T` (the unbounded typed buffer's empty case), and ill-formed for `[N]T` with N greater than zero.
+
+The typechecker enforces two rules:
+
+- **Element count must match the LHS type's expected count, unless the LHS is unbounded.** For `[N]T`, exactly N elements; for `[]T`, any count, with the count becoming part of the buffer's runtime length.
+- **Each element must be a value of the LHS type's element type.** The element may come from any source that produces that type — an identifier of the type, a constructor call producing the type, an expression yielding the type, or a bare literal whose source type has a matching constructor in scope (§7.7, §7.8). A Sequence Literal `$[1, 2, 3]` for a `[3]Float32` LHS is well-formed when a constructor producing `Float32` from `Integer` is in scope (`1`, `2`, `3` are `Integer` literals; a Sequence Literal containing fractional values like `$[1.0, 2.0, 3.0]` would require a `Float32`-from-`Decimal` constructor instead).
+
+For untyped buffer primitives `[N]` and `[]`, the element type is the byte (a one-byte cell with no domain interpretation); a sequence-shaped construct targeting `[N]` requires each element to be of byte width.
+
+The aggregate and sequence forms are **disjoint** in the LHS types they accept. Sequences do not initialize records, objects, unions, or variants; aggregates do not initialize buffer primitives or typed buffers. The two surface forms occupy non-overlapping construction territory: records have *named* field structure (the aggregate form's nominal matching is the natural surface); typed buffers have *positional* element structure (the sequence form's element-by-position matching is the natural surface).
+
+### 7.6 Bare-Identifier Value-Copy
+
+The bare-identifier form `#y <- x` (or `'r <- x`, or `&y <- x`) is a primitive value-copy. No command runs, no literal is supplied, no `.implicit` conversion fires. The runtime is a byte-copy from `x`'s storage to the LHS slot, suitable for types whose values can be copied as bytes.
+
+The form is well-defined for three categories of types:
+
+- **Buffer-backed types** (records, plain domains, unions, buffer primitives `[N]` / `[]`, typed buffers `[N]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (§5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling moves by invoking a conversion constructor or by routing through a shared ancestor.
+- **Pointers `^T`.** The pointer value is copied; both pointers reference the same target. The pointed-to storage is unaffected.
+- **Command-typed values.** The command-value is copied — including hidden capture fields for lambda values and slot references for fexpr values. Capture-ceiling and fexpr-relevance taint (§6.15) apply to the copy as they do to the source.
+
+The form is **rejected at the typechecker** for two non-buffer types:
+
+- **Objects.** Objects have identity. A primitive byte-copy of an object would either share the identity (which is a pointer-bind, not a copy) or duplicate the storage (which would require a class-specific copy constructor). Neither is the right meaning for a primitive `<-`. The user invokes a copy-constructor explicitly, or shares access via a `^Object` pointer (which is itself a pointer-copy, well-formed under the pointer case above).
+- **Variants.** Variants have reference-semantics: the slot is a 3-word triple (tag, candidate-pointer, witness) whose candidate-pointer references storage potentially owning at-stack handlers. A primitive byte-copy of the slot would create two slots referencing the same candidate storage — an aliasing the language does not track and that would defeat the at-stack discipline for the candidate. The user invokes a constructor (which produces a fresh variant slot) or shares access via a `^Variant` pointer.
+
+Both rejections are typechecker-side; the diagnostic names the type's identity-bearing-or-reference character and points the user at the appropriate constructor or pointer surface.
+
+### 7.7 Bare Literals
+
+A **bare literal** is a literal value supplied directly as the right-hand side of `<-`, without a parenthesized constructor call. The language admits six literal types:
+
+- **Integer** — numeric literals without fractional component, e.g., `0`, `42`, `-100`.
+- **Decimal** — numeric literals with fractional component, e.g., `3.14`, `-0.5`, `0.0`.
+- **Hex** — hexadecimal numeric literals, e.g., `0x41`, `0xDEADBEEF`.
+- **String** — character-sequence literals delimited by double quotes, e.g., `"hello"`. The language assigns no encoding to the characters; encoding is the responsibility of the constructor that consumes the literal (§7.8).
+- **Aggregate** — the `${...}` form, also serving as the value held in `Aggregate`-typed slots (§7.4, §7.9).
+- **Sequence** — the `$[...]` form, also serving as the value held in `Sequence`-typed slots (§7.9).
+
+`Integer` and `Decimal` are deliberately separate literal kinds rather than a unified "Number" kind. Conflating them would force constructor authors to discriminate at runtime between fractional-bearing and integer-only values, or would push that discrimination into the constructor's type — neither composes well with the encoding-deferral discipline of §7.7. With the kinds separate, an `.implicit Float32 'r: Integer i` constructor and an `.implicit Float32 'r: Decimal d` constructor are independent declarations, each handling one literal kind cleanly.
+
+There is deliberately no separate `Char` literal type. A single byte is the buffer primitive `[1]` (§5); a single user-perceived character lacks a coherent definition without imposing encoding assumptions, and the language declines to impose them at the literal level. A single-character `String` literal — `"A"` — covers the use case where a character literal would otherwise be sought, and the encoding question is deferred to the constructor that consumes it.
+
+A bare literal at a typed slot is admitted in two distinct cases:
+
+- **LHS is a literal-typed slot.** A slot of the matching literal type holds the literal value directly, with no conversion. `# Decimal d <- 3.14` introduces a `Decimal`-typed slot holding the literal; `# String s <- "hello"` introduces a `String`-typed slot; `# Aggregate a <- ${...}` and `# Sequence s <- $[...]` are the parameterized-literal cases (§7.9) for aggregate and sequence literals respectively.
+- **LHS is a non-literal typed slot, with `.implicit` conversion in scope.** An `.implicit` constructor (§7.8) whose source-parameter type matches the literal's source type and whose productive output matches the slot's type bridges the literal into the LHS type. The typechecker inserts the call: writing `# Float32 x <- 3.14` reads to the typechecker as `# Float32 x <- (Float32: 3.14)` if a matching `.implicit Float32 'r: Decimal d` constructor is in scope.
+
+The six literal types are a category of types distinct from buffer-backed types (records, plain domains, unions, buffer primitives, typed buffers) and from non-buffer types (pointers, command-typed values, fexpr-typed values, objects, variants). Literals are neither buffer-backed nor non-buffer in the §5 classification — they are *literal types*, a third category. Structurally, they are **raw data values** carrying neither behavioral information nor encoding assumptions: a `String` literal is a sequence of characters with no declared encoding, a `Decimal` literal is a numeric value with no declared precision or representation, and an `Aggregate` is a fielded grouping whose shape — the literal-kind tag at each position — is determined per-literal at the construction site rather than declared at the type level. Encoding and typed-representation choices are made at the constructor boundary, where a constructor consumes the literal and produces a value of the target type; constructors invoked via `.implicit` (§7.8) elide this step at the bare-literal surface, but the conversion is the same constructor in either case.
+
+**Literals do not participate in the general typesystem.** The "type information" tracked for literal values is the literal-kind tag (`String`, `Integer`, `Decimal`, `Hex`, `Aggregate`, `Sequence`) — nothing more. Literal types **cannot be instances of any class** (no behavior to dispatch on), **cannot appear as candidates of unions or variants** (no consistent representation for a discriminated container), and **cannot be the subject of polymorphic or generic type machinery**; they are passive data with a kind tag, useful for the construction surface and for anything-derivable-from-the-kind-tag, and not for anything else. The variant-typed-field explicit-`_` rule of §7.16 **does not extend to `Aggregate`-typed slots** (the rule governs structured LHS types whose schemas pre-declare which fields are variant-typed; an `Aggregate`'s shape is determined per-literal at the construction site, so no pre-declared variant field exists for the rule to govern).
+
+The motivating use case for literal-typed slots is indirect passing — capturing a literal value in a slot for reuse — rather than computation in the literal type itself. Literal types' utility ends at the constructor boundary, where they are consumed; downstream operations work on the constructed typed values, which participate fully in the general typesystem.
+
+### 7.8 The `.implicit` Mechanism
+
+`.implicit` is a constructor-declaration prefix parallel to `.cmd`. A constructor declared with `.implicit` registers as the elision target for the case "literal of type L appearing in a context expecting T." The typechecker, upon seeing a bare literal at a typed slot, looks up an `.implicit` constructor whose parameter type matches the literal's source type and whose productive output type matches the slot's type, and inserts the call.
+
+The declaration form is parallel to `.cmd`'s constructor form, with `.implicit` as the prefix:
+
+    .implicit Float32 'r: Decimal d =
+        ; constructor body
+
+This declares an `.implicit` constructor that:
+
+- Produces values of type `Float32` (the receiver's type).
+- Takes a single parameter of literal type `Decimal`.
+- May be invoked explicitly as `(Float32: 3.14)`.
+- May be invoked implicitly when a `Decimal` literal appears in a `Float32`-expecting context.
+
+The mechanism is purely additive: an `.implicit` constructor is also an explicit constructor. `(Float32: 3.14)` works regardless of whether `Float32`'s constructor is declared `.implicit` or `.cmd`. The implicit elision is a convenience on top of the explicit form, not a replacement.
+
+`.implicit` carries three structural restrictions:
+
+- **Constructor-only.** `.implicit` may only be applied to constructor commands (commands with a productive `'r` receiver of buffer-backed type, per the constructor signature shape of §3.9). Applying `.implicit` to a method, a regular command, an at-stack handler, or any other shape is a static error.
+- **Literal-source restriction.** The single non-receiver parameter must be a literal type — one of `Integer`, `Decimal`, `Hex`, `String`, `Aggregate`, `Sequence`. Implicit conversions whose source is not a literal type would multiply the resolution candidates and make call-site reasoning brittle; the literal-source restriction confines the mechanism to its motivating cases.
+- **No implicit context parameters.** `.implicit` constructors may not declare implicit context parameters (the `/`-separated list of §3.6). The implicit mechanism elides a construction step at the surface; admitting context parameters in `.implicit` constructors would compound elision (literal elision plus context resolution elision), making call-site reasoning brittle. Constructor commands declared `.cmd` retain the standard implicit-context-parameter capability.
+
+The resolution algorithm for a bare literal at a typed slot: at compile time, the typechecker collects `.implicit` constructors in scope whose parameter type matches the literal's source type and whose productive output type is at-or-above the slot's type per the buffer-backed subsumption hierarchy. If exactly one matches, the typechecker inserts the call; if multiple match at the same specificity, the resolution is ambiguous and the user must disambiguate by typed introduction (§7.2). Resolution is per-call-site; no transitive `.implicit` chains are formed.
+
+### 7.9 Parameterized Literal Types
+
+The literal types `Aggregate` and `Sequence` are parameterized: their concrete shape — field types and order for `Aggregate`, element type and count for `Sequence` — is declared as part of the literal-type specification.
+
+The `Aggregate` form, when used as an `.implicit` constructor source, names the field names and types it accepts:
+
+    .implicit Point 'r: ${Decimal x, Decimal y} src = ...
+
+This declares an `.implicit` constructor that takes an aggregate literal of shape `${Decimal x, Decimal y}` and produces a `Point`. The declaration is the literal-type-mirror form: the aggregate-literal surface that would construct values of this shape (§7.4) and the parameterized type that captures its shape are notationally aligned.
+
+The `Sequence` form, similarly:
+
+    .implicit InitialValues 'r: $[3]Integer src = ...
+
+This declares an `.implicit` constructor that takes a sequence literal of length 3 with elements of literal kind `Integer` and produces an `InitialValues` value.
+
+The element type in a parameterized `Sequence` form, and the field types in a parameterized `Aggregate` form, must themselves be **literal kinds** — `Integer`, `Decimal`, `Hex`, `String`, `Aggregate`, `Sequence` — not buffer-backed types or non-buffer types. A form like `$[3]Int32` is ill-formed: `Int32` is a buffer-backed domain (§5), not a literal kind, and a literal value cannot have a buffer-backed element type without dragging the buffer-backed domain into the literal category, which would defeat the literal/typesystem split of §7.7. The buffer-backed conversion happens at the constructor: in the example above, the `InitialValues` constructor body consumes the `Integer` literals and produces a value whose internal representation may include `Int32`-typed slots, but the literal-side input is `Integer`-kinded.
+
+The `.implicit` resolution for parameterized literal types follows the same rules as for simple literal types: the typechecker matches the literal's parameterized shape against the source-parameter declaration and inserts the call when an exact-shape match is found.
+
+### 7.10 The `=` Defaults Declaration
+
+A buffer-backed type whose bytes do not have a meaningful zero declares its default value via the definitional `=` form. The form supplies the value used when the type's bare introduction (`# T x` without initializer) would otherwise be rejected:
+
+    .domain Positive: Int32 = (Int32: 1)
+
+A `Positive` slot introduced as `# Positive p` (no initializer) acquires the declared default value at introduction; the slot is initialized from inception.
+
+The split between `=` (definitional) and `<-` (runtime placement) is exact:
+
+- `=` appears in declaration positions (`.cmd ... =`, `.domain T = ...`, `.record T : ... = ...`).
+- `<-` appears in expression-position placement (`#x <- ...`, `'r <- ...`, etc.).
+
+Both consume the same five-shape RHS grammar (§7.3). A reader sees `=` and knows they are looking at a declaration; sees `<-` and knows they are looking at a runtime operation. The unification of the RHS grammar means the user-side surface forms — aggregate, sequence, parenthesized call, bare identifier, bare literal — are uniform across both positions.
+
+A record default uses the aggregate form:
+
+    .record Point :
+        Float32 x
+        Float32 y
+        = ${x <- 0.0, y <- 0.0}
+
+A typed-buffer default uses the sequence form:
+
+    .domain InitialValues : [3]Int32 = $[1, 2, 3]
+
+In both examples, the `=` RHS is an Aggregate Literal (Rule 1 of §7.4) or Sequence Literal whose contents are bare literals — `0.0` is a `Decimal` literal, `1` and `2` and `3` are `Integer` literals — bridged to the LHS field/element types (`Float32`, `Int32`) via `.implicit` constructors at the field/element boundary. Defaults are **typically** Literal-form because they describe compile-time-constant values; the language admits initialization-temporary form (Rule 2 or Rule 3) at `=` positions when the default involves runtime-computed components, but the literal form is preferred where applicable for clarity and for compile-time constant-folding.
+
+The `=` form is **not** an exception to the no-defaults discipline (§5.1, §6.14) but the user-facing mechanism for declaring a type's invariant-respecting default. The discipline is:
+
+- **Buffer-backed types whose bytes have a meaningful zero** acquire a zero-default by composition. No `=` declaration is needed; `# T x` produces a zero-filled initialized slot.
+- **Buffer-backed types whose invariants forbid zero** declare an explicit default via `=`. Without the declaration, `# T x` is rejected; only `# T x <- value` works.
+- **Non-buffer types** (pointers, command-typed values, fexpr-typed values, objects, variants) cannot have `=` defaults. Their bare introduction is rejected at the type level; the only valid construction is via `<-` at every use site. Variants are the structural exception within the non-buffer category — their absent state is the inherent representation of an "empty" slot, and bare `# T x` produces an absent slot directly without any `=` mechanism.
+
+The `=` form's right-hand side is evaluated at declaration time, not at every use site. Implementations may treat this as a compile-time constant fold or as a per-use-site lazy initialization (the latter when the right-hand side has runtime-determined components). The semantic guarantee is that a `# T x` introduction acquires the declared-default value, irrespective of when the right-hand side is realized.
+
+The programmer is responsible for deciding whether a buffer-backed type's invariants permit zero-default. For types whose bytes admit zero meaningfully (counts, indices, accumulator patterns), no `=` is needed. For types whose invariants exclude zero (positive numbers, nonempty strings, validated formats), the `=` declaration is required to admit bare introduction.
+
+### 7.11 Atomic Compound Construction
+
+The productive write-once rule (§6.13) requires every successful return path through a constructor's body to write the productive receiver `'r` exactly once. Combined with the whole-slot tracking discipline (§6.14) — which tracks the slot as a unit, not as a graph of fields — the rule implies that compound construction is **atomic**: a single conceptual write fills the entire slot.
+
+The constructor body's natural shape is two-phase:
+
+- **Phase 1: Compute the constituent values.** The body invokes whatever commands are needed to produce the values that will populate the new instance. Each computed value lives in an ordinary local slot — typically a parameter, a `#`-introduced local, or the result of a may-fail command in expression-position. These slots are tracked individually under the standard whole-slot rules; their initialization states are independent.
+- **Phase 2: Atomically initialize the receiver.** The body performs a single `<-` to the productive receiver `'r`. This single `<-` fills the entire `'r` slot. Before this write, `'r` is uninitialized; after this write, `'r` is initialized; there is no intermediate state where some fields are written and others are not.
+
+The Phase 2 right-hand side is, in practice, an aggregate literal (for records, objects, unions, variants), a sequence literal (for typed buffers), a parenthesized call (where another constructor produces the value), a bare identifier (for value-copy, when applicable), or a bare literal (when a matching constructor is in scope, §7.8). Whatever the right-hand side shape, the single `<-` discharges the write-once obligation.
+
+The pattern is structurally aligned with the language's other commitments. A partially-built compound cannot exist; therefore, a failure during construction cannot leave a half-built thing behind. The constructor body reads top-to-bottom: compute values, then commit. No hidden reordering, no implicit zero-fill, no constructor-chain hidden in an initializer list.
+
+Edge cases the rule enforces:
+
+- **Conditional re-writing rejected.** A pattern that writes `'r` once and then conditionally rewrites it — e.g., `'r <- a` followed by a conditional `'r <- b` on some path — is rejected because the condition-true path writes twice. The fix is the natural rewrite: choose the value first via a `?:` chain, write once.
+- **Conditional initial-write rejected.** A pattern that writes `'r` only on some paths is rejected because the omitted paths fail the at-least-once requirement. The fix is to provide a default arm or to introduce a recovery path that writes.
+- **Loops cannot write productive slots.** A productive write inside a loop body would mean N writes per N-iteration completion, violating exactly-once. Loops that compute values into a productive slot must do so via a single write after the loop body, with the per-iteration values accumulated in an ordinary local that is then committed once to `'r`.
+
+### 7.12 Variant Construction
+
+Variant construction has three distinct surfaces, each fitting a different intended outcome:
+
+- **Constructing with a chosen candidate.** A construct whose single entry names the candidate:
+
+      'r <- Shape: ${Circle <- radius}              ; init temp (Rule 3): `radius` is a non-Literal slot
+      'r <- Shape: ${Circle <- 5.0}                 ; Aggregate Literal (Rule 1): `5.0` is a Decimal literal
+
+  The type prefix `Shape:` provides the type context the construct needs in argument-position contexts. Where the LHS type is contextually explicit (a typed productive parameter, a typed local introduction, a typed field), the prefix may be elided: `'r <- ${Circle <- radius}` is well-formed when `'r` is declared of type `Shape`. The classification per §7.4's rules determines whether the construct is an Aggregate Literal (Rule 1) or an initialization temporary (Rule 2 or 3); both are accepted at variant LHS positions, with the candidate's parameter type providing the conversion target for any Literal contents (the Decimal literal `5.0` above bridges to `Float32` — Circle's parameter type — via `.implicit`).
+
+- **Introducing the absent state.** Two surfaces produce an absent-state variant slot:
+
+      # Shape state                         ; bare introduction; absent
+      # Shape state <- ${}                   ; equivalent: empty Aggregate Literal
+
+  Both forms produce the same result: a 3-word slot zero-filled (zero tag, null candidate-pointer, null witness) and in the absent state. The bare-introduction form is admitted only for variants among the non-buffer types; pointers, command-typed values, fexpr-typed values, and objects all reject bare introduction. The empty-aggregate form is the explicit-initializer counterpart and is available wherever a `${...}` RHS is admitted, including assignment to an existing variant slot (`state <- ${}` resets `state` to absent, parallel to `state -< _` of §7.14).
+
+- **Clearing an existing variant to absent.** The `-<` discard form `v -< _` (§7.14) clears `v` to its absent state.
+
+For multi-argument candidates (e.g., a `Rectangle : Float32, Float32` declaration in the variant), the candidate's value is itself an aggregate-shaped or sequence-shaped construct, depending on how the candidate's argument list is declared:
+
+    'r <- Shape: ${Rectangle <- ${width <- w, height <- h}}    ; nested aggregate (init temp if w, h non-Literal)
+    'r <- Shape: ${Triangle <- $[a, b, c]}                     ; nested sequence (init temp if a, b, c non-Literal)
+
+The construction-side principle is uniform: the candidate's value is a value of the candidate's declared type, supplied by whatever surface form fits that type, with §7.4's disambiguation rules classifying any nested `${...}` or `$[...]` per content.
+
+### 7.13 Variant Pattern Matching Idiom
+
+Variant case analysis composes via `?:` chains plus the `-<` dynamic-narrowing operator (§7.14), with `?-` available for explicit absent-only tests. No dedicated `match` keyword is introduced.
+
+The canonical pattern for a variant `v` with candidates `A`, `B`, ... and an absent case to handle:
+
+    ?- _ -< v                              ; absent test
+        handleAbsent
+    ?: A 'narrowA -< v                     ; narrow to candidate A on success
+        handleA: 'narrowA                  ; uses 'narrowA as the A-candidate value
+    ?: B 'narrowB -< v                     ; narrow to candidate B on success
+        handleB: 'narrowB
+    handleUnmatchedCandidate               ; default arm; reaches here if v has a candidate not narrowed above
+
+The pieces:
+
+- The first guard `_ -< v` (§7.14) tests whether `v` has any candidate. It succeeds iff `v` is non-absent; it fails iff `v` is absent. The `?-` block engages on guard failure — when `v` is absent — running its body to handle the absent case.
+- Each `?:` block's guard `T 'narrow -< v` attempts to narrow `v` into the typed productive slot `'narrow` of declared type `T`. The narrow succeeds if `v`'s active candidate's type is at-or-below `T` (per the variant hierarchy rules of §5.13); on success the narrowed value is bound to `'narrow` and the body runs with that binding in scope. On mismatch, the narrow fails, the `?:` body is skipped, and the chain advances.
+- The trailing non-`?:` sibling is the chain's default arm, reached when no `?:` guard succeeded.
+
+Coverage discipline is the user's responsibility. The typechecker does not enforce exhaustive variant-case coverage at `?:` chains; a chain that omits a candidate falls through to the default arm with the variant in its current state.
+
+### 7.14 The `-<` Dynamic-Narrowing Operator
+
+The `-<` operator performs a runtime type check and, on success, binds the narrowed value (or no value, in the discard cases) to its left-hand slot. On mismatch, it produces a propagating failure — the same surface form as the rest of the failure system. The operator is parallel to `<-` syntactically and contrasts on the static-vs-dynamic axis: `<-` writes a value the typechecker has confirmed at compile time; `-<` writes a value the typechecker has confirmed at compile time *might* fit, with a runtime check making the determination.
+
+The operator's surface forms and their meanings:
+
+| Form | Domain | Meaning | Failure mode |
+| --- | --- | --- | --- |
+| `T 'narrow -< v` | variant `v` | If `v`'s active candidate's type is at-or-below `T`, bind the candidate value to `'narrow`. | Tag-mismatch failure on candidate type-mismatch; tag-mismatch failure on `v` absent. |
+| `T 'narrow -< obj` | object `obj` (or `^Object`) | If `obj`'s runtime type is at-or-below `T`, bind the narrowed reference to `'narrow`. | Tag-mismatch failure on type-mismatch. |
+| `T 'narrow -< p` | pointer `^P` admitting class-hierarchy narrowing | Same as object case applied to pointee type. | Tag-mismatch failure on type-mismatch. |
+| `T 'narrow -< u` | union `u` (T buffer-backed) | Existential subsumption check at compile time: `T` must appear on at least one declared candidate's subsumption chain. On compile-pass, the narrowing always succeeds at runtime. | Compile-time error if `T` is on no candidate's chain; otherwise no runtime failure (§7.15). |
+| `C 'narrow -< u` | union `u` (C a class) | Exactly-one-candidate admissibility: exactly one of `u`'s candidates must have a `C` instance. On compile-pass, the narrowing always succeeds at runtime, with the qualifying candidate's witness selected statically. | Compile-time error if no candidate or more than one candidate qualifies; otherwise no runtime failure (§7.15). |
+| `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds. |
+| `_ -< v` | variant `v` | Test whether `v` is non-absent. | Tag-mismatch failure if `v` is absent. |
+
+In the form `T 'narrow -< value`, the binding follows the standard type-then-name convention (§3.3): the type T is the upper bound for the productive slot `'narrow`, which is bound to the narrowed value on success. The form is parallel to a parameter declaration `T 'name` — same syntax, same meaning at the binding site.
+
+The narrowed slot `'narrow` is productive — the operator's productive-side commits a value on success, paralleling the `<-` form's productive write. The same write-once obligation applies if `'narrow` is the constructor's productive receiver (which would be unusual; `'narrow` is most commonly a `#`-introduced local).
+
+The operator's failure-set is "tag-mismatch" — a single failure tag the language emits for `-<` mismatches and for variant absent-cases on the `T 'narrow -< v` and `_ -< v` forms. The tag integrates with typed failures (§4) per the standard machinery: a `?:` chain implicitly emits the tag-mismatch tag on the failure path; a `|: TagMismatch` recovery elsewhere catches it.
+
+### 7.15 The `-<` Operator Generalized
+
+The `-<` operator is the language's unified dynamic-narrowing surface across multiple type-pair scenarios: variant-to-candidate, object-to-subclass, pointer-to-subclass-of-pointee, union-to-candidate-or-parent, and union-to-class. The unification follows principle 8 of §1.2 — small orthogonal concepts over rich overlapping ones: existing language facilities compose to do the work; reaching for a per-case operator would violate the orthogonality preference.
+
+The operator's run-time behavior varies by domain while its surface form does not. For variants and class hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a tag-mismatch failure fires on inequality. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the §5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a class target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` instance, with the language selecting that candidate's witness statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime — the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and class cases.
+
+For union targets, the static admissibility check is not a guarantee that the union's bytes in fact represent a valid target-typed value. The language admits the byte-reinterpretation; the programmer's discrimination machinery — typically a discriminator field in a containing record, or program logic surrounding the union — remains responsible for ensuring the union's current bytes are a valid value of the target type. This is the standard user-asserted-byte-validity discipline for unions (§5).
+
+The implicit byte-reinterpretation subsumption (§5 buffer-backed parent-chain rule for unions) is the *static* counterpart to `-<` on unions: the language admits a union value at a candidate-or-parent-typed slot via implicit byte-reinterpretation without an operator. The two surfaces are complementary — `-<` gives the user an explicit narrowing form, while implicit byte-reinterpretation gives the user a syntactically lighter assignment surface — and the user chooses based on how prominent the discrimination should be in the code's surface.
+
+A `-<` operation on type pairs not enumerated in §7.14 or in §5's union coverage is a static error reported at the operator. The user resolves by invoking an explicit conversion constructor or by routing through the appropriate language-admitted subsumption.
+
+### 7.16 Aggregate Variant-Typed Fields Require Explicit `_`
+
+A variant-typed field of a structured aggregate-literal LHS type — a record or object whose declared fields include variant-typed fields — requires an explicit value entry, including, when the absent state is intended, an explicit `_` marker. Variants admit an absent state inherently (§5.13); were variant fields admitted to fall back to a "default" of absent, positional-form aggregate literals would risk silent off-by-one alignment when a variant field's entry was simply omitted. The explicit-`_` rule preserves positional-transcription integrity. The rule does not extend to `Aggregate`-typed slots (§7.4, §7.7) — an `Aggregate`'s shape is determined per-literal at the construction site rather than pre-declared at the type level, so there is no pre-declared variant field for the rule to govern.
+
+Concretely, given an LHS record type with a variant-typed field `kind`:
+
+    ${
+        ; ... other fields ...,
+        kind <- _                          ; named form, explicit absent
+    }
+
+    ${ /* other fields, */ _ }             ; positional form, explicit absent
+
+Omission — `${ /* other fields */ }` with `kind` missing — is rejected. The diagnostic names the variant-typed field whose entry is absent and reminds the user that variant fields require explicit `_` for the absent state.
+
+The `_` marker has multiple roles across the language: in the construction surface covered here, as the absent value for variant-typed fields and as the discard marker on either side of `-<` for variant operands (§7.14); elsewhere in the language, as the discard marker at PRODUCE positions in calls and as the partial-application deferral marker (covered with the relevant facilities). Within this section, the two construction-related roles share the same lexical token, the same "no value or value-discard" reading, and the same restriction: `_` is well-formed only at variant-related positions of the construction surface.
+
+### 7.17 Choice Expression
+
+The choice expression `lhs <- a | b | c` is a syntactic-sugar form that desugars into a chain of try-or-fall-through. The semantics: evaluate `a` first; if it succeeds, the result is committed to `lhs` and the chain stops; if it fails, evaluate `b`; if `b` succeeds, the result is committed and the chain stops; if `b` fails, evaluate `c`; and so on. The chain commits the first-success result; if every alternative fails, the choice expression as a whole fails with the last alternative's failure.
+
+The desugaring is one substitution: `lhs <- a | b | c` becomes a `?:` chain with each alternative as a guard whose success commits to `lhs` and whose failure advances the chain. The underlying semantics has no hidden complexity; the choice expression is a notational convenience for expressing a left-to-right first-success pattern.
+
+The `lhs` is constrained to be a slot of a single type; the alternatives must each produce a value compatible with the slot. For a typed introduction, `# T x <- a | b | c` declares the slot's type explicitly, with each alternative checked against `T`.
+
+The choice expression composes with the failure system (§4): a `:`-marked alternative is statically certain to succeed and short-circuits the chain at that position; a `?`-marked alternative is the typical case; a `!`-marked alternative is statically certain to fail and is statically equivalent to skipping it. The typechecker reasons about the chain's overall failure mode based on its alternatives.
+
+### 7.18 Failure Atomicity at `<-`
+
+A `<-` whose right-hand side contains may-fail subexpressions is itself a may-fail operation. The discipline:
+
+- **Atomic failure.** A failure in any subexpression aborts the whole `<-` operation. The LHS slot's pre-write state is preserved.
+- **Order of evaluation is left-to-right.** For aggregate literals, fields are evaluated in textual order (whether named or positional). For sequence literals, elements are evaluated in textual order. For parenthesized calls, arguments are evaluated in textual order before the call fires.
+- **Short-circuit on failure.** Once a subexpression fails, subsequent subexpressions in the same `<-` are not evaluated. The whole operation propagates the failure.
+- **Failure mode propagates from the `<-` form.** The form acquires the failure mode of any may-fail subexpression: a `<-` containing one or more `?`-marked subexpressions is may-fail; a `<-` containing a `!`-marked subexpression is must-fail. The standard failure-system conformance rules apply (§4.13).
+
+The atomicity falls out of copy-restore (§6.4): the language commits no half-written state on failure, regardless of which subexpression failed and at what point. No new transactional machinery is introduced.
+
+The implementation device: each subexpression's value is computed into a temporary slot until every subexpression of the `<-` has succeeded; only then does the placement into the LHS slot fire. The user-side observation is that the LHS is unchanged across the entire `<-` operation if any subexpression fails.
+
+A nested construction `'r <- ${field <- (innerCtor: ...)}` composes failure-atomicity transitively. A `?`-marked failure inside `innerCtor` propagates to its caller; copy-restore at the `innerCtor` call leaves the field's temporary slot uninitialized; the outer `<-`'s atomic-failure rule sees a failed field-value computation; the outer `<-` aborts; the outer `'r` is unchanged. The chain reaches arbitrary depth without new mechanism. The frame-ownership lens (§1.5) applies cleanly: each level's productive slot is *that level's caller's* slot, and each level's failure leaves that caller's slot in its pre-call state.
+
+### 7.19 Embedded Objects in Aggregate Literals
+
+When a record or object has an embedded object field, the aggregate literal references the embedded object by a previously-introduced local name:
+
+    .cmd buildContainer: Container 'r =
+        # contained <- (InnerObj: someArgs)         ; Phase 1: construct constituent
+        'r <- ${inner <- contained, count <- 5}     ; Phase 2: commit
+
+The pre-construction in Phase 1 introduces the embedded object as a local in the constructor's frame. The Phase 2 aggregate-literal references the local by name, supplying it as the value of the `inner` field.
+
+The embedded object's at-stack registration migrates to the new container's owning frame at the moment of the aggregate literal's atomic placement. This composes with the existing frame-migration mechanism for objects (§3.12); no new mechanism is introduced. If `buildContainer` fails — say, a `?`-call inside Phase 1 — the partially-constructed `contained` object is registered with `buildContainer`'s frame and is cleaned up via the failure-exit machinery there. The atomicity story holds: no half-built container exists at any caller's frame.
+
+The pattern composes with the productive write-once rule (§6.13): the Phase 2 commit is a single `<-` to `'r`, which discharges the productive obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
