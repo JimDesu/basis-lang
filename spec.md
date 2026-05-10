@@ -1879,3 +1879,207 @@ The pre-construction in Phase 1 introduces the embedded object as a local in the
 The embedded object's at-stack registration migrates to the new container's owning frame at the moment of the aggregate literal's atomic placement. This composes with the existing frame-migration mechanism for objects (§3.12); no new mechanism is introduced. If `buildContainer` fails — say, a `?`-call inside Phase 1 — the partially-constructed `contained` object is registered with `buildContainer`'s frame and is cleaned up via the failure-exit machinery there. The atomicity story holds: no half-built container exists at any caller's frame.
 
 The pattern composes with the productive write-once rule (§6.13): the Phase 2 commit is a single `<-` to `'r`, which discharges the productive obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
+---
+
+## 8. Lambda and Fexpr
+
+The four constructional forms producing command-typed values — command reference, command literal, lambda, and fexpr — share a common umbrella: each produces a value of a command type, may be invoked, and (subject to per-form restrictions) may be captured, passed as an argument, or stored in a slot. The forms differ along three axes: whether they have a body of their own (command literals, lambdas, and fexprs do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, fexprs capture implicitly by free name, command references bind partial-application arguments); and how their lifetimes relate to the construction site (lambdas and fexprs are ceiling-tracked; command literals have no construction-site ties; command references inherit ceiling from any reference-bound arguments).
+
+This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, the context-variables umbrella across the forms, the constraints on combining fexprs with the other forms, and the seven fexpr restrictions that ensure fexpr ceiling-tracking remains sound. The mode-and-taint mechanisms governing captures (§6.10, §6.15) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and REFERENCE only, §6.10), the fexpr free-name-access mode inheritance from the defining frame (§6.10, §6.15), and the fexpr-relevance taint discipline (§6.15).
+
+### 8.1 The Four Constructional Forms
+
+The four forms are summarized below.
+
+| Form | Surface | Body? | Captures | Lifetime |
+| --- | --- | --- | --- | --- |
+| Command reference | `{cmd}`, `{cmd: x, _, y}`, `{receiver :: methodName}` | no (refers to an existing command's body) | partial-application bindings only | ordinary; ceiling-tracked iff any `&`-bound argument |
+| Command literal | `:<args>{body}` | yes | none | ordinary object lifecycle |
+| Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and REFERENCE modes only (§6.10) | ceiling computed from captures (§8.4) |
+| Fexpr | `:{body}`, `?{body}`, `!{body}` | yes | implicit by free name; mode inherited from defining frame's binding | ceiling = `D` (the defining frame), uniformly (§8.5) |
+
+The `:<args>{body}` and `:<args / captures>{body}` forms share the outer notation; the presence or absence of the slash discriminates command literal from lambda. The fexpr forms `:{body}`, `?{body}`, `!{body}` are distinct: they have no angle-bracketed parameter list, since fexprs take no arguments of their own — their effective parameters are the free names in the body, resolved against the defining frame at invocation. The leading mark on a fexpr (`:`, `?`, `!`) is the body's failure character (§4) and appears in the fexpr's type signature `:<*>`, `?<*>`, `!<*>` correspondingly.
+
+The pure-thunk form `:<>{body}` is a command literal with an empty parameter list — a zero-argument body. It is a special case of the command literal form, useful for deferring the execution of a body without needing a parameterized signature.
+
+### 8.2 Command Reference
+
+A command reference is a value of command type produced by enclosing a command name in braces, optionally with partial-application bindings. The forms are:
+
+- **`{cmd}`** — bare command reference to a non-method command; produces a command-typed value with `cmd`'s full signature.
+
+- **`{cmd: x, _, y}`** — positional partial application; binds positional arguments at the construction site, with `_` placeholders at unbound positions. Produces a command-typed value whose signature is the original minus the bound positions.
+
+- **`{receiver :: methodName}`** and **`{receiver :: methodName: x, _, y}`** — method reference. The `::` operator binds the receiver, and this binding is **required** for method references: a method cannot be referenced without specifying its receiver, since the receiver is structurally part of the method's parameter list. The optional `: positional args` suffix adds positional partial application on the remaining parameters, exactly as on a non-method command reference. The result is a command-typed value with the receiver position and any explicitly-bound positional positions elided. The dispatch resolution is performed once at the construction site; subsequent invocations skip the per-call dispatch lookup — the canonical "tight-loop optimization" for class-instance method dispatch, a deliberate user-level choice rather than an automatic compiler transform.
+
+The receiver-binding via `::` and positional-argument binding via `: ...` are orthogonal mechanisms. Both are partial application — the operation is uniform across the two surfaces. The difference is *which positions* each mechanism can bind: `::` binds the receiver position and is mandatory for method references; `: ...` binds positional argument positions and is always optional. The "receiver-elision" name describes a consequence of binding the receiver (the receiver position drops out of the visible signature), not a distinct operation. The structural rules of partial application — ceiling-tracking, mode restrictions, reference-chain flattening — apply uniformly to whichever positions are bound, by whichever mechanism.
+
+A command reference has no body of its own; it refers to the underlying command's body. Invocation through a command reference is dispatched the same as a direct call to the underlying command, except that the bound arguments (in partial-application or receiver-elision) are supplied automatically and the dispatch lookup (in receiver-elision) is short-circuited.
+
+**Mode restrictions on bound arguments.** A command reference may bind arguments at READ or REFERENCE positions of the underlying command's parameter list. PRODUCE positions cannot be bound: a productive parameter discharges its write at the invocation site, where the receiving frame owns the slot, and pre-binding would either capture a slot in the construction frame (defeating frame-ownership) or defer the slot identity to invocation (which is not partial application). The user resolves by leaving the productive position open with `_`, allowing each invocation to supply the productive slot. The rule parallels the lambda capture-list mode constraint (§6.10): PRODUCE is forbidden for the same structural reason in both surfaces.
+
+**Reference-chain flattening.** When a command reference binds a `&`-mode argument (e.g., `{cmd: &x}`), the binding flattens through any reference chain: if `&x` is itself a reference parameter of the constructing command's frame, the binding chains through to the origin slot's frame. The command reference's effective ceiling is the origin slot's owning frame — the frame at which the slot lives, not the immediate constructing frame. A command reference with no `&`-bound arguments has no ceiling beyond the ordinary object lifecycle; it can be returned, stored, or moved freely.
+
+**Excluded combinations with fexprs.** Per the v1 stance (§8.12), command references can bind fexpr-typed arguments under the fexpr-tainting discipline of §6.15: the resulting command-typed value carries the fexpr-relevance taint of any fexpr-typed bound argument, propagating the `D`-ceiling constraint of the bound fexpr to the command-reference value.
+
+### 8.3 Command Literal
+
+A command literal is a command-typed value whose body is supplied at the construction site, evaluated eagerly. The surface form is:
+
+    :<args>{body}
+
+The angle-bracketed parameter list declares the command's parameters using the standard parameter-declaration syntax of §3 (mode markers and types). The body — between the matching braces — is the command's executable code, subject to the same parameter-mode discipline (§6) as any other command body.
+
+**Eager evaluation.** A command literal's body is evaluated when the literal is invoked, not when it is constructed. Construction of the command literal produces a command-typed value; the body runs at each invocation site against the supplied arguments. The eager evaluation is identical to a regular `.cmd`-declared command's invocation semantics.
+
+**No captures, no upstack ties.** A command literal captures nothing from its construction site. The body may reference only its own parameters and any names in scope at the construction site that have language-defined visibility independent of capture — for example, top-level commands and constants. A command literal value may be stored, passed, or returned freely; it has no construction-site lifetime constraint.
+
+**The pure-thunk form.** The form `:<>{body}` is a zero-argument command literal — a body that takes no parameters. It is useful where a deferred-body value is needed without parameterization. The pure-thunk type is `:<>`, distinct from the fexpr types `:<*>`, `?<*>`, `!<*>`. There is no subsumption across the family boundary — a fexpr-typed slot is not assignable to a pure-thunk slot, even though both are never-fails.
+
+A command literal's body is subject to the **transitive READ contract** (§6.5): if the body reads or modifies state reached through a parameter, the parameter's mode contract — including any taint propagated through the storage graph in the constructing frame's analysis — applies to the body's operations on that state. The contract is local to the construction frame's analysis; the command literal value, once constructed, carries the obligations as a property of the value but does not propagate further analysis state across the frame boundary.
+
+### 8.4 Lambda
+
+A lambda is a command-typed value with an explicit capture list. The surface form is:
+
+    :<args / captures>{body}
+
+The slash separates the parameter list from the capture list. The capture list enumerates names from the construction site that the body may reference; the body may reference its own parameters, the captured names, and any language-visible names independent of capture (top-level commands, constants), and nothing else.
+
+**Capture modes.** The capture list admits READ-mode and REFERENCE-mode captures only. PRODUCE-mode captures are forbidden (§6.10): a productive obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (§6.10): lambdas may outlive the defining frame through ceiling-flattening of reference captures, leaving the productive slot potentially nonexistent at invocation; and lambdas have multi-invocation semantics, where deferring a productive write to invocation time fails the write-once rule.
+
+**Reference-chain flattening for `&` captures.** A `&`-mode capture is flattened to the origin slot's owning frame, parallel to the rule for command-reference `&` bindings (§8.2). If `&x` captures a name that is itself a reference parameter of the constructing frame, the capture chains through to the origin; the lambda's ceiling becomes the origin slot's owning frame.
+
+**Per-invocation copy-restore for `&` captures.** For each invocation of a lambda with `&` captures, the captured slot reference is bound at invocation time per the standard copy-restore discipline of §6.4: the invocation observes the slot's current value, may mutate it during the invocation, and the mutations are written back at the invocation's successful completion. Failures during the invocation leave the captured slot's pre-invocation value preserved, per failure-atomicity (§7.18). This is distinct from command-reference `&` *bindings* (§8.2), which are partial-application and operate on the bound slot directly without per-invocation copy-restore.
+
+**Ceiling computation.** A lambda's ceiling is computed from its captures: a lambda with no `&` captures has no ceiling beyond the ordinary object lifecycle; a lambda with `&` captures has the ceiling of the most-restrictive reference-flattened owning frame across all `&` captures. The ceiling controls where the lambda value may be moved, returned, or stored; movement to a frame longer-lived than the ceiling is rejected.
+
+**Two phenotypes.** Lambdas have two implementation phenotypes: a **lightweight** phenotype, used when the lambda has no `&` captures and the body's analysis fits a specific size budget — the lambda value is a function-pointer-with-bound-IN-captures pair; and a **ceiling-tracked** phenotype, used when the lambda has `&` captures or otherwise requires ceiling tracking — the lambda value carries the ceiling annotation alongside the function-pointer-and-captures payload. The phenotype is determined at compile time based on the construction-site analysis; the user-side semantics are identical across phenotypes.
+
+**Visible-signature representation.** A lambda value's externally-visible type is its invoke-method signature — the parameter list and failure mark — without the capture list. The capture list is implementation detail; consumers of the lambda value see only what they invoke. This composes with the failure-mark conformance discipline (§8.6): a lambda's signature carries its failure mark, and conformance applies symmetrically.
+
+### 8.5 Fexpr
+
+A fexpr is a command-typed value whose body executes in the *defining frame's* state, accessing names from that frame at invocation time by free-name resolution. Fexprs are the language's mechanism for user-defined control-flow primitives — patterns where a downstream callee needs to read or modify the originating frame's state. The surface forms are:
+
+    :{body}                    ; never-fails fexpr
+    ?{body}                    ; may-fail fexpr
+    !{body}                    ; must-fail fexpr
+
+The leading mark — `:`, `?`, `!` — is the body's failure character (§4) and appears in the fexpr's type signature (`:<*>`, `?<*>`, `!<*>`). A fexpr has no parameter list of its own; its effective parameters are the free names referenced in the body, resolved against the defining frame at each invocation.
+
+**The three-frame model.** Fexpr semantics involve three distinct frames at invocation time:
+
+- **`D` — the defining frame.** The frame in which the fexpr was constructed (the `:{body}` was evaluated). The fexpr's body executes against `D`'s state at invocation; free names in the body resolve to bindings in `D`.
+- **`I` — the invoking frame.** The frame from which the fexpr was invoked. `I` is downstream of `D` in the call stack — fexprs travel only down-stack from `D`, never up — and `I` may equal `D` (a same-frame invocation) or be a deeper frame (the fexpr was passed down through one or more calls).
+- **`F` — the fexpr-execution frame.** A virtual frame within `D`'s scope where the fexpr's body executes. From `F`'s perspective, free-name accesses go to `D`; control-flow obligations (write-once for productive parameters of `D`, failure paths for `D`'s body, etc.) are tracked as if the body were inlined at the invocation site within `D`'s analysis.
+
+The model captures the structural property that a fexpr's body, when invoked, modifies `D`'s state as if the body were inlined at the call site — but the call site is at `I`, not at `D` (the inlining is logical, not lexical). The `D` ceiling discipline ensures the fexpr cannot escape `D`: the fexpr's lifetime is bounded by `D`'s frame retirement.
+
+**Implicit captures by free name.** A fexpr's body references names that are not its own parameters (it has no parameters); those references resolve at invocation time against the defining frame `D`. Each captured access carries the mode of the binding in `D` (§6.10): a `&x` in `D` is reference-accessible from the fexpr body; a READ `x` is read-only; a productive `'x` is PRODUCE-accessible (writes to it through the fexpr count toward `D`'s write-once analysis as if the body were inlined). The fexpr cannot escalate access; it can only do what `D`'s mode-marking already permits.
+
+**Direct captured-slot access (not copy-restore).** Unlike lambda `&` captures, fexpr free-name accesses do not undergo per-invocation copy-restore. The body accesses `D`'s slots directly at each invocation; mutations are applied to `D`'s state in place. The structural justification is that fexprs cannot escape `D` (the ceiling discipline) and `D`'s analysis sees fexpr invocations as inlining points in its own CFG, so the standard frame-local discipline (§6.4) governs without an additional copy-restore layer.
+
+**The `D` ceiling, uniformly.** Every fexpr's ceiling is `D` itself — the defining frame. A fexpr cannot be assigned upward (to a productive or reference parameter of `D` — Restriction G of §8.13), cannot be returned from a constructor (Restriction F), cannot be captured by a lambda (Restriction E), cannot be embedded in long-lived containers (Restriction C), and cannot be referenced by pointer (Restriction B). The ceiling discipline is uniform across all fexpr-typed slots and is structurally enforced by the seven restrictions (§8.13).
+
+**Fexpr-relevance taint composes with the model.** Per §6.15, a fexpr-relevance taint is computed at the fexpr's construction site against `D`'s state graph: any of `D`'s slots whose value may be observed or modified by the body's free-name accesses is fexpr-relevance-tainted in `D`'s analysis. The taint discipline is local to `D`; it does not propagate across frame boundaries (per the local-frame analysis principle of §1.5). The taint flows into the fexpr value at construction time and travels with the value down-stack to invocation sites. At the invocation site (in `I`), no additional analysis state is added — the invocation is treated as inlining of the body into `D`'s analysis at the invocation point, with the body's free-name accesses operating on `D`'s slots through the taint discipline `D` already computed.
+
+### 8.6 Failure-Mark Conformance
+
+Command-typed values carry a failure mark (`:`, `?`, or `!`) as part of their type. The failure-mark conformance discipline governs how command-typed values may be invoked, assigned, and composed.
+
+**Two-sided conformance.** The discipline operates on two sides:
+
+- **Definition-side body conformance.** The body of a command-typed value (whether a command literal, a lambda body, or a fexpr body) must conform to the value's declared failure mark, with conformance measured against the body's **exit paths** (where each reachable execution arrives at exit), not the body's internal operations:
+  - A `:`-marked body must reach exit on a non-failing path on every reachable execution. May-fail or must-fail operations are permitted within the body provided every reachable execution path either avoids them or recovers from them before exit; what conformance requires is that no execution can leave the body with a propagating failure.
+  - A `?`-marked body may reach exit on either a non-failing path or a propagating-failure path on any given reachable execution. May-fail and must-fail operations are permitted; some paths may recover, others may propagate.
+  - A `!`-marked body must reach exit on a propagating-failure path on every reachable execution. Non-failing operations and recovery are permitted within the body provided no path can reach a non-failing exit; every execution must terminate the body with a propagating failure.
+- **Invocation-side mark guarantee.** When a command-typed value is invoked, the invocation site sees the value's declared mark and reasons about its own failure-mode conformance against that mark. A `:`-marked invocation is statically certain to succeed; a `?`-marked invocation may fail; a `!`-marked invocation is statically certain to fail.
+
+**Mark-subsumption within each family.** Within the command-typed-value family (command references, command literals, lambdas) and within the fexpr family (fexprs), the failure marks form a **partial order**: `: ⊑ ?` and `! ⊑ ?`, with `:` and `!` mutually incomparable (§4). A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected — `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it — but a `:`-marked value cannot fill a `!`-marked slot, nor a `!`-marked value a `:`-marked slot. The two definite-marks make incompatible guarantees; neither can substitute for the other. Subsumption permits the upward substitutions (toward `?`); it does not narrow the analysis at the use site.
+
+**No subsumption across the fexpr / non-fexpr family boundary.** A `:<*>` (never-fails fexpr) is not assignable to a `:<args>` (never-fails command literal) slot, and vice versa, even though both are never-fails. The two families have distinct invocation semantics — fexprs execute in `D`'s state, command literals execute in their own frame — so the type identity is family-specific.
+
+**Per-form conformance rules.** Command references' failure marks come from the underlying command's signature; command literals' from the body's analysis; lambdas' from the body's analysis (with capture-list-derived constraints folded in); fexprs' from the leading mark on the construction surface (`:`, `?`, `!`). Conformance at each construction site checks the body's analysis against the declared mark; mismatches are static errors at the construction site.
+
+### 8.7 Capture-Shadowing
+
+**Lambda permits capture-shadowing.** A lambda body may declare a local of the same name as a captured name; the local shadows the captured name within the body's scope, per the standard lexical-scoping rules of §6.3. The captured name is unaffected outside the body; the lambda's invocation accesses the local where the body declares one and the captured slot where it does not.
+
+**Fexpr forbids capture-shadowing.** A fexpr body's free-name resolution is by name against `D`'s scope; introducing a local of the same name in the fexpr body would create ambiguity at invocation, since the fexpr's body could be re-resolved against `D` (resolving to `D`'s binding) or against the body's local (resolving to the local). The language declines to make this choice ad hoc and forbids the configuration: a fexpr body's local introduction with the same name as any free-name reference in the body is a static error. The user resolves by choosing distinct names.
+
+The asymmetry is structurally grounded: lambdas have explicit captures (the capture list enumerates the names), so the body's locals are clearly distinct from the named captures. Fexprs have implicit captures (any free name resolves against `D`), so the body's locals and the body's free names occupy the same identifier namespace, and shadowing introduces ambiguity the language cannot resolve cleanly.
+
+### 8.8 Context Variables Umbrella
+
+The language has three mechanisms by which a command body may reference state from outside its own parameter list, collectively the **context-variables umbrella**:
+
+- **Implicit context parameters at the call site (§3.6).** A command's signature may declare implicit context parameters after the `/` separator; at the call site, the typechecker locates a value in the caller's lexical scope whose type matches the implicit parameter's type and supplies it as the argument with the implicit's declared mode contract.
+- **Lambda explicit captures (§8.4).** A lambda's slash list enumerates names captured at construction; the body references the captured names and the captured access carries the construction-site slot's mode.
+- **Fexpr implicit captures by free name (§8.5).** A fexpr's body's free names resolve at invocation against the defining frame `D`'s scope, with mode inherited from `D`'s binding.
+
+The three mechanisms differ in their resolution site:
+
+| Mechanism | Resolution site | Mode source |
+| --- | --- | --- |
+| Implicit context parameters | Caller's lexical scope (per call) | Declared on the implicit parameter |
+| Lambda captures | Construction frame's scope (once) | Declared on the capture-list entry |
+| Fexpr captures | Defining frame's scope (per invocation) | Inherited from `D`'s binding |
+
+The mechanisms compose: a fexpr's body may reference names that are themselves implicit context parameters of `D`'s signature (§8.9); a lambda's capture list may bind implicit context parameters of the construction frame at construction time (§8.10).
+
+### 8.9 Fexpr Inheritance of `D`'s Implicit Context Parameters
+
+A fexpr's body may freely reference names that are implicit context parameters of `D`'s signature. The free-name resolution mechanism of §8.5 looks up the name in `D`'s scope; since `D`'s implicit context parameters are bound in `D`'s scope (the typechecker resolved them at `D`'s call site), they are available to the fexpr body the same as any other binding in `D`.
+
+The implication: a fexpr can use `D`'s implicit context parameters without enumerating them, paralleling the way the rest of `D`'s body uses them. The mode of the access is the implicit's declared mode (READ, REFERENCE, or PRODUCE), and the standard fexpr mode-inheritance rule applies.
+
+### 8.10 Lambda Non-Inheritance of `D`'s Implicit Context Parameters
+
+A lambda's body may *not* reference `D`'s implicit context parameters by free name. The lambda's body sees only its own parameters, its capture list, and language-visible names; `D`'s implicit context parameters are not in scope.
+
+The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site. If `D` declares `Logger logger` as an implicit context parameter, a lambda within `D` that wants to use `logger` writes `:<args / Logger logger>{body}` — capturing `logger` as a READ capture. The capture list is then explicit about which of `D`'s state the lambda uses, consistent with the lambda discipline of explicit captures only.
+
+The asymmetry across fexpr and lambda — fexpr inherits `D`'s implicit context parameters by free-name resolution, lambda does not — is structurally grounded: fexprs operate as if inlined into `D`, so `D`'s lexical scope is the fexpr's lexical scope; lambdas operate as their own bodies with a separately-tracked capture list, so what's in scope for the body is exactly what's in the capture list (plus parameters and language-visible names).
+
+### 8.11 Re-Entry, Nesting, and Sub-Fexpr Scoping
+
+A fexpr body may itself construct another fexpr (a sub-fexpr) whose `D` is the outer fexpr's body's frame `F`. The sub-fexpr's defining frame is the inner fexpr-execution frame, not the original `D`; sub-fexpr free-name resolution operates against `F`'s scope, which transitively reaches the outer `D` via the standard lexical-scoping chain.
+
+The ceiling discipline tracks correctly: the sub-fexpr's ceiling is the inner `F`, which is bounded by the outer fexpr's invocation, which is itself bounded by the outer `D`'s frame retirement. Sub-fexprs are no harder to track than top-level fexprs; the ceiling is just one level deeper in the call stack.
+
+Re-entry — the same fexpr being invoked multiple times during `D`'s lifetime — is governed by `D`'s static analysis. Each invocation is treated as an inlining point in `D`'s CFG; the analysis computes the cumulative effect across the inlining points and rejects patterns that violate per-path obligations (write-once for productive parameters of `D`, etc.). The discipline is uniform with how `D`'s body's straight-line code is analyzed.
+
+### 8.12 Excluded Combinations
+
+The umbrella rule: fexprs travel exclusively *down-stack* from `D` — passed as arguments to callees, captured implicitly by sub-fexprs, transitively reached from `D`'s state — and never up-stack. Every constructional surface that could let a fexpr escape `D` is structurally excluded by the seven fexpr restrictions of §8.13. Specifically:
+
+- **Lambdas cannot capture fexpr-typed slots** (Restriction E of §8.13). Lambdas may outlive their construction frame through ceiling-flattening of reference captures; admitting a fexpr capture would create a lambda value that could outlive its captured fexpr's `D`. The lambda capture mechanism does not currently propagate fexpr-relevance taint, so the exclusion is structural.
+- **Pointers to fexpr-typed slots are forbidden** (Restriction B). A `^F` (where `F` is a fexpr type) would be a value that could outlive the fexpr's `D`; the type form is rejected at the type-system level.
+- **Fexpr-typed values cannot be returned from constructors** (Restriction F). A constructor's productive output is the standard upward-migration channel; a fexpr-typed productive output would migrate the fexpr from the callee's frame to the caller's slot, violating the `D`-ceiling.
+- **Fexpr-typed values cannot be assigned to writeable parameters of `D`** (Restriction G). A productive or reference parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, §1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling.
+- **Fexpr-typed values cannot be embedded in long-lived containers** (Restriction C). Object fields, record fields, and non-local-slot variant candidates of fexpr type are forbidden, since the container can outlive the fexpr's `D`.
+
+**One admitted combination — command references binding fexpr-typed arguments — under the fexpr-tainting discipline of §6.15.** A command reference of the form `{cmd: ..., my_fexpr, ...}` is well-formed when the fexpr-relevance taint of `my_fexpr` is propagated to the resulting command-typed value. The taint marks the command-typed value as carrying a `D`-ceiling constraint inherited from the bound fexpr; the value cannot be moved beyond `my_fexpr`'s `D`. The fexpr-tainting machinery makes this binding tractable: the ceiling constraint travels through the partial-application boundary on the command-reference value, and the typechecker enforces the constraint at every assignment, store, or move involving the resulting value.
+
+If the typechecker subsequently shows that the fexpr-tainting machinery is insufficient to admit other combinations, those combinations remain structurally excluded; the language admits exactly the combinations whose ceiling constraints can be carried by the existing tainting machinery, and no others.
+
+### 8.13 The Seven Fexpr Restrictions
+
+The seven restrictions govern fexpr-typed slots and fexpr-typed values throughout the language. Each restriction prevents a specific channel by which a fexpr could escape its defining frame `D`.
+
+- **Restriction A — No productive or reference fexpr-typed parameters.** A parameter of fexpr type may carry only the READ mode marker (or no marker, equivalently). The productive `'` and reference `&` markers are forbidden on fexpr-typed parameters. *Rationale:* a productive fexpr-typed parameter would be an upward-migration channel (the callee writes a fexpr the caller receives); a reference fexpr-typed parameter would alias a fexpr slot in the caller, a slot that may not even exist in the caller's frame layout. The READ mode is the only mode that admits a fexpr — the parameter is a copy of the fexpr value at the call site, and copies of fexpr values track the same `D` as the source.
+
+- **Restriction B — No pointers to fexpr-typed slots.** The type `^F` where `F` is any fexpr type is forbidden. *Rationale:* pointers can outlive the slots they reference (subject to standard pointer-validity discipline), and a `^F` would be a value that could outlive the fexpr's `D`. The exclusion at the type-system level prevents the situation from arising.
+
+- **Restriction C — No fexpr fields in objects, records, or non-local-slot variants.** Object fields and record fields may not have fexpr type. Variant candidates may have fexpr type **only** when the containing variant inhabits a local slot — a `#`-introduced variant in `D` whose lifecycle is `D`-bounded — and not when the variant is embedded in an object, embedded in a buffer-backed type, or otherwise capable of outliving the local slot. *Rationale:* objects and records can be moved across frames or stored in long-lived containers; a fexpr field would migrate with the container, escaping its `D`. The variant-in-local-slot relaxation works because the variant itself is `D`-bounded, so fexpr candidates in such a variant inherit `D`-bounded lifetimes.
+
+- **Restriction D — No bare-identifier copy of fexpr values.** The bare-identifier `<-` form (`# f2 <- f1` where both have fexpr type) is forbidden. *Rationale:* the construction site (`# f <- :{...}`) is the only valid initialization for a fexpr-typed slot; subsequent migration via bare-identifier copy would create a second fexpr-typed slot whose `D` may differ from the source's, and the language does not currently track per-copy `D` provenance. The restriction confines fexpr-typed slots to direct construction.
+
+- **Restriction E — No fexpr captures by lambdas.** A lambda may not capture a fexpr-typed slot, whether by READ copy or by `&` reference. *Rationale:* lambdas may outlive their construction frame through ceiling-flattening; admitting a fexpr capture would create a lambda value that could outlive its captured fexpr's `D`. The lambda capture mechanism does not currently propagate fexpr-relevance taint, so the exclusion is structural.
+
+- **Restriction F — No fexpr from a constructor's productive output.** A constructor cannot produce a fexpr-typed value via its productive `'r` parameter. *Rationale:* a constructor's productive output is the standard upward-migration channel — the callee constructs a value, the caller receives it. A fexpr produced this way would migrate from the callee's defining frame to the caller's slot, violating the `D`-ceiling. Fexprs are exclusively created as literals in their defining frame and travel only downward.
+
+- **Restriction G — No fexpr written to defining-frame writeable parameters.** A fexpr cannot be assigned to any productive or reference parameter of `D` itself. *Rationale:* a productive or reference parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, §1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling. The fexpr is `D`-bounded — passed down-stack only, never assigned up-stack directly or transitively.
+
+The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative — some channels closed by them might admit a more nuanced rule under additional analysis machinery (the §6.15 fexpr-tainting axis is one such direction, applied selectively in §8.12 to admit command-reference fexpr-typed bindings) — but the v1 stance is the conservative form.
