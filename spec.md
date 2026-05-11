@@ -2083,3 +2083,334 @@ The seven restrictions govern fexpr-typed slots and fexpr-typed values throughou
 - **Restriction G — No fexpr written to defining-frame writeable parameters.** A fexpr cannot be assigned to any productive or reference parameter of `D` itself. *Rationale:* a productive or reference parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, §1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling. The fexpr is `D`-bounded — passed down-stack only, never assigned up-stack directly or transitively.
 
 The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative — some channels closed by them might admit a more nuanced rule under additional analysis machinery (the §6.15 fexpr-tainting axis is one such direction, applied selectively in §8.12 to admit command-reference fexpr-typed bindings) — but the v1 stance is the conservative form.
+
+---
+
+## 9. Classes, Instances, and Dispatch
+
+Classes are Basis's mechanism for declaring **type contracts** — named interfaces that a type may declare to satisfy, with each satisfaction providing concrete implementations of the contract's required commands. Classes are not constructors and not classes-in-the-OOP-sense; the language has no class-level inheritance, no virtual methods on instances, and no notion of "instance state" tied to a class. A class is a static declaration of "what a type must support to be a member"; an instance is a static declaration of "this type supports this class, by way of these implementations."
+
+This section specifies the class-and-instance declaration surfaces, the single-implementing-type discipline, the dispatch resolution sequence, the witness-slot model that backs dispatch at runtime, the coherence rules that govern multiple competing instance declarations across modules, and the interactions with overloading, partial application, buffer-backed-type identity, variants, and fexprs.
+
+### 9.1 Classes
+
+A class declaration introduces a contract that types may declare to satisfy. The form is:
+
+    .class C : signature-list
+    .class C[type-parameters] : signature-list
+
+where `C` is the class name (uppercase-initial), the optional bracket form declares zero or more type parameters of the class, and `signature-list` is the sequence of command signatures the class requires its members to provide. Each signature may include a default body (making it `.cmd` form) or omit one (making it `.decl` form, signature only); the default body, when present, is used as the implementation for any instance that does not provide its own.
+
+Examples:
+
+    .class Eq : ...                              ; no type parameters
+    .class Set[T] : ...                          ; one type parameter T
+    .class Map[K, V] : ...                       ; two type parameters K, V
+    .class Container[T:Itemable] : ...           ; one type parameter T, bounded to satisfy Itemable
+
+Each type parameter may carry a **bound** — a class-constraint of the form `:Bound` after the parameter name — requiring that any binding of the parameter satisfy `Bound`. The class's signatures may reference the class's type parameters at any type position; bounds make available the class-method calls of the bound class on the parameter's value.
+
+**Parameterized class names cannot be referenced bare.** `Container` alone is a static error; only `Container[A]`, `Container[B]`, etc. are valid type references. Basis does not perform Java-style type erasure: `Container[A]` and `Container[B]` are distinct types unless `A` and `B` are the same type.
+
+**Class names used as types are existentially qualified per appearance.** When a class name (parameterized or not) appears as a parameter type in any signature, each appearance is *independently* existentially qualified — the appearances do not co-vary. Consider two signature shapes for a hypothetical standalone command:
+
+    .decl equals: Eq a, Eq b                     ; (a)  existential per appearance
+    .decl equals: (T:Eq) a, T b                  ; (b)  bound type variable
+
+These mean different things. (a) admits `a` and `b` of any two types that each satisfy `Eq` — possibly different types from each other; the only constraint is that each individually satisfies `Eq`. (b) introduces a type variable `T` constrained to satisfy `Eq` and requires `a` and `b` to be of the *same* type. The two forms are the surface mechanisms for the existential and the bound-type-variable styles respectively, formalized as Case B and Case A at §9.9.
+
+A class is **not final**: a class may be extended by adding new instance declarations at any module that imports it. The no-final discipline matches the open-world nature of typeclass-style mechanisms; a library that defines a class admits instance declarations from downstream modules without coordination.
+
+### 9.2 Combined Classes
+
+A **combined class** declaration names the conjunction of two or more existing classes, optionally adding signatures of its own. The forms are:
+
+    .class CombinedC : C1, C2                ; pure conjunction; no new signatures
+
+    .class CombinedC : C1, C2                ; conjunction plus additional signatures
+        .decl method1 : ...
+        .cmd method2 : ... = ...
+
+The combined class declares that any type satisfying `CombinedC` must satisfy `C1`, must satisfy `C2`, and must provide implementations for any signatures declared in the combined class's own body. The combined-class form is a convenience over writing the two parent-class constraints separately at every parameter position — a single name `CombinedC` replaces the longer constraint repetition at use sites — and is the surface for declaring a class that extends multiple existing contracts simultaneously.
+
+A combined class may carry type parameters of its own, like any class: `.class OrderedMap[K, V] : Ord[K], MapLike[K, V]` declares a combined class with two type parameters (`K`, `V`) whose instances satisfy both `Ord[K]` and `MapLike[K, V]`. The type parameters of the combined class are bound at instance declaration time and propagated to each parent class's parameters at the matching positions.
+
+**Implicit inhabitation for pure-conjunction combined classes.** When a combined class declares no own signatures (pure conjunction), any type satisfying all the parent classes is *automatically* an instance of the combined class. No explicit `.instance T : CombinedC` declaration is required; the combined-class membership is derived by the typechecker from the type's existing parent-class instances.
+
+**Explicit instance required when the combined class adds signatures.** When the combined class declares one or more own signatures, implicit inhabitation is *disallowed*: an explicit `.instance T : CombinedC` declaration is required, providing bodies for the own signatures. The parent-class parts of the dictionary are picked up from the type's existing parent-class instances per the co-location rule (§9.5); only the own signatures need fresh bodies in the instance declaration.
+
+The split is structurally clean: implicit inhabitation works when the combined class's contract is fully determined by its parents — every method the combined class requires has an implementation through one of the parents. When the combined class adds its own signatures, those need bodies that cannot be derived from the parent-class implementations alone, so an explicit instance is needed to provide them.
+
+**Witness construction.** A combined class's witness is a **single pointer** to a dictionary, the same form as any class witness (§9.7). The dictionary the pointer references is composed at compile time from the parent-class dictionary entries for the same type (and, in the with-signatures case, the combined class's own method bodies). The composition is performed once per `(type, combined class)` pair the program uses; the typechecker locates the type's parent-class instance dictionaries and synthesizes a combined-class dictionary covering the union of methods. Dispatch on a combined-class value through any of the inherited methods proceeds through this single combined-class dictionary directly; the spec does not prescribe the dictionary's internal layout (a flattened inlining of parent entries, a composition with parent-dictionary pointers, or another structure), only that the runtime witness is a single pointer regardless of the layout.
+
+The combined-class form composes recursively: a class composed of `C1, C2, C3` declares a member type must satisfy all three; combinations of combined classes work the same way, with the conjunction flattening at the witness-composition step. The implicit-inhabitation rule applies at each level of composition: a pure-conjunction combined class chains implicit inhabitation through its parents.
+
+### 9.3 Class Type Parameters
+
+A class's type parameters are declared in brackets attached to the class header:
+
+    .class Set[T] : ...                          ; one type parameter, no bound
+    .class Log[T:Serializable] : ...             ; one type parameter, bounded
+    .class Map[K, V] : ...                       ; two type parameters
+
+Each type parameter may carry a class-bound (`:Bound`) requiring any binding to satisfy the named bound. The bound is scoped to the class's signatures: a method that uses a bounded type parameter at a value position relies on the bound for any class-method calls on that parameter's value.
+
+The brackets are part of the class's identity. As §9.1 stated, parameterized class names cannot be referenced bare — `Container` alone is a static error; `Container[Int32]` and `Container[String]` are distinct types, the parameter bindings part of the type's identity.
+
+The bracket-form `[T:Bound]` for class type parameters is **distinct** from the inline-form `(T:Class)` used at command signatures (§9.9, Case A). The two surfaces are not interchangeable:
+
+- Bracket form attaches to the class header and is scoped class-wide: all signatures in the class body share the same type parameter binding when an instance is declared.
+- Inline form attaches to a standalone command's parameter list and is scoped to that single signature: the type variable lives only within that one command.
+
+Mixing the two surfaces — using inline form on a class method, or bracket form on a standalone command — is rejected with a static error (drift-control §3.2). The two forms exist because they serve structurally different cases: class-wide type parameters are shared across all the class's methods (the bracket-form scope), while standalone-command type variables are local to a single signature (the inline-form scope).
+
+**A type variable may be introduced only once in any given signature.** The form `(T:C1, T:C2)` — repeating the same type variable name with two class bounds — is a static error. The surface admits a single bound per type variable introduction; multi-class constraints on a single type variable are expressed via combined classes (§9.2): the user declares `.class CombinedC : C1, C2` and writes `(T:CombinedC)` at the inline position. The single-bound-per-introduction rule keeps the inline form minimal — `(T:Class)` is a constraint-on-T-by-the-named-class, not a mini-language for arbitrary type-variable predicates.
+
+### 9.4 Instances
+
+An instance declaration declares that a type satisfies one or more classes. The form is:
+
+    .instance T : C1, C2, ...
+
+where `T` is the **implementing type** (the type being declared to satisfy the listed classes) and `C1, C2, ...` is one or more classes (or combined classes). The instance declaration is a *membership statement*: it carries **no body** — no signatures, no implementations. Its purpose is to state that `T` satisfies the listed classes. At declaration time, the typechecker validates that every implementation the listed classes require is visible per the co-location rule (§9.5); if any required implementation is missing, compilation fails with a diagnostic naming the missing methods.
+
+The actual class-method implementations come from elsewhere. Methods in Basis are top-level items, declared in their own modules:
+
+    .cmd MyType :: methodName : params = body
+
+A `.cmd T :: methodName` form declares a method on `T` at the top level of the containing module. The typechecker reads this declaration as "this is one of `T`'s methods" — independently of any instance declarations. When an `.instance T : C` declaration is later made (or already exists), the typechecker matches `T`'s top-level methods against `C`'s required class methods by name and signature. The matching is by name; the implementation is the one already declared at top level.
+
+A single instance declaration may list any number of classes; each class produces a separate dispatch entry for the type. The form `.instance T : C1, C2, C3` produces three dispatch entries: `(T, C1)`, `(T, C2)`, `(T, C3)`.
+
+For parameterized classes, the type-parameter bindings are specified in brackets on the right side:
+
+    .instance MyType : Eq
+    .instance MyList : Set[Int32]
+    .instance MyList[T] : Set[T]
+    .instance MyMap[K, V] : Map[K, V], Ord[K]
+
+The pair `(T, C[bindings])` — implementing type with each class's parameter bindings — fully determines a dispatch entry. Two instances of the same class with different parameter bindings are distinct entries; `.instance MyList[Int32] : Set[Int32]` and `.instance MyList[String] : Set[String]` produce distinct dispatch entries.
+
+**Delegation.** A class in the instance declaration may be marked with a `(delegate fieldName)` clause indicating that the class's methods on `T` are obtained by delegating to a field of `T` whose own type already satisfies the class:
+
+    .instance T : C1 (delegate fieldA), C2, C3 (delegate fieldC)
+
+The delegation clause is per-class: any subset of the listed classes may carry their own `(delegate ...)` clause. In the example above, `C1` and `C3` are delegated to `fieldA` and `fieldC` respectively; `C2` is satisfied through `T`'s own top-level methods (or `C2`'s defaults). Mixing delegated and non-delegated classes in a single instance declaration is admitted.
+
+The delegation surface is intentionally **receiver substitution**, not implementation forwarding. The distinction matters: under receiver substitution, the body of each delegated class method is the *delegated type's* implementation, not a thin wrapper that calls through. Each class method's receiver of type `T` is substituted with the field's value (of the field's type), and the field's type's existing instance for the delegated class is dispatched through. Optimization, inlining, and call-graph analysis observe the delegated implementation directly; there is no intermediate forwarding frame.
+
+A type may declare instances for many classes across many `.instance` declarations; each declaration contributes one or more `(T, C[bindings])` dispatch entries. The set of all such entries — across all modules — is the dispatch table the typechecker resolves against.
+
+### 9.5 The Co-Location Rule
+
+Every `.instance T : C` declaration must, at the point of declaration, produce a **complete dictionary** for `C` on `T`. The check depends on whether the instance declared a `(delegate fieldName)` clause for the class:
+
+- **With delegate clause:** The delegate field's type must have a complete instance for `C` visible at the declaration site. If yes, all of `C`'s methods on `T` are satisfied via the delegate; if no, compilation fails with no fallback to other channels. The explicit delegate is the user's stated source, and the co-location check verifies that source alone.
+
+- **Without delegate clause:** Each of `C`'s required methods must be satisfied by one of two channels:
+  - **A top-level method declared on `T`** (or on `T`'s parent chain for buffer-backed types) whose name and signature match the class method.
+  - **A default body declared in `C`** for that method.
+
+  Any method that is satisfied by neither channel causes compilation to fail with a static error naming the missing method.
+
+In-scope visibility at the declaration site is what matters: an instance declaration in module `M` produces its dictionary by looking up implementations through `M`'s import graph at declaration time, not at use sites.
+
+Delegation may chain across instances: if the delegate field's type's instance for `C` is itself a delegating instance, the resolution walks the chain at compile time. A method is missing only if no provider exists anywhere along the chain. The "no fallback" rule applies to the outer instance only — within a delegate's own instance, the standard rules apply (delegate-or-not, then top-level method + default).
+
+The co-location rule ensures that an instance, once declared, has a complete dictionary fixed at that point — the dictionary is not reconstructed at each use site and does not depend on the use site's import graph.
+
+### 9.6 The `::` Scope Operator
+
+The `::` operator has four roles in Basis, distinguished by the kind of name to its right and the kind of value to its left:
+
+- **Class-method resolution on a receiver.** `receiver :: methodName` resolves `methodName` against the class system: the receiver's type's instance dictionaries are consulted, and the dispatch is performed. This is the dispatch surface that drives the class-and-instance system (§9.12).
+
+- **Field-member access on aggregate-typed values.** `aggregate :: fieldName` (or `aggregate :: positionalIndex`, §7.4) selects a field from an aggregate-typed slot. This is the surface for reading individual fields from an `Aggregate`-typed value.
+
+- **Namespace and module resolution.** `ModuleName :: name` or `ClassName :: methodName` selects a name from a namespace (a module, or a class as a namespace for its declared methods). The namespace resolution is static; no dispatch is involved.
+
+- **Partial-application bake-in** at command-reference construction (§8.2). `{receiver :: methodName}` produces a command reference that binds the receiver at construction time; subsequent invocations skip the per-call dispatch lookup. This is the canonical "tight-loop optimization" form.
+
+The four roles share the `::` token but resolve to distinct operations at the typechecker. Disambiguation is by the syntactic context: at a value-position with a receiver to the left, role 1 (dispatch) or role 4 (partial-application bake-in, when inside a `{...}` reference); at a value-position with an aggregate to the left, role 2 (field access); at a name-position with a module or class to the left, role 3 (namespace). The typechecker resolves each `::` occurrence per these rules without ambiguity.
+
+### 9.7 The Witness-Slot Model
+
+Class dispatch in Basis is backed by a **three-layer composition**:
+
+- **The dictionary.** A record-like value of command-typed values — one entry per class method. The dictionary is constructed at compile time from the instance declaration; each entry is a command-typed value that wraps the method's implementation for the instance's type.
+- **The hidden-parameter witness (Case A).** For class-bounded type-variable parameters, the dictionary flows once per call as a hidden parameter. The witness identifies which instance the call site uses.
+- **The 3-word slot (Case B).** For existential class-typed parameters, the dictionary is captured at the construction site of the value and travels with it as a 3-word slot — the same 3-word slot pattern used for variants (§5.16) and failures (§4).
+
+The two cases (A and B) are the substantive distinction in how class-typed parameters appear at the type-system level; the dictionary structure is uniform across them.
+
+**The witness is always a single pointer.** Regardless of how the dictionary is composed internally — a simple record for single-class instances, a composition of parent dictionaries for combined classes (§9.2), or other implementation-specific structure — the language-visible witness is one pointer. The single-pointer commitment is what enables the uniform 3-word slot pattern (Case B) and the hidden-parameter passing form (Case A); both flow patterns rely on the witness being a single referentially-transparent value the runtime can copy or pass without composition awareness. The spec does not prescribe the dictionary's internal layout; it does prescribe that any witness, regardless of underlying complexity, is a single pointer at the language-visible boundary.
+
+### 9.8 The Dictionary
+
+A class `C` with `k` commands has a dictionary type of `k` command-typed entries, each entry a command-typed value of the corresponding class signature with the implementing type and any class type parameters resolved per the instance's bindings. For an instance `.instance T : C` (or with bindings: `.instance T : C[bindings]`), the dictionary is constructed at compile time according to whether the instance declares a delegate clause for the class.
+
+**With a delegate clause `(delegate fieldName)`:** all dictionary entries for the class are constructed as receiver-substitution wrappers, each routing the corresponding class method to the delegate field's type's existing instance for the class. There is no per-method fallback to other channels — the explicit delegate is the sole source for every method of this class. The co-location rule (§9.5) ensures the delegate field's type's instance is complete before the dictionary is constructed; if the delegate's instance for the class is missing or incomplete at the declaration site, compilation fails with no recourse to other channels.
+
+**Without a delegate clause:** the dictionary is constructed per method, with the following precedence:
+
+- If `T` has a top-level method declared (on `T` or on `T`'s parent chain for buffer-backed types) whose name and signature match the class method, the dictionary entry wraps that method. Method matching is by name, with the class method's implementing-type and type-parameter positions resolved per the instance's bindings before comparison.
+- Otherwise, if `C` declares a default body for this method, the dictionary entry wraps the default. The default's type variables are resolved per the instance's bindings before the entry is constructed.
+
+The two channels are consulted in this order per method: top-level method on `T` first, then class default. A method present at both channels takes the top-level method on `T` (the more specific source); the default applies as a fallback only when no top-level method matches. The co-location rule ensures every method falls into one of these two channels; otherwise compilation has already failed at the `.instance` declaration.
+
+The dictionary is **immutable** once constructed; instance declarations do not produce mutable state. The dictionary is referenced at dispatch sites by pointer; the witness mechanism (Case A or Case B) determines which dictionary the dispatch uses.
+
+### 9.9 Cases A and B
+
+A class-typed parameter appears in two distinct forms at command signature positions:
+
+**Case A — type-variable bound.** A type variable `T` is declared with a class bound at the first occurrence's parameter position, and subsequent parameters refer to the same `T`:
+
+    .cmd compare: (T:Ord) 'r, T a, T b = ...
+
+The command takes a productive `T` slot `r` and two READ `T` values `a`, `b`; `T` is a single type that the caller picks at the call site by supplying same-type arguments. The `(T:Ord)` form at the first parameter position introduces `T` and constrains it to satisfy `Ord`; subsequent uses of `T` refer to the same type variable. The witness for `Ord` flows once per call as a hidden parameter — the dictionary is passed at the call boundary alongside the visible arguments. Inside the body, `T` is the same type for both `a` and `b`; the dispatch via `a :: someOrdMethod` uses the witness flowed in.
+
+The inline `(T:Class)` form is the standalone-command surface for introducing a class-bound type variable. Class headers use the bracket form `[T: Bound]` (§9.3) instead — brackets attach to the class as a whole, scoped across all the class's signatures; the inline form attaches to one signature's first occurrence.
+
+The natural slot representation under Case A is an **ordinary value** of type `T` — no extra runtime metadata is needed at the slot level, since the witness lives in the hidden-parameter channel. Slot layout is the same as it would be for an unparameterized `T`-typed parameter.
+
+**Case B — existential at parameter position.** A class name appears directly as a parameter type, without a type variable:
+
+    .cmd describe: Ord o = ...
+
+The command takes a value of class `Ord` — any type that satisfies `Ord` may be supplied. Different call sites may supply different types; the same call site may supply different types at different invocations. The witness for `Ord` cannot flow once per call (there is no single `T` for the call); instead, the dictionary travels with the value as part of the value's runtime representation.
+
+The natural slot representation under Case B is a **3-word slot**:
+
+    word 1: tag identifying the runtime type of the held value
+    word 2: pointer-to-value (the value's data)
+    word 3: pointer-to-dictionary (the witness)
+
+The 3-word slot is the same structural pattern as the variant slot (§5.16) and the failure slot (§4); each of the three uses populates the words per its semantics (a variant's absent state leaves all three null; a failure's `clear` state leaves all three null; a Case B slot in a well-initialized state has all three populated). The uniform pattern means a Case B class-typed value has the same storage layout as a variant or a failure — three words, populated at construction, copied as a unit.
+
+**The substantive distinction.** Case A is "the parameter takes a value of a *specific type* the caller chooses, constrained to satisfy a class." Case B is "the parameter takes a value of *any type that satisfies the class*, with different invocations potentially using different types." The difference shows in slot representation (ordinary vs. 3-word), in witness flow (hidden-parameter vs. embedded), and in callee body's static knowledge (`T` is one type across the call vs. unknown type per invocation).
+
+### 9.10 Bidirectional Existentials Under Case B
+
+Case B applies symmetrically to input and output positions of a command signature. A productive parameter at class type is **as much an existential** as a READ parameter at class type:
+
+    .cmd produceSomeOrd: Ord 'r = ...
+
+The callee constructs a value satisfying `Ord` and supplies it; the caller receives a 3-word slot whose runtime type may be any class member. Subsequent uses by the caller dispatch through the embedded witness exactly as with a READ existential.
+
+The symmetry is structural — the 3-word slot is the same in both directions; the witness population timing is the only difference (at construction for productive output; at call binding for READ input). Both directions use the same dictionary lookup and the same 3-word slot copy-as-a-unit discipline.
+
+### 9.11 RTTI
+
+The language's class-typed slots carry **runtime type information** (RTTI) sufficient for dispatch — the tag-or-discriminant in the 3-word slot identifies which instance the value belongs to. RTTI is **implementation-internal**: it is consulted by the dispatch machinery and by the `-<` operator (§7.14, §9.18) when narrowing through class hierarchies, but it is not directly programmer-visible. There is no `typeOf` operator or RTTI-query surface in the language.
+
+The narrowing operator `-<` on a class-typed slot inspects the RTTI to determine which candidate-or-parent the runtime value matches; the operator's grammar and semantics are in §7.14. The dispatch resolution sequence (§9.12) uses the witness, not the RTTI directly — the witness already incorporates the type identity at dispatch time.
+
+### 9.12 Single-Class Dispatch
+
+Resolution of a class-method call proceeds in four steps:
+
+1. **Overload resolution.** Identify the candidate command(s) at the call site, applying the three-layer overloading rules (§9.16) to disambiguate against same-name candidates in scope.
+2. **Dispatch type identification.** Determine which type's instance is being dispatched against — for a `receiver :: method` form, the receiver's static type at the call site; for a Case B parameter, the runtime tag in the 3-word slot.
+3. **Dictionary lookup.** Locate the dictionary for the `(class, type)` pair identified in step 2. For Case A, the dictionary is flowed in as a hidden parameter. For Case B, the dictionary is the third word of the 3-word slot.
+4. **Invoke.** Call the command-typed value at the dictionary's entry for the resolved method.
+
+Witness flow rules per case:
+
+- **Case A:** the witness flows as a hidden parameter on entry to the command's frame. Subsequent dispatches inside the body that reference the same type-variable bound use the witness already in scope; no further flow is needed.
+- **Case B:** the witness is embedded in the 3-word slot. Dispatch reads the dictionary pointer from the slot; subsequent dispatches on the same slot reuse the same pointer.
+
+Cross-case combinations follow uniformly: a Case A type variable bound to a class may flow its witness through to a sub-call that is itself Case A on the same bound. A Case B value passed to a sub-call that takes a Case B parameter copies the 3-word slot unchanged. A Case A receiver dispatched to a method whose result is Case B at the same class produces a 3-word slot at the caller's slot.
+
+### 9.13 Multiple Dispatch Over Receiver Tuples
+
+Methods with multiple receivers (multi-receiver methods, §6) participate in dispatch through the standard single-class dispatch mechanism, applied independently to each receiver. The language has no joint-instance dictionary keyed on receiver tuples: dispatch is **composed** out of single-class dispatches, not implemented as a multi-key lookup.
+
+A method `.cmd (A a, B b) :: methodName : ... = body` with two receivers `a: A` and `b: B`, when each receiver type is class-typed (e.g., `(C1, C2)`), dispatches by:
+
+1. Resolving `a`'s instance for `C1` via single-class dispatch on `a`.
+2. Resolving `b`'s instance for `C2` via single-class dispatch on `b`.
+3. Composing the resolved methods according to the method's body declaration.
+
+The composition is at the language-surface level — the method's declared body sees `a` and `b` as ordinary receivers, and any dispatches within the body proceed through their respective witnesses. No higher-order dispatch on `(A, B)` as a pair is performed; the typechecker enforces that the method's signatures at each receiver position match the class declarations independently.
+
+### 9.14 Partial Application Beyond Receiver-Elision
+
+The receiver of a method reference is always specified — receiver-binding via `::` is mandatory for method references (§8.2). The non-receiver parameters of the method may, at the call site or at command-reference construction time, be partially applied or deferred according to the standard partial-application discipline (§8.2). The combined form is `{receiver :: methodName: x, _, y}` — receiver bound via `::`, positional parameters bound via `: arg, ..., _, ...`, leaving `_` positions open for subsequent invocations.
+
+**Mode-marker filter.** The same mode constraints from §8.2 apply: PRODUCE positions cannot be bound (deferred only); REFERENCE positions, if bound, capture a slot with ceiling tracking; READ positions are flexible — bound or deferred at the user's choice.
+
+**The `_` deferral marker.** A positional `_` in the partial-application surface marks "this position remains open." A subsequent invocation supplies the value for that position. The marker is uniform with the `_` used in non-method command references and elsewhere in the language.
+
+**Why receivers must be applied.** A method's signature lists the receiver as a structural component of its parameter list. A partial application that omits the receiver leaves a structurally incomplete reference — the method cannot be dispatched without knowing which instance to use, and the dispatch lookup is part of the method-reference machinery. The mandatory receiver binding closes this hole: every method reference has its receiver determined at construction.
+
+### 9.15 Instance Coherence
+
+When more than one instance declaration of `(T, C)` is in scope at a call site, the typechecker applies the coherence rules:
+
+- **Intra-module duplicates are static errors.** Two `.instance T : C` declarations in the same module are rejected at module-compile time. The user resolves by removing one declaration.
+- **Cross-module duplicates are ranked by module specificity** under the "more specialized module wins" rule. The most-specific module's instance is selected; if multiple modules are equally specific (incomparable), the dispatch is ambiguous and is rejected with a static error.
+- **Orphan instances are permitted.** A module may declare `.instance T : C` for types `T` and classes `C` that originate in other modules — the instance does not need to be in the module of `T` or `C`. The permissiveness composes with the specificity ranking: an orphan instance loses to a more-specific non-orphan, but wins over a less-specific non-orphan.
+- **Import-time competition warning.** When a module is imported and brings into scope an instance that competes with an instance already in scope (at the import boundary), the compiler emits a warning identifying both candidates. The warning surfaces the coherence collision for the user without blocking the import; the actual dispatch uses the more-specific instance per the ranking.
+
+The full algorithm for module specificity ranking — including how "module hierarchy" is structured for the comparison — is in Appendix H. The v1 spec reserves the algorithm to App. H so that refinements to the cross-module specificity rules can land without ripping through §9.
+
+### 9.16 Overloading on Dispatched Commands
+
+Three layers of overloading apply to dispatched commands:
+
+- **Within-class overloading.** Multiple class methods within a single class may share a name when their signatures differ in argument shape; the typechecker disambiguates at the call site by argument types.
+- **Cross-class overloading.** Two distinct classes may each declare a method with the same name. If a single type satisfies both classes, calls to that name on a value of that type are ambiguous unless disambiguated.
+- **Non-dispatched overloading.** Ordinary `.cmd`-declared commands and class methods may share a name when their declared types disambiguate at the call site.
+
+The resolution rule is **most-specific-candidate-wins**: among all candidates matching the call's argument shape, the candidate whose declared signature most-specifically matches is selected. Ties — two candidates equally specific — are rejected at the call site with an "ambiguous call" error; the user resolves by adding a type annotation or by using the `{C::method}` disambiguation form.
+
+**The `{C::method}` disambiguation form** is the surface for naming a class-method by its class explicitly. The form is a command reference (§8.2) whose left operand of `::` is a class name (not a value):
+
+    {Ord::compare}
+
+This produces a command-typed value that is unambiguously the `compare` method from class `Ord`. The value can then be invoked or stored as any other command-typed value. The form is especially useful at cross-class overloading boundaries where the type-driven disambiguation cannot decide between candidates from different classes.
+
+### 9.17 Liskov-Style Opening of the Failure-Tag Hierarchy
+
+The failure-tag hierarchy (§4) admits class-system-style opening — a failure-tag class may extend an existing failure-tag class, with subsumption rules governing how a child tag may be raised at a parent's expected position. The v1 rule for this opening is **same-class equality**: a child tag may be raised at a parent's position only if the child and parent are the same failure-tag class. Cross-class implication — "raising any subclass tag satisfies the parent class" — is reserved for a future version.
+
+The bright-line rule is the same one that governs instance coherence (§9.15): intra-module uniqueness, cross-module specificity ranking, orphan permissibility, import-time competition warning. The rules are stated once and applied uniformly to instances and to failure-tag hierarchies.
+
+### 9.18 Buffer-Backed Dispatch Identity Capture
+
+When a buffer-backed value (a value of a domain, record, union, or buffer primitive — §5) passes through a class-typed slot at any point in its lifetime, its dispatch identity is captured at that boundary. The captured identity is the child-type identity from before the upcast — the specific named domain or record, not the upcast type the slot's parent chain reaches.
+
+The capture point is the **first class-typed slot the value occupies** along the flow path. At any later slot, the value's dispatch is determined by the previously-captured identity; subsequent transits through ordinary buffer-backed parameters do not re-capture identity.
+
+**Identity is lost when the value passes through an intermediate non-class-typed parent buffer-backed parameter.** If a `Point` (record over `[8]`) is passed to a parameter of type `[8]` (the parent of its layout), the parent parameter does not capture or carry the `Point` identity; the value is observed as `[8]`-typed by that parameter, and any later class-typed slot the value enters captures whatever identity is available at that point — which is `[8]`, not `Point`.
+
+The capture-and-loss discipline is the canonical v1 rule for buffer-backed dispatch identity; earlier framings in the type-system reference and class-system reference that suggested universal identity carry through any parameter passage are superseded by this rule.
+
+The motivating use case is class dispatch on values that flow through generic code: a class-typed receiver knows the value's specific identity (a `Point`, a `Date`, etc.), and the methods declared on that identity are dispatched correctly. Generic code that operates on `[8]` does not know — and cannot infer — the specific identity, and its dispatch is bound to the generic level.
+
+### 9.19 Variant Class-Witness Slot
+
+A variant slot's 3-word structure (§5.16) includes a third word for a class witness, populated at construction when the variant's active candidate has class-typed methods or when the variant value will be dispatched through a class boundary. The witness population is performed at the construction site of the variant — the same boundary that selects the active candidate. Consumption of the variant through a class-typed `::` dispatch reads the witness from the slot and proceeds per §9.12.
+
+The variant in the absent state has no active candidate; the witness slot is null. Dispatching through `::` on an absent-state variant slot is **undefined** at the language level: the typechecker rejects the dispatch with a static error when the absent state is structurally reachable, and the variant must be narrowed (`-<`) into a candidate state before dispatch. The narrowing operator handles the absent case explicitly per its grammar (§7.14).
+
+The variant-class-witness slot composes with both Case A and Case B (§9.9): a variant slot used in a Case A position requires the type-variable bound to be satisfied by the active candidate's type; a variant slot used in a Case B position carries its own witness from the slot's third word, satisfying the existential parameter directly.
+
+### 9.20 Class-Method Fexpr-Typed Parameters
+
+A class method's signature may declare a fexpr-typed parameter, subject to the fexpr-tainting discipline of §6.15. The class-method dispatch boundary is treated as a partial-application boundary for tainting purposes: any fexpr-typed argument flows into the dispatched method's frame as a READ-mode parameter, with the fexpr-relevance taint carried through as if the dispatch were a direct call.
+
+**The `FexprFailure` standard tag.** When a fexpr-tainting violation is detected at a dispatch boundary — a fexpr-typed argument whose ceiling cannot be honored by the dispatched implementation — the language raises a `FexprFailure` failure with a payload identifying the violation. The tag is a built-in failure-tag class; its hierarchy and surface are part of the standard library.
+
+**Defaults are incompatible with fexpr-typed parameters.** A class method with a fexpr-typed parameter cannot have a default body in the class declaration: the default body would need to be analyzable at class-declaration time, but the fexpr's defining frame `D` is not in scope at that point. The user resolves by either omitting the default (making the class method `.decl`-form only) or by avoiding fexpr-typed parameters on commands that need defaults.
+
+**Partial application is compatible.** A command reference `{cmd: ..., my_fexpr, ...}` that binds a fexpr-typed argument at a class method's parameter position is well-formed under the §8.2 partial-application rules and §6.15 fexpr-tainting: the resulting command-typed value carries the fexpr-relevance taint, and its ceiling tracks the bound fexpr's `D`.
+
+### 9.21 Variants with Fexpr Candidates
+
+A variant whose candidate type-list contains a fexpr-typed candidate is **disallowed in v1**. The structural difficulty is that a variant slot's lifetime can exceed the lifetimes of values stored at its candidates — by the variant's transit through parameters, returns, or storage — and a fexpr candidate's `D`-ceiling is incompatible with the variant's potentially-longer lifetime.
+
+An earlier design admitted fexpr candidates in variants whose containing slot was structurally `D`-bounded (a local-slot variant in the fexpr's defining frame). v1 takes the conservative position: no fexpr candidates in variants, regardless of the variant's slot lifetime. A future version may relax this if a sound analysis of the variant-fexpr interaction emerges; for v1, the structural exclusion is uniform.
+
+The exclusion does not extend to **fexpr-typed local slots themselves**: a local fexpr-typed slot is well-formed (§6.15), and a variant slot may contain non-fexpr-typed candidates that *reference* a fexpr through some other channel (e.g., a record whose field is fexpr-typed would itself be forbidden — Restriction C of §8.13). The forbidden combination is specifically *variant whose candidate is fexpr-typed*; the fexpr-typing restrictions of §8.13 enumerate the full set of forbidden positions.
