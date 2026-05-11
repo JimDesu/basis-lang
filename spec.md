@@ -1,17 +1,5 @@
 # Basis Language Specification
 
-**Status:** Working draft. This document consolidates the Basis design intent into a single specification that drives implementation work at the AST level — lexical structure, grammar, AST shape, typechecking rules, semantic analyses, and operational semantics. Material below the AST level (intermediate representation, code generation, runtime support library, standard-library design) is out of scope and not addressed here.
-
-**Date:** Session 1 (2026-05-06).
-
-**Provenance.** Distilled from the topic-organized references (`reference-failure-system.md`, `reference-operational-semantics.md`, `reference-type-system-and-modes.md`, `reference-construction-and-initialization.md`, `reference-lambda-and-fexpr.md`, `reference-class-system.md`), the project README, and the supporting checkpoint stream (CP001–CP017), with the corrections recorded in `project-drift-control.md` applied throughout. The intent captured in these documents is in some places ahead of the current parser implementation; the specification reflects the intended language, with implementation gaps tracked as work-plan items rather than spec compromises.
-
-**Authority hierarchy for this specification.** Where two project documents differ on the same matter, the later document is authoritative — concretely: the README and `project-drift-control.md` win where their coverage is clear; the topic-organized references win on their respective domains where the README is silent; the source checkpoints are historical and are cited only where their context aids understanding. The implementation source code (`Grammar2.cpp`, `Parsing2.cpp`, `test_grammar2.cpp` in the project repository) is reference material indicating what is currently parseable; it is a subset of what this specification covers and does not constrain the spec where the intent has moved beyond what the parser admits.
-
-**Notation conventions.** Type expressions use the form `Type 'name`, `Type &name`, or `Type name` for parameter and binding positions, with the mode marker as a prefix on the name. Class-constraint forms use `(T:Class)` for type-variable-bound parameters; `Class 'name` for existential class-typed parameters. Command-type expressions use `:<…>`, `?<…>`, `!<…>` for ordinary command-typed values and `:<*>`, `?<*>`, `!<*>` for fexpr-typed values. Decision-level cross-references between sections of this specification take the form *[§X.Y]*. References to forwarded open questions take the form *[OQ-N]*; the open-questions appendix lists every catalogued OQ. Reconciliation between this specification and the source documents is global and silent — where the source documents disagreed and this specification settles the disagreement, the resolution stands without inline marker.
-
-**Document organization.** The body of this specification (§§1–9) follows the README's outside-in structure, deepened to specification grade. The appendices (A–I) carry implementor-facing detail — lexical structure, full grammar, AST node taxonomy, typechecking rules in judgment form, the static analyses with their full transfer functions, the formal operational semantics, identifier resolution, the module system and instance-coherence algorithm, and the open-questions catalogue.
-
 ---
 
 ## 1. Introduction
