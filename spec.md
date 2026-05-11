@@ -1,5 +1,7 @@
 # Basis Language Specification
 
+Nota Bene: I'm leveraging Claude to summarize about two dozen smaller documents, so please forgive both the stilted prose and the occasional hallucination.  I'll be circling back to ensure everything's correct once the first draft is complete.
+
 ---
 
 ## 1. Introduction
