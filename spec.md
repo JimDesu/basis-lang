@@ -1,9 +1,5 @@
 # Basis Language Specification
 
-Nota bene: I used Claude to consolidate about two dozen small docs, and as a result this may have inconsistencies that need to be repaired. 
-
----
-
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -2435,3 +2431,2175 @@ A variant whose candidate type-list contains a fexpr-typed candidate is **disall
 An earlier design admitted fexpr candidates in variants whose containing slot was structurally `D`-bounded (a local-slot variant in the fexpr's defining frame). v1 takes the conservative position: no fexpr candidates in variants, regardless of the variant's slot lifetime. A future version may relax this if a sound analysis of the variant-fexpr interaction emerges; for v1, the structural exclusion is uniform.
 
 The exclusion does not extend to **fexpr-typed local slots themselves**: a local fexpr-typed slot is well-formed (§6.15), and a variant slot may contain non-fexpr-typed candidates that *reference* a fexpr through some other channel (e.g., a record whose field is fexpr-typed would itself be forbidden — Restriction C of §8.13). The forbidden combination is specifically *variant whose candidate is fexpr-typed*; the fexpr-typing restrictions of §8.13 enumerate the full set of forbidden positions.
+
+
+---
+
+## Appendix A. Lexical Structure
+
+This appendix specifies the lexical surface of Basis: the token classes the lexer recognizes, the identifier shapes the parser distinguishes, the literal-token forms, the indentation discipline, and the disambiguation rules that resolve potentially-ambiguous adjacencies.
+
+### A.1 Token Inventory
+
+The lexer recognizes the following token classes:
+
+**Dot-prefixed keywords.** Top-level definition keywords begin with `.` to distinguish them from user-defined identifiers:
+
+```
+.alias    .class    .cmd      .decl     .domain   .enum     .fail
+.implicit .import   .inline   .instance .intrinsic .module  .msg
+.object   .program  .record   .sub      .test     .union    .variant
+```
+
+The `.sub` keyword introduces subcommands at body-internal scope (§3.12); the rest are top-level forms (§2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
+
+**Punctuation tokens.** Single-character and short-sequence punctuation:
+
+| Token | Role |
+| --- | --- |
+| `,` | Argument separator |
+| `;` | Comment marker (line comment to end-of-line) |
+| `:` | Argument-list introducer, signature separator, instance-class separator |
+| `::` | Scope operator (§1.5) |
+| `=` | Definition introducer, default declaration, equality (in guard positions) |
+| `==` | Equality test (in guard positions) |
+| `->` | Result-designator clause |
+| `<-` | Placement operator (§7.1) |
+| `-<` | Dynamic narrowing operator (§7.14) |
+| `^` | Pointer prefix; rewind block marker |
+| `&` | Reference mode marker (identifier-shape); pointer-of operator |
+| `'` | Productive mode marker (identifier-shape) |
+| `_` | Placeholder token (§3.15) |
+| `(` `)` | Argument-list and grouping brackets |
+| `[` `]` | Type-parameter brackets, indexing brackets |
+| `{` `}` | Command-reference/literal/lambda fences |
+| `${` `}` | Aggregate-literal fence (open-close pair) |
+| `$[` `]` | Sequence-literal fence (open-close pair) |
+| `<` `>` | Command-type-expression angles |
+| `?` `?-` `?:` `??` | Guard-bearing block markers (§4.4) |
+| `\|` | Recovery block marker (§4.4) |
+| `@` `@!` | Frame-exit hook block markers (§3.13) |
+| `%` | Block-grouping marker (§4.4) |
+| `-` | Branch marker (§4.4); subtraction |
+| `+` `*` `/` | Arithmetic operators |
+| `#` | Local-introduction prefix |
+| `/` | Implicit-context-parameter list separator (in signatures) |
+
+The `$` character is reserved for the literal-fence prefixes (`${`, `$[`); it has no other lexical role. The `@!` token is recognized as a single token, not as `@` followed by `!`. The `?-`, `?:`, `??` tokens are similarly recognized as single tokens.
+
+**Mode-marker placement.** The `'` and `&` mode markers attach to the immediately following identifier with no intervening whitespace: `'name` and `&name` are each a single identifier token, not a punctuation token followed by an identifier. The same-character-different-token rule does not arise — `'` and `&` standing alone in non-identifier-prefix position are syntax errors.
+
+**Comment.** A `;` starts a line comment that extends to the end of the physical line. There are no nested comments and no block-comment form. The line containing a `;` is logically truncated at the `;` for all parsing purposes; the lexer skips the comment text and emits a newline as if the `;` were the line's end.
+
+### A.2 Identifier Shapes
+
+Basis recognizes three shapes for an identifier of any given name:
+
+- `name` — bare identifier; READ access in a parameter declaration or use site
+- `'name` — productive identifier; PRODUCE access
+- `&name` — reference identifier; REFERENCE access
+
+The lexer recognizes `'name`, `&name`, and `name` as three distinct identifier tokens of the same name. The same-scope rule (§6.3) prevents the three shapes from coexisting in the same scope: introducing `x` and `'x` in the same scope is a static error, since both refer to the same logical name with different mode contracts.
+
+The mode-marker prefix is part of the identifier token; it does not lex as separate punctuation. A type expression `Int 'r` has tokens `Int`, then `'r` (a single identifier token), not `Int`, then `'`, then `r`.
+
+Identifier-shape detection is purely lexical. The parser does not need context to determine whether `'r` is an identifier or a marker followed by an identifier — the leading `'` immediately followed by a name character produces the productive-identifier token.
+
+### A.3 Type Names vs. Identifier Names
+
+Basis distinguishes type names from value-identifier names by capitalization:
+
+- **Type names** begin with an uppercase letter. Domains, records, unions, objects, variants, classes, aliases, message types, and module-name segments are all type names.
+- **Value-identifier names** begin with a lowercase letter. Parameters, locals, and ordinary identifiers are value-identifier names.
+
+The capitalization rule is structural — the lexer routes identifier tokens to either the type-name or value-identifier-name production based on the initial character. The mode-marker prefixes `'` and `&` do not affect the routing: `'r` is a productive value-identifier (lowercase initial after the marker); `'R` is a syntax error (the productive marker cannot prefix a type name).
+
+Type names may include `::`-separated qualifiers: `Module::TypeName`, `Module::Nested::TypeName`. Each `::`-separated segment is a type name and must begin uppercase. The full qualified name routes through the module-system resolution rules (Appendix G, Appendix H).
+
+### A.4 Literal Token Forms
+
+The lexer recognizes six categories of literal token, corresponding to the six literal types of §7.7:
+
+**Integer literals.** Whole-number literals admit decimal, hexadecimal, and binary forms:
+
+```
+42       0       1000000        ; decimal
+0xFF     0x1234  0xCAFEBABE     ; hexadecimal
+0b1010   0b1     0b0            ; binary
+```
+
+The literal-kind tag of an integer literal is `Integer`. The literal's value is the numeric value the digits express. Negative values are expressed using the prefix `-` operator applied to the literal at parse time, not as a sign-bearing literal token; `-42` is `-` (operator) applied to `42` (Integer literal).
+
+**Decimal literals.** Numeric literals with a fractional part:
+
+```
+3.14      0.5      0.0      1.0       2.71828
+```
+
+The literal-kind tag is `Decimal`. Decimal literals do not include exponent notation in v1 (the surface for `1e6` is an open question; see Appendix I).
+
+**Hexadecimal literals as `Hex`.** Hex-shaped literals admitted at byte-positional positions carry the literal-kind tag `Hex`, distinct from `Integer`:
+
+```
+$[0xDE, 0xAD, 0xBE, 0xEF]      ; a Hex Sequence of bytes
+```
+
+The distinction matters at construction sites: a `Hex`-kind literal may inhabit a `Byte`-typed position; an `Integer`-kind literal may inhabit `Int8`/`Int16`/`Int32`/`Int64` positions per `.implicit` registrations.
+
+**String literals.** Sequences of characters in double quotes:
+
+```
+"hello"           "with spaces"           "\n\t"           ""
+```
+
+The literal-kind tag is `String`. String literals carry no encoding declaration at the literal level — encoding is the constructor's concern. Escape sequences (`\n`, `\t`, `\\`, `\"`, `\xFF` for byte-explicit) follow the conventional surface.
+
+**Aggregate literals.** The `${...}` fence introduces a positional-or-named aggregate at the construction site (§7.4):
+
+```
+${1, 2, 3}                    ; positional 3-element aggregate
+${x <- 1, y <- 2}             ; named-field aggregate
+${}                            ; empty (zero-default)
+```
+
+The literal-kind tag is `Aggregate`. The bracket pair `${` ... `}` is recognized as a fence — `${` is a single token at lex time, balanced by a `}` token (the lexer does not treat the trailing `}` specially; the parser matches via the bracket stack of A.6).
+
+**Sequence literals.** The `$[...]` fence introduces a homogeneous-element sequence (§7.5):
+
+```
+$[1, 2, 3, 4]                 ; integer sequence
+$[]                            ; empty sequence
+```
+
+The literal-kind tag is `Sequence`. Like aggregates, the `$[` is a single open-fence token; the closing `]` matches via the bracket stack.
+
+### A.5 Whitespace and Indentation
+
+Basis uses indentation as the primary block-structure delimiter. The lexer maintains an **indent stack** alongside the bracket and brace stacks of A.6, and emits INDENT and DEDENT tokens as the indentation level changes at line starts.
+
+**Significant whitespace within a line.** Spaces and tabs within a line separate tokens but carry no further significance — `a , b` and `a,b` parse identically. The lexer does not require alignment.
+
+**Indentation at line start.** A line's leading whitespace determines its indentation level. The lexer compares the indentation against the current top of the indent stack:
+
+- Equal — the line continues the current block; no INDENT/DEDENT emitted.
+- Greater — the line enters a new nested block; INDENT emitted and the new level pushed.
+- Less — the line exits one or more blocks; DEDENT emitted for each level popped until the stack top matches the line's indentation.
+
+The indent stack's initial state is a single zero-level marker.
+
+**Tab vs. space treatment.** A tab is conventionally treated as eight columns. Mixing tabs and spaces in leading whitespace is admitted but discouraged; an implementation may emit a warning. (The exact rule is OQ-W1 — confirm whether mixed leading-whitespace is allowed, warned, or rejected.)
+
+**Comments and blank lines.** A line consisting only of a comment or only of whitespace is ignored by the indent algorithm — its indentation is not compared, no INDENT/DEDENT is emitted, and the line is logically skipped.
+
+**Bracket-mode indent suspension.** When the bracket or brace stack is non-empty (inside `(...)`, `[...]`, `{...}`, `${...}`, or `$[...]`), the indent algorithm is suspended. Multi-line argument lists, multi-line aggregate literals, and similar bracketed constructs may span lines with any indentation that aids readability:
+
+```
+process: arg1,
+    arg2,
+        arg3
+```
+
+The closing bracket re-engages the indent algorithm — the line containing the closing bracket is compared against the line that opened the bracket, and subsequent lines resume normal indent-stack treatment.
+
+### A.6 Bracket / Brace / Indent Triple-Stack
+
+The lexer maintains three independent matched-pair stacks:
+
+- **Bracket stack** — pairs `(` ... `)` and `[` ... `]`.
+- **Brace stack** — pairs `{` ... `}`, `${` ... `}`, `$[` ... `]`. The opening tokens `${` and `$[` are distinct from `{` and `[`; the closing tokens `}` and `]` are matched against whichever stack-top expects them.
+- **Indent stack** — line-leading-whitespace levels per A.5.
+
+At end-of-input, all three stacks must be empty (the indent stack having popped back to its zero-level marker). A non-empty stack at end-of-input is a static error: unbalanced brackets, unbalanced braces, or unclosed nested block.
+
+Within a bracketed or braced construct, indent-stack changes are suspended. This is the rule that admits multi-line argument lists and aggregate literals without dictating their internal indentation.
+
+### A.7 Disambiguation Rules
+
+A small set of disambiguation rules govern lexical adjacencies that would otherwise be parser-ambiguous:
+
+**`<*>` distinct from `<>`.** The fexpr-typing surface uses `<*>` as the family-distinguishing marker:
+
+```
+:<>            ; never-fails ordinary command-typed value (empty parameter list)
+:<*>           ; never-fails fexpr-typed value
+?<*>           ; may-fail fexpr-typed value
+!<*>           ; must-fail fexpr-typed value
+```
+
+The lexer recognizes `<*>` as the three-token sequence `<`, `*`, `>` and the parser matches the production; the `*` inside angle brackets is the syntactic marker that distinguishes the fexpr family from the ordinary family (§5.15). The lexer does not produce a `<*>` single-token; the parser's type-expression production handles the disambiguation.
+
+**`(T:Class)` constraint form.** At parameter and receiver positions, the form `(T:Class)` declares a type-variable-bound parameter where `T` is a type variable and `Class` is the bound class (§9.9 Case A). The lexer produces `(`, identifier-or-typename `T`, `:`, identifier-or-typename `Class`, `)`; the parser recognizes this token sequence at parameter-position productions as a single constrained-parameter form. Outside parameter and receiver positions, the form parses as an ordinary parenthesized expression.
+
+**`.inline` modifier placement.** The `.inline` modifier (used on record fields to request in-place composition) has a placement subject to OQ-23 (the implementation thread). The provisional surface is `.inline Field : Type`; the final placement and the modifier's interaction with bracket-form types are forwarded to Appendix I.
+
+**Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (§3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, `:<*>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
+
+**Negative-number adjacency.** A `-` token followed immediately by a digit could be either subtraction or unary negation. The disambiguation is parser-side and follows the standard rule: in expression position where a value is expected, `- N` is unary negation; in expression position where a binary operator is expected (after a value), `- N` is subtraction. The lexer produces the same `-` and `42` (Integer literal) tokens in both cases.
+
+**Slash adjacency.** A `/` token is overloaded: it separates the implicit-context-parameter list in signatures, and it is the division operator. The disambiguation is parser-side: at signature position (after the parameter list, before the body's `=`), `/` introduces the implicit list; in expression position, `/` is division.
+
+**Underscore disambiguation.** The `_` placeholder serves four roles (§3.15). The lexer produces a single `_` token uniformly; the parser routes to the appropriate role based on grammatical position (PRODUCE-discard at argument position; partial-application deferral inside `{...}`; variant absent state in aggregate-literal positions; variant absent test in `-<` operations).
+
+---
+
+## Appendix B. Grammar (Concrete Syntax)
+
+This appendix specifies the concrete syntax of Basis in BNF-style productions. Terminal symbols are written in `code` font (matching the lexer's token output of Appendix A); non-terminal symbols are written in *italics*; alternatives are separated by `|`; `?` denotes optional; `*` denotes zero-or-more; `+` denotes one-or-more. The productions are organized to mirror the language's surface structure rather than to minimize the production count.
+
+### B.1 Source File
+
+```
+source-file       ::= module-decl? import-decl* top-level-decl*
+module-decl       ::= .module qualified-name
+import-decl       ::= .import qualified-name (as qualified-name)?
+                    | .import string-literal
+qualified-name    ::= TypeName ( :: TypeName )*
+```
+
+A source file consists of an optional module declaration, zero or more imports, and zero or more top-level definitions. The module declaration's qualified name uses `::` separators between segments per §2.4. The `.import` directive has two forms: a name-qualified module import and a file-qualified path import; per §2.4 the surface for the path form may admit additional aliasing.
+
+### B.2 Top-Level Definition Forms
+
+```
+top-level-decl    ::= alias-decl    | class-decl    | cmd-decl
+                    | decl-decl     | domain-decl   | enum-decl
+                    | implicit-decl | instance-decl | intrinsic-decl
+                    | msg-decl      | object-decl   | program-decl
+                    | record-decl   | test-decl     | union-decl
+                    | variant-decl
+```
+
+Each is introduced by its corresponding dot-prefixed keyword (§2.2). The `.sub` keyword is *not* a top-level form — it introduces subcommands at body-internal scope (§3.12); the subcommand-declaration production appears under *cmd-body* below.
+
+```
+alias-decl        ::= .alias TypeName : type-expr
+class-decl        ::= .class TypeName type-params? : class-body
+class-body        ::= INDENT class-entry+ DEDENT
+class-entry       ::= decl-decl | cmd-decl
+cmd-decl          ::= .cmd cmd-signature = cmd-body
+decl-decl         ::= .decl cmd-signature
+domain-decl       ::= .domain TypeName : type-expr
+enum-decl         ::= .enum TypeName (: type-expr)? : enum-entries
+enum-entries      ::= INDENT enum-entry+ DEDENT
+enum-entry        ::= identifier (-> literal)?
+implicit-decl     ::= .implicit cmd-signature = cmd-body
+instance-decl     ::= .instance type-expr : class-list
+class-list        ::= class-ref ( , class-ref )*
+class-ref         ::= TypeName ( ( delegate identifier ) )?
+intrinsic-decl    ::= .intrinsic cmd-signature
+msg-decl          ::= .msg TypeName ( [ TypeName ] )? (: TypeName)?
+object-decl       ::= .object TypeName : object-fields
+object-fields     ::= INDENT field-decl+ DEDENT
+field-decl        ::= identifier : type-expr
+program-decl      ::= .program = expr
+record-decl       ::= .record TypeName : record-fields
+record-fields     ::= INDENT record-field+ DEDENT
+record-field      ::= ( .inline )? identifier : type-expr ( = expr )?
+test-decl         ::= .test string-literal = expr
+union-decl        ::= .union TypeName : union-candidates
+union-candidates  ::= INDENT union-candidate+ DEDENT
+union-candidate   ::= identifier : type-expr
+variant-decl      ::= .variant TypeName : variant-candidates
+variant-candidates ::= INDENT variant-candidate+ DEDENT
+variant-candidate ::= identifier : type-expr
+```
+
+### B.3 Type Expressions
+
+```
+type-expr         ::= TypeName type-args?              ; nominal type, optionally parameterized
+                    | ^ type-expr                       ; pointer
+                    | [ N ] type-expr                   ; typed buffer of N elements
+                    | [ ] type-expr                     ; unsized typed buffer
+                    | [ N ]                             ; bracket form (N bytes)
+                    | [ ]                               ; unsized bracket form
+                    | command-type-expr                 ; :<…>, ?<…>, !<…>, with or without *
+                    | TypeName :: TypeName              ; module-qualified type
+type-args         ::= [ type-arg-list ]
+type-arg-list     ::= type-arg ( , type-arg )*
+type-arg          ::= type-expr                         ; concrete type argument
+                    | TypeName : TypeName               ; class-bounded type parameter (declaration only)
+type-params       ::= [ type-param-list ]
+type-param-list   ::= type-param ( , type-param )*
+type-param        ::= TypeName                          ; bare type parameter
+                    | TypeName : TypeName               ; class-bounded type parameter
+```
+
+The bracket forms `[N]` and `[]` are the buffer-backed root types (§5.5). A `Type` with parameters is a parameterized type; the parameter list at declaration is `type-params`, and at use-site is `type-args`. The class-bounded form `(T : C)` appears as a type parameter declaration; uses of the bound type variable use just the bare `T`.
+
+### B.4 Command-Type Expressions
+
+```
+command-type-expr ::= : < param-type-list > result-designator-cmd?    ; never-fails ordinary
+                    | ? < param-type-list > result-designator-cmd?    ; may-fail ordinary
+                    | ! < param-type-list > result-designator-cmd?    ; must-fail ordinary
+                    | : < * >                                          ; never-fails fexpr
+                    | ? < * >                                          ; may-fail fexpr
+                    | ! < * >                                          ; must-fail fexpr
+param-type-list   ::= ( param-type ( , param-type )* )?
+param-type        ::= type-expr mode-marker?
+mode-marker       ::= '                                ; productive
+                    | &                                ; reference
+                                                       ; (READ has no marker)
+result-designator-cmd ::= -> identifier
+```
+
+The mode marker on a parameter type in nameless context attaches as a *suffix* on the type per §3.3's "nameless context" rule. The `<*>` family carries the fexpr distinction; the parameter list is replaced by the single `*` token in fexpr types per §5.15.
+
+### B.5 Command Signatures
+
+```
+cmd-signature     ::= regular-signature
+                    | constructor-signature
+                    | single-method-signature
+                    | multi-method-signature
+
+regular-signature ::= identifier : param-list? implicit-list? result-designator?
+constructor-signature ::= type-expr ' identifier :: identifier : param-list? implicit-list? result-designator?
+single-method-signature ::= receiver :: identifier : param-list? implicit-list? result-designator?
+multi-method-signature  ::= ( receiver-list ) :: identifier : param-list? implicit-list? result-designator?
+
+receiver          ::= type-expr mode-marker? identifier         ; positional name-following
+                    | type-expr ' identifier                     ; PRODUCE receiver shorthand
+                    | type-expr & identifier                     ; REFERENCE receiver shorthand
+                    | ( TypeName : TypeName ) identifier        ; class-bounded receiver
+receiver-list     ::= receiver ( , receiver )*
+
+param-list        ::= param ( , param )*
+param             ::= type-expr mode-name
+                    | ( TypeName : TypeName ) identifier        ; class-bounded parameter
+mode-name         ::= identifier                                ; READ (bare)
+                    | ' identifier                              ; PRODUCE
+                    | & identifier                              ; REFERENCE
+
+implicit-list     ::= / param-list
+result-designator ::= -> identifier
+```
+
+The signature shapes implement the four command kinds (regular, constructor, single-receiver method, multi-receiver method) and the subcommand kind (which uses `regular-signature` since it has no receiver). The receiver-position productions admit class-bounded form `(T:Class)` per §9.9 Case A. The `'` and `&` mode markers attach to the immediately-following identifier per A.2.
+
+### B.6 Body Expressions and Statements
+
+```
+cmd-body          ::= INDENT body-content DEDENT
+                    | _                                          ; empty body marker
+body-content      ::= subcommand-decl* statement+
+
+subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (§3.12)
+
+statement         ::= assignment | call | block-marker-construct | local-intro
+
+local-intro       ::= # type-expr? identifier ( <- expr )?
+                    | # ' identifier <- expr                     ; PRODUCE intro shorthand
+                    | # & identifier <- expr                     ; REFERENCE intro shorthand
+
+assignment        ::= identifier <- expr                         ; rewrite existing local
+                    | ' identifier <- expr                       ; productive write
+                    | & identifier <- expr                       ; reference rewrite
+                    | field-access <- expr                       ; field write
+
+call              ::= regular-call | method-call | multi-method-call | constructor-call
+regular-call      ::= identifier ( : arg-list )?
+method-call       ::= receiver-expr :: identifier ( : arg-list )?
+multi-method-call ::= ( receiver-expr-list ) :: identifier ( : arg-list )?
+constructor-call  ::= TypeName ( : arg-list )?                   ; statement form
+                    | ( TypeName : arg-list )                    ; expression form
+
+receiver-expr     ::= expr                                       ; same expression grammar as values
+receiver-expr-list ::= receiver-expr ( , receiver-expr )*
+
+arg-list          ::= arg ( , arg )*
+arg               ::= expr | # identifier | _
+```
+
+Subcommand declarations appear at the head of *body-content* per §3.12's strict placement rule. After the contiguous subcommand-declaration block, only *statement*s are admitted.
+
+### B.7 Block Markers and Indentation-Sensitive Composition
+
+```
+block-marker-construct ::= guard-block | rewind-block | recovery-block
+                         | else-block | group-block | branch-block | at-block
+
+guard-block       ::= ? expr cmd-body                            ; ? DO_WHEN
+                    | ?- expr cmd-body                           ; ?- DO_WHEN_FAIL
+                    | ?: expr cmd-body                           ; ?: DO_WHEN_SELECT
+                    | ?? guard-block                             ; ?? DO_WHEN_MULTI (elevator)
+
+rewind-block      ::= ^ cmd-body                                 ; ^ DO_REWIND
+                    | ^                                          ;   bodiless rewind
+
+recovery-block    ::= | recovery-spec? cmd-body                  ; | DO_RECOVER
+recovery-spec     ::= TypeName identifier? -> 
+
+else-block        ::= - cmd-body                                 ; - DO_ELSE
+group-block       ::= % cmd-body                                 ; % DO_BLOCK
+at-block          ::= @ cmd-body                                 ; @ DO_ON_EXIT
+                    | @! cmd-body                                ; @! DO_ON_EXIT_FAIL
+```
+
+The eleven markers (§3.1, §4.4) are sequenced as adjacent siblings at the same indentation level. A *cmd-body* with multiple statements is a `INDENT statement+ DEDENT` block; statements within a body include further *block-marker-construct*s, producing arbitrarily deep nesting.
+
+### B.8 The `<-` and `-<` Operator Forms
+
+```
+placement-stmt    ::= local-intro                                ; #x <- expr
+                    | assignment                                 ; x <- expr or 'x <- expr or &x <- expr
+                    | field-access <- expr
+
+narrow-stmt       ::= type-expr ' identifier -< expr             ; T 'narrow -< v
+                    | _ -< expr                                  ; _ -< v   (presence test)
+                    | expr -< _                                  ; v -< _   (clear to absent)
+                    | type-expr -< expr                          ; T -< v   (existential narrowing for unions)
+```
+
+The `<-` operator is the placement primitive (§7.1). The `-<` operator is the dynamic-narrowing primitive (§7.14, §7.15). The `_` token in `-< _` and `_ -<` positions is the variant absent-state placeholder (§3.15).
+
+### B.9 The `${...}` and `$[...]` Literal Fences
+
+```
+aggregate-literal ::= ${ aggregate-entry-list? }
+aggregate-entry-list ::= aggregate-entry ( , aggregate-entry )*
+aggregate-entry   ::= expr                                       ; positional
+                    | identifier <- expr                         ; named field
+                    | identifier <- _                            ; named variant-typed field, absent state
+                    | identifier <- candidate-name <- expr       ; named variant-typed field with active candidate
+
+sequence-literal  ::= $[ sequence-entry-list? ]
+sequence-entry-list ::= expr ( , expr )*
+candidate-name    ::= identifier
+```
+
+Aggregate literals admit positional, named, and mixed forms (§7.4). Sequence literals are positional-only with implicit element-type uniformity (§7.5). The `_` placeholder in named-field position carries the variant absent-state semantics (§7.16).
+
+### B.10 Command-Reference, Command-Literal, Lambda, and Fexpr Forms
+
+```
+command-ref       ::= { cmd-ref-body }
+cmd-ref-body      ::= identifier                                 ; bare command name
+                    | identifier : partial-arg-list              ; with positional partial application
+                    | receiver-expr :: identifier                ; receiver-baked method reference
+                    | receiver-expr :: identifier : partial-arg-list
+                    | TypeName :: identifier                     ; class-disambiguated method reference (§9.10)
+partial-arg-list  ::= partial-arg ( , partial-arg )*
+partial-arg       ::= expr                                       ; applied
+                    | _                                          ; deferred
+
+command-literal   ::= : < param-type-list > { cmd-body }
+                    | ? < param-type-list > { cmd-body }
+                    | ! < param-type-list > { cmd-body }
+
+lambda            ::= : < param-list-with-captures > { cmd-body }
+                    | ? < param-list-with-captures > { cmd-body }
+                    | ! < param-list-with-captures > { cmd-body }
+param-list-with-captures ::= param-list? ( / capture-list )?
+capture-list      ::= capture-entry ( , capture-entry )*
+capture-entry     ::= identifier                                 ; READ capture
+                    | & identifier                               ; REFERENCE capture
+
+fexpr             ::= : { cmd-body }                             ; never-fails fexpr
+                    | ? { cmd-body }                             ; may-fail fexpr
+                    | ! { cmd-body }                             ; must-fail fexpr
+```
+
+The four constructional forms producing command-typed values (§8) share the brace-fenced body shape. The fexpr forms `:{…}`, `?{…}`, `!{…}` carry no parameter list — captures are implicit via free-name resolution against the defining frame (§8.5).
+
+### B.11 Class Declarations and Instance Declarations
+
+```
+class-decl        ::= .class TypeName type-params? : class-body
+class-body        ::= INDENT class-entry+ DEDENT
+class-entry       ::= decl-decl                                  ; signature-only requirement
+                    | cmd-decl                                   ; default-implementation body
+                    | combined-class-decl                        ; (T:C1, T:C2) form
+
+instance-decl     ::= .instance type-expr : class-list
+class-list        ::= class-ref ( , class-ref )*
+class-ref         ::= TypeName ( ( delegate identifier ) )?
+
+combined-class-decl ::= .class TypeName type-params? : parent-class-list class-body?
+parent-class-list ::= TypeName ( , TypeName )*
+```
+
+Class bodies enumerate the methods the class declares as required (`.decl`-form) or admits with a default (`.cmd`-form per §9.3). Combined classes form conjunctions of parent classes (§9.2). Instance declarations carry no body — the implementing methods are top-level commands on the type or delegated via the optional `(delegate fieldName)` clause (§9.4).
+
+### B.12 The `(T:Class)` Constraint Form
+
+```
+class-bounded-param ::= ( TypeName : TypeName ) identifier
+                      | ( TypeName : TypeName ) ' identifier   ; PRODUCE form (rare)
+                      | ( TypeName : TypeName ) & identifier   ; REFERENCE form
+```
+
+At parameter and receiver positions, the `(T:Class)` form declares a type-variable-bound parameter. The bound name `T` is local to the signature; the bound class `Class` constrains which types may be supplied at each call site (§9.9 Case A). The bound binding is per-position — two parameters using the same `T` denote the same type at the call site.
+
+### B.13 Fexpr Typing Surface `<*>`
+
+```
+fexpr-type        ::= : < * >                                    ; never-fails fexpr type
+                    | ? < * >                                    ; may-fail fexpr type
+                    | ! < * >                                    ; must-fail fexpr type
+```
+
+The `<*>` marker is the family-distinguishing surface for fexpr-typed values at type positions (§5.15). The marker replaces the parameter-type list of ordinary command-typed values; fexprs have no invoker-side parameter surface.
+
+### B.14 The `(T:Class)` Form at Multi-Receiver Method Positions
+
+The same `(T:Class)` form admitted at single-receiver positions is admitted at each position in a multi-receiver tuple:
+
+```
+multi-method-signature ::= ( receiver-list ) :: identifier : param-list? implicit-list? result-designator?
+                         ; where any receiver may be class-bounded form
+```
+
+Each receiver in the tuple may independently use the bare receiver form, mode-marked form, or class-bounded form. The bound names introduced by `(T:C)` receivers are local to the signature and may be referenced in parameter types.
+
+### B.15 The `{C::method}` Disambiguation Form
+
+```
+class-disambiguated-method ::= { TypeName :: identifier }
+                             | { TypeName :: identifier : partial-arg-list }
+```
+
+When a method name is overloaded across multiple visible classes at a call site, the user may disambiguate by writing `{ClassName :: methodName}` (or `{ClassName :: methodName : partialArgs}`) to specify which class's method is intended (§9.10). The disambiguation form is part of the command-reference family — it produces a command-typed value with the receiver position open for the eventual call.
+
+---
+
+## Appendix C. AST Node Types
+
+This appendix enumerates the AST node types the parser produces and the typechecker consumes. Each node type is presented with its constituent fields, the grammar production it derives from (Appendix B), and notes on its role. Implementations are free to choose internal representations (records, classes, tagged unions); the node-type inventory below is the conceptual model the rest of the specification refers to.
+
+### C.1 Top-Level Definition Nodes
+
+| Node | Fields | Source Production |
+| --- | --- | --- |
+| `AliasDecl` | `name: TypeName`, `target: TypeExpr` | *alias-decl* |
+| `ClassDecl` | `name: TypeName`, `typeParams: [TypeParam]`, `entries: [ClassEntry]` | *class-decl* |
+| `CombinedClassDecl` | `name: TypeName`, `typeParams: [TypeParam]`, `parents: [TypeName]`, `entries: [ClassEntry]` | *combined-class-decl* |
+| `CmdDecl` | `signature: CmdSignature`, `body: CmdBody` | *cmd-decl* |
+| `DeclDecl` | `signature: CmdSignature` | *decl-decl* |
+| `DomainDecl` | `name: TypeName`, `parent: TypeExpr` | *domain-decl* |
+| `EnumDecl` | `name: TypeName`, `constraint: TypeExpr?`, `entries: [EnumEntry]` | *enum-decl* |
+| `ImplicitDecl` | `signature: CmdSignature`, `body: CmdBody` | *implicit-decl* |
+| `InstanceDecl` | `type: TypeExpr`, `classes: [ClassRef]` | *instance-decl* |
+| `IntrinsicDecl` | `signature: CmdSignature` | *intrinsic-decl* |
+| `MsgDecl` | `name: TypeName`, `payloadClass: TypeName?`, `parent: TypeName?` | *msg-decl* |
+| `ObjectDecl` | `name: TypeName`, `fields: [FieldDecl]` | *object-decl* |
+| `ProgramDecl` | `body: Expr` | *program-decl* |
+| `RecordDecl` | `name: TypeName`, `fields: [RecordField]` | *record-decl* |
+| `TestDecl` | `name: String`, `body: Expr` | *test-decl* |
+| `UnionDecl` | `name: TypeName`, `candidates: [UnionCandidate]` | *union-decl* |
+| `VariantDecl` | `name: TypeName`, `candidates: [VariantCandidate]` | *variant-decl* |
+| `ImportDecl` | `target: QualifiedName \| String`, `alias: QualifiedName?` | *import-decl* |
+| `ModuleDecl` | `name: QualifiedName` | *module-decl* |
+
+`ClassEntry` is a disjoint union of `DeclDecl` and `CmdDecl` for class members (§9.3). `ClassRef` carries an optional `delegate: identifier` field for the `(delegate fieldName)` clause (§9.4).
+
+### C.2 Type-Expression Nodes
+
+| Node | Fields |
+| --- | --- |
+| `NamedType` | `name: TypeName`, `args: [TypeArg]?` |
+| `QualifiedType` | `module: QualifiedName`, `name: TypeName` |
+| `PointerType` | `pointee: TypeExpr` |
+| `TypedBufferType` | `size: Int?`, `element: TypeExpr` |
+| `BracketType` | `size: Int?` |
+| `CommandTypeExpr` | `mark: { ':', '?', '!' }`, `params: [ParamType]`, `resultDesignator: identifier?` |
+| `FexprTypeExpr` | `mark: { ':', '?', '!' }` |
+
+The distinction between `CommandTypeExpr` and `FexprTypeExpr` reflects the family-boundary rule of §5.15: the two are nominally distinct type-expression nodes, mirroring the `<*>` vs. `<…>` syntactic distinction.
+
+`ParamType` is a record `{ type: TypeExpr, mode: { READ, PRODUCE, REFERENCE } }`.
+
+### C.3 Command-Signature Nodes
+
+| Node | Fields |
+| --- | --- |
+| `RegularSignature` | `name: identifier`, `params: [Param]`, `implicits: [Param]?`, `resultDesignator: identifier?` |
+| `ConstructorSignature` | `receiverType: TypeExpr`, `receiverName: identifier`, `params: [Param]`, `implicits: [Param]?`, `resultDesignator: identifier?` |
+| `SingleMethodSignature` | `receiver: Receiver`, `methodName: identifier`, `params: [Param]`, `implicits: [Param]?`, `resultDesignator: identifier?` |
+| `MultiMethodSignature` | `receivers: [Receiver]`, `methodName: identifier`, `params: [Param]`, `implicits: [Param]?`, `resultDesignator: identifier?` |
+| `SubcommandSignature` | (same fields as `RegularSignature`) |
+
+`Param` is a record `{ type: TypeExpr | ClassBoundedType, mode: Mode, name: identifier }`.
+
+`Receiver` is `Param` with the additional invariant that the receiver's mode is constrained per the per-shape table (§6.8): PRODUCE only for constructors; PRODUCE/REFERENCE/READ for methods.
+
+`ClassBoundedType` records the `(T:Class)` form: `{ typeVar: TypeName, boundClass: TypeName }`.
+
+`SubcommandSignature` is structurally identical to `RegularSignature`; the type distinction at the AST level signals the subcommand semantics (§3.12) to the analyzer.
+
+### C.4 Body-Statement Nodes (per Block Marker)
+
+| Node | Block Marker | Fields |
+| --- | --- | --- |
+| `DoWhen` | `?` | `guard: Expr`, `body: CmdBody` |
+| `DoWhenFail` | `?-` | `guard: Expr`, `body: CmdBody` |
+| `DoWhenSelect` | `?:` | `guard: Expr`, `body: CmdBody` |
+| `DoWhenMulti` | `??` | `inner: DoWhen \| DoWhenFail` |
+| `DoRewind` | `^` | `body: CmdBody?` |
+| `DoRecover` | `\|` | `spec: RecoverySpec?`, `body: CmdBody` |
+| `DoElse` | `-` | `body: CmdBody` |
+| `DoBlock` | `%` | `body: CmdBody` |
+| `DoOnExit` | `@` | `body: CmdBody` |
+| `DoOnExitFail` | `@!` | `body: CmdBody` |
+| `DoBranch` | (paired with `?` or `?-`) | (the `-` is a sibling, recorded in the parent body's statement list) |
+
+`RecoverySpec` carries the spec for `|`-with-spec: `{ messageName: TypeName, binding: identifier? }`. The recovery production `| Name name -> body` populates `messageName = Name`, `binding = name`, with `body` as the recovery body. The bare `|` form has `spec = null`.
+
+The chain composition of `?:` blocks (§4.4) is recorded as adjacent `DoWhenSelect` nodes in the parent body's statement list; no AST-level "chain" node is constructed.
+
+### C.5 Expression Nodes
+
+| Node | Fields | Notes |
+| --- | --- | --- |
+| `Identifier` | `name: String`, `mode: Mode` | One of READ, PRODUCE, REFERENCE per identifier shape |
+| `IntegerLit` | `value: Int`, `kind: IntegerKind` | Decimal, Hex (literal-token), Binary forms |
+| `DecimalLit` | `value: Decimal` | |
+| `StringLit` | `value: String` | |
+| `AggregateLit` | `entries: [AggregateEntry]` | (§7.4) |
+| `SequenceLit` | `entries: [Expr]` | (§7.5) |
+| `Call` | `target: CallTarget`, `args: [Arg]`, `implicits: [Arg]?` | Regular call |
+| `MethodCall` | `receiver: Expr`, `methodName: identifier`, `args: [Arg]`, `implicits: [Arg]?` | Single-receiver |
+| `MultiMethodCall` | `receivers: [Expr]`, `methodName: identifier`, `args: [Arg]`, `implicits: [Arg]?` | Multi-receiver |
+| `ConstructorCall` | `type: TypeExpr`, `args: [Arg]`, `implicits: [Arg]?` | (§3.13) |
+| `FieldAccess` | `base: Expr`, `field: identifier` | `obj :: field` for namespace use of `::` |
+| `Narrow` | `targetType: TypeExpr?`, `binding: identifier?`, `subject: Expr`, `direction: NarrowKind` | (§7.14) |
+| `Choice` | `alternatives: [Expr]` | The `lhs <- a \| b \| c` choice form (§7.17) |
+| `BinaryOp` | `op: Operator`, `left: Expr`, `right: Expr` | `+`, `-`, `*`, `/`, `==`, etc. |
+| `UnaryOp` | `op: Operator`, `arg: Expr` | `-x`, etc. |
+| `Underscore` | (no fields) | The `_` placeholder; semantic role determined by position |
+
+`Arg` is `{ kind: { Expr, FreshIntro, Placeholder }, value: Expr? }`. `FreshIntro` corresponds to `#name` in argument position (§3.13); `Placeholder` is `_` in argument-discard position.
+
+`NarrowKind` is `{ Test, Bind, AbsentClear }` corresponding to `_ -< v`, `T 'narrow -< v`, and `v -< _` respectively.
+
+`AggregateEntry` is `{ kind: Positional | Named | VariantAbsent | VariantActive, name: identifier?, value: Expr?, candidate: identifier? }`.
+
+### C.6 Construction-Form Nodes
+
+The five RHS shapes admitted at `<-` positions (§7.3):
+
+| Node | Fields |
+| --- | --- |
+| `ParenCall` | `call: ConstructorCall \| Call` |
+| `AggregateLit` | (per C.5) |
+| `SequenceLit` | (per C.5) |
+| `BareIdentifier` | `name: identifier`, `mode: Mode` |
+| `BareLiteral` | `value: Lit` |
+
+The construction-form classification is determined at the parser by the RHS shape; the typechecker dispatches construction-rule machinery (§7) accordingly.
+
+`Placement` is the AST node for the `<-` operator itself: `{ lhs: Lvalue, rhs: ConstructionForm }`. `Lvalue` is one of `{ LocalIntro, Assignment, FieldWrite }`, mirroring §7.1's three syntactic positions.
+
+### C.7 Lambda, Fexpr, Command-Literal, and Command-Reference Nodes
+
+| Node | Fields |
+| --- | --- |
+| `CommandRef` | `target: identifier \| QualifiedMethodName`, `receiver: Expr?`, `partialArgs: [PartialArg]?` |
+| `CommandLiteral` | `mark: { ':', '?', '!' }`, `params: [Param]`, `body: CmdBody` |
+| `Lambda` | `mark: { ':', '?', '!' }`, `params: [Param]`, `captures: [Capture]`, `body: CmdBody` |
+| `Fexpr` | `mark: { ':', '?', '!' }`, `body: CmdBody` |
+
+`PartialArg` is `{ kind: Applied \| Deferred, value: Expr? }`. The `_` token in partial-application positions produces `Deferred`.
+
+`QualifiedMethodName` carries the `{ClassName :: methodName}` disambiguation form: `{ className: TypeName, methodName: identifier }`.
+
+`Capture` is `{ name: identifier, mode: { READ, REFERENCE } }` per §6.10.
+
+### C.8 Class / Instance / Declaration Nodes
+
+| Node | Fields |
+| --- | --- |
+| `ClassDecl` | (per C.1) |
+| `CombinedClassDecl` | (per C.1) |
+| `InstanceDecl` | (per C.1) |
+| `ClassEntry` | `kind: DeclEntry \| CmdEntry`, `body: DeclDecl \| CmdDecl` |
+| `ClassRef` | `name: TypeName`, `delegate: identifier?` |
+
+The class-system AST distinguishes `.class` (which has a body listing required and default methods) from `.instance` (which has no body — the implementing methods are top-level commands on the type). The `ClassEntry` records both kinds; the `kind` discriminator routes the analyzer to either signature-only checking (`DeclEntry`) or default-implementation checking (`CmdEntry`).
+
+### C.9 Recovery-Context Nodes
+
+The `|` and `|`-with-spec block markers introduce recovery contexts (§4.4, §4.6). Their AST representation:
+
+| Node | Fields |
+| --- | --- |
+| `DoRecover` | `spec: RecoverySpec?`, `body: CmdBody` |
+| `RecoverySpec` | `messageName: TypeName`, `binding: identifier?` |
+
+The bare `|` form has `spec = null` and engages on any propagating failure. The `|`-with-spec form has a populated `spec` field and engages only on failures whose message is at-or-below `spec.messageName` (§4.9). The `binding` identifier, when present, is in scope throughout the recovery body and refers to the bound payload value (§4.6).
+
+Recovery contexts are part of the body-statement-node hierarchy (C.4): a `DoRecover` is a statement node appearing in a sibling list at some indentation level. The recovery's engagement rules and binding semantics are typechecker concerns (Appendix D); the AST records the syntactic form unmodified.
+
+### C.10 AST Invariants
+
+Several invariants are maintained at AST construction:
+
+- **Identifier-shape consistency.** An `Identifier` node's `mode` field is determined entirely by the leading character of the source token: `name` → READ, `'name` → PRODUCE, `&name` → REFERENCE. The parser does not infer mode from context.
+- **Productive-receiver-only-for-constructors.** A `ConstructorSignature` node's receiver mode is always PRODUCE. The parser rejects constructor signatures with non-PRODUCE receiver markers.
+- **Subcommand placement.** A `SubcommandSignature` may only appear in `subcommand-decl` positions at the head of a *body-content* — the parser enforces this with a positional check during body parsing.
+- **Block-marker indentation.** The body-statement parser uses INDENT/DEDENT tokens from the lexer to determine sibling-vs.-child relationships between block markers; no AST-level indentation information is recorded.
+
+---
+
+## Appendix D. Typechecking Rules (Judgment Forms)
+
+This appendix specifies the typechecker as a collection of judgment-form rules. The rules are organized by what they conclude (well-formed types, well-formed expressions, well-formed signatures, well-formed bodies); the structure parallels the body's §§3–9.
+
+### D.1 Notation Conventions
+
+The judgments use the following metavariables and forms:
+
+- **Γ** — typing environment: a finite map from identifiers to their type and mode. Entries include both lexical-scope locals and the enclosing command's parameters.
+- **τ, σ** — types (well-formed type expressions).
+- **e** — expressions.
+- **s** — statements.
+- **m** — mode marks (READ, PRODUCE, REFERENCE).
+- **φ** — failure marks (`:`, `?`, `!`).
+- **F** — failure sets (sets of message names).
+- **M** — module-import graph context (for instance-resolution).
+- **C** — class context (for class-method-dispatch and instance-coherence rules).
+
+Judgment forms:
+
+- `Γ ⊢ τ wf` — τ is a well-formed type in environment Γ.
+- `Γ ⊢ e : τ` — e has type τ in Γ.
+- `Γ ⊢ s ok` — s is a well-formed statement in Γ.
+- `Γ ⊢ τ <: σ` — τ is a subtype of σ.
+- `Γ ⊢ sig wf` — sig is a well-formed signature.
+- `Γ ⊢ body : φ ; F ok` — body is well-formed with failure mark φ and failure set F.
+
+Premises sit above the line; conclusion below. Multiple premises read as conjunction. Side conditions appear in parentheses to the right.
+
+### D.2 Type Formation Rules
+
+A type expression is well-formed if its components are well-formed and their composition is admitted by the language:
+
+```
+                                    (NamedType-Decl)
+Γ ⊢ TypeName declared in Γ
+─────────────────────────
+Γ ⊢ TypeName wf
+
+
+                                    (TypedBuffer)
+Γ ⊢ τ wf      τ buffer-backed
+─────────────────────────────
+Γ ⊢ [N]τ wf
+
+
+                                    (Pointer)
+Γ ⊢ τ wf
+──────────
+Γ ⊢ ^τ wf
+
+
+                                    (CmdType)
+Γ ⊢ τᵢ wf for each parameter type τᵢ
+mark ∈ {:, ?, !}
+─────────────────────────────────
+Γ ⊢ mark<τ₁ mode₁, …, τₙ modeₙ> wf
+
+
+                                    (FexprType)
+mark ∈ {:, ?, !}
+────────────────
+Γ ⊢ mark<*> wf
+```
+
+**Buffer-backed containment rule.** A `[N]τ` or record-field declaration requires τ to be buffer-backed:
+
+```
+Γ ⊢ τ wf      τ ∉ {pointer, object, variant, command-typed, fexpr-typed, …}
+──────────────────────────────────────────────────────────────────────────
+Γ ⊢ τ buffer-backed
+```
+
+The disjoint cases enumerate all the non-buffer types; the union of all named-type-as-buffer-backed plus the literal types covers the buffer-backed case (§5.1).
+
+### D.3 Subsumption Rules
+
+The subtyping relation `<:` is the union of multiple sources of subsumption:
+
+**Buffer-backed parent-chain subsumption (§5.5):**
+
+```
+Γ ⊢ τ : .domain T : σ
+──────────────────────
+Γ ⊢ τ <: σ
+
+
+Γ ⊢ τ buffer-backed     τ has byte-width N
+──────────────────────────────────────────
+Γ ⊢ τ <: [N]   and   Γ ⊢ τ <: []
+```
+
+**Reflexivity and transitivity:**
+
+```
+                  (Refl)                              (Trans)
+                                Γ ⊢ τ <: σ      Γ ⊢ σ <: ρ
+──────                          ────────────────────────────
+τ <: τ                                 Γ ⊢ τ <: ρ
+```
+
+**Failure-mark subsumption (§4.2):**
+
+```
+                                    : ⊑ ?            ! ⊑ ?
+                                    (compatible mark substitution within a family)
+```
+
+The relation `⊑` applies to mark positions; assignment from a `:`-marked or `!`-marked call to a `?`-marked slot is admitted, but neither `:` nor `!` is the other's subtype.
+
+**Class-typed-family invariance (§5.5):**
+
+```
+Class types do not subtype each other except through explicit class hierarchies (§9).
+A Container[A] is not a Container[B] unless A = B.
+```
+
+**Family-boundary non-subsumption (§5.15):**
+
+```
+:<*> is not a :<>;  ?<*> is not a ?<>;  !<*> is not a !<>.
+The fexpr family and the ordinary command-typed family are nominally distinct.
+```
+
+**Payload-class covariance for failure messages (§4.8, §9.17):**
+
+```
+Γ ⊢ M child of M' in message hierarchy
+Γ ⊢ M's payload class C is a subclass of M's parent class C'
+─────────────────────────────────────────────────────────
+Γ ⊢ payload of M acceptable where M'-payload expected
+```
+
+### D.4 Expression-Position Typing
+
+A command invoked in expression position (right-hand side of `<-`, parenthesized argument, guard, scrutinee) produces a value of the type designated by the `-> name` clause (§3.7):
+
+```
+                                    (ExprCall)
+Γ ⊢ cmd : sig    sig has -> param-name
+Γ ⊢ args satisfy sig's argument positions (excluding param-name)
+sig's param-name has mode m and type τ
+─────────────────────────────────────
+Γ ⊢ (cmd: args) : τ                    (with reading-from-m semantics)
+
+
+                                    (ExprNarrow)
+Γ ⊢ subject : variant-type      Γ ⊢ T narrowing-target of variant
+─────────────────────────────────────────────────────────────
+Γ ⊢ (T 'narrow -< subject) : T          (with TagMismatch on failure)
+```
+
+### D.5 Construction-Form Typing
+
+The five RHS shapes admitted at `<-` positions (§7.3) each have their own typing rule:
+
+**Parenthesized command call:**
+
+```
+Γ ⊢ (cmd: args) : τ      (D.4 ExprCall)
+Γ ⊢ lhs has type σ      Γ ⊢ τ <: σ
+─────────────────────────────────────
+Γ ⊢ lhs <- (cmd: args) ok
+```
+
+**Aggregate literal:**
+
+```
+Γ ⊢ lhs has type σ
+σ admits Aggregate-shape construction (§7.4)
+Each entry's RHS satisfies the corresponding position
+────────────────────────────────────────────────────
+Γ ⊢ lhs <- ${...} ok
+```
+
+**Sequence literal:**
+
+```
+Γ ⊢ lhs has element type τ (lhs is a typed buffer or sequence-admitting type)
+Each sequence entry has type ⊆ τ (with .implicit bridging)
+─────────────────────────────────────────────────────────
+Γ ⊢ lhs <- $[...] ok
+```
+
+**Bare identifier:**
+
+```
+Γ ⊢ rhs : τ      τ value-copyable (buffer-backed)
+Γ ⊢ lhs has type σ      Γ ⊢ τ <: σ
+───────────────────────────────────
+Γ ⊢ lhs <- rhs ok        (with byte-copy semantics)
+```
+
+**Bare literal:**
+
+```
+Γ ⊢ rhs is a literal of kind K
+Γ ⊢ lhs has type σ
+σ admits K-kind literals directly OR .implicit registers K → σ
+──────────────────────────────────────────────────────────
+Γ ⊢ lhs <- rhs ok        (with .implicit insertion if needed)
+```
+
+### D.6 Call-Site Typing
+
+**Regular call:**
+
+```
+Γ ⊢ cmd : (τ₁ m₁, …, τₙ mₙ) → mark
+Each argᵢ supplies the call's i-th position per its mode mᵢ
+Implicit context parameters resolve uniquely from Γ (D.7)
+─────────────────────────────────────────────────────────
+Γ ⊢ cmd: args ok                       (with failure mark = mark)
+```
+
+**Method call:**
+
+```
+Γ ⊢ receiver : R     Γ ⊢ R ∈ class containing method m
+Γ ⊢ m : (R receiver-mode, τ₁ m₁, …, τₙ mₙ) → mark
+Each argᵢ satisfies position i per mᵢ
+Receiver mode satisfies the R1 (call-site initialization) rule of §6.7
+─────────────────────────────────────────────────────────────
+Γ ⊢ receiver :: m: args ok                  (with failure mark = mark)
+```
+
+**Multi-receiver method call:**
+
+```
+Γ ⊢ each receiverᵢ : Rᵢ      each Rᵢ in a class containing m
+Γ ⊢ m : ((R₁, …, Rₖ) receiver-tuple, τ₁ m₁, …, τₙ mₙ) → mark
+Each receiver and arg satisfies its position
+Joint instance resolution per §3.11 / §9.4
+──────────────────────────────────────────
+Γ ⊢ (receiver₁, …, receiverₖ) :: m: args ok
+```
+
+### D.7 Implicit Context Parameter Resolution
+
+Implicit context parameters (§3.6) are filled at the call site by uniqueness-of-type:
+
+```
+                                    (ImplicitResolve)
+Implicit parameter declared with type τ_impl and mode m
+Γ contains exactly one identifier `x` with type τ_impl
+mode-compatibility: caller's `x` mode satisfies callee's m
+─────────────────────────────────────────────────
+Γ ⊢ implicit position satisfied with `x` ok
+
+
+                                    (ImplicitFail-Ambiguous)
+Γ contains multiple identifiers with type τ_impl
+─────────────────────────────────────────────────
+Γ ⊢ implicit resolution ambiguous (static error)
+
+
+                                    (ImplicitFail-Absent)
+Γ contains no identifier with type τ_impl
+──────────────────────────────────────────
+Γ ⊢ implicit resolution absent (static error)
+```
+
+The user-resolvable rescue path: pass the value explicitly at the call site, bypassing the resolution algorithm.
+
+### D.8 The `-<` Operator Typing
+
+The dynamic-narrowing operator (§7.14) admits multiple type-pair scenarios:
+
+**Variant narrowing:**
+
+```
+Γ ⊢ v : variant V with candidate types T₁, …, Tₙ
+Γ ⊢ T is at-or-below some Tᵢ in T's subsumption chain
+───────────────────────────────────────────────
+Γ ⊢ T 'narrow -< v : T               (may-fail: TagMismatch if v's tag ≠ Tᵢ or v absent)
+
+
+                                    (Variant absent test)
+Γ ⊢ v : variant V
+─────────────────
+Γ ⊢ _ -< v : ok      (may-fail: TagMismatch if v is in absent state)
+
+
+                                    (Variant absent clear)
+Γ ⊢ v : variant V
+─────────────────
+Γ ⊢ v -< _ : ok      (always-succeeds; v becomes absent)
+```
+
+**Class hierarchy narrowing:**
+
+```
+Γ ⊢ obj : object type O      Γ ⊢ T at-or-below O in class hierarchy
+─────────────────────────────────────────────────────
+Γ ⊢ T 'narrow -< obj : T          (may-fail: TagMismatch on type-mismatch)
+
+
+                                    (Pointer narrowing)
+Γ ⊢ p : ^P      Γ ⊢ T at-or-below P
+────────────────────────────────────
+Γ ⊢ T 'narrow -< p : ^T              (may-fail: TagMismatch on type-mismatch)
+```
+
+**Union narrowing (compile-time only):**
+
+```
+Γ ⊢ u : union U     Γ ⊢ T appears on at least one union-candidate's subsumption chain
+───────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ T 'narrow -< u : T               (no runtime failure; the recovery branch is unreachable)
+
+
+                                    (Class-narrowing on union)
+Γ ⊢ u : union U     Γ ⊢ exactly one union-candidate type has a C-class instance
+─────────────────────────────────────────────────────────────────────────
+Γ ⊢ C 'narrow -< u : C-witness-typed binding
+```
+
+### D.9 Lambda, Fexpr, Command-Literal, and Command-Reference Typing
+
+**Command literal:**
+
+```
+Γ ⊢ body : mark ; F under (Γ extended with params)
+─────────────────────────────────────────────────
+Γ ⊢ mark<params>{body} : mark<param-types> (lifted to command-typed value)
+```
+
+**Lambda:**
+
+```
+Γ ⊢ each capture entry resolves in Γ at READ or REFERENCE mode
+Γ ⊢ body : mark ; F under (Γ-captures-extended)
+ceiling = D (lambda's defining frame, §8.4)
+───────────────────────────────────────────
+Γ ⊢ mark<params / captures>{body} : mark<param-types>
+```
+
+**Fexpr:**
+
+```
+Γ ⊢ body : mark ; F under (Γ at fexpr-relevance taint)
+no free names resolve to long-lived storage (Restrictions A–G of §8.13)
+──────────────────────────────────────────────────────────────────
+Γ ⊢ mark{body} : mark<*>
+
+
+D = current frame; F = fexpr-relevance-tainted (passes through every taint check)
+```
+
+**Command reference:**
+
+```
+Γ ⊢ underlying cmd resolves in Γ as either bare or method form
+Γ ⊢ each partial arg type-checks at its position
+PRODUCE positions are not bound (must be deferred via _)
+──────────────────────────────────────────────────────
+Γ ⊢ {receiver :: name : args} : underlying-type with bound positions elided
+```
+
+### D.10 Class-Method Dispatch Typing
+
+**Case A — Type-variable-bound parameter (§9.9):**
+
+```
+Γ ⊢ at call site, (T:C) parameter receives concrete type τ
+Γ ⊢ τ ∈ class C in the module-import graph M
+───────────────────────────────────────────
+Γ ⊢ method call dispatches through τ's C-instance dictionary
+
+
+Witness is a hidden parameter; dispatch is at call-site type τ.
+```
+
+**Case B — Existential class-typed parameter (§9.9):**
+
+```
+Γ ⊢ at call site, C-typed parameter receives a slot whose runtime type τ ∈ C
+Γ ⊢ slot is a 3-word triple (tag identifying τ, payload pointer, witness)
+─────────────────────────────────────────────────────────────────
+Γ ⊢ method call dispatches through the slot's stored witness
+
+
+Tag is consulted at runtime; witness chosen at construction site.
+```
+
+### D.11 Overload Resolution
+
+Per §9.10, overload resolution proceeds in three layers:
+
+1. **Argument-shape filter.** Eliminate candidates whose signature does not match the call's argument shape (arity, types, modes).
+2. **Most-specific-candidate ranking.** Among remaining candidates, prefer the one whose signature is most-specifically matched by the call. The specificity ordering is: type variables less specific than concrete types; broader buffer-backed types (`[N]`, `[]`) less specific than narrower (named domain, record).
+3. **Tie rejection.** If two candidates are equally specific (incomparable), the call is ambiguous and rejected with a static error. The user resolves via type annotation or via the `{C::method}` disambiguation form (§9.10).
+
+The judgment form:
+
+```
+candidates_after_arg_filter = {c₁, c₂, …, cₖ}
+most-specific candidate exists and is unique → c
+────────────────────────────────────────────
+Γ ⊢ call resolves to c
+```
+
+### D.12 Partial-Application Typing
+
+A command reference with partial application (§9.14) produces a command-typed value with bound positions elided:
+
+```
+Γ ⊢ underlying cmd has type (R receiver, τ₁ m₁, …, τₙ mₙ) → mark
+Γ ⊢ partial-app applies: receiver (always); some subset of args; PRODUCE positions deferred via _
+ceiling: derived from captured mode markers (REFERENCE captures yield ceiling = D)
+────────────────────────────────────────────────────────────────────────────
+Γ ⊢ {receiver :: cmd : applied-args} : mark<deferred-arg-types>
+```
+
+The ceiling-tracking rule for partial application (§9.14):
+
+- READ captures: no ceiling implication
+- REFERENCE captures: ceiling = the captured-slot's frame D
+- PRODUCE: forbidden in bound positions; must be deferred
+
+### D.13 Instance-Coherence Typing
+
+For class instances (§9.15):
+
+**Intra-module uniqueness.** Two `.instance T : C` declarations of the same `(T, C)` pair in the same module is a static error.
+
+**Cross-module specificity ranking.** When multiple modules declare `.instance T : C` for the same `(T, C)` pair, the more-specific module's instance wins. Specificity is determined by the module hierarchy (Appendix H.5).
+
+**Orphan-instance permissibility.** An `.instance T : C` declaration is admitted in any module whose import graph reaches both T's declaration module and C's declaration module — no co-location restriction. Orphan instances enable the desired cross-module extensibility (§9.15).
+
+**Import-time competition warning.** If a module's import graph causes two different modules' instances of the same `(T, C)` to both be reachable, an import-time warning fires (suppressible per OQ-5).
+
+### D.14 Failure-Mark Conformance
+
+A command body's failure mark φ_body must conform to its declared mark φ_decl:
+
+```
+                                    (Conform)
+Γ ⊢ body : φ_body ; F_body
+Γ ⊢ φ_body ⊑ φ_decl     F_body ⊆ F_decl
+───────────────────────────────────
+Γ ⊢ body conforms with (φ_decl, F_decl)
+```
+
+**Six-state failure-state lattice.** The body's failure state at each program point is one of:
+
+1. `clear` — no in-flight failure; subsequent statements execute.
+2. `failing(:)` — never-fails-mark; impossible (no transitions land here).
+3. `failing(?)` — may-fail-mark with failure in flight; subsequent statements skip until recovery.
+4. `failing(!)` — must-fail-mark with failure in flight; behaves as `failing(?)` for control-flow but with a stricter conformance check.
+5. `mixed(?)` — at convergence (CFG join), some predecessors are `failing(?)` and others are `clear`.
+6. `mixed(!)` — at convergence, some predecessors are `failing(!)` and others are `clear`.
+
+The transfer-function table for each block marker and each call-site shape is in Appendix E.
+
+### D.15 Subcommand Visibility Typing
+
+A subcommand's name resolves only within the enclosing command's body (§3.12):
+
+```
+                                    (SubVisibility)
+Γ ⊢ subcommand s declared at body B
+Use site of s is within B or any deeper subcommand body of B
+──────────────────────────────────────────────────────────
+Γ ⊢ s reachable at use site
+
+
+                                    (SubCapture-Forbidden)
+subcommand body operates against parameters and module scope only
+no use of enclosing command's local identifiers
+─────────────────────────────────────────────────────
+Γ ⊢ subcommand body has no capture (well-formed)
+```
+
+The no-capture rule (§3.12) is enforced as a typechecker invariant on subcommand bodies: a name resolution that would resolve to an identifier in the enclosing command's body (other than implicit-context-parameter resolution at the call site, which is parameter-supplied) is a static error.
+
+---
+
+## Appendix E. Static Analyses (Joint CFG-Walking Composition)
+
+This appendix specifies the four static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, and fexpr-relevance taint. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
+
+### E.1 The Shared CFG Walk
+
+Each command body is compiled to a control-flow graph (CFG) at parse time. Nodes correspond to statements; edges correspond to control transitions (sequential succession, branch via block markers, recovery on failure). The CFG admits joins at convergent points and may contain loops (via `^` rewinds).
+
+The typechecker performs a single forward-flow walk over this CFG, maintaining a **state vector** at each program point:
+
+```
+StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, fexprTaint: TaintLattice)
+```
+
+Each component is a separate lattice; the joint state-vector forms the product lattice. At convergent CFG points, the join is performed component-wise — each analysis joins per its own lattice rules.
+
+Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2–E.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
+
+### E.2 Initialization Analysis
+
+**Lattice.** Per-slot initialization state:
+
+```
+InitLattice = { uninit, init, uncertain } per slot
+                  ⊥        ⊤
+            (with uncertain = ⊤ as the join of uninit and init)
+```
+
+The lattice is per-slot. The state vector tracks initialization for every named slot in the command body's scope. The initial state at the body's entry: parameters are `init` for READ and REFERENCE modes, `uninit` for PRODUCE modes (the callee must produce them); locals are `uninit` until introduced.
+
+**Transfer functions.**
+
+| Statement | Transfer |
+| --- | --- |
+| `#x <- expr` | `x` transitions from `uninit` to `init` |
+| `'r <- expr` | `r` transitions from `uninit` to `init` (write-once check applies) |
+| `x <- expr` (rewrite) | `x` must be `init` pre-write; remains `init` post-write |
+| `&x <- expr` (reference rewrite) | `x` must be `init`; remains `init` |
+| call site with PRODUCE arg `#name` | `name` transitions from `uninit` to `init` on success path |
+| read of `x` | `x` must be `init` at the read point |
+
+**Joins.** At convergent CFG points:
+
+| Predecessor states | Join |
+| --- | --- |
+| `init`, `init` | `init` |
+| `uninit`, `uninit` | `uninit` |
+| `init`, `uninit` | `uncertain` (read-then-use is a static error) |
+
+**Conformance.** At every successful exit edge of a command body, every productive parameter must have state `init`. Otherwise, the body fails to typecheck (the productive write-once obligation per §6.13).
+
+### E.3 Failure-State Lattice Analysis
+
+**Lattice.** Six states per program point:
+
+```
+{ clear, failing(:), failing(?), failing(!), mixed(?), mixed(!) }
+```
+
+- **`clear`** — no in-flight failure; subsequent statements execute.
+- **`failing(:)`** — the `:` mark is never-fails; this state is unreachable in well-formed code (no statement can produce it). Present in the lattice for completeness; behaves as ⊥.
+- **`failing(?)`** — may-fail-mark failure in flight; subsequent statements are skipped until a recovery context engages.
+- **`failing(!)`** — must-fail-mark failure in flight; subsequent statements are skipped; the body cannot reach a `clear` exit through this path.
+- **`mixed(?)`** — at a convergence point, some predecessors are `failing(?)` and others are `clear`. Means: a may-fail path is in flight on some predecessor branches; subsequent statements are reachable only on the `clear`-path branches.
+- **`mixed(!)`** — analogous to `mixed(?)` but the failing branches are must-fail.
+
+**Join table** (rows are state-A, columns are state-B; cell is the joined state):
+
+| A \ B | clear | failing(:) | failing(?) | failing(!) | mixed(?) | mixed(!) |
+| --- | --- | --- | --- | --- | --- | --- |
+| **clear** | clear | clear | mixed(?) | mixed(!) | mixed(?) | mixed(!) |
+| **failing(:)** | clear | failing(:) | failing(?) | failing(!) | mixed(?) | mixed(!) |
+| **failing(?)** | mixed(?) | failing(?) | failing(?) | mixed(?) | mixed(?) | mixed(?) |
+| **failing(!)** | mixed(!) | failing(!) | mixed(?) | failing(!) | mixed(?) | mixed(!) |
+| **mixed(?)** | mixed(?) | mixed(?) | mixed(?) | mixed(?) | mixed(?) | mixed(?) |
+| **mixed(!)** | mixed(!) | mixed(!) | mixed(?) | mixed(!) | mixed(?) | mixed(!) |
+
+(The lattice is symmetric so the table folds along the diagonal; presented in full for ease of lookup.)
+
+**Transfer functions** (per block marker):
+
+| Marker | Body engages on | Body's effect on the failure state |
+| --- | --- | --- |
+| `?` (DO_WHEN) | guard `clear` | guard's failure consumed; body's effects propagate per ordinary rules |
+| `?-` (DO_WHEN_FAIL) | guard `failing` | guard's failure consumed; body's effects propagate |
+| `?:` (DO_WHEN_SELECT) | guard `clear` | guard's failure consumed; control exits surrounding indentation level on engagement |
+| `??` (DO_WHEN_MULTI) | wraps inner `?` or `?-` | failure consumed by `??`; control elevates one level |
+| `^` (DO_REWIND) | (no engagement condition) | failure from any body statement consumed by `^`; control rewinds on success, falls through on failure |
+| `|` (DO_RECOVER) | preceding sibling `failing` | failure consumed; body executes from `clear` |
+| `|`-with-spec | preceding sibling failing with matching message | failure consumed; payload bound; body executes from `clear` |
+| `-` (DO_ELSE) | paired with preceding `?` or `?-` | runs on the alternative branch; failure handling per parent |
+| `%` (DO_BLOCK) | (no engagement condition) | body executes as ordinary statements; unrecovered failure propagates |
+| `@` (DO_ON_EXIT) | (fires at frame retirement) | body runs at exit; failure not propagated through body |
+| `@!` (DO_ON_EXIT_FAIL) | (fires at frame failure-exit) | body runs only on failure exits |
+
+**Conformance.** At every reachable exit edge:
+
+- If the exit is success, the failure state must be `clear` and the declared mark must allow `:` or `?`.
+- If the exit is failure, the failure state must be `failing(?)`, `failing(!)`, `mixed(?)`, or `mixed(!)`, and the declared mark must allow the corresponding failure mode.
+- Mark conformance: `:` requires every reachable exit to be `clear`; `?` admits `clear` or `failing(?)`/`mixed(?)` exits; `!` requires every reachable exit to be `failing(!)`.
+
+### E.4 READ-Taint Analysis
+
+**Lattice.** Per-slot taint state:
+
+```
+TaintLattice = { untainted, READ-tainted } per slot
+                     ⊥             ⊤
+```
+
+A slot is READ-tainted if its access path is rooted at a READ parameter. The taint propagates through:
+
+- **Field access.** Reading field `f` of a READ-tainted slot yields a READ-tainted result.
+- **Pointer dereference.** Dereferencing a `^T` whose slot is READ-tainted yields a READ-tainted result.
+- **Indexing.** Indexing a typed buffer or sequence whose slot is READ-tainted yields a READ-tainted result.
+- **Bare-identifier copy.** Copying a READ-tainted value into a fresh slot yields a fresh slot whose READ-taint status depends on whether the value carries any sub-storage references; for buffer-backed values, the result is *untainted* (the byte-copy produces a byte-disjoint result). For non-buffer values, the result is READ-tainted (the slot carries references into READ-rooted storage).
+
+**Sources.** READ parameters (mode = READ). Locals introduced from a READ-tainted source inherit the taint.
+
+**Transfer functions.**
+
+| Statement | Effect on READ-taint |
+| --- | --- |
+| `#x <- expr` | `x` taint = expression's taint (per the construction-form rules above) |
+| field/pointer/index access of tainted source | result inherits taint |
+| bare-identifier `<-` of buffer-backed | result is untainted (byte-disjoint copy) |
+| bare-identifier `<-` of non-buffer | result inherits taint (slot-view propagation) |
+| call site with arg tainted | the argument is rejected if the call site's parameter is REFERENCE or PRODUCE; the call is admitted if the call's parameter is READ |
+
+**Conformance.** The body fails to typecheck if at any program point:
+
+- A REFERENCE or PRODUCE write is attempted through a READ-tainted access path.
+- A READ-tainted slot is passed to a call's REFERENCE or PRODUCE parameter position.
+
+### E.5 Fexpr-Relevance Taint Analysis
+
+**Lattice.** Per-slot:
+
+```
+TaintLattice = { untainted, fexpr-tainted } per slot
+                     ⊥           ⊤
+```
+
+A slot is **fexpr-tainted** if its value is, or may transitively reach, a fexpr-typed value (§6.15, §8.13).
+
+**Sources.**
+
+1. **Direct fexpr-typed slots.** A slot whose declared type is `:<*>`, `?<*>`, or `!<*>`.
+2. **Composite slots.** A slot whose type structurally contains a fexpr-typed component (forbidden at field level for buffer-backed types; admitted only in narrow circumstances per §8.13).
+3. **Command-reference values.** A command reference `{cmd: …}` whose underlying definition reaches a fexpr through its body or captures.
+4. **Lambda captures of fexpr-typed values.** Forbidden (Restriction E of §8.13); the structural restriction prevents this case from arising.
+
+**Transfer functions.** Fexpr-relevance propagates parallel to READ-taint but along its own access paths:
+
+| Statement | Effect on fexpr-taint |
+| --- | --- |
+| `#x <- expr` where expr reaches a fexpr-typed value | `x` becomes fexpr-tainted |
+| field/pointer/index access of fexpr-tainted source | result inherits taint |
+| call site with fexpr-typed arg | argument's fexpr-taint flows into the callee's analysis |
+
+**Conformance.** Body fails to typecheck if any of the seven fexpr restrictions (§8.13, A–G) are violated:
+
+- A — fexpr-typed value assigned to long-lived storage (e.g., a global, a module-scope identifier).
+- B — pointer to a fexpr-typed slot.
+- C — fexpr-typed value in a field of a long-lived containment (object field with object-ceiling outliving the fexpr's defining frame).
+- D — fexpr-typed value as a candidate of a variant.
+- E — fexpr-typed value in a lambda's capture list.
+- F — fexpr-typed value returned via a constructor.
+- G — fexpr-typed value written to a productive or reference parameter of the defining frame.
+
+### E.6 Joint Analysis Composition
+
+The four analyses share the CFG walk and the join points, but their transfer functions are independent. The composed analysis runs as:
+
+```
+state ← state_vector_at_entry
+for each statement s in CFG order:
+    state.init  ← init_transfer(s, state.init)
+    state.failure ← failure_transfer(s, state.failure)
+    state.readTaint ← read_taint_transfer(s, state.readTaint)
+    state.fexprTaint ← fexpr_taint_transfer(s, state.fexprTaint)
+    
+    on CFG branch (multiple successors):
+        propagate state to each successor
+
+at each convergence point:
+    state ← (init join, failure join, read_taint join, fexpr_taint join)
+            of all predecessor states (component-wise)
+```
+
+The components do not interact at transfer functions except at specific cross-component boundaries:
+
+- The `.fail` statement updates `failure` and may propagate READ-taint (if the failure payload's value is READ-tainted, the failure is marked accordingly for downstream recovery analysis).
+- A productive write `'r <- expr` updates `init` and verifies READ-taint conformance simultaneously (a tainted RHS rejected if `'r` is a productive write through a READ-rooted path).
+
+### E.7 Reachability Rider
+
+Every conformance check applies only to **reachable** program points. A statement after an unrecoverable `failing(!)` state is unreachable per the lattice and contributes no conformance requirement.
+
+The reachability is computed alongside the CFG walk: a node is reachable if any incoming edge has `clear` or `mixed(?)` or `mixed(!)` state at the predecessor.
+
+A body whose every exit edge is unreachable (a non-terminating body) trivially satisfies every conformance rule — the universal quantification over reachable exits has an empty domain.
+
+### E.8 Worked Example
+
+Consider the factorial subcommand:
+
+```
+.cmd factorial: Int n, Int 'result =
+    .sub factorialAcc: Int n, Int acc, Int 'r =
+        ?: n == 0
+            'r <- acc
+        factorialAcc: n - 1, n * acc, 'r
+    
+    factorialAcc: n, 1, 'result
+```
+
+The CFG for `factorialAcc`'s body has three nodes:
+
+1. **Entry.** `n: init/untainted/untainted`, `acc: init/untainted/untainted`, `'r: uninit/untainted/untainted`.
+2. **After `?: n == 0` body (the `'r <- acc` branch).** init: `'r` becomes `init`. failure: `clear`. taint: untainted.
+3. **After `factorialAcc: n - 1, n * acc, 'r` (the default-arm branch).** init: the call's productive arg `'r` becomes `init`. failure: `clear` (the call succeeded). taint: untainted.
+
+At the **convergence (exit) point**, both predecessor states have `'r: init/clear/untainted`. The join is `'r: init/clear/untainted`.
+
+Conformance:
+
+- init: `'r` is `init` at every reachable exit ✓ (write-once obligation satisfied).
+- failure: exit is `clear`; the body's mark is `:` (never-fails); the declared mark allows `clear` ✓.
+- READ-taint: no READ-tainted slots written ✓.
+- fexpr-relevance: no fexpr-typed slots in scope ✓.
+
+The body typechecks.
+
+### E.9 Composed-Analysis Performance
+
+The joint state-vector grows linearly with the number of named slots in scope; each component lattice contributes its per-slot dimension. For a typical command body with O(10) slots, the state vector is small enough that the analysis terminates in O(N · V) time where N is CFG node count and V is the per-state-vector size — well within compile-time budgets for any practical body.
+
+Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite height bounds the iteration count to O(slots × max-lattice-height) per loop. The lattices' heights are small (init: 3, failure: 6, taint: 2), so fixpoint convergence is fast.
+
+---
+
+## Appendix F. Operational Semantics
+
+This appendix formalizes the operational semantics sketched in §1.3, elaborating each reduction rule with full transfer-function detail and integrating the structural rules introduced throughout the body.
+
+### F.1 The State Tuple ⟨V, Φ, Σ⟩
+
+Program state at any reduction step is a triple:
+
+- **V** — the *current verb*, i.e., the next reduction step to apply. The verb category includes user commands `exec(c)`, the failure-firing verb `fail(φ)`, the recovery markers `recover` and `recover(φ, σ, c)`, the scope boundary markers `scope(c)` and `scopefail(c)`, and the loop rewind verb `rewind(v)`. The notation `→v` denotes the continuation that runs after v completes.
+
+- **Φ** — the *failure register*. Holds the value ε when no failure is in flight; holds a failure value `φ` when a failure is propagating. `φ` is a triple `(message, payload-pointer, witness)` where:
+  - `message` is the failure message's identifier (per §4.1).
+  - `payload-pointer` is either null (for payload-less messages) or a pointer to the payload value's storage.
+  - `witness` is either null (for payload-less messages) or a pointer to the typeclass dictionary for the (concrete-payload-type, message's-payload-class) pair (§4.7).
+
+- **Σ** — the *variable state*. A mapping from in-scope names to slot identities and contents, partitioned by frame. The notation `σ/c` denotes σ bound within the lexical scope of the verb c.
+
+A program executes by repeated application of reduction rules; the rules collectively transform ⟨V, Φ, Σ⟩ to a new triple ⟨V', Φ', Σ'⟩.
+
+### F.2 Reduction Rules
+
+The reduction rules are presented in the form `⟨V, Φ, Σ⟩ → ⟨V', Φ', Σ'⟩`. The rules form a small-step semantics.
+
+**R1 — Sequential composition.** A verb `c₁; c₂` (semicolon-separated, or block-marker-sibling-separated) reduces by running c₁ first; if Φ remains ε, control proceeds to c₂; if Φ becomes non-ε (a failure fires), c₂ is skipped via the failure-skip rule.
+
+```
+⟨c₁; c₂, ε, Σ⟩ → ⟨c₁ →c₂, ε, Σ⟩
+⟨c₁; c₂, φ, Σ⟩ → ⟨c₂, φ, Σ⟩         (failure-skip)
+```
+
+**R2 — Successful exit of a verb.** When `c₁` reduces fully without producing a failure, the continuation runs:
+
+```
+⟨c₁ →v, ε, Σ⟩ → ⟨v, ε, Σ⟩            (when c₁ has fully reduced and Φ = ε)
+```
+
+**R3 — Failure firing (`.fail`).** The `.fail Name: payload` directive populates Φ:
+
+```
+⟨.fail Name: payload, ε, Σ⟩ → ⟨ε, (Name, &payload, W), Σ⟩
+```
+
+where `W` is the witness selected at the `.fail` site for the (concrete-payload-type, Name's payload class) pair, and `&payload` is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
+
+**R4 — Failure propagation through siblings.** With Φ non-ε, the next ordinary statement at the same indentation level is skipped:
+
+```
+⟨c, φ, Σ⟩ → ⟨ε, φ, Σ⟩                (the next statement is skipped; control still advances)
+```
+
+(The rule is implicit in R1: a non-ε Φ causes subsequent c's to skip.)
+
+**R5 — Scope boundary.** Entering a recovery context (a block-marker construct with a body) introduces a scope verb `scope(c)`; exiting it produces a scopefail or scoperestore based on whether the body's failure was consumed.
+
+```
+⟨scope(c), ε, Σ⟩ → ⟨c →scopepop, ε, Σ⟩
+⟨scope(c), φ, Σ⟩ → ⟨recover(φ, Σ, c) →scopepop, ε, Σ⟩    (recovery engages)
+```
+
+**R6 — Recovery engagement.** A `|`-with-spec block engages on a propagating failure whose message matches the spec:
+
+```
+⟨recover(φ, Σ_pre, c), ε, Σ⟩ → ⟨c[binding := φ's payload], ε, Σ ∪ {binding}⟩
+                                              if φ.message ≤ spec
+                                              otherwise → ⟨ε, φ, Σ_pre⟩  (propagate past)
+```
+
+**R7 — Guard-bearing block engagement.** A `?`, `?-`, or `?:` block runs its guard; the body engages based on guard outcome:
+
+```
+⟨? guard body, ε, Σ⟩ → ⟨guard →when(body), ε, Σ⟩
+⟨when(body), ε, Σ⟩ → ⟨body, ε, Σ⟩           (guard succeeded)
+⟨when(body), φ, Σ⟩ → ⟨ε, ε, Σ⟩              (guard failed; failure consumed)
+```
+
+Analogous rules for `?-` (engage on guard failure), `?:` (chain semantics: first guard to succeed engages, chain exits).
+
+**R8 — Rewind.** A `^` block re-enters the preceding sibling on body success:
+
+```
+⟨^ body, ε, Σ⟩ → ⟨body →rewind_to_preceding, ε, Σ⟩
+⟨rewind_to_preceding, ε, Σ⟩ → ⟨preceding_sibling →^body, ε, Σ⟩
+⟨^body's body, φ, Σ⟩ → ⟨ε, ε, Σ⟩      (body failed; loop exits)
+```
+
+**R9 — Frame entry.** A command call introduces a new frame. The callee's frame is allocated; arguments are copy-restored into the callee's slots per their modes (§6.4). The current frame's slots remain in scope but are not directly accessible to the callee.
+
+**R10 — Frame exit (success).** When a command body reaches a `clear` exit, the frame retires. `@`-blocks and `@!`-blocks registered against this frame fire in reverse registration order. After all blocks fire, the frame's storage is reclaimable.
+
+```
+⟨frame_exit, ε, Σ⟩ → fire @-blocks in reverse → reclaim frame → ⟨..., ε, Σ_caller⟩
+```
+
+**R11 — Frame exit (failure).** When a command body reaches a `failing` exit, the failure propagates. `@`-blocks fire (every-exit) and `@!`-blocks fire (failure-only) in reverse order, then the failure continues propagating to the caller's frame.
+
+```
+⟨frame_exit, φ, Σ⟩ → fire @-blocks and @!-blocks in reverse → propagate φ → ⟨..., φ, Σ_caller⟩
+```
+
+The originating-frame deferred-retirement rule of §4.12 applies: the frame holding the payload value cannot retire until consumption, but the `@` and `@!` blocks fire at the failure-exit moment (before consumption).
+
+### F.3 Frame Model
+
+A *frame* is the operational unit corresponding to a single command invocation. Each frame has:
+
+- **Slot storage** — bytes for the frame's parameters, locals, and other named storage.
+- **Block-marker registration list** — the `@` and `@!` blocks registered within this frame, in order of registration.
+- **Failure slot** — three words holding any in-flight failure originating from this frame.
+- **Caller link** — a pointer to the calling frame, for control return.
+
+Frames are allocated on the call stack at frame entry and retired at frame exit. Retirement reclaims the slot storage; deferred retirement (§4.12) postpones reclamation when the frame is the originating frame of an in-flight failure.
+
+### F.4 The Failure Slot
+
+The failure slot is a fixed-size three-word structure populated at `.fail` and consumed at recovery:
+
+- **Word 1: Message identifier.** A small-integer tag identifying which message type is in flight. Resolved at compile time to a unique-per-program identifier; the message-hierarchy descent rules (§4.9) use this identifier directly.
+- **Word 2: Payload pointer.** Pointer into the originating frame's storage; the payload value's address. Null for payload-less messages.
+- **Word 3: Class witness.** Pointer to the typeclass dictionary for the (concrete-payload-type, message's-payload-class) pair. Constructed at compile time and emitted at the `.fail` site. Null for payload-less messages.
+
+Failure propagation copies the three-word slot up the call stack without moving the payload value itself. The payload stays put in the originating frame's storage until a recovery handler binds it, at which point the value moves into the recovery frame.
+
+### F.5 Holding-Frame Discipline
+
+A payload value's *holding frame* is the frame whose slot storage currently contains the value. The holding-frame model (§4.11):
+
+- **Initial holding frame.** When `.fail Name: payload` fires, the payload value resides in the firing frame's slot storage. That frame becomes the holding frame.
+- **Propagation.** As the failure propagates up the call stack, the holding frame does *not* change — only the failure-slot triple (message, pointer, witness) is copied. The payload value stays in its originating frame's storage.
+- **Binding event.** When a `|`-with-spec recovery engages, the bound payload value moves from its originating frame to the recovery frame. The holding frame becomes the recovery frame; the originating frame's payload storage is now invalid for this value (the move is the value's transfer).
+- **Re-fail event.** When a recovery handler re-emits the payload as a fresh failure (§4.10), the value moves into the new originating frame. The holding frame becomes the new originating frame.
+- **Consumption event.** When a recovery handler completes without re-failing, the value is consumed; the holding frame retires normally.
+
+The model describes the value's location across the failure-flow path. The `@` and `@!` block-marker registrations remain frame-bound (per §3.13, the block markers are not value-bound).
+
+### F.6 The Frame-Exit Hook Discipline (Block-Form Only)
+
+`@`-blocks and `@!`-blocks registered within a frame's body fire at that frame's retirement (§3.13). The discipline:
+
+- **Registration time.** A `@ body` or `@! body` block at the source level adds the block to the current frame's registration list. The block is registered at the point of execution flow, not at the body's source-level declaration: a `@ body` inside a conditional is registered only if the conditional engages.
+- **Firing order.** At frame retirement (success or failure exit), blocks fire in *reverse registration order*. The most-recently-registered block runs first.
+- **Failure-exit filtering.** `@!` blocks fire only when the frame exits via failure (Φ non-ε at exit). `@` blocks fire on every exit.
+- **No value-attached firing.** Frame-exit hooks are not tied to any value's lifetime; they are tied to the frame's retirement. A value that has moved out of the frame (via failure-payload move, etc.) is not in the registration list's responsibility.
+
+### F.7 The Single-In-Flight Invariant
+
+At most one in-flight failure exists per thread at any moment (§4.12). This is maintained by:
+
+- `.fail` is valid only when Φ = ε at the firing point. A propagating failure would have failure-skipped past the `.fail` site already, so the case where Φ is non-ε at a `.fail` site doesn't arise in well-formed code.
+- A recovery `|`-block consumes the in-flight failure before any new statement (including a new `.fail`) is reached in the handler body. So Φ is back to ε when the handler body runs.
+
+Multi-threaded programs may have one in-flight failure per thread; the invariant is thread-local.
+
+### F.8 Object Lifetime Ceiling
+
+An object's lifetime is bounded by its *introducing frame* (§5.11):
+
+- The frame in which an object's storage is introduced is the object's lifetime ceiling.
+- A `^Object` parameter passed downward gives the callee access; the callee does not become the owner.
+- A productive `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the caller's frame on successful copy-restore.
+- Transitive containment: an object embedded as a field of another object inherits the containing object's lifetime ceiling.
+
+At frame retirement, every object whose lifetime ceiling is this frame is reclaimed.
+
+### F.9 Variant Three-Word Slot
+
+A variant slot occupies three words (§5.12):
+
+- **Word 1: Tag.** A small-integer identifier for the active candidate or for the absent state.
+- **Word 2: Candidate pointer.** Pointer to the active candidate's storage. Null when the variant is in the absent state.
+- **Word 3: Class witness.** Pointer to the witness for the active candidate's class participation (when applicable). Null when no class dispatch is engaged for this variant.
+
+A variant's bytes are *not* a value-copyable byte aggregate — the candidate-pointer references shared storage (§7.6). Variant assignment uses the constructor form `${...}` or shares access via `^Variant` pointer.
+
+### F.10 Class-Typed-Value Three-Word Slot (Case B)
+
+An existential class-typed parameter slot (§9.9 Case B) carries a three-word representation:
+
+- **Word 1: Tag.** Identifies the runtime type of the held value.
+- **Word 2: Value pointer.** Pointer to the value's storage.
+- **Word 3: Class witness.** Pointer to the (runtime-type, declared-class) instance dictionary.
+
+The witness is selected at the construction site (where the value is converted to its class-typed slot); the tag is the runtime type's identifier. Dispatch through the slot consults the witness's method table.
+
+### F.11 Frame-Exit Hook Firing Sequence
+
+The full firing sequence at frame retirement:
+
+```
+1. Identify retirement type (success or failure exit).
+2. For each registered block in reverse registration order:
+   a. If block is @, fire its body.
+   b. If block is @! and retirement is failure-exit, fire its body.
+   c. (If block is @! and retirement is success-exit, skip.)
+3. Reclaim slot storage (unless deferred-retirement state is active per F.7).
+4. Return to caller's frame.
+```
+
+A failure during a block's body propagates per the standard rules — the block's body is itself a frame-bound context. The single-in-flight invariant (F.7) prevents a block-fired failure from coexisting with the outer failure: blocks fire from a no-active-failure state, and any failure they fire is consumed locally or propagates to the caller's frame after the outer failure has already advanced.
+
+### F.12 Per-Invocation Fexpr Frame (`F`)
+
+The D/I/F three-frame model of §8.5 specifies a *virtual* per-invocation frame `F` for each fexpr invocation:
+
+- `D` — the defining frame (where the fexpr was constructed). Holds the slots the fexpr's body accesses by free-name resolution.
+- `I` — the invoking frame (where the fexpr is invoked). May be `D` itself or any deeper frame.
+- `F` — the fexpr-execution frame. A virtual sub-frame within `D`'s scope; the fexpr's body executes as if inlined at `D` at the invocation site `I`.
+
+The operational mechanism: at fexpr invocation, the fexpr's body runs against `D`'s state with its free names resolving to `D`'s slots. `F` is virtual — it does not allocate fresh slots; it shares `D`'s storage. The body's effects are mutations of `D`'s state at `I`'s execution point.
+
+### F.13 Witness Construction
+
+At a `.fail` site (or at any class-typed value construction site), the class witness is selected at *compile time* from the visible instances at that point in the source. The witness construction:
+
+1. The typechecker has the concrete payload type `T` (from the expression supplied at `.fail`).
+2. The typechecker has the message's payload class `C` (from the message declaration's `[PayloadType]` clause).
+3. The typechecker locates the visible instance `T : C` declaration and selects its dictionary.
+4. The dictionary pointer is emitted as the third word of the failure slot at the `.fail` site.
+
+No runtime witness construction is required. The covariance rule for payload classes (§9.17) ensures that even when a failure travels up a hierarchy of messages with related payload classes, the witness selected at `.fail` time supports the broader-class operations through standard class-system subsumption (the witness's dictionary contains all parent-class methods).
+
+### F.14 Operational Summary
+
+Basis's operational semantics is small: 11 reduction rules, four slot structures (failure, variant, class-typed Case B, frame's failure slot), one lifecycle table (frame entry/exit and retirement). The model is conservative — no implicit dispatch, no hidden control flow, no garbage-collection daemons. Every reduction step is locally determined by the current verb, the failure register, and the lexical state — meeting the no-non-local-state and no-hidden-control-flow commitments of §1.4.
+
+---
+
+## Appendix G. Identifier Resolution and Name Binding
+
+This appendix specifies how names are resolved at use sites: which scope holds a given binding, in what order scopes are searched, and how the language's identifier-shape distinction interacts with the resolution algorithm.
+
+### G.1 Lexical Scope
+
+Basis uses *lexical* scoping: a name's binding is determined by the source structure surrounding the use site, not by the call stack at runtime. Scopes are introduced by:
+
+- **Module scope.** Each module forms a top-level scope containing all its top-level declarations.
+- **Command body scope.** Each command body (including subcommand bodies, class-method bodies, lambda bodies, fexpr bodies) forms a scope that contains the command's parameters, implicit context parameters, and any locals introduced via `#name` placement.
+- **Block-marker body scope.** Each block-marker construct (`?` body, `?:` body, `|` body, `@` body, etc.) introduces a sub-scope inheriting from its enclosing scope. Names introduced inside a block-marker body are visible only within that body.
+- **Subcommand body scope.** A subcommand's body has its own lexical scope per §3.12; the subcommand does *not* capture from the enclosing command's scope.
+
+A scope holds a set of `(name, type, mode)` triples. Multiple bindings of the same name in the same scope is a static error (§6.3's same-scope rule for identifier shapes specifically).
+
+### G.2 Identifier-Shape Distinction
+
+A name binding in a scope is associated with an identifier shape per the mode of the binding:
+
+- READ binding: the name resolves as `name`.
+- PRODUCE binding: the name resolves as `'name`.
+- REFERENCE binding: the name resolves as `&name`.
+
+The lexer emits one of these three identifier-token-shapes per use site (per A.2). The resolution algorithm searches for a binding whose identifier shape matches the token shape at the use site.
+
+**Same-scope rule (§6.3).** A scope may contain at most one binding of any given name across the three identifier shapes. Introducing `x` and `'x` in the same scope is a static error: the two refer to the same logical name with conflicting mode contracts, and the language refuses to admit the ambiguity. The rule prevents the bug-prone pattern of having the same name available in two different modes within a single body.
+
+The rule applies to bindings *within a single scope only*; nested scopes may rebind the name at different modes if needed (shadowing).
+
+### G.3 Same-Scope Rule Enforcement
+
+At each scope's construction (during parsing or during typechecking, depending on implementation), the typechecker verifies the same-scope rule:
+
+```
+For each scope S:
+    For each pair of bindings (b1, b2) in S:
+        If b1.name == b2.name (regardless of identifier shape):
+            Static error: name 'X' bound multiple times in same scope
+```
+
+The check operates on the underlying name (after stripping any `'` or `&` prefix); the three identifier shapes are recognized as the same name.
+
+### G.4 Name Resolution at Use Site
+
+At each use site, the typechecker searches scopes in the following order, returning the first binding found:
+
+1. **Current lexical scope.** The scope of the enclosing block-marker body, command body, or subcommand body.
+2. **Enclosing scopes.** Each successively outer scope, walking up the lexical-nesting chain.
+3. **Module scope.** Top-level declarations within the current module.
+4. **Imported module scopes.** Names imported via `.import` declarations (see §2.4 and Appendix H.2).
+
+For subcommands (§3.12), the resolution chain skips the enclosing command's body scope when resolving a name used inside a subcommand body — the subcommand does not capture. The chain instead goes from the subcommand's own scope directly to:
+
+- Sibling subcommands' names (siblings are reached through the enclosing body's sibling-subcommands set).
+- Enclosing subcommand bodies' siblings (if nested).
+- Outermost enclosing command's module scope.
+- Imported modules.
+
+The skip is per §3.12: subcommands "do not capture from the enclosing frame; they get their inputs from their formal parameters."
+
+### G.5 Type-Name Resolution
+
+Type names (uppercase initial) are routed to a parallel namespace from value-identifier names (lowercase initial):
+
+- The lexer distinguishes type-name tokens from value-identifier tokens at lex time (per A.3).
+- Type-name resolution searches the same scope chain but matches against type declarations only.
+- A type name in expression position (after a `:` in a type expression, or before `::` in a method call) resolves to a `.class`, `.domain`, `.record`, `.union`, `.object`, `.variant`, `.alias`, `.enum`, or `.msg` declaration.
+
+Module-qualified type names `Module::TypeName` route through the imported-module's namespace per §2.4 / Appendix H.2.
+
+### G.6 Class-Name Resolution
+
+Class names are type names with the additional admittance at parameter positions for the `(T:Class)` constraint form (§9.9) and as standalone parameter types for the existential class-typed-parameter form (Case B of §9.9):
+
+- In a `(T:C)` constraint, `C` resolves as a type name to a `.class` declaration.
+- As a parameter type (without constraint), a class name `C` resolves as a type name; the parameter's runtime representation is the three-word slot (Case B per §9.9, F.10).
+
+The class-name namespace is shared with the type-name namespace — a name like `Showable` is both a type expression and a class. Distinguishing class declarations from non-class type declarations is by checking the declaration kind at the resolution site.
+
+### G.7 Method-Name Resolution Under `::`
+
+The `::` operator is the scope operator (§1.5). Its role at name resolution depends on the LHS:
+
+- **Object/class-typed receiver.** `obj :: methodName` resolves `methodName` in the namespace of the class(es) `obj`'s type is an instance of. If multiple classes contain a method of this name, the resolution is ambiguous; the user disambiguates with `{ClassName :: methodName}` (§9.10, the `{C::method}` form, B.15).
+
+- **Type prefix.** `TypeName :: identifier` resolves identifier as a static member of `TypeName` (e.g., a class method declared via `.cmd ClassName :: methodName: ...` form). In §9.4 this is the top-level form for instance methods.
+
+- **Module prefix.** `ModuleName :: TypeName` (or `ModuleName :: identifier`) resolves through the imported-module's namespace.
+
+- **Aggregate field access.** `aggregate :: fieldName` (or `aggregate :: 1`, `aggregate :: 2` for positional) accesses an aggregate-literal field.
+
+The disambiguating context for `::` is the LHS's type and the namespace's contents.
+
+### G.8 The `{C::method}` Disambiguation Form
+
+When a method name is overloaded across multiple visible classes, the `{ClassName :: methodName}` form (B.15) explicitly disambiguates which class's method is intended:
+
+```
+{Showable :: show}             ; resolves to Showable's show method specifically
+{Showable :: show: x}          ; with partial application
+```
+
+The form is part of the command-reference family — it produces a command-typed value with the receiver position open for the eventual call. The disambiguation is parser-side; the resulting command-typed value carries the specific class binding.
+
+The form is necessary when:
+
+- A method name like `show` is defined on two visible classes that both apply to a target type.
+- The user wants to be explicit about which class's instance dispatches.
+
+In ordinary calls `obj :: show`, the dispatch is by the most-specific class containing `show` that `obj`'s type is an instance of; ties are static errors with the `{C::method}` form as the resolution mechanism.
+
+### G.9 Module-Qualified Names
+
+A module-qualified name `Module::Name` (or `Module::SubModule::Name`) resolves through the import graph:
+
+1. The current module's `.import` declarations specify which modules are visible.
+2. The qualified name's leading segment `Module` must match an imported module's name (or its alias if `.import Module as Alias`).
+3. Subsequent segments resolve within that module's namespace.
+
+Module-qualified type names share the type-name namespace; module-qualified value-identifier names share the value-identifier namespace. The same `::` operator is used uniformly.
+
+### G.10 Shadowing
+
+Inner scopes may shadow outer scopes' bindings:
+
+```
+.cmd outer: Int x =
+    .sub inner: =
+        # Int x <- 42        ; this 'x' shadows the outer 'x'  
+        ; but wait — inner is a subcommand, which doesn't capture, 
+        ; so the outer 'x' was never in scope here anyway
+        ...
+    
+    inner:
+```
+
+For subcommand bodies, "shadowing" is moot — the outer scope's names aren't visible to begin with. For block-marker bodies and other lexical sub-scopes, ordinary shadowing applies: a name introduced inside the inner scope hides any outer binding of the same name within that scope.
+
+The same-scope rule (G.3) prohibits intra-scope shadowing across identifier shapes; cross-scope shadowing (an inner scope introducing a binding of the same name) is admitted.
+
+### G.11 Forward References
+
+Top-level declarations are forward-referenceable within a single source file — every top-level name is visible throughout the file once declared, regardless of source-position order (per §2.2). This admits:
+
+```
+.cmd factorial: Int n, Int 'result =
+    helper: n, 1, 'result
+
+.cmd helper: Int n, Int acc, Int 'r = ...      ; declared after factorial
+```
+
+The file's top-level declarations are collected into the module scope before name resolution begins. Source-position order within a single file is not significant for visibility.
+
+Cross-file references require `.import` declarations (§2.4); the import statement makes another module's top-level names visible at the current source file.
+
+### G.12 Resolution Failure Cases
+
+A name resolution that finds no binding is a static error: "name `X` not in scope." The error message indicates the scope chain that was searched and which top-level/imported scopes were considered.
+
+A name resolution that finds multiple bindings (e.g., two imported modules both export a name `X`) is also a static error: "name `X` ambiguous between modules `M1` and `M2`." The user resolves with explicit module qualification: `M1::X` or `M2::X`.
+
+A use-site identifier shape that does not match any binding's shape is a more specific error: "no `'x` binding in scope at this position; `x` is bound at READ mode." This catches typos that confuse the user about a binding's mode.
+
+---
+
+## Appendix H. Module System and Instance Visibility
+
+This appendix specifies the module system that links Basis source files into compilation units, the import declaration's full surface, the visibility rules governing what is exported from a module, and the instance-visibility and instance-coherence rules that govern cross-module class participation.
+
+### H.1 Module Declaration
+
+A Basis source file may begin with a single `.module` declaration:
+
+```
+.module App::Domain::User
+```
+
+The `.module` directive names the module that the file's declarations belong to. The module name is `::`-qualified; segments form a hierarchy where `App` contains `Domain` contains `User`. A file with no `.module` declaration declares an anonymous unnamed module containing the file's declarations only.
+
+The module hierarchy is the structural basis for *module specificity* in the instance-coherence rule (H.5).
+
+### H.2 Import Declarations
+
+Imports admit two surface forms:
+
+**Named-module import:**
+
+```
+.import Other::Module
+.import Other::Module as Alias
+```
+
+The named form makes a previously-declared module's exports visible at the current source file. Without the `as` clause, the imported module's exports are reachable by their declared names with `Other::Module::` qualifier. With `as Alias`, the qualifier becomes `Alias::`.
+
+**File-path import:**
+
+```
+.import "some/file.basis"
+```
+
+The file-path form admits direct linking by file path; the imported file's module declaration determines the imported namespace. This form is useful for incremental development and for files that aren't yet placed in the module hierarchy.
+
+Multiple imports may be combined:
+
+```
+.import Standard::Strings
+.import App::Domain::User as User
+.import "helpers/internal.basis"
+```
+
+Imports are processed at the file's lexical start, before any top-level declarations; cycles in the import graph are a static error.
+
+### H.3 Visibility Rules
+
+Every top-level declaration in a module is exported by default. There is no `private` or `internal` keyword to restrict visibility. The user resolves "private helpers" by either:
+
+- Placing the helper at body-internal scope (using `.sub`, §3.12).
+- Placing the helper in a separate module that is not imported by any module outside the intended scope.
+
+The visibility rules in detail:
+
+- A top-level declaration `D` in module `M` is visible in module `N` if and only if `N` has an `.import M` declaration (with or without aliasing).
+- Subcommand declarations (`.sub`) are *not* exported — they are confined to their enclosing command's body per §3.12.
+- Class members declared with `.decl` (signature-only) are visible to instance writers; class members declared with `.cmd` (default implementations) are visible to instance writers and to method dispatch sites.
+- Instance declarations (`.instance T : C`) are visible whenever both `T`'s module and `C`'s module are visible at the current source file (transitive closure of imports).
+
+### H.4 Instance Visibility
+
+An `.instance T : C` declaration in module `M` is visible to any source file whose import graph reaches both `T`'s declaration module and `C`'s declaration module. This admits *orphan instances*: an instance whose `T` is declared in one module and whose `C` is declared in another, with the instance itself declared in a third module that imports both.
+
+The motivating use case is consumer-driven extensibility: a downstream module can adapt an existing type to satisfy an existing class without modifying either's source. Orphan instances are admitted in Basis (per §9.15); the cost is the cross-module coherence question (H.5–H.6).
+
+The import graph is the transitive closure of `.import` declarations. If module `M` imports `T_module` and `C_module`, and the user's current file imports `M`, then `M`'s instance `T : C` is reachable transitively at the current file.
+
+### H.5 Instance Coherence Resolution Algorithm
+
+Multiple visible modules may each declare an `.instance T : C` for the same `(T, C)` pair. The conflict-resolution rule (§9.15): **most-specialized module wins**.
+
+The full algorithm:
+
+1. **Collect candidates.** At a dispatch site where an instance `T : C` is needed, collect all visible modules that declare an instance for `(T, C)`.
+
+2. **Specificity ranking.** Module `M1` is more specific than module `M2` if `M1`'s declaration site is "more specialized" in the module hierarchy. The specificity ordering (provisional, refined per Appendix I if needed):
+
+   - **Sub-module is more specific than parent module.** `App::Models::User` is more specific than `App::Models`, which is more specific than `App`. A submodule's instance wins over a parent module's instance when both are visible.
+   
+   - **Importing-module is more specific than imported-module.** A module that declares an instance for an imported type-and-class pair is more specific than the upstream module that didn't declare it.
+   
+   - **Co-declared-with-T wins over co-declared-with-C, with both winning over orphan.** If an instance is declared in `T`'s home module, it wins over an instance declared in `C`'s home module, which wins over a third-party orphan.
+
+3. **Uniqueness check.** If exactly one candidate is most-specific (strictly more specific than all others), it is selected. The dispatch succeeds.
+
+4. **Ambiguity error.** If multiple candidates are equally specific (incomparable in the specificity ordering), the dispatch is ambiguous and is rejected with a static error. The user resolves by:
+   - Adding an explicit `.instance` declaration in a more-specific module.
+   - Using the `{C::method}` disambiguation form (§9.10) to specify which class's method is intended.
+
+5. **Stale-import warning.** A warning is emitted if the import graph causes the ambiguity (rather than a same-module declaration); see H.6.
+
+### H.6 Import-Time Competition Warning
+
+When a module's import graph causes two different upstream modules' instances of the same `(T, C)` to become reachable, an import-time warning fires:
+
+```
+Warning: importing M1 and M2 brings two competing instances of (T, C) into scope.
+  M1's instance is at <location>.
+  M2's instance is at <location>.
+  The dispatch will use the most-specific instance per H.5; consider whether the
+  composition is intended.
+```
+
+The warning is informational — the language admits the import and resolves via H.5. The warning is suppressible via a mechanism whose exact surface is OQ-5 (forwarded to the implementation thread).
+
+The motivation for the warning: silent instance composition through transitive imports is a recurring class of bugs in extensible class systems. Surfacing the composition explicitly at import time gives the user a chance to inspect the resolution.
+
+### H.7 Domain-Hierarchy Extension
+
+Domain types (§5.3) admit downstream extension: a downstream module may declare a child of an imported domain.
+
+```
+; In module Upstream:
+.domain Length : Int32
+
+; In module Downstream:
+.import Upstream
+.domain Inches : Upstream::Length        ; child of imported domain
+```
+
+The implicit-upcast relation (§5.5) is structurally stable across this extension: every Inches subsumes to Length to Int32 to the buffer-backed root. The extension does not widen any other type's upcast set; the asymmetry is one-directional.
+
+The asymmetry with failure-message hierarchies (§4.9, H.8): domain hierarchies are *open* for downstream child extension, but failure-message hierarchies are *closed* (no downstream message can become a child of an imported message, except under the Liskov-style opening discipline per §9.17 if and when adopted).
+
+### H.8 Failure-Message Hierarchy Extension
+
+A downstream module *cannot* add new children to an imported failure-message hierarchy (§4.9). The set of messages at-or-below a given message is fixed at the original declaration sites.
+
+The rationale: silent extension of a hierarchy would silently widen any `| SomeRoot t -> ...` handler in code that uses the parent. The closed rule prevents this surprise.
+
+Under the Liskov-style opening discipline of §9.17, a payload-covariance constraint admits *covariant* child relationships: a child message's payload class must be a subclass of (or equal to) the parent's. This is a relaxation of the closed rule, but the relaxation is constrained — the child's payload class commits to providing all parent-class operations, so a parent-class handler still works correctly under the child's value.
+
+For v1, the closed rule is the baseline; the covariance opening is the path of relaxation as outlined in §9.17.
+
+### H.9 Cross-Module Visibility Summary
+
+| What | Where it's declared | What sees it |
+| --- | --- | --- |
+| Top-level type/class/cmd | Module M | Any module N that imports M |
+| Subcommand (`.sub`) | Body of cmd C | Only within C's body and deeper subcommand bodies |
+| Class member (`.decl`) | Class declaration in M | Any instance writer; any dispatch site |
+| Class member (`.cmd` default) | Class declaration in M | Any instance writer; any dispatch site |
+| Instance (`.instance T:C`) | Module N | Any module that has T and C visible |
+| Failure message (`.msg`) | Module M | Any module that imports M |
+| Failure-message child | Same module as parent | Closed; no downstream child extension |
+| Domain child | Any module that imports parent | Open; downstream extension admitted |
+
+### H.10 Module-Specificity Algorithm Details
+
+The full algorithm for ranking module specificity (H.5 step 2):
+
+Given two modules `M1` and `M2`:
+
+```
+function more_specific(M1, M2):
+    if M1 is a submodule of M2: return M1
+    if M2 is a submodule of M1: return M2
+    
+    if M1 contains a declaration of T or C, and M2 does not: return M1
+    if M2 contains a declaration of T or C, and M1 does not: return M2
+    
+    if both contain or neither contains T/C: return incomparable
+```
+
+The "submodule of" relation: `App::Models::User` is a submodule of `App::Models`, which is a submodule of `App`. Submodule-of is determined by the `::`-qualified name's prefix relation.
+
+Cross-tree imports (modules in unrelated subtrees of the module hierarchy): both modules are equally specific if neither is a submodule of the other and neither contains T or C. The resolution is incomparable — a static error per H.5 step 4.
+
+---
+
+## Appendix I. Open Questions
+
+This appendix catalogs open questions remaining in the v1 specification: items deferred to the implementation thread, items whose surface syntax remains tentative, and items registered for future revision. Each entry indicates current status, the originating section, and the resolution direction (if any).
+
+The catalog is organized into three groups: **active** (still genuinely open), **forwarded** (open elsewhere, owned by a specific later thread), and **resolved-but-recorded** (settled in the current spec body, listed here for cross-reference).
+
+### I.1 Active Open Questions
+
+These are open in v1 and not yet routed to a specific resolver. Each will be addressed in a later iteration of the specification or via a follow-on design dialog.
+
+**OQ-26.1 — Implicit failure sets and explicit-at-module-boundaries.** §4.9 records the partial direction: failure sets are required-explicit at module boundaries (anything exported must annotate), with intra-module inference permitted. The exact surface syntax and the inference algorithm are open.
+
+*Originating section:* §4.9.
+*Direction:* Required-explicit-at-boundary; intra-module inference.
+*Status:* Direction set; concrete surface and algorithm not yet specified.
+
+**OQ-26.2 — Failure-tag declaration and recovery-spec surface syntax.** §4.9 records the `.msg` declaration form as tentative, and §4.4 records the `|`-with-spec form (`| Name name -> body`) as a placeholder. The final surface for both is open.
+
+*Originating section:* §4.9, §4.4.
+*Direction:* Placeholders shown in the spec; final surface to be settled with implementation experience.
+*Status:* Open.
+
+**OQ-26.3 — Recovery narrowing precision.** §4.13 / Appendix E.3 records that `|: Name name -> body` consumes failures at-or-below Name. The narrowing of the propagating-set component of the failure-state lattice can be either *precise* (set minus at-or-below closure of Name) or *conservative* (no narrowing, treat all remaining failures as still possible). The choice affects post-recovery analysis precision.
+
+*Originating section:* §4.13 / Appendix E.3.
+*Direction:* Tentative — precise narrowing where the message hierarchy admits it; conservative otherwise. Implementation can begin with conservative and refine.
+*Status:* Open.
+
+**OQ-26.4 — Higher-order propagation form.** §4.9 records that there is no current surface for "my failure set is the union of my callees' sets, plus what I add directly," needed for higher-order commands taking callable parameters. Without it, every higher-order command must list every failure its callees might emit (similar to Java's `throws` combinatorial pressure).
+
+*Originating section:* §4.9.
+*Direction:* Open. A union-style surface form (e.g., `fails: callee.fails | {MyOwn}`) is one candidate; an annotation-elision rule for higher-order commands is another.
+*Status:* Open.
+
+**OQ-27 — Top-level failure handling.** §1.4 records that `.program` and `.test` directives are the only contexts in which top-level failures are terminally consumed. The precise relaxations for these directives — what failures they consume, what diagnostics they produce, how testing frameworks invoke them — are open.
+
+*Originating section:* §1.4.
+*Direction:* Open. Likely: `.program` and `.test` each have a uniform top-level failure handler; specifics deferred to standard-library design.
+*Status:* Open.
+
+**OQ-28 — Cross-module failure-message hierarchy extension.** §4.9 records that downstream modules cannot extend an imported failure-message hierarchy. The rule is provisional; a relaxation under controlled conditions (e.g., an explicit "open hierarchy" declaration on the originating message) is being considered.
+
+*Originating section:* §4.9.
+*Direction:* Tentative — closed by default; perhaps an opt-in opening declaration. Refined under §9.17's Liskov-covariance rule for payload classes.
+*Status:* Open under the §9.17 covariance framework; concrete syntax for opt-in opening not yet specified.
+
+**OQ-30 — Heap allocation language-level mechanism.** Basis does not yet have a syntax for explicit heap allocation. All allocation is frame-bound (per §1.5's region-style-reclamation latent constraint). Cases needing long-lived storage — caches, async-style futures, etc. — currently route through specific standard-library types whose internals use the platform allocator. The language-level mechanism for direct heap-allocation primitives is open.
+
+*Originating section:* §1.5 (mentioned in the latent-region-reclamation principle).
+*Direction:* Open. The conservative direction: keep allocation in standard-library types; admit `^T` ownership patterns at the type level without a dedicated allocation primitive in the language surface.
+*Status:* Open.
+
+**OQ-31 — Tuple-style positional access via `Bar::N`.** §5.4 / §7.4 records that positional aggregate fields can be accessed via `aggregate :: 1`, `aggregate :: 2`, etc. The exact admittance of numeric indices in `::` position — and whether numeric indices are admitted on non-aggregate types — is open.
+
+*Originating section:* §7.4.
+*Direction:* Tentative — admitted only on `Aggregate`-typed slots. Other use cases (e.g., tuple-like access on records) are open.
+*Status:* Open.
+
+**OQ-32 — Fexpr-typing ramifications.** §8.5, §6.15 cover the fexpr-relevance discipline. Three sub-items remain:
+
+- **Fexpr-typed return-from-call edge channels.** When a call's result is fexpr-typed, the taint flow into the caller's frame is conservative. Specific cases where the typechecker can reason more precisely are open.
+- **Transitive variant-fexpr-candidate.** A variant whose candidate is a non-fexpr type that *contains* a fexpr-typed field is currently forbidden by transitive Restriction C (§8.13). Whether this is the right rule for all such cases is open.
+- **`-<` interaction with fexpr-typed slots.** Narrowing into a fexpr-typed candidate position is currently disallowed by Restriction D (§8.13). Whether this rule can be relaxed under specific containment is open.
+
+*Originating section:* §8.13 / §6.15.
+*Direction:* Open per sub-item.
+*Status:* Open.
+
+**OQ-33 — Variant-class-typed-parameter slot reuse-vs-wrap.** When a class-typed parameter (Case B per §9.9) receives a variant value, the slot reuse vs. fresh-wrap behavior at the call boundary is open. Reusing the variant's existing three-word slot saves an allocation; wrapping it in a fresh class-typed slot composes uniformly with non-variant class-typed inputs.
+
+*Originating section:* §9.9.
+*Direction:* Tentative — reuse the variant's slot where the runtime tag and witness agree; wrap otherwise. The exact disambiguation algorithm is open.
+*Status:* Open.
+
+**Record padding and layout.** §5.4 records that record layout is not yet pinned down. The choice between deterministic layout (no padding), implementation-determined layout (with a stability convention), and per-record `.packed` annotations is open.
+
+*Originating section:* §5.4.
+*Direction:* Tentative — admit implementation-determined padding with a stability convention; admit `.packed` for cases requiring deterministic layout.
+*Status:* Open; minor.
+
+### I.2 Forwarded Open Questions (Open Elsewhere)
+
+These are open in v1 but their resolution is owned by a specific later thread or downstream document.
+
+**OQ-2 — Implementation latitude for IN parameter passing.** Forwarded to the typechecker-implementation thread. The original question concerned how the typechecker tracks aliasing and access paths across IN parameter passing; v1 resolves with access-path taint and frame-local analysis (§6.5, §6.6), but implementation latitude on the algorithm is open.
+
+*Owner:* typechecker-implementation thread.
+
+**OQ-2.1 — Caller-side taint propagation across call boundaries.** Closed without action: cross-frame taint flow does not occur in Basis (§1.5's frame-locality principle). Listed here for cross-reference.
+
+*Owner:* closed.
+
+**OQ-2.2 — Value-disjoint vs. slot-view discrimination.** Closed without action: the buffer-backed containment rule (§1.5, §5.1) eliminates the case that would require this discrimination. Listed here for cross-reference.
+
+*Owner:* closed.
+
+**OQ-20 — Slash-list internal grammar.** Forwarded to the typechecker-implementation thread. The exact internal grammar of the `/`-prefixed implicit-context-parameter list — whether commas are required, how the slash binds against indentation — is open.
+
+*Owner:* implementation thread / Appendix A.7.
+
+**OQ-23 — `.inline` placement and remainder lexer disambiguation.** Forwarded to the implementation thread. The exact placement of the `.inline` modifier on record fields, and the small collection of remainder lexer-disambiguation items (e.g., the `<*>` form's interaction with `<` and `>` in adjacent positions), are open.
+
+*Owner:* implementation thread.
+
+**OQ-5 — Instance coherence resolution details.** Forwarded to the class-system / module-system implementation thread. The full algorithm specification is in Appendix H.5; the suppression mechanism for import-time competition warnings (H.6) is open.
+
+*Owner:* implementation thread.
+
+**OQ-6 — Partial application beyond receiver.** §9.14 records the full mechanics of partial application, including receiver baking and positional argument deferral. Specific corner cases (interactions with overload resolution; the receiver-elision rule's interaction with `(T:C)` constraints) are open.
+
+*Owner:* class-system implementation.
+
+**OQ-13 — Implicit context parameters and initialization.** §3.6 covers the resolution mechanism for implicit context parameters; the interaction with PRODUCE-mode implicit parameters and the initialization tracking across call boundaries is open.
+
+*Owner:* construction-system implementation / class-system implementation.
+
+**OQ-16 — Overloading restriction on dynamically-dispatched commands.** §9.10's overload resolution rules cover overloading at the static-dispatch surface; the restrictions on overloading within a class hierarchy (where dynamic dispatch interacts with overload resolution) are open.
+
+*Owner:* class-system implementation.
+
+**OQ-18 — Lambda visible-signature.** §8.4 covers lambda capture-list semantics; the user-visible signature of a lambda value (whether the capture list is visible or elided in the displayed type) is open.
+
+*Owner:* lambda-and-fexpr documentation / IDE-tooling thread.
+
+**OQ-21 — Capture-list interaction with implicit context parameters.** §6.10 / §8.4 cover the capture-list rules; the specific interaction with implicit context parameters (whether implicit context parameters can be captured, how they're resolved at lambda invocation) is open.
+
+*Owner:* lambda-and-fexpr implementation.
+
+**OQ-22 — Parameterized literal types in `.implicit`.** §7.10 covers `.implicit` registration; the exact rules for parameterized literal types (e.g., `Aggregate` with structured shape declarations) are open.
+
+*Owner:* construction-system implementation.
+
+**OQ-24 — Phasing of `.implicit` Aggregate/Sequence support.** The user-visible surface for `.implicit` on `Aggregate` and `Sequence` literal types (§7.10) is incremental: simple parameterless `.implicit` ships first; full structured-literal `.implicit` follows. The phasing schedule is open.
+
+*Owner:* construction-system implementation.
+
+**OQ-25 — Capture-shadowing.** §8.4 covers lambda captures; the rule for shadowing within a capture list (whether two captures of differently-named values can share a logical "current value" semantic) is open.
+
+*Owner:* lambda-and-fexpr implementation.
+
+**OQ-29 — Liskov-style opening of failure-message hierarchy.** Resolved in §9.17 with the payload-class covariance rule. Recorded here for completeness.
+
+*Owner:* resolved at §9.17.
+
+### I.3 Resolved-but-Recorded for Cross-Reference
+
+These OQs were registered in the design dialog but settled within the current spec body. They appear here so readers tracking historical OQ-numbers can find their resolutions.
+
+| OQ | Resolution | Location |
+| --- | --- | --- |
+| OQ-1 (variant half) | 3-word slot | §5.12, F.9 |
+| OQ-1 (union half) | Untagged byte overlay | §5.6 |
+| OQ-3 | `-> name` unified across READ/PRODUCE/REFERENCE | §3.7 |
+| OQ-4 | Default initialization story | §7.10, §7.11 |
+| OQ-7 | Fexpr design | §8.5 |
+| OQ-8 | At-stack mechanism (block markers only) | §3.13 (revised) |
+| OQ-9 | Whole-slot tracking | §6.13 |
+| OQ-10 | Composite initializers | §7.4–§7.5 |
+| OQ-11 | Marker syntax (identifier-shape) | §3.3, A.2 |
+| OQ-12 | Receiver modes (per-shape tables) | §3.10, §6.8 |
+| OQ-14 | Same-scope rule | §6.3, A.2, G.3 |
+| OQ-15 | `-<` dynamic-narrowing operator | §7.14, §7.15 |
+| OQ-17 | Compound literal syntax | §7.4–§7.5 |
+| OQ-19 | Reference marker placement | §3.3, A.2 |
+| OQ-26 family | Typed-failure design (with covariance) | §§4.6–4.10, §9.17 |
+| OQ-29 | Liskov-style failure-message hierarchy opening | §9.17 |
+
+### I.4 Question Form Conventions
+
+OQ entries throughout this spec follow the convention:
+
+```
+*Open question: OQ-N.* See Appendix I.
+```
+
+inline at the point where the issue is mentioned. The catalog above gathers all such references with their current status. Implementers and downstream readers can search the spec body for any OQ number to find the originating context and then consult this appendix for the disposition.
+
+The OQ numbering is sparse — gaps in the numeric sequence reflect resolutions that happened across multiple design dialogs without renumbering for compactness. The numbers themselves are stable references across the spec's revision history.
