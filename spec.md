@@ -1,6 +1,16 @@
 # Basis Language Specification
 
-Nota Bene: I'm leveraging Claude to summarize about two dozen smaller documents, so please forgive both the stilted prose and the occasional hallucination.  I'll be circling back to ensure everything's correct once the first draft is complete.
+**Status:** Working draft. This document consolidates the Basis design intent into a single specification that drives implementation work at the AST level — lexical structure, grammar, AST shape, typechecking rules, semantic analyses, and operational semantics. Material below the AST level (intermediate representation, code generation, runtime support library, standard-library design) is out of scope and not addressed here.
+
+**Date:** Session 1 (2026-05-06).
+
+**Provenance.** Distilled from the topic-organized references (`reference-failure-system.md`, `reference-operational-semantics.md`, `reference-type-system-and-modes.md`, `reference-construction-and-initialization.md`, `reference-lambda-and-fexpr.md`, `reference-class-system.md`), the project README, and the supporting checkpoint stream (CP001–CP017), with the corrections recorded in `project-drift-control.md` applied throughout. The intent captured in these documents is in some places ahead of the current parser implementation; the specification reflects the intended language, with implementation gaps tracked as work-plan items rather than spec compromises.
+
+**Authority hierarchy for this specification.** Where two project documents differ on the same matter, the later document is authoritative — concretely: the README and `project-drift-control.md` win where their coverage is clear; the topic-organized references win on their respective domains where the README is silent; the source checkpoints are historical and are cited only where their context aids understanding. The implementation source code (`Grammar2.cpp`, `Parsing2.cpp`, `test_grammar2.cpp` in the project repository) is reference material indicating what is currently parseable; it is a subset of what this specification covers and does not constrain the spec where the intent has moved beyond what the parser admits.
+
+**Notation conventions.** Type expressions use the form `Type 'name`, `Type &name`, or `Type name` for parameter and binding positions, with the mode marker as a prefix on the name. Class-constraint forms use `(T:Class)` for type-variable-bound parameters; `Class 'name` for existential class-typed parameters. Command-type expressions use `:<…>`, `?<…>`, `!<…>` for ordinary command-typed values and `:<*>`, `?<*>`, `!<*>` for fexpr-typed values. Decision-level cross-references between sections of this specification take the form *[§X.Y]*. References to forwarded open questions take the form *[OQ-N]*; the open-questions appendix lists every catalogued OQ. Reconciliation between this specification and the source documents is global and silent — where the source documents disagreed and this specification settles the disagreement, the resolution stands without inline marker.
+
+**Document organization.** The body of this specification (§§1–9) follows the README's outside-in structure, deepened to specification grade. The appendices (A–I) carry implementor-facing detail — lexical structure, full grammar, AST node taxonomy, typechecking rules in judgment form, the static analyses with their full transfer functions, the formal operational semantics, identifier resolution, the module system and instance-coherence algorithm, and the open-questions catalogue.
 
 ---
 
@@ -18,13 +28,13 @@ The language realizes a small set of guiding principles. Each principle has cons
 
 1. **Strong typing saves lives.** Every value has a static type; every parameter, local, and field is typed at declaration; every cross-type movement is either explicitly authorized (constructor invocation, `.implicit` declaration, `-<` dynamic narrowing) or rejected at typechecking. There are no runtime-typed values that escape the static layer.
 
-2. **No non-local state access.** A command body's reachable state arrives by an explicit chain of provision: parameters and receivers, implicit context parameters resolved from the caller's lexical scope, or captured-and-traveling state borne by a value the body operates on. No global mutable state, no ambient context, no thread-local storage, no module-level mutable singletons. The single carve-out is enumerations (§5.9), which are compile-time constants.
+2. **No non-local state access.** A command body's reached state arrives by an explicit chain of provision: parameters and receivers, implicit context parameters resolved from the caller's lexical scope, or captured-and-traveling state borne by a value the body operates on. No global mutable state, no ambient context, no thread-local storage, no module-level mutable singletons. The single carve-out is enumerations (§5.9), which are compile-time constants.
 
 3. **The fundamental datatype is a buffer.** Buffer-backed types — buffers, ranges, domains, records, unions — reduce transitively to bytes. They copy as bytes, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. Non-buffer types (pointers, command-typed values, objects, variants) are confined to top-level slots and object fields.
 
 4. **Mutation either succeeds fully or fails fully.** Every writeable parameter passing uses copy-by-value or copy-restore semantics: on success the callee's value is committed to the caller's slot atomically; on failure no write occurs and the caller's slot is bit-identical to its pre-call state. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs.
 
-5. **No hidden control flow.** Failures propagate, but only along structurally visible paths. There is no exception-with-stack-unwinding mechanism, no implicit dispatch through hidden vtables, no implicit destructor firing on member-field cleanup. Every control-flow effect is either explicit at the call site or marked by a block-construct in the source. The single exception, intentionally narrow, is the at-stack mechanism for frame-exit hooks (§3.12).
+5. **No hidden control flow.** Failures propagate, but only along structurally visible paths. There is no exception-with-stack-unwinding mechanism, no implicit dispatch through hidden vtables, no implicit destructor firing on member-field cleanup. Every control-flow effect is either explicit at the call site or marked by a block-construct in the source. The single exception, intentionally narrow, is the at-stack mechanism for frame-exit hooks (§3.13).
 
 6. **Polymorphism and statecharts aren't just for object types.** The class system (Haskell-style typeclass dictionaries) operates uniformly over buffer-backed types, non-buffer types, and command-typed values. Variants admit class-witness slots, supporting dispatch through the active candidate. The same dispatch and propagation patterns appear across variants, failure messages, and class-typed parameters.
 
@@ -88,9 +98,9 @@ Two principles shape what code in Basis is *able* to do. Both are stated as comm
 
 **No hidden control flow.** Every control-flow transition is either explicit at the call site (the `::` operator marks class dispatch) or marked by a block-construct in the source (a block marker establishes a recovery context). There is no `try`/`catch`/`finally` parallel; recovery is at sibling positions in the source structure, where the reader can identify them by inspection. There is no implicit destructor firing on object-field cleanup. There is no implicit conversion at parameter boundaries — the only implicit type movements are the buffer-backed parent-chain upcast and the `.implicit`-licensed literal coercion, both of which are statically determined. A reader of a command signature knows what may happen — the failure mark and the parameter list together name every effect — and a reader of a command body can identify every recovery context, every dispatch site, every place a failure may consume. Reasoning is signature-bounded.
 
-The single intentional exception is the at-stack mechanism for frame-exit hooks (§3.12). When a frame retires, registered `@`-handlers and `@!`-handlers fire alongside any explicit cleanup code. This is implicit in the sense that no source-line at the registration site invokes the handler; the handler runs as a consequence of the frame retiring. The mechanism is the language's RAII-equivalent — necessary for ergonomic resource management, and confined to a single, type-visible category (the `@` and `@!` declarations on a class).
+The single intentional exception is the at-stack mechanism for frame-exit hooks (§3.13). When a frame retires, `@`-blocks and `@!`-blocks registered within that frame's body fire alongside any explicit cleanup code. This is implicit in the sense that no source-line at the registration site invokes the handler; the handler runs as a consequence of the frame retiring. The mechanism is the language's RAII-equivalent — necessary for ergonomic resource management, and confined to a single, syntactically-marked category (the `@` and `@!` block markers within command bodies).
 
-**No non-local state.** A command body's reachable state arrives by an explicit chain of provision. There are three kinds of provision:
+**No non-local state.** A command body's reached state arrives by an explicit chain of provision. There are three kinds of provision:
 
 1. **Parameters and receivers.** A frame's caller passes state as named arguments at the call site; the state is locally bound to the parameter or receiver names within the body.
 
@@ -98,7 +108,7 @@ The single intentional exception is the at-stack mechanism for frame-exit hooks 
 
 3. **Captured-and-traveling state.** A value (such as a fexpr or a lambda) carries with it references to slots in some frame, established at the moment the value was constructed. When the value is later invoked, those references are part of the value's identity. The provision was made at construction time, not at invocation time. This is the language's closure mechanism (§8).
 
-Absence of any of these means absence of reach. A frame six levels above the current one is on the call stack, but if no explicit provision chain reaches up to it, its slots are unreachable from the current command. There is no mechanism by which a command can opt into reaching state that was not provisioned for it.
+Absence of any of these means absence of reach. A frame six levels above the current one is on the call stack, but if no explicit provision chain reaches up to it, its slots are not reached by the current command. There is no mechanism by which a command can opt into reaching state that was not provisioned for it.
 
 The two principles compose. The first restricts what a command can do *implicitly*; the second restricts what a command can *reach*. Together they make signature-as-documentation work: a command's signature names everything the command can affect, and the marks plus block structure describe everything that can happen control-flow-wise.
 
@@ -290,7 +300,7 @@ Indentation is the language's primary block-delimiter. A line indented under ano
 
 The `${…}` and `$[…]` literal-fence tokens introduce a single bracketed group each (the brace stack and bracket stack respectively), matched by a single `}` or `]`. The `$` prefix is unambiguous to the lexer — the `$` character has no other use in current Basis source — so `${` and `$[` are recognized as single tokens at lex time and contribute their bracket or brace to the stack. This eliminates the disambiguation problem the prior `{- … -}` and `[- … -]` forms presented (where a `{` followed by `-` could begin either a literal fence or a block-quote with a leading minus); the `$`-prefix is the v1 surface.
 
-The full lexer specification — the token classes, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.inline` modifier, the `<*>` typing surface for fexpr-typed slots, and the `(T:Class)` constraint form at v-command receiver positions — is given in Appendix A.
+The full lexer specification — the token classes, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.inline` modifier, the `<*>` typing surface for fexpr-typed slots, and the `(T:Class)` constraint form at method receiver positions — is given in Appendix A.
 
 
 ---
@@ -299,7 +309,7 @@ The full lexer specification — the token classes, the literal-token grammar, t
  
 A *command* is the unit of execution in Basis. Every operation a program performs — every effect, every computation, every dispatch — is structurally a command invocation. Commands take parameters of declared types and modes, may produce values into writeable parameter slots, may fail with a message, and compose hierarchically through indentation, block markers, and recovery contexts. Commands are first-class values: they may be referenced, partially applied, captured in lambdas, stored in fields, and invoked indirectly through dispatch.
  
-This section describes the surface of commands — signatures, parameters, constructors, methods, frame-exit hooks, and calling conventions. The full parameter-mode discipline (the static analyses, the transitive READ contract, taint propagation) is in §6. The first-class command-typed value forms — command reference, command literal, lambda, fexpr — are in §8. The class-and-instance dispatch system that resolves method calls is in §9.
+This section describes the surface of commands — signatures, parameters, constructors, methods, subcommands, frame-exit hooks, and calling conventions. The full parameter-mode discipline (the static analyses, the transitive READ contract, taint propagation) is in §6. The first-class command-typed value forms — command reference, command literal, lambda, fexpr — are in §8. The class-and-instance dispatch system that resolves method calls is in §9.
  
 ### 3.1 The Unit of Execution
  
@@ -307,7 +317,7 @@ A command has exactly two possible outcomes per invocation: it *succeeds*, or it
  
 Commands have *single-shot* semantics. Each invocation produces one outcome; there is no backtracking, no resumption, no Icon-style multi-valued evaluation. The block-marker constructs that compose commands — `?`, `?-`, `?:`, `??`, `^`, `|`, `@`, `@!`, `%`, `-` (§4.4) — combine single-shot outcomes; they do not introduce a generator-style multi-valued flow.
  
-Surface forms that look like expression evaluation — the right-hand side of `<-`, parenthesized command invocations in argument position, the choice form `lhs <- a | b | c` — desugar into command sequences whose effects produce what the surface form denotes. The operational semantics has commands and failure flow; it has no separate expression-evaluation primitive (Appendix F). The expression-style sugar (§3.7, §3.8, §3.13) is uniformly resolved into command-call form by the parser; the typechecker and the analyses operate on the command-call form.
+Surface forms that look like expression evaluation — the right-hand side of `<-`, parenthesized command invocations in argument position, the choice form `lhs <- a | b | c` — desugar into command sequences whose effects produce what the surface form denotes. The operational semantics has commands and failure flow; it has no separate expression-evaluation primitive (Appendix F). The expression-style sugar (§3.7, §3.8, §3.14) is uniformly resolved into command-call form by the parser; the typechecker and the analyses operate on the command-call form.
  
 ### 3.2 Signature Shape
  
@@ -340,13 +350,13 @@ A command with implicit parameters has the slash and the implicit list:
 .cmd writeAll: List[String] lines / Logger logger = ...
 ```
  
-The signature variations for constructors (§3.9), single-receiver methods (§3.10), multi-receiver methods (§3.11), and frame-exit hooks (§3.12) modify the prefix portion of the signature shape — the part before the parameter list — but otherwise reuse the parameter, implicit, result-designator, and body grammar of the regular form.
+The signature variations for constructors (§3.9), single-receiver methods (§3.10), and multi-receiver methods (§3.11) modify the prefix portion of the signature shape — the part before the parameter list — but otherwise reuse the parameter, implicit, result-designator, and body grammar of the regular form. Subcommands (§3.12) use the regular-command signature shape (no receiver, no class-bound dispatch) and follow the same body grammar; the `.sub` introducer and the lexical-scope restriction are what distinguish a subcommand from a regular `.cmd`. Frame-exit hooks (§3.13) are block markers within bodies, not signature shapes; they have no signature surface.
  
 ### 3.3 Parameter Modes
  
 Every parameter and every receiver carries one of three *modes*, which together determine the contract between caller and callee at that position:
  
-- **READ** (no marker, bare name) — the callee may read through any storage path reachable from the parameter; it may not write through any such path. The transitive read-only contract (§6.5) makes this commitment trustworthy: the language does not allow the value to be smuggled into a writeable position downstream. The caller's slot is unchanged after the call regardless of outcome.
+- **READ** (no marker, bare name) — the callee may read through any storage path reached from the parameter; it may not write through any such path. The transitive read-only contract (§6.5) makes this commitment trustworthy: the language does not allow the value to be smuggled into a writeable position downstream. The caller's slot is unchanged after the call regardless of outcome.
 - **PRODUCE** (`'` marker on the name, e.g., `'result`) — the callee is statically obligated to write the parameter's slot exactly once on every successful return path. The caller may pass either an initialized or an uninitialized slot; on success the produced value is copy-restored to the caller's slot, and on failure the caller's slot is bit-identical to its pre-call state (§6.4).
 - **REFERENCE** (`&` marker on the name, e.g., `&counter`) — the callee may read the parameter, may write the parameter, may do neither — there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read. Copy-restore semantics apply on the writeability axis: on success any written value is committed to the caller's slot; on failure the caller's slot is bit-identical to its pre-call state.
 The markers are part of the identifier itself, not separate tokens. The lexer recognizes `'name`, `&name`, and `name` as three identifier shapes of the same name. Every read and every write inside the command body uses the marker that matches the parameter's mode — the body of a command with a productive parameter `'result` writes `'result <- value`, never `result <- value`. The marker is visible at every use site, not only at the declaration. The same-scope rule (§6.3) prevents the three shapes from coexisting in the same scope.
@@ -359,7 +369,7 @@ The two placements agree on what the markers mean; they differ only on placement
  
 ### 3.4 Productive Parameters
  
-A productive parameter (`'name`) discharges the *write-once-on-success* contract: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle (§1.2.4) commits that productive slots are never partially written when a command fails.
+A productive parameter (`'name`) discharges the *write-once-on-success* contract: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle commits that productive slots are never partially written when a command fails.
  
 Failure to write a productive parameter on some successful path is a static error; writing it more than once on the same path is also a static error. The discipline composes with the failure-state-lattice analysis (§4.13, Appendix E.3): the typechecker walks the body's CFG with both the failure-state lattice and the initialization lattice, confirming that every path to a `clear`-state exit has performed exactly one write to each productive parameter.
  
@@ -477,10 +487,8 @@ The receiver-mode-by-signature-shape table summarizes the per-shape mode restric
 | --- | --- | --- |
 | Constructor | PRODUCE `'` only | READ, REFERENCE |
 | Method (single- or multi-receiver) | PRODUCE `'`, REFERENCE `&`, READ | none |
-| At-stack `@` | REFERENCE `&`, READ | PRODUCE |
-| At-stack `@!` | REFERENCE `&`, READ | PRODUCE |
  
-The reasoning for the at-stack restriction is in §3.12; the constructor case is §3.9 above. Receivers are always carried at the marker placement of the named-context rule (§3.3) — `Type 'name`, `Type &name`, or `Type name`. The full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules is in §6.7.
+The constructor case is §3.9 above. Receivers are always carried at the marker placement of the named-context rule (§3.3) — `Type 'name`, `Type &name`, or `Type name`. The full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules is in §6.7. The block markers `@` and `@!` (§3.13) are not signature shapes — they introduce bodies, not methods, and do not carry receivers at the signature level.
  
 ### 3.11 Multi-Receiver Methods
  
@@ -500,30 +508,60 @@ The receiver tuple appears in parentheses both at declaration and at call. Multi
 The dispatch implementation composes per-receiver single-class dispatches — there is no joint-instance dictionary keyed on the tuple of receiver types. The combined behavior is the product of the receivers' types, but each receiver's dispatch resolves through its own class's dictionary independently. This admits methods that span receivers from different modules without requiring those modules to coordinate: the implementations of `Logger`'s `emit` method and `Severity`'s `prefix` method are looked up separately at the call site.
  
 Each receiver in a multi-receiver method declaration carries its own mode marker. Different receivers may carry different modes — `(Logger logger, Counter &c)` is a valid receiver tuple with logger READ and counter REFERENCE. The R1 (call-site initialization) and R2 (callee-body obligation) rules apply to each receiver independently per its declared mode.
- 
-### 3.12 Frame-Exit Hooks: `@` and `@!`
- 
-A class or module may declare methods that run at frame exit. The forms are:
- 
+
+### 3.12 Subcommands
+
+A **subcommand** is a command declared with the `.sub` keyword inside another command's body. Subcommands are lexically scoped to the enclosing command's body — they are not visible outside it, cannot be imported, and cannot be reached through any class-dispatch mechanism. The form is:
+
 ```
-.class Resource:
-    .decl Resource 'r: String name             ; constructor
-    .decl @ Resource &r                        ; runs at frame exit (any path)
-    .decl @! Resource &r                       ; runs at frame exit on failure only
+.cmd factorial: Int n, Int 'result =
+    .sub factorialAcc: Int n, Int acc, Int 'r =
+        ?: n == 0
+            'r <- acc
+        factorialAcc: n - 1, n * acc, 'r
+    
+    factorialAcc: n, 1, 'result
 ```
- 
-`@` is read "at exit"; `@!` is "at exit on failure." The handler executes when the *frame slot* holding the value retires, not when the value itself is "destructed" — the language has no per-value destruction concept. A value buried inside a record's field, an object's field, or any other non-frame container does not fire its `@` handler when that container retires. Only values in frame slots fire their handlers.
- 
-This is more restrictive than C++'s destructor mechanism, which fires transitively through member fields of destroyed objects. It is intentionally so — the language tracks frame ownership for the purposes of the at-stack discipline, and the more restrictive rule keeps the model uniform with the no-hidden-control-flow principle (§1.4): the at-stack mechanism is *the* exception to "no hidden control flow," and the exception is contained to a single, type-visible category.
- 
-The handlers fire in **reverse order of registration** — the most-recently-introduced handler runs first. They compose with the failure system: if a frame is retiring on a failure path, the propagating failure remains in flight while the handlers run, then continues to propagate after they complete. Handlers themselves may invoke commands that fail internally and recover internally; what they may not do is generate a *new* in-flight failure during the exit cleanup, which would conflict with the single-in-flight invariant (§4.12).
- 
-`@`-handlers and `@!`-handlers are not destructors and should not be called such. They are RAII-equivalent in functional role; they are not RAII in mechanism. The drift toward "destructor" framing has occurred in earlier project material and was corrected; this specification uses "frame-exit hook" for the mechanism and "at-stack handler" for an instance of it firing.
- 
-The receiver-mode restriction for `@` and `@!` shapes is REFERENCE or READ — never PRODUCE. The at-stack handler runs on an existing object (the frame's slot is initialized; that's the precondition for retirement); productive mode would mean "construct the object as part of cleanup," which is meaningless. READ at-stack receivers are useful for observation-only cleanup; REFERENCE at-stack receivers are the typical case for resource-managing types.
- 
-The `@` and `@!` markers also appear inside command bodies as **block markers** that register an inline frame-exit hook against the enclosing command's frame:
- 
+
+The `.sub` introducer takes the same signature surface as the regular `.cmd` form (parameters, implicit context parameters, mode markers, failure marks, the `-> name` result designator) and the same body grammar. The full failure-mark surface (`:`, `?`, `!` per §4.2) and the full signature surface (PRODUCE, REFERENCE, READ parameters; implicit context parameters; single or multiple writeable parameters) apply identically to subcommands and regular commands.
+
+**Restrictions.** Subcommands are non-method, non-constructor commands:
+
+- A subcommand has **no receiver**. It is not a method (no `Type ::` prefix) and not a multi-receiver method (no parenthesized receiver tuple).
+- A subcommand is **not a constructor**. The productive-receiver-of-named-type form `Type 'r ::` that introduces a constructor (§3.9) is not admitted on `.sub`.
+- The **`.implicit` directive does not apply** to subcommands. `.implicit` registers a constructor at module-import time; subcommands are body-local and have no module-import surface to register against.
+
+**Placement.** Subcommand declarations appear strictly at the top of the enclosing command's body — after the `=` sign and before the body's main statement group (or the `_` placeholder, where the body has no executable statements other than the subcommands themselves). They form a contiguous declaration block; once executable statements begin, no further `.sub` declarations are permitted in that body. The placement makes all sibling subcommands in scope for each other before any of their bodies execute, supporting mutual recursion among siblings.
+
+**No capture from the enclosing frame.** A subcommand's body forms its own static scope. It does not capture from the enclosing command's frame — the subcommand's inputs are its explicit parameters and its implicit context parameters (resolved at each call site, §3.6); module-scope identifiers remain visible as in any command body. The enclosing command's locals are not directly visible inside the subcommand's body. Each subcommand invocation creates a fresh frame at the call site, with its own initialization tracking, failure-mode analysis, parameter-passing copy-restore semantics, and `@` / `@!` block-marker registration list (§3.13). Operationally, a subcommand call is indistinguishable from a regular command call except in how its name is resolved at compile time.
+
+**Visibility and nesting.** A subcommand is visible from the body it is declared in and from any deeper bodies nested within that body — including the bodies of sibling subcommands and the bodies of subcommands nested deeper. Subcommands may nest: a subcommand's body may contain its own `.sub` declarations at the top, and those nested subcommands follow the same scoping discipline against their immediate enclosing body. A nested subcommand resolves names through its lexical chain: itself (for recursion), its siblings within the same enclosing body, and any subcommand visible at any outer enclosing body along the chain to the outermost enclosing command. The visibility chain follows the lexical nesting structure; it does not extend to the module or any other command.
+
+**Two design purposes.** Subcommands serve two needs that would otherwise require separate language features:
+
+1. **Helper commands internal to a command.** Many algorithms have a clean specification at the call boundary but an implementation that wants a private helper — a tail-recursive version with an accumulator, a worker function not exposed in the module's public surface, a body that wants to be expressed as several cooperating commands without polluting the module's namespace. The factorial-with-accumulator example above is the canonical case: `factorial` exposes the simple input-and-result signature its callers expect, while `factorialAcc` carries the tail-recursive implementation as a private helper, threading the productive `'r` slot through each recursive call.
+
+2. **Ad-hoc scoping for `@` and `@!` blocks.** Basis has no unnamed block scope. Where another language might introduce one to ensure a destructor fires, Basis uses a subcommand whose frame retirement triggers the `@` and `@!` blocks registered within it:
+
+   ```
+   .cmd processFile: String path =
+       .sub useFile: String filepath =
+           #handle <- openFile: filepath
+           @ closeHandle: handle      ; fires when useFile returns
+           process: handle
+       
+       useFile: path
+       ; closeHandle has already fired here
+   ```
+
+   The subcommand's frame retires when `useFile:` returns; the `@`-block registered in its body fires at that retirement. The enclosing command continues with the resource released. The pattern is uniform for any cleanup whose scope is smaller than the enclosing command's body.
+
+Both purposes are served by the same mechanism — a lexically scoped command whose frame creates a fresh `@`/`@!` registration context — without introducing a separate ad-hoc-scope construct.
+
+### 3.13 Frame-Exit Hooks: `@` and `@!`
+
+A command body may register inline cleanup that runs at frame retirement using the `@` and `@!` **block markers**. The forms are:
+
 ```
 .cmd processFile: String path =
     #handle <- openFile: path
@@ -531,12 +569,20 @@ The `@` and `@!` markers also appear inside command bodies as **block markers** 
     @! logIncomplete: path          ; runs only on failure path
     process: handle
 ```
+
+`@` is read "at exit"; `@!` is "at exit on failure." Each marker introduces a body whose execution is deferred to the enclosing command's frame retirement, not to the source line where the marker appears.
+
+The handlers fire in **reverse order of registration** — the most-recently-introduced handler runs first. They compose with the failure system: if a frame is retiring on a failure path, the propagating failure remains in flight while the handlers run, then continues to propagate after they complete. Handlers themselves may invoke commands that fail internally and recover internally; what they may not do is generate a *new* in-flight failure during the exit cleanup, which would conflict with the single-in-flight invariant (§4.12).
+
+`@` and `@!` blocks are not destructors and should not be called such. They are RAII-equivalent in functional role; they are not RAII in mechanism. The drift toward "destructor" framing has occurred in earlier project material and was corrected; this specification uses "frame-exit hook" for the mechanism and "at-stack handler" for an instance of it firing.
+
+**Block markers only; no class-level form.** Frame-exit hooks are admitted *only* as block markers within command bodies. There is no `.cmd @ Type ::` or similar class-method form that would auto-register a handler against every frame slot holding a value of a particular type. The block-marker form is the entire surface; cleanup tied to a resource-managing type is the user's explicit responsibility at each use site. An earlier design admitted class-level `@` and `@!` method declarations that would fire implicitly for any frame slot holding a value of the declaring type; that design was withdrawn because the implicit-firing semantics — particularly under context-variable composition — proved exceedingly hard for programmers to reason about. The block-marker form retains the deferred-firing benefit (cleanup is colocated with acquisition; the firing happens at frame retirement) without the implicit-by-type machinery.
+
+The receiver-mode rules of the parent command's body apply to the `@` and `@!` block's body the same way as to any other sub-block: variables in scope at the block's registration point are accessible inside the block, with their mode markers preserved. The block runs in the parent command's frame context at retirement; it has no parameter list of its own.
+
+The full block-marker semantics for `@` and `@!`, including their composition with failure flow, are in §4.4 and §4.11.
  
-The body-level forms have the same firing semantics as the class-declared forms — reverse-order at frame exit, `@!` only on failure paths — and compose into the same registration list. They are convenient for one-off cleanup at a specific call site without declaring a class method. The full block-marker semantics for `@` and `@!` are in §4.4.
- 
-The frame-exit hook is the language's mandatory framing mechanism for resource-managing types: where a type carries a class declaring `@` (or its full RAII-equivalent surface), instances must be in frame slots to participate in the discipline. The language enforces this by requiring such types to be introduced via the `#` form in a frame, not buried in long-lived containers; the precise rule is in §6.13's whole-slot-tracking discussion.
- 
-### 3.13 Calling Commands
+### 3.14 Calling Commands
  
 A command invocation has four surface forms by signature shape, distinguished by the prefix preceding the colon-separated argument list:
  
@@ -592,7 +638,7 @@ For a command in expression position, the writeable parameter designated as the 
  
 REFERENCE-mode parameters always appear in the argument list — they cannot be omitted via the expression-style sugar, because the caller's slot is required pre-initialized regardless of whether the command is invoked as a statement or as an expression.
  
-### 3.14 The `_` Placeholder
+### 3.15 The `_` Placeholder
  
 The `_` token is a single-character placeholder serving four distinct uses across the language. The uses are syntactically disjoint — context determines which is meant — and are listed here for completeness; the relevant sections cover each role in detail.
  
@@ -620,7 +666,7 @@ The `_` token is a single-character placeholder serving four distinct uses acros
  
 The four uses are syntactically distinguishable by surrounding context. The lexer treats `_` uniformly as a single token; the parser routes it to the appropriate non-terminal based on its position.
  
-### 3.15 First-Class Commands
+### 3.16 First-Class Commands
  
 Commands are values. A command-typed value may be stored in a field, passed as an argument, returned from a constructor, or invoked indirectly. The language admits four constructional forms that produce command-typed values:
  
@@ -633,7 +679,7 @@ Commands are values. A command-typed value may be stored in a field, passed as a
  
 The four forms cover the design space — function-pointer-style references, eagerly-evaluated thunks, closures over defining-frame state, and user-defined control-flow primitives — through a uniform set of constructions that share the failure-mode discipline (the `:` / `?` / `!` mark) and the four-way taxonomy.
  
-Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (§3.3): `:<Int, Int'>`, `?<String'>`, `!<>`. Fexpr-typed values are typed by the parallel family `:<*>`, `?<*>`, `!<*>` — the `*` distinguishes the fexpr family from ordinary command-typed values, and there is no subsumption across the family boundary. The full type-form tables and family rules are in §5.15 and §5.16.
+Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (§3.3): `:<Int, Int'>`, `?<String'>`, `!<>`. Fexpr-typed values are typed by the parallel family `:<*>`, `?<*>`, `!<*>` — the `*` distinguishes the fexpr family from ordinary command-typed values, and there is no subsumption across the family boundary. The full type-form tables and family rules are in §5.14 and §5.15.
  
 Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application — including the mode-marker filter (PRODUCE deferred-only, REFERENCE applied with ceiling-tracking, READ flexible) — are in §9.14.
  
@@ -653,7 +699,7 @@ A Basis failure is not an exception in the C++/Java/C# sense. There is no stack-
  
 A failure carries two pieces of information: an identity (the **message** — see §4.9) and an optional **payload value** whose type satisfies the message's bound class (§4.7). The message names the kind of failure; the payload carries any data the failure needs to convey to a downstream recovery handler. Both are stored in a fixed-size **failure slot** allocated as part of each command's frame; the slot is occupied only while a failure is in flight. Propagation copies the slot's contents up the stack — three words on a 64-bit target: the message identifier, a pointer to the payload's storage, and a class witness for the payload's concrete type with respect to the message's bound class — without copying or moving the payload value itself. The payload stays put until a recovery handler binds it (§4.6), at which point it moves into the handler's frame.
  
-Cleanup that mainstream languages express through `try`/`finally` is expressed in Basis through frame-exit hooks `@` and `@!` (§§3.12, 4.4, 4.11). The hooks compose with the failure flow — `@` runs on every frame exit regardless of outcome, `@!` runs only on failure exits — but they are not part of the failure machinery itself. A frame's hooks fire on its retirement schedule; the failure that may be in flight at retirement is a separate thing the hooks neither see nor consume.
+Cleanup that mainstream languages express through `try`/`finally` is expressed in Basis through frame-exit hooks `@` and `@!` (§§3.13, 4.4, 4.11). The hooks compose with the failure flow — `@` runs on every frame exit regardless of outcome, `@!` runs only on failure exits — but they are not part of the failure machinery itself. A frame's hooks fire on its retirement schedule; the failure that may be in flight at retirement is a separate thing the hooks neither see nor consume.
  
 ### 4.2 The Three Marks
  
@@ -776,7 +822,7 @@ means `(testA OR testB) AND (testC OR (testD OR testE))`. Each `|`-chain locally
  
 `@` (DO_ON_EXIT) registers a body that runs at frame exit, regardless of whether the frame exits via success or failure. `@!` (DO_ON_EXIT_FAIL) registers a body that runs only on failure exits. Neither construct sees nor consumes the propagating failure; the bodies execute as if no failure were active, even when the frame is exiting via failure.
  
-The `@` and `@!` markers are **frame-lifetime-tied, not object-lifetime-tied**. They are tied to the frame slot holding the value, not transitively to fields of containing aggregates. This is the language's only intentional exception to the no-invisible-control-flow principle: an at-stack method on an object's type is conceptually a `@` or `@!` block the compiler inserts implicitly at the object-introducing position. The discipline that governs *when* these handlers fire under a propagating failure — particularly the corrected at-stack discipline for payload values — is in §4.11.
+The `@` and `@!` markers are **frame-lifetime-tied**. They register a body against the enclosing command's frame; the body executes at that frame's retirement, in reverse registration order. This is the language's only intentional exception to the no-invisible-control-flow principle, and it is contained to the explicit registration via the `@` or `@!` marker — no class-level declaration causes implicit registration for frame slots of any particular type (§3.13). The discipline that governs *when* these blocks fire under a propagating failure is in §4.11.
  
 ### 4.5 Block-Marker Composition
  
@@ -814,13 +860,13 @@ A `|`-with-spec block engages on failures whose message matches the spec, with s
  
 - A failure whose message is exactly `Name`.
 - A failure whose message is a child of `Name` in `Name`'s hierarchy (recursively, to any depth).
-Failures whose messages are not at-or-below `Name` continue propagating past the block. The bound name `name`, when present, is in scope throughout `body` and refers to the **payload only** — not the full failure, not the message identifier.
+Failures whose messages are not at-or-below `Name` continue propagating past the block. The bound name `name`, when present, is in scope throughout `body` and refers to the **payload only** — not the full failure, not the message identifier. The bound name's static type is the **spec's payload class** — the class declared on `Name` (the spec) at its `.msg` declaration — regardless of whether the engaged failure was `Name` itself or one of its descendants in the hierarchy. A descendant message's payload-class (a subclass of the spec's class per §4.8) does not surface its more-specific operations to the handler; the handler is constrained to operate at the spec's class abstraction level. Programs needing access to a descendant's more-specific class operations catch at that descendant's message specifically, or apply class-narrowing (§7.14) within the handler body.
  
 The presence of the bound name in the spec is governed by an asymmetric rule against the message's declaration. A payload-bearing `Name` admits the bound name (binding the payload) or its omission (engaging without binding; the engaged failure's payload is consumed unobserved). A payload-less `Name` requires the bound name's omission — supplying one is a static error, since there is no payload to bind to. The asymmetry permits the pattern of catching a class of failures uniformly without inspecting their payloads, while excluding the malformed case of a binding with no value behind it.
  
 Match-by-message-identity, not match-by-payload-value, is a design commitment: failures are dispatched on what they *are*, not on what they *carry*. Forms like `| 0 -> handleZero` or `| "error" -> handleError` are not part of the language. Programs that need to distinguish payload values do so by inspecting the bound payload within the recovery body.
  
-When a `|`-with-spec block engages, the failure's status as in-flight ends at the moment of binding. The handler body runs from no-active-failure, with the bound payload available for inspection, consumption, or forwarding into a re-fail (§4.10). The discipline governing the *value's* lifetime — distinct from the failure's status — and the timing of any at-stack handler on the bound value is in §4.11.
+When a `|`-with-spec block engages, the failure's status as in-flight ends at the moment of binding. The handler body runs from no-active-failure, with the bound payload available for inspection, consumption, or forwarding into a re-fail (§4.10). The discipline governing the *value's* lifetime — distinct from the failure's status, and tracked through the holding-frame model — is in §4.11.
  
 ### 4.7 Class-Bound Payloads
  
@@ -830,7 +876,7 @@ The corollary: different `.fail` sites for the same message may pass payload val
  
 A class **witness** — a typeclass dictionary corresponding to the (concrete-payload-type, bound-class) pair — travels with the propagating failure as the third word of the failure slot (§4.1). The witness is selected at the `.fail` site: at compile time, the typechecker has both the concrete type of the payload expression and the bound class from the message's declaration, and emits the corresponding dictionary as a witness pointer. No runtime witness construction is required.
  
-A `|`-with-spec consumer that binds a payload uses the witness to dispatch class operations on the bound name. The witness's identity — which concrete type's dictionary it is — is **opaque** to the consumer, which sees only the class's operations. This is the core of the failure system's open-extensibility property: a recovery handler defined against a class can consume payload values of types it has never heard of, as long as those types satisfy the class.
+A `|`-with-spec consumer that binds a payload uses the witness to dispatch class operations on the bound name. The witness's identity — which concrete type's dictionary it is — is **opaque** to the consumer, which sees only the class's operations. This is the core of the failure system's open-extensibility property: a recovery handler defined against a class can consume payload values of types it has never heard of, as long as those types satisfy the class. Under payload-class covariance (§4.8) and the Liskov-covariance rule for payload classes (§9.17), this property extends across hierarchy depths: a handler at a parent message's class binding a descendant message's payload receives the value at the parent's class, with class operations dispatched through the descendant's witness — the parent's operations are a structural subset of the descendant's, so the witness's dictionary supplies them by the same single-pointer mechanism that backs all class dispatch (§9.7).
  
 The full class system (typeclass declarations, instance declarations, dispatch mechanics, witness flow) is in §9. Failure messages and their bound classes participate in that system on identical terms; the failure machinery is a refinement of class dispatch applied to propagating failure values, not a separate parallel mechanism.
  
@@ -844,7 +890,7 @@ A payload-less message retains nominal identity, hierarchy position (§4.9), and
  
 **A payload-less child of a payload-bearing parent is ill-formed.** A handler `| ParentMsg p -> body` would attempt to bind `p` to the engaged message's payload and apply `ParentMsg`'s class operations to it; a payload-less descendant engaging that handler would leave `p` with no value to bind. Once a payload class is introduced at some level in a hierarchy, every message at-or-below that level must also declare a payload class.
  
-The soundness argument extends across multi-level chains, requiring **payload-class covariance** along ancestor-descendant paths: every payload-bearing message's class must be a subclass of (or equal to) every payload-bearing ancestor's class along the path from the message toward the root. The covariance chain ensures that a handler bound at any payload-bearing ancestor can apply its class operations soundly to any descendant message's payload, regardless of which descendant engages.
+The soundness argument extends across multi-level chains, requiring **payload-class covariance** along ancestor-descendant paths: every payload-bearing message's class must be a subclass of (or equal to) every payload-bearing ancestor's class along the path from the message toward the root. The covariance chain ensures that a handler bound at any payload-bearing ancestor can apply its class operations soundly to any descendant message's payload, regardless of which descendant engages. The class-system mechanism that supports this — Liskov-covariant subsumption at payload-class positions — is §9.17.
  
 The recovery's binding shape is thus determined entirely by the spec: a payload-less spec produces a handler with no binding identifier; a payload-bearing spec produces a handler binding the engaged message's payload as a value of the spec's class, with class operations on the bound name dispatching through the engaged failure's class witness (§4.7).
  
@@ -861,10 +907,12 @@ Both the `[PayloadType]` brackets and the `: ParentMessageType` clause are optio
 ```
 .msg Net                                       ; root, payload-less
 .msg Net::Disconnected[ConnectionInfo] : Net   ; child of Net, payload satisfies ConnectionInfo class
-.msg Parse[String] : Net                       ; sibling of Disconnected, payload is a String
+.msg Parse[String] : Net                       ; sibling of Disconnected, payload satisfies String class
 ```
  
 The exact surface syntax is tentative. *Open question: OQ-26.2.* See Appendix I.
+ 
+**Payload-class covariance across the hierarchy.** A child message's payload class must be a subclass of (or equal to) every payload-bearing ancestor's payload class along the path to the root (§4.8). The rule rests on the Liskov-covariance discipline at payload-class positions (§9.17): a value satisfying the child's payload class also satisfies the parent's payload class via standard class-system subsumption, so a parent-class handler engaging on a child-message failure binds the payload at the parent's payload class and operates on it through the parent's class operations. The bound value's static type is the spec's class — descendant payload classes' additional operations are not visible at parent-class handlers. The discipline keeps recovery handlers operating at the level of abstraction the handler declared, not at the engaged failure's potentially more-specific class.
  
 Messages form a **forest** — a collection of independent hierarchies, each rooted at a user-declared root. There is no language-imposed Top message, no universal ancestor analogous to Java's `Exception`. This is a deliberate design commitment. A universal ancestor invites generic catch-and-bind-anything practice, the very pattern that makes failure handling sloppy in languages that have one. The forest structure forces programs that bind a payload to commit to which hierarchies they understand. Code that wants to catch anything without binding can use the bare `|` form — that idiom is preserved without admitting Top as a type.
  
@@ -902,9 +950,9 @@ The bound name binds the **payload only**, not the original message. To propagat
  
 Forms that elide the message — `.fail f` to "re-raise" — are not valid: `f` is the payload, not the message; the directive cannot infer which message to attach.
  
-When the new `.fail`'s payload is the bound name from a preceding `|`-with-spec, the value **moves** from its current holding frame (the recovery frame) into the new `.fail`'s originating frame (the handler's frame). The value's identity is preserved; only its holding frame changes. The witness for the new failure's slot is selected at the re-fail site at compile time, against the new message's bound class — which may differ from the original message's bound class. If the bound value's concrete type satisfies the original message's class but not the new message's class, the re-fail is a static error. The discipline composes cleanly: a chain of recover-and-re-fail handlers each performs a move into the next holding frame, until a final handler consumes the value without re-failing.
+When the new `.fail`'s payload is the bound name from a preceding `|`-with-spec, the value **moves** from its current holding frame (the recovery frame) into the new `.fail`'s originating frame (the handler's frame). The value's identity is preserved; only its holding frame changes. The witness for the new failure's slot is selected at the re-fail site at compile time, against the new message's bound class — which may differ from the original message's bound class. The static check at re-fail compares the bound payload's static class (the engaging handler's spec class) to the new message's payload class: the bound class must be a subclass of (or equal to) the new message's class under the Liskov-covariance rule (§9.17). If the bound class is not assignable to the new message's class under that rule, the re-fail is a static error. The check is on the static class only — the typechecker does not have the engaged failure's runtime concrete type at re-fail time, only the bound spec class. The discipline composes cleanly: a chain of recover-and-re-fail handlers each performs a move into the next holding frame, until a final handler consumes the value without re-failing.
  
-The value's lifetime, and any at-stack handler attached to it, is governed by the holding-frame model in §4.11. The corrected at-stack discipline is what makes re-fail chains coherent.
+The value's lifetime across a re-fail chain is governed by the holding-frame model in §4.11. Each level of the chain performs a move of the value into the next holding frame; the value's identity is preserved across these moves.
  
 ### 4.11 At-Stack Handlers Under Failure
  
@@ -913,16 +961,10 @@ The frame-exit hooks `@` and `@!` (§4.4) compose with failure flow as follows.
 `@`-bodies run on every frame exit. When a failure propagates out of a body containing `@` blocks, the `@` bodies fire as part of the frame's retirement, in the order they were registered, before the failure propagates to the caller. The bodies execute as if no failure were active: they neither see nor consume the propagating failure. A failure produced *within* an `@`-body propagates through the cleanup machinery's own rules, not back into the original failure's flow.
  
 `@!`-bodies run only on failure exits. The composition with the propagating failure is identical to `@`'s, restricted to the failure-exit case.
- 
-The discipline for **at-stack handlers on payload values** is more subtle, and bears close attention. A payload value may have an at-stack handler — for instance, releasing an underlying resource — registered as part of its concrete type's class instance for the message's bound class. The handler fires when the value's actual lifetime ends. **It does not fire at intermediate moves**, including not at binding and not at re-fail.
- 
-The motivating case: a payload whose class includes a `cleanup` operation registered as an at-stack handler. A recovery handler binds the value, inspects it, and decides to re-fail using it (passing the bound value forward as the payload of a new message). If `cleanup` had fired at binding, the bound value would be in a post-cleanup state at the moment the handler tries to re-fail; the re-fail's payload would be a corpse. The corrected discipline avoids this: `cleanup` fires at the actual end of the value's life, which is post-handler-body-exit (or post-final-consumption-of-the-re-fail-chain), not at any of the intermediate points where the value moves between holding frames.
- 
-The model that makes this tractable is the **holding frame**: at any moment, a payload value lives in exactly one frame, its holding frame. Initially the holding frame is the originating frame of the `.fail` that produced the value. Propagation up the call stack copies the failure slot's three words (message, pointer, witness) without moving the value — the holding frame does not change during propagation. The holding frame *does* change at two events: at **binding**, when a `|`-with-spec engages and the value moves into the recovery frame; and at **re-fail**, when a fresh `.fail` in the handler's frame takes the bound value as its payload and the value moves into the new originating frame. Both events are moves: the value's identity is preserved; only its holding frame changes.
- 
-The at-stack handler attached to the value travels with the value across these moves. It fires when the value's home actually retires — which means: when no further moves are pending. For a recovered failure whose handler completes without re-failing, that moment is at handler-body-exit. For a chain of recover-and-re-fail handlers, the at-stack handler fires at the eventual final consumption of the chain. For a failure that escapes to program termination, it fires at termination.
- 
-The corrected discipline is what permits values that own resources to be passed forward through recovery chains without those resources being prematurely freed. The cost is that at-stack timing is associated with the value, not with any single frame's retirement schedule; the implementation must track the value's holding-frame history along the failure-flow path, not merely register handlers at frame entry as it does for ordinary slots.
+
+**Block hooks are frame-bound, not value-bound.** The `@` and `@!` registration list is a property of the registering frame, not of any value the block's body references. When a value referenced inside an `@`-block is moved out of the frame — for example, used as a payload in a `.fail` directive — the block's reference to that name continues to refer to the original frame slot, which after the move no longer holds the value. The user is responsible for ensuring that the order of operations within the frame body keeps the block's references valid until the block fires, or for registering cleanup at the destination frame instead. The language does not transport block-registered cleanup across move boundaries; the **holding frame** model below governs the *value's* location across the failure-flow path, while the `@` and `@!` registration list remains anchored to the frame in which the marker appeared.
+
+**The holding-frame model.** At any moment, a payload value lives in exactly one frame, its *holding frame*. Initially the holding frame is the originating frame of the `.fail` that produced the value. Propagation up the call stack copies the failure slot's three words (message, pointer, witness) without moving the value — the holding frame does not change during propagation. The holding frame *does* change at two events: at **binding**, when a `|`-with-spec engages and the value moves into the recovery frame; and at **re-fail**, when a fresh `.fail` in the handler's frame takes the bound value as its payload and the value moves into the new originating frame. Both events are moves: the value's identity is preserved; only its holding frame changes. The model describes the value's location, not any handler timing — cleanup of a value that has moved out of its originating frame is the recovery handler's responsibility, expressed through ordinary statements within the handler body or through `@` and `@!` registrations within that body. There is no class-level mechanism that auto-registers cleanup for values of a particular type (§3.13 records the withdrawal of that earlier design).
  
 ### 4.12 The Single-In-Flight Invariant
  
@@ -1012,7 +1054,7 @@ Pointers, command-typed values, fexpr-typed values, objects, and variants cannot
  
 The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Witnesses for class dispatch are constructed at the relevant slot boundary based on the slot's declared type at that point — a witness constructed for an upcast value uses the upcast slot's type, with no mechanism (and no reason) to look back to a value's earlier slot history. The full rule for when buffer-backed dispatch identity is captured at a class-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-class-typed buffer-backed parameters, is in §9.18.
  
-Domains are first-class types: they may be parameters, fields, receivers of class methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child → parent) and child declarations do not widen the upcast set for any existing type. The asymmetry with the failure-message hierarchy (§4.9), which is closed for downstream extension, is intentional: domain-hierarchy openness does not introduce the silent-widening risk that motivates the failure-tag closure.
+Domains are first-class types: they may be parameters, fields, receivers of class methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child → parent) and child declarations do not widen the upcast set for any existing type. The asymmetry with the failure-message hierarchy (§4.9), which is closed for downstream extension, is intentional: domain-hierarchy openness does not introduce the silent-widening risk that motivates the failure-message hierarchy closure.
  
 ### 5.4 Records
  
@@ -1144,7 +1186,7 @@ Objects are nominally typed: two `.object` declarations with identical field str
  
 **Object lifetime ceiling.** The frame in which an object's storage is introduced is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the frame that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime — object types are first-class types — but every object *value* is bound to an introducing frame. The frame-ownership lens (§1.5) makes the rule concrete: an object lives in a frame's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. The lifetime ceiling is whichever frame ends up holding the slot at the binding moment.
  
-**Frame-exit hooks via `@` and `@!` (§3.12) are tied to the frame slot holding the object, not to the object's identity transitively.** A class declaring `@` for an object type fires the handler when the *frame slot* holding the object retires. An object embedded as a field of another aggregate — a field of another object, or transported via an unusual containment — does not fire its `@` handler when that container retires; only the object directly held in a frame slot does. The discipline is **frame-lifetime-tied, not object-lifetime-tied**, which is more restrictive than C++'s destructor mechanism and is intentionally so: the language's at-stack mechanism is the single carve-out from the no-hidden-control-flow principle, and the more restrictive rule keeps the carve-out narrow.
+**Frame-exit hooks via `@` and `@!` (§3.13) are tied to the frame slot, not to the object's identity transitively.** An `@` or `@!` block registered against a frame's body runs when *that frame's slot* retires, regardless of the type of the value the block references. An object embedded as a field of another aggregate — a field of another object, or transported via an unusual containment — does not participate in any implicit per-type cleanup mechanism, because the language has no such mechanism: `@` and `@!` are block markers only (§3.13), and the user writes them at the registration site they want. The discipline is **frame-lifetime-tied, not object-lifetime-tied**, which is more restrictive than C++'s destructor mechanism and is intentionally so: the language's at-stack mechanism is the single carve-out from the no-hidden-control-flow principle, and the explicit-registration rule keeps the carve-out narrow.
  
 Object types may have class instances declared for them (§9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's class membership is a property of the object's type, not of any particular object value, and is determined at the type-declaration site or at instance-declaration sites.
  
@@ -1183,7 +1225,7 @@ The construction surface for variants — including the `${Candidate <- value}` 
  
 ### 5.14 Command-Typed Values
  
-A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits four constructional forms that produce command-typed values — command reference, command literal, lambda, and fexpr — enumerated in §3.15 and detailed in §8. The type system describes command-typed values uniformly through the same family of type expressions.
+A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits four constructional forms that produce command-typed values — command reference, command literal, lambda, and fexpr — enumerated in §3.16 and detailed in §8. The type system describes command-typed values uniformly through the same family of type expressions.
  
 The type-expression forms for ordinary command-typed values are:
  
@@ -1226,7 +1268,7 @@ The typing rules for the fexpr family:
 - **The typechecker enforces the defining-frame ceiling structurally.** Fexpr-typed values are recognized syntactically (by the `<*>` marker) and forbidden from assignment to anything that could outlive their defining frame: object fields holding fexpr-typed values are restricted; productive parameters of fexpr type are forbidden; pointers to fexpr-typed slots are forbidden; bare-identifier copy of fexpr values is forbidden; capture of fexpr values by lambdas is forbidden. The full enumeration of fexpr restrictions A–G is in §8.13; the type-side commitment recorded here is that the family-distinguishing type marker `<*>` is what makes the structural enforcement possible.
 The motivating concern for the nominal distinction is ceiling-tracking. Under the defining-frame ceiling rule, the typechecker must distinguish fexpr-typed values from ordinary command-typed values syntactically — otherwise a fexpr would be assignable to any `:<>` slot and would escape its defining-frame ceiling. The `<*>` marker provides the required syntactic distinction at parameter declarations, in any other type-position where a fexpr-typed slot must be specifically declared, and at the assignment positions that the structural restrictions test.
  
-The interaction of fexpr-typed parameters with class-method dispatch — including the `FexprFailure` standard tag, the fexpr-relevance taint axis parallel to the READ contract, and the per-instance defaults-incompatibility — is in §9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in §8.5's Restriction C and §8 generally.
+The interaction of fexpr-typed parameters with class-method dispatch — including the `FexprFailure` standard message, the fexpr-relevance taint axis parallel to the READ contract, and the per-instance defaults-incompatibility — is in §9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in §8.5's Restriction C and §8 generally.
  
 The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language — buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values — together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (§5.1), a clear construction surface (§7), and a clear interaction with parameter modes (§6) and class dispatch (§9). The compositions among them are governed by the containment rule (§5.1) and the subsumption rules (§5.5, §5.7, §4.2, §5.15); every other type-crossing is explicit.
 
@@ -1293,7 +1335,7 @@ The call-boundary mechanics realize the per-mode contracts at the operational le
 
 **PRODUCE and REFERENCE parameters** are passed by **call-by-copy-restore**. The callee receives a copy of the caller's slot value, operates on the copy, and on *successful* return the (possibly-modified) copy is written back to the caller's slot. On *failure*, no write-back occurs; the caller's slot is bit-identical to its pre-call state.
 
-The copy-restore mechanism is the operational realization of the language's "mutation either succeeds fully or fails fully" principle (§1.2.4). Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs. The pre-call state of the caller's slot is preserved by the structure of the convention rather than by explicit restoration logic.
+The copy-restore mechanism is the operational realization of the language's "mutation either succeeds fully or fails fully" principle. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs. The pre-call state of the caller's slot is preserved by the structure of the convention rather than by explicit restoration logic.
 
 The pointer case composes cleanly. For a parameter of pointer type `^T`, the *pointer value* itself is what's copied (READ) or copy-restored (PRODUCE / REFERENCE), not the pointee. A writeable `^T` (i.e., `^T'` or `^T&` per the nameless-context rule of §6.2, or `^T 'name` / `^T &name` per the named-context rule) lets the callee swap which `T` the caller's slot points at; a non-writeable `^T` does not. The pointee's storage is reached *through* the pointer; reads and writes through the pointer touch storage that, by the no-non-local-state principle's provision-chain rule (§1.4), was reached by explicit provision.
 
@@ -1318,7 +1360,7 @@ The classification of which operations propagate taint and which produce a fresh
 
 A forbidden pointer-write pattern follows directly from the rule: a write through a `^T` reached from a READ parameter's binding is a static error. The `^T` is itself read-only-through-this-access for the duration of the call.
 
-The contract composes with the capture mechanisms (§§6.10, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (§3.15), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
+The contract composes with the capture mechanisms (§§6.10, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (§3.16), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
 
 ### 6.6 The Frame-Ownership Reading
 
@@ -1352,16 +1394,14 @@ Each signature shape restricts the set of valid receiver modes to those that are
 | --- | --- | --- |
 | Constructor | PRODUCE only | READ, REFERENCE |
 | Method (single- or multi-receiver) | PRODUCE, REFERENCE, READ | none |
-| At-stack `@` | REFERENCE, READ | PRODUCE |
-| At-stack `@!` | REFERENCE, READ | PRODUCE |
 
 The reasoning behind the per-shape restrictions:
 
 **Constructor receivers must be PRODUCE.** A constructor's job is to fill the receiver slot. A REFERENCE constructor receiver would mean "construct drawing on the receiver's existing state" — which is in-place modification, not construction; the method-with-REFERENCE-receiver case (§3.10) covers that idiom. A READ constructor receiver would mean "construct a thing the caller cannot observe" — forcibly producing an inaccessible object, which has no purpose. The PRODUCE-only rule preserves the constructor's defining feature: at a successful return, the receiver slot holds the constructed value.
 
-**At-stack receivers cannot be PRODUCE.** At-stack methods (§3.12) run at frame exit on objects that exist; productive mode would mean "construct the object as part of cleanup," which is meaningless — the object's existence is the precondition for cleanup, not its outcome. READ at-stack receivers are useful for observation-only cleanup, such as logging an object's final state at frame exit; REFERENCE at-stack receivers are the typical case for resource-managing types. PRODUCE on an at-stack receiver is forbidden by the table and would be a structural violation.
-
 **Method receivers admit all three modes.** The mode is declared per method; the choice between READ, REFERENCE, and PRODUCE is the choice between externalized-effect, in-place-mutation, and re-initialize semantics (§6.9). Each mode is structurally meaningful for methods, and the language admits them all.
+
+The block markers `@` and `@!` (§3.13) are not signature shapes — they introduce bodies, not methods, and do not appear in this table. The withdrawn earlier design admitting `@` and `@!` as class-method signature shapes is recorded in §3.13.
 
 The table is restated from §3.10 here in the context of the R1 and R2 rules of §6.7, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a PRODUCE receiver carries the write-once obligation, a REFERENCE receiver carries no obligation, a READ receiver carries the transitive READ contract.
 
@@ -1381,9 +1421,9 @@ The three modes form a complete discipline: every parameter and receiver in the 
 
 Lambda forms (§8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of §6.2 — `'name`, `&name`, or bare `name` for PRODUCE, REFERENCE, and READ respectively.
 
-**Only READ and REFERENCE modes are admitted in lambda capture lists; PRODUCE is forbidden.** Capturing a productive obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` through ceiling-flattening of reference captures (§8.4), at which point the productive slot may no longer exist. Second, lambdas have multi-invocation semantics — deferring a productive write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The productive obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
+**Only READ and REFERENCE modes are admitted in lambda capture lists; PRODUCE is forbidden.** Capturing a productive obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` (the defining frame; see §8.5 for the formal D/I/F three-frame model) through ceiling-flattening of reference captures (§8.4), at which point the productive slot may no longer exist. Second, lambdas have multi-invocation semantics — deferring a productive write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The productive obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
 
-Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (§8.5; `reference-lambda-and-fexpr.md` §8.3). A free name in a fexpr body that binds a productive parameter `'name` in the defining frame accesses the slot at PRODUCE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of §5.15 / §6.15), so the productive slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
+Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (§8.5). A free name in a fexpr body that binds a productive parameter `'name` in the defining frame accesses the slot at PRODUCE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of §5.15 / §6.15), so the productive slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
 
 The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or REFERENCE value — whether captured explicitly via a lambda's slash list or implicitly via a fexpr's free-name resolution — carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
 
@@ -1409,7 +1449,7 @@ The invariance composes with the buffer-backed-hierarchy subsumption rules (§5.
 
 ### 6.13 Productive Write-Once
 
-A productive parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle (§1.2.4) commits that productive slots are never partially written when a command fails.
+A productive parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle commits that productive slots are never partially written when a command fails.
 
 The rule is structural, not stylistic. There is no "you may write twice if you also clear in between" alternative, and there is no in-place-update form for productive parameters. The body must produce exactly one write to each productive slot per successful path. Failure to write a productive parameter on some successful path is a static error; writing it more than once on the same path is also a static error.
 
@@ -1496,7 +1536,7 @@ The right-hand side of `<-` accepts five distinct surface shapes, each fitting a
 
 | Shape | Surface | LHS types accepted | Section |
 | --- | --- | --- | --- |
-| Parenthesized call | `(cmd: args)` | Any (the cmd's productive output type) | §3.13 |
+| Parenthesized call | `(cmd: args)` | Any (the cmd's productive output type) | §3.14 |
 | Aggregate literal | `${...}` | Records, objects, unions, variants | §7.4 |
 | Sequence literal | `$[...]` | Buffer primitives `[N]` / `[]`; typed buffers `[N]T` / `[]T` | §7.5 |
 | Bare identifier | `name` | Buffer-backed types, pointers, command-typed values | §7.6 |
@@ -1598,7 +1638,7 @@ The form is well-defined for three categories of types:
 The form is **rejected at the typechecker** for two non-buffer types:
 
 - **Objects.** Objects have identity. A primitive byte-copy of an object would either share the identity (which is a pointer-bind, not a copy) or duplicate the storage (which would require a class-specific copy constructor). Neither is the right meaning for a primitive `<-`. The user invokes a copy-constructor explicitly, or shares access via a `^Object` pointer (which is itself a pointer-copy, well-formed under the pointer case above).
-- **Variants.** Variants have reference-semantics: the slot is a 3-word triple (tag, candidate-pointer, witness) whose candidate-pointer references storage potentially owning at-stack handlers. A primitive byte-copy of the slot would create two slots referencing the same candidate storage — an aliasing the language does not track and that would defeat the at-stack discipline for the candidate. The user invokes a constructor (which produces a fresh variant slot) or shares access via a `^Variant` pointer.
+- **Variants.** Variants have reference-semantics: the slot is a 3-word triple (tag, candidate-pointer, witness) whose candidate-pointer references shared candidate storage. A primitive byte-copy of the slot would create two slots referencing the same candidate storage — an aliasing the language does not track. The user invokes a constructor (which produces a fresh variant slot) or shares access via a `^Variant` pointer.
 
 Both rejections are typechecker-side; the diagnostic names the type's identity-bearing-or-reference character and points the user at the appropriate constructor or pointer surface.
 
@@ -1648,7 +1688,7 @@ The mechanism is purely additive: an `.implicit` constructor is also an explicit
 
 `.implicit` carries three structural restrictions:
 
-- **Constructor-only.** `.implicit` may only be applied to constructor commands (commands with a productive `'r` receiver of buffer-backed type, per the constructor signature shape of §3.9). Applying `.implicit` to a method, a regular command, an at-stack handler, or any other shape is a static error.
+- **Constructor-only.** `.implicit` may only be applied to constructor commands (commands with a productive `'r` receiver of buffer-backed type, per the constructor signature shape of §3.9). Applying `.implicit` to a method, a regular command, or any other shape is a static error.
 - **Literal-source restriction.** The single non-receiver parameter must be a literal type — one of `Integer`, `Decimal`, `Hex`, `String`, `Aggregate`, `Sequence`. Implicit conversions whose source is not a literal type would multiply the resolution candidates and make call-site reasoning brittle; the literal-source restriction confines the mechanism to its motivating cases.
 - **No implicit context parameters.** `.implicit` constructors may not declare implicit context parameters (the `/`-separated list of §3.6). The implicit mechanism elides a construction step at the surface; admitting context parameters in `.implicit` constructors would compound elision (literal elision plus context resolution elision), making call-site reasoning brittle. Constructor commands declared `.cmd` retain the standard implicit-context-parameter capability.
 
@@ -1788,25 +1828,25 @@ The operator's surface forms and their meanings:
 
 | Form | Domain | Meaning | Failure mode |
 | --- | --- | --- | --- |
-| `T 'narrow -< v` | variant `v` | If `v`'s active candidate's type is at-or-below `T`, bind the candidate value to `'narrow`. | Tag-mismatch failure on candidate type-mismatch; tag-mismatch failure on `v` absent. |
-| `T 'narrow -< obj` | object `obj` (or `^Object`) | If `obj`'s runtime type is at-or-below `T`, bind the narrowed reference to `'narrow`. | Tag-mismatch failure on type-mismatch. |
-| `T 'narrow -< p` | pointer `^P` admitting class-hierarchy narrowing | Same as object case applied to pointee type. | Tag-mismatch failure on type-mismatch. |
+| `T 'narrow -< v` | variant `v` | If `v`'s active candidate's type is at-or-below `T`, bind the candidate value to `'narrow`. | `TagMismatch` failure on candidate type-mismatch; `TagMismatch` failure on `v` absent. |
+| `T 'narrow -< obj` | object `obj` (or `^Object`) | If `obj`'s runtime type is at-or-below `T`, bind the narrowed reference to `'narrow`. | `TagMismatch` failure on type-mismatch. |
+| `T 'narrow -< p` | pointer `^P` admitting class-hierarchy narrowing | Same as object case applied to pointee type. | `TagMismatch` failure on type-mismatch. |
 | `T 'narrow -< u` | union `u` (T buffer-backed) | Existential subsumption check at compile time: `T` must appear on at least one declared candidate's subsumption chain. On compile-pass, the narrowing always succeeds at runtime. | Compile-time error if `T` is on no candidate's chain; otherwise no runtime failure (§7.15). |
 | `C 'narrow -< u` | union `u` (C a class) | Exactly-one-candidate admissibility: exactly one of `u`'s candidates must have a `C` instance. On compile-pass, the narrowing always succeeds at runtime, with the qualifying candidate's witness selected statically. | Compile-time error if no candidate or more than one candidate qualifies; otherwise no runtime failure (§7.15). |
 | `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds. |
-| `_ -< v` | variant `v` | Test whether `v` is non-absent. | Tag-mismatch failure if `v` is absent. |
+| `_ -< v` | variant `v` | Test whether `v` is non-absent. | `TagMismatch` failure if `v` is absent. |
 
 In the form `T 'narrow -< value`, the binding follows the standard type-then-name convention (§3.3): the type T is the upper bound for the productive slot `'narrow`, which is bound to the narrowed value on success. The form is parallel to a parameter declaration `T 'name` — same syntax, same meaning at the binding site.
 
 The narrowed slot `'narrow` is productive — the operator's productive-side commits a value on success, paralleling the `<-` form's productive write. The same write-once obligation applies if `'narrow` is the constructor's productive receiver (which would be unusual; `'narrow` is most commonly a `#`-introduced local).
 
-The operator's failure-set is "tag-mismatch" — a single failure tag the language emits for `-<` mismatches and for variant absent-cases on the `T 'narrow -< v` and `_ -< v` forms. The tag integrates with typed failures (§4) per the standard machinery: a `?:` chain implicitly emits the tag-mismatch tag on the failure path; a `|: TagMismatch` recovery elsewhere catches it.
+The operator's failure-set is `{TagMismatch}` — a single failure message the language emits for `-<` mismatches and for variant absent-cases on the `T 'narrow -< v` and `_ -< v` forms. The message integrates with typed failures (§4) per the standard machinery: a `?:` chain implicitly emits the `TagMismatch` message on the failure path; a `|: TagMismatch` recovery elsewhere catches it.
 
 ### 7.15 The `-<` Operator Generalized
 
 The `-<` operator is the language's unified dynamic-narrowing surface across multiple type-pair scenarios: variant-to-candidate, object-to-subclass, pointer-to-subclass-of-pointee, union-to-candidate-or-parent, and union-to-class. The unification follows principle 8 of §1.2 — small orthogonal concepts over rich overlapping ones: existing language facilities compose to do the work; reaching for a per-case operator would violate the orthogonality preference.
 
-The operator's run-time behavior varies by domain while its surface form does not. For variants and class hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a tag-mismatch failure fires on inequality. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the §5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a class target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` instance, with the language selecting that candidate's witness statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime — the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and class cases.
+The operator's run-time behavior varies by domain while its surface form does not. For variants and class hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a `TagMismatch` failure fires on inequality. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the §5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a class target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` instance, with the language selecting that candidate's witness statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime — the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and class cases.
 
 For union targets, the static admissibility check is not a guarantee that the union's bytes in fact represent a valid target-typed value. The language admits the byte-reinterpretation; the programmer's discrimination machinery — typically a discriminator field in a containing record, or program logic surrounding the union — remains responsible for ensuring the union's current bytes are a valid value of the target type. This is the standard user-asserted-byte-validity discipline for unions (§5).
 
@@ -1866,7 +1906,7 @@ When a record or object has an embedded object field, the aggregate literal refe
 
 The pre-construction in Phase 1 introduces the embedded object as a local in the constructor's frame. The Phase 2 aggregate-literal references the local by name, supplying it as the value of the `inner` field.
 
-The embedded object's at-stack registration migrates to the new container's owning frame at the moment of the aggregate literal's atomic placement. This composes with the existing frame-migration mechanism for objects (§3.12); no new mechanism is introduced. If `buildContainer` fails — say, a `?`-call inside Phase 1 — the partially-constructed `contained` object is registered with `buildContainer`'s frame and is cleaned up via the failure-exit machinery there. The atomicity story holds: no half-built container exists at any caller's frame.
+The embedded object's at-stack registration migrates to the new container's owning frame at the moment of the aggregate literal's atomic placement. This composes with the existing frame-migration mechanism for objects (§3.13); no new mechanism is introduced. If `buildContainer` fails — say, a `?`-call inside Phase 1 — the partially-constructed `contained` object is registered with `buildContainer`'s frame and is cleaned up via the failure-exit machinery there. The atomicity story holds: no half-built container exists at any caller's frame.
 
 The pattern composes with the productive write-once rule (§6.13): the Phase 2 commit is a single `<-` to `'r`, which discharges the productive obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
 ---
@@ -2073,7 +2113,6 @@ The seven restrictions govern fexpr-typed slots and fexpr-typed values throughou
 - **Restriction G — No fexpr written to defining-frame writeable parameters.** A fexpr cannot be assigned to any productive or reference parameter of `D` itself. *Rationale:* a productive or reference parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, §1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling. The fexpr is `D`-bounded — passed down-stack only, never assigned up-stack directly or transitively.
 
 The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative — some channels closed by them might admit a more nuanced rule under additional analysis machinery (the §6.15 fexpr-tainting axis is one such direction, applied selectively in §8.12 to admit command-reference fexpr-typed bindings) — but the v1 stance is the conservative form.
-
 ---
 
 ## 9. Classes, Instances, and Dispatch
@@ -2125,9 +2164,9 @@ The combined class declares that any type satisfying `CombinedC` must satisfy `C
 
 A combined class may carry type parameters of its own, like any class: `.class OrderedMap[K, V] : Ord[K], MapLike[K, V]` declares a combined class with two type parameters (`K`, `V`) whose instances satisfy both `Ord[K]` and `MapLike[K, V]`. The type parameters of the combined class are bound at instance declaration time and propagated to each parent class's parameters at the matching positions.
 
-**Implicit inhabitation for pure-conjunction combined classes.** When a combined class declares no own signatures (pure conjunction), any type satisfying all the parent classes is *automatically* an instance of the combined class. No explicit `.instance T : CombinedC` declaration is required; the combined-class membership is derived by the typechecker from the type's existing parent-class instances.
+**Implicit inhabitation for pure-conjunction combined classes.** When a combined class declares no own signatures (pure conjunction), any type satisfying all the parent classes is *automatically* an instance of the combined class. No explicit `.instance T : CombinedC` declaration is required; the combined-class membership is derived by the typechecker from the type's existing parent-class instances. Unlike explicit instance declarations whose dictionary is finalized at declaration time (§9.5), implicit-inhabitation membership is checked at each use site: when the typechecker encounters a type `T` at a `CombinedC`-typed position, it verifies that `T`'s parent-class instances are visible at the use site's module import graph.
 
-**Explicit instance required when the combined class adds signatures.** When the combined class declares one or more own signatures, implicit inhabitation is *disallowed*: an explicit `.instance T : CombinedC` declaration is required, providing bodies for the own signatures. The parent-class parts of the dictionary are picked up from the type's existing parent-class instances per the co-location rule (§9.5); only the own signatures need fresh bodies in the instance declaration.
+**Explicit instance required when the combined class adds signatures.** When the combined class declares one or more own signatures, implicit inhabitation is *disallowed*: an explicit `.instance T : CombinedC` declaration is required. The implementations come from the standard channels (§9.4): top-level methods on `T` matching the combined class's own signatures, defaults declared in the combined class itself, or delegation. The parent-class parts of the dictionary continue to be picked up from the type's existing parent-class instances per the co-location rule (§9.5).
 
 The split is structurally clean: implicit inhabitation works when the combined class's contract is fully determined by its parents — every method the combined class requires has an implementation through one of the parents. When the combined class adds its own signatures, those need bodies that cannot be derived from the parent-class implementations alone, so an explicit instance is needed to provide them.
 
@@ -2152,7 +2191,7 @@ The bracket-form `[T:Bound]` for class type parameters is **distinct** from the 
 - Bracket form attaches to the class header and is scoped class-wide: all signatures in the class body share the same type parameter binding when an instance is declared.
 - Inline form attaches to a standalone command's parameter list and is scoped to that single signature: the type variable lives only within that one command.
 
-Mixing the two surfaces — using inline form on a class method, or bracket form on a standalone command — is rejected with a static error (drift-control §3.2). The two forms exist because they serve structurally different cases: class-wide type parameters are shared across all the class's methods (the bracket-form scope), while standalone-command type variables are local to a single signature (the inline-form scope).
+Mixing the two surfaces — using inline form on a class method, or bracket form on a standalone command — is rejected with a static error. The two forms exist because they serve structurally different cases: class-wide type parameters are shared across all the class's methods (the bracket-form scope), while standalone-command type variables are local to a single signature (the inline-form scope).
 
 **A type variable may be introduced only once in any given signature.** The form `(T:C1, T:C2)` — repeating the same type variable name with two class bounds — is a static error. The surface admits a single bound per type variable introduction; multi-class constraints on a single type variable are expressed via combined classes (§9.2): the user declares `.class CombinedC : C1, C2` and writes `(T:CombinedC)` at the inline position. The single-bound-per-introduction rule keeps the inline form minimal — `(T:Class)` is a constraint-on-T-by-the-named-class, not a mini-language for arbitrary type-variable predicates.
 
@@ -2229,7 +2268,7 @@ Class dispatch in Basis is backed by a **three-layer composition**:
 
 - **The dictionary.** A record-like value of command-typed values — one entry per class method. The dictionary is constructed at compile time from the instance declaration; each entry is a command-typed value that wraps the method's implementation for the instance's type.
 - **The hidden-parameter witness (Case A).** For class-bounded type-variable parameters, the dictionary flows once per call as a hidden parameter. The witness identifies which instance the call site uses.
-- **The 3-word slot (Case B).** For existential class-typed parameters, the dictionary is captured at the construction site of the value and travels with it as a 3-word slot — the same 3-word slot pattern used for variants (§5.16) and failures (§4).
+- **The 3-word slot (Case B).** For existential class-typed parameters, the dictionary is captured at the construction site of the value and travels with it as a 3-word slot — the same 3-word slot pattern used for variants (§5.12) and failures (§4).
 
 The two cases (A and B) are the substantive distinction in how class-typed parameters appear at the type-system level; the dictionary structure is uniform across them.
 
@@ -2276,7 +2315,7 @@ The natural slot representation under Case B is a **3-word slot**:
     word 2: pointer-to-value (the value's data)
     word 3: pointer-to-dictionary (the witness)
 
-The 3-word slot is the same structural pattern as the variant slot (§5.16) and the failure slot (§4); each of the three uses populates the words per its semantics (a variant's absent state leaves all three null; a failure's `clear` state leaves all three null; a Case B slot in a well-initialized state has all three populated). The uniform pattern means a Case B class-typed value has the same storage layout as a variant or a failure — three words, populated at construction, copied as a unit.
+The 3-word slot is the same structural pattern as the variant slot (§5.12) and the failure slot (§4); each of the three uses populates the words per its semantics (a variant's absent state leaves all three null; a failure's `clear` state leaves all three null; a Case B slot in a well-initialized state has all three populated). The uniform pattern means a Case B class-typed value has the same storage layout as a variant or a failure — three words, populated at construction, copied as a unit.
 
 **The substantive distinction.** Case A is "the parameter takes a value of a *specific type* the caller chooses, constrained to satisfy a class." Case B is "the parameter takes a value of *any type that satisfies the class*, with different invocations potentially using different types." The difference shows in slot representation (ordinary vs. 3-word), in witness flow (hidden-parameter vs. embedded), and in callee body's static knowledge (`T` is one type across the call vs. unknown type per invocation).
 
@@ -2361,11 +2400,13 @@ The resolution rule is **most-specific-candidate-wins**: among all candidates ma
 
 This produces a command-typed value that is unambiguously the `compare` method from class `Ord`. The value can then be invoked or stored as any other command-typed value. The form is especially useful at cross-class overloading boundaries where the type-driven disambiguation cannot decide between candidates from different classes.
 
-### 9.17 Liskov-Style Opening of the Failure-Tag Hierarchy
+### 9.17 Liskov-Style Opening of the Failure-Message Hierarchy
 
-The failure-tag hierarchy (§4) admits class-system-style opening — a failure-tag class may extend an existing failure-tag class, with subsumption rules governing how a child tag may be raised at a parent's expected position. The v1 rule for this opening is **same-class equality**: a child tag may be raised at a parent's position only if the child and parent are the same failure-tag class. Cross-class implication — "raising any subclass tag satisfies the parent class" — is reserved for a future version.
+The failure-message hierarchy (§4) admits class-system-style opening — a payload class may extend an existing payload class, with subsumption rules governing how a child class may be raised at a parent's expected position. The v1 rule is **Liskov covariance**: a payload whose declared class is a subclass of (or equal to) the position's expected class is well-formed at that position. A `.fail` site emitting a payload satisfying a child payload class is acceptable at any position expecting a parent class along the same class hierarchy; the dispatch flows through the more-specific class's witness, and class operations expected at the parent's level are dispatched soundly by the standard class-system subsumption (a child-class witness has, by construction, all the operations of every parent class in its chain).
 
-The bright-line rule is the same one that governs instance coherence (§9.15): intra-module uniqueness, cross-module specificity ranking, orphan permissibility, import-time competition warning. The rules are stated once and applied uniformly to instances and to failure-tag hierarchies.
+The covariance rule is what makes payload-class covariance across message hierarchies (§4.8) work end-to-end: a child message's payload class is a subclass of (or equal to) its parent's, so the parent-class handler's bound payload value — observed through the parent's class operations only — is operating on a value whose actual class supports those operations and more. The handler does not see the more-specific class's operations: the bound name's static type is the spec's class, and the handler is constrained to operate at that level of abstraction. This is the design commitment that lets recovery handlers participate in extensible message hierarchies without coupling to concrete payload-type details.
+
+The bright-line rule is the same one that governs instance coherence (§9.15): intra-module uniqueness, cross-module specificity ranking, orphan permissibility, import-time competition warning. The rules are stated once and applied uniformly to instances and to failure-message hierarchies.
 
 ### 9.18 Buffer-Backed Dispatch Identity Capture
 
@@ -2381,7 +2422,7 @@ The motivating use case is class dispatch on values that flow through generic co
 
 ### 9.19 Variant Class-Witness Slot
 
-A variant slot's 3-word structure (§5.16) includes a third word for a class witness, populated at construction when the variant's active candidate has class-typed methods or when the variant value will be dispatched through a class boundary. The witness population is performed at the construction site of the variant — the same boundary that selects the active candidate. Consumption of the variant through a class-typed `::` dispatch reads the witness from the slot and proceeds per §9.12.
+A variant slot's 3-word structure (§5.12) includes a third word for a class witness, populated at construction when the variant's active candidate has class-typed methods or when the variant value will be dispatched through a class boundary. The witness population is performed at the construction site of the variant — the same boundary that selects the active candidate. Consumption of the variant through a class-typed `::` dispatch reads the witness from the slot and proceeds per §9.12.
 
 The variant in the absent state has no active candidate; the witness slot is null. Dispatching through `::` on an absent-state variant slot is **undefined** at the language level: the typechecker rejects the dispatch with a static error when the absent state is structurally reachable, and the variant must be narrowed (`-<`) into a candidate state before dispatch. The narrowing operator handles the absent case explicitly per its grammar (§7.14).
 
@@ -2391,7 +2432,7 @@ The variant-class-witness slot composes with both Case A and Case B (§9.9): a v
 
 A class method's signature may declare a fexpr-typed parameter, subject to the fexpr-tainting discipline of §6.15. The class-method dispatch boundary is treated as a partial-application boundary for tainting purposes: any fexpr-typed argument flows into the dispatched method's frame as a READ-mode parameter, with the fexpr-relevance taint carried through as if the dispatch were a direct call.
 
-**The `FexprFailure` standard tag.** When a fexpr-tainting violation is detected at a dispatch boundary — a fexpr-typed argument whose ceiling cannot be honored by the dispatched implementation — the language raises a `FexprFailure` failure with a payload identifying the violation. The tag is a built-in failure-tag class; its hierarchy and surface are part of the standard library.
+**The `FexprFailure` standard message.** When a fexpr-tainting violation is detected at a dispatch boundary — a fexpr-typed argument whose ceiling cannot be honored by the dispatched implementation — the language raises a `FexprFailure` failure with a payload identifying the violation. `FexprFailure` is a built-in failure message; its payload class and hierarchy are part of the standard library.
 
 **Defaults are incompatible with fexpr-typed parameters.** A class method with a fexpr-typed parameter cannot have a default body in the class declaration: the default body would need to be analyzable at class-declaration time, but the fexpr's defining frame `D` is not in scope at that point. The user resolves by either omitting the default (making the class method `.decl`-form only) or by avoiding fexpr-typed parameters on commands that need defaults.
 
