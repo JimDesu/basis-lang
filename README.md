@@ -3,7 +3,7 @@
 This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent here.  I have a pretty solid understanding of what I want to achieve, and I've written this doc so far mostly as a means of clarifying corners of my intent -- as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is" -- so please expect changes. 
 
 ## Introduction
-There is no greater technical obscurity than creating a new programming language, and this is my contribution to that heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
+There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
 
 ### Practical Upshot:
 The core differentiating reasons for going through the effort of making this language are:
@@ -137,7 +137,7 @@ Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). Impor
 `.program` defines the program's entry expression:
  
 ```
-.program = runSimulation: (getCommandLine)
+.program  runSimulation: (getCommandLine)
 ```
  
 The right of `=` is an expression that runs at program start; here, `runSimulation` is invoked with the result of `getCommandLine` as its argument.
