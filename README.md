@@ -71,7 +71,7 @@ Some of what follows is settled and parsing today; some is design that the compi
 Hello, world:
  
 ```
-.program = writeLn: "Hello, world!"
+.program writeLn: "Hello, world!"
 ```
  
 A regular command, with a parameter and a productive output:
