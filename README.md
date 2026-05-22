@@ -9,9 +9,9 @@ There is no greater technical obscurity than creating a new programming language
 
 ### Practical Upshot:
 The core differentiating reasons for going through the effort of making this language are:
-- Direct semantic match to Hexagonal Architecture... the langauge makes Hexagonal Architecture the natural way to code
-- Bounded scope of side effects will simplify review of AI-generated code
-- Stylistic support for high and low level coding tasks
+- Direct semantic match to Hexagonal Architecture... the langauge makes Hexagonal Architecture the natural way to code.  Hexagonal architecture is the procedural equivalent to how large Haskell code-bases work, and is a proven approach to keeping large code-bases tractable.
+- Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you can see the bounds of what can happen in each signature.
+- Stylistic support for high and low level coding tasks, whether that's passing buffers or managing statecharts.
 
 ### Guiding Principles:
 - Strong typing saves lives &#9786;
@@ -19,7 +19,7 @@ The core differentiating reasons for going through the effort of making this lan
 - The fundamental datatype is a buffer
 - Mutation either succeeds fully or fails fully
 - No hidden control flow
-- Polymorphism and statecharts aren't just for object types 
+- Polymorphism isn't just for object types 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
