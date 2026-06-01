@@ -1,8 +1,8 @@
 # The Basis Programming Language.  
 
-*This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent here.  I have a pretty solid understanding of what I want to achieve, and I've written this doc so far mostly as a means of clarifying corners of my intent -- as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is" -- so please expect changes.* 
+*This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent here.  I have a pretty solid understanding of what I want to achieve, and I've written this doc so far mostly as a means of clarifying corners of my intent -- as Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
 
-*This is just an overview; see spec.md for the gory details.*
+*This is just an overview (and slightly out of date); please see `spec.md` for all the gory details.*
 
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
