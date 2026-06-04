@@ -20,7 +20,7 @@ The core differentiating reasons for going through the effort of making this lan
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
 - Polymorphism isn't just for object types
-- Hierarchical statecharts should be simple to implement 
+- Hierarchical statecharts shouldn't be hard 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
