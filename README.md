@@ -12,10 +12,10 @@ The core differentiating reasons for going through the effort of making this lan
 - Direct semantic match to Hexagonal Architecture... the language makes Hexagonal Architecture the natural way to code.  Hexagonal architecture is the procedural equivalent to how large Haskell code-bases work, and is a proven approach to keeping large code-bases tractable.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
 - Stylistic support for both high and low level coding tasks, whether that's passing buffers or navigating statecharts.
-- Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it makes safety vs performance trade-offs that render it inherently less space and time efficient than languages like C and Zig.  
+- Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it makes safety vs performance trade-offs that render it inherently less space and time efficient than languages like C and Zig.  If you're writing an OS Kernel, check out Zig instead. &#9786;
 
 ### Guiding Principles:
-- RAII saves lives &#9786;, but should be orthogonal to the type-system
+- RAII should be orthogonal to the type-system
 - No non-local state access
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
