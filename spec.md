@@ -22,7 +22,7 @@ The language realizes a small set of guiding principles. Each principle has cons
 
 4. **Mutation either succeeds fully or fails fully.** Every writeable parameter passing uses copy-by-value or copy-restore semantics: on success the callee's value is committed to the caller's slot atomically; on failure no write occurs and the caller's slot is bit-identical to its pre-call state. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs.
 
-5. **No hidden control flow.** Failures propagate, but only along structurally visible paths. There is no exception-with-stack-unwinding mechanism, no implicit dispatch through hidden vtables, no implicit destructor firing on member-field cleanup. Every control-flow effect is either explicit at the call site or marked by a block-construct in the source. The single exception, intentionally narrow, is the at-stack mechanism for frame-exit hooks (§3.13).
+5. **Resource cleanup is a linear obligation, orthogonal to type.** A value that should be released, closed, or otherwise discharged can carry a linear obligation (§10): a duty met exactly once and never silently dropped, settled either by an explicit operation or, failing that, automatically at the end of the value's lifetime. The obligation follows from how the value was acquired, not from its type — the same type may carry one or not. Control flow is otherwise structural: failures propagate only along visible paths, dispatch is explicit at the `::` call site, and there is no exception-with-stack-unwinding mechanism.
 
 6. **Polymorphism and statecharts aren't just for object types.** The class system (Haskell-style typeclass dictionaries) operates uniformly over buffer-backed types, non-buffer types, and command-typed values. Variants admit class-witness slots, supporting dispatch through the active candidate. The same dispatch and propagation patterns appear across variants, failure messages, and class-typed parameters.
 
@@ -84,9 +84,9 @@ A few features of the reduction system are worth flagging at this level:
 
 Two principles shape what code in Basis is *able* to do. Both are stated as commitments the language makes; the operational semantics enforces them; the type system tracks what can be inferred from them.
 
-**No hidden control flow.** Every control-flow transition is either explicit at the call site (the `::` operator marks class dispatch) or marked by a block-construct in the source (a block marker establishes a recovery context). There is no `try`/`catch`/`finally` parallel; recovery is at sibling positions in the source structure, where the reader can identify them by inspection. There is no implicit destructor firing on object-field cleanup. There is no implicit conversion at parameter boundaries — the only implicit type movements are the buffer-backed parent-chain upcast and the `.implicit`-licensed literal coercion, both of which are statically determined. A reader of a command signature knows what may happen — the failure mark and the parameter list together name every effect — and a reader of a command body can identify every recovery context, every dispatch site, every place a failure may consume. Reasoning is signature-bounded.
+**Control flow is structural.** Every control-flow transition is either explicit at the call site (the `::` operator marks class dispatch) or marked by a block-construct in the source (a block marker establishes a recovery context). There is no `try`/`catch`/`finally` parallel; recovery is at sibling positions in the source structure, where the reader can identify them by inspection. One effect that fires without an explicit call site is the discharge of a resource obligation (§10), which runs at the end of its value's lifetime — but it is deterministic, follows from a visible acquisition, and is resolved at compile time, not a dynamic unwinding. There is no implicit conversion at parameter boundaries — the only implicit type movements are the buffer-backed parent-chain upcast and the `.implicit`-licensed literal coercion, both statically determined. A reader of a command signature knows what may fail and what it produces — the failure mark and the parameter list name those — and a reader of a command body can identify every recovery context, every dispatch site, and every place a failure may consume. Reasoning is signature-bounded; a value's obligation is the one effect carried with the value rather than named in the signature (§10.11).
 
-The single intentional exception is the at-stack mechanism for frame-exit hooks (§3.13). When a frame retires, `@`-blocks and `@!`-blocks registered within that frame's body fire alongside any explicit cleanup code. This is implicit in the sense that no source-line at the registration site invokes the handler; the handler runs as a consequence of the frame retiring. The mechanism is the language's RAII-equivalent — necessary for ergonomic resource management, and confined to a single, syntactically-marked category (the `@` and `@!` block markers within command bodies).
+The other intentional exception is the at-stack mechanism for frame-exit hooks (§3.13). When a frame retires, `@`-blocks and `@!`-blocks registered within that frame's body fire alongside any explicit cleanup code. This is implicit in the sense that no source-line at the registration site invokes the handler; the handler runs as a consequence of the frame retiring. The mechanism is the language's RAII-equivalent — necessary for ergonomic resource management, and confined to a single, syntactically-marked category (the `@` and `@!` block markers within command bodies).
 
 **No non-local state.** A command body's reached state arrives by an explicit chain of provision. There are three kinds of provision:
 
@@ -108,7 +108,7 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Frame-ownership.** Every slot is owned by some frame. "Return values" in the conventional C++/Java/Rust sense do not exist: output flows through writeable parameter slots that the caller owns, written to by copy-restore on success. When reasoning about value semantics, mode contracts, aliasing, or lifetime ceilings, the question is *which frame owns this slot* — not "what does this function return."
 
-**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, and access-path taint are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A PRODUCE or REFERENCE output of a downstream call appears in the caller's frame as a freshly-bound local; the access path is rooted at the caller's local, not at any of the caller's parameters. The discipline migrates to the frame that has the right context; the language does not propagate.
+**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A PRODUCE or REFERENCE output of a downstream call appears in the caller's frame as a freshly-bound local; the access path is rooted at the caller's local, not at any of the caller's parameters. The discipline migrates to the frame that has the right context; the language does not propagate.
 
 **Access paths, not storage.** The transitive READ contract operates on access paths — the named ways through which a value is reached — not on storage locations. The same storage may be reached at runtime through multiple access paths simultaneously, one of which is READ-rooted and another of which is REFERENCE-rooted; writes through the REFERENCE-rooted path are permitted while writes through the READ-rooted path are forbidden. The language does not detect aliasing; it tracks paths.
 
@@ -124,7 +124,7 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Liskov substitution as a design tool.** Where the language admits a subtyping relation, the design preserves Liskov substitutability. The buffer-backed parent-chain subsumption preserves Liskov by construction (the upcast is one-directional and carries no value rewriting). The class-instance system preserves Liskov by class-method-contract (instances must satisfy the class's declared shape). Where Liskov substitution fails — as it does for the union $\to$ candidate-or-parent byte-reinterpretation, where the bytes' meaning depends on the active candidate — the relation is given a distinct name (byte-reinterpretation subsumption) and not conflated with Liskov-preserving subsumption.
 
-**Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement. Non-default storage — heap, pool, arena, etc. — is opt-in at the construction site via the `\` allocator qualifier (§7.20); bringing an allocator value into scope does nothing on its own, and without an explicit `\` qualifier every construction's allocation is frame-bound. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
+**Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement, with nothing to track. Non-default storage — heap, pool, arena, etc. — is drawn from an allocator, whose acquire/release pair is governed by the obligation system (§10): acquisition is an ordinary source-method call producing an obligated value, and bringing an allocator into scope does nothing on its own until such a call is made. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
 
 These lenses recur throughout this specification. Sections that depend on a particular lens for their correctness call it out at the relevant point.
 
@@ -146,7 +146,7 @@ A file with no `.module` declaration, no imports, and no definitions is a well-f
 
 ### 2.2 Top-Level Definition Forms
 
-A Basis source file may contain any of sixteen top-level definition forms, each introduced by a `.`-prefixed keyword. The dot-prefix marks special forms so they are visually distinct from user-defined identifiers; the keyword itself names the kind of definition. The forms, alphabetically:
+A Basis source file may contain any of eighteen top-level definition forms, each introduced by a `.`-prefixed keyword. The dot-prefix marks special forms so they are visually distinct from user-defined identifiers; the keyword itself names the kind of definition. The forms, alphabetically:
 
 - **`.alias` *Name*` = `*TypeExpression*** — Declares *Name* as a synonym for *TypeExpression*. Aliases erase entirely from the type system; the alias name and its right-hand side are interchangeable in both directions in all contexts. They introduce no new type identity.
 
@@ -172,7 +172,11 @@ A Basis source file may contain any of sixteen top-level definition forms, each 
 
 - **`.program` *command-or-body*** — Declares the program's entry point. The supplied command (or indented body) runs at program start. A compilation unit may contain at most one `.program` directive.
 
+- **`.promise` *ReceiverType*` : `*source*` -> `*sinks*** — Declares an obligation, borne by a source method's product, that may escape its acquiring frame, its discharge deferred to the eventual owner's lifetime end and met by one of the named sink methods (the first listed is the default). The obligation system (§10).
+
 - **`.record` *Name*` : `*field declarations*** — Declares a buffer-backed record type — a named, contiguous, byte-addressable buffer with named field offsets. Field types must be fixed-size buffer-backed.
+
+- **`.resource` *ReceiverType*` : `*source*` -> `*sinks*** — Declares an obligation, borne by a source method's product, that must be discharged within the acquiring frame by one of the named sink methods (the first listed is the default). The obligation system (§10).
 
 - **`.test`** — Declares a test, a speculative test, or a test-aggregation suite. Three forms: `.test "`*name*`" : ` *body* declares a regular test; `.test "`*name*`" ? ` *body* declares a speculative test whose failure does not trigger overall test-run failure; `.test "`*name*`" = ` *string-list* declares a test-aggregation suite, the RHS being a comma-separated list of `.test` names that compose a logical group. See §2.6.
 
@@ -292,7 +296,7 @@ Indentation is the language's primary block delimiter. A line indented under ano
 
 The `${…}` and `$[…]` literal-fence tokens introduce a single bracketed group each, matched by a single `}` or `]`. The `$` prefix is unambiguous — the `$` character has no other use in Basis source — so `${` and `$[` are recognized as single tokens at lex time.
 
-The full lexer specification — the token classes, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.inline` modifier, the `<*>` typing surface for fexpr-typed slots, and the `(T:Class)` constraint form at method receiver positions — is given in Appendix A.
+The full lexer specification — the token classes, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.splice` modifier, the `<*>` typing surface for fexpr-typed slots, and the `(T:Class)` constraint form at method receiver positions — is given in Appendix A.
 
 
 ---
@@ -570,7 +574,7 @@ The handlers fire in **reverse order of registration** — the most-recently-int
 
 `@` and `@!` blocks are not destructors. They are RAII-equivalent in functional role; they are not RAII in mechanism.
 
-**Block markers only; no class-level form.** Frame-exit hooks are admitted *only* as block markers within command bodies. There is no `.cmd @ Type ::` or similar class-method form that would auto-register a handler against every frame slot holding a value of a particular type. The block-marker form is the entire surface; cleanup tied to a resource-managing type is the user's explicit responsibility at each use site. The block-marker form provides deferred firing: cleanup is colocated with acquisition at the registration site, and the firing happens at frame retirement.
+**Block markers only; no class-level form.** Frame-exit hooks are admitted *only* as block markers within command bodies. There is no `.cmd @ Type ::` or similar class-method form that would auto-register a *hook* against every frame slot holding a value of a particular type; the block-marker form is the entire surface for `@`/`@!`. Type-associated cleanup that fires automatically — the role a destructor plays elsewhere — is provided instead by the obligation system (§10), where a `.resource` or `.promise` declared on a class receiver binds every instance (§10.8). The block-marker form provides deferred firing of its own: cleanup colocated with acquisition at the registration site, fired at frame retirement.
 
 The receiver-mode rules of the parent command's body apply to the `@` and `@!` block's body the same way as to any other sub-block: variables in scope at the block's registration point are accessible inside the block, with their mode markers preserved. The block runs in the parent command's frame context at retirement; it has no parameter list of its own.
 
@@ -619,6 +623,8 @@ quotrem: #remainder, 10, 3         ; #remainder introduces a productive-bound lo
 ```
  
 The form is naturally suited to PRODUCE-mode parameter slots: the local is uninitialized at introduction and is filled by the call's productive write on success. At READ-mode parameter slots, an existing in-scope identifier or expression is supplied in the argument list rather than a fresh introduction. At REFERENCE-mode parameter slots, the caller-slot is required pre-initialized, so the local must be introduced and initialized by an earlier statement before the call.
+ 
+**By-name argument binding.** An argument may be supplied by naming the callee parameter it binds — `paramName <- arg` or `paramName <<- arg` — rather than as a positional value. By-name binding is the down-stack counterpart of a lateral store (§7.1): for an unobligated argument it binds the named parameter to `arg` as an ordinary value; when `arg` carries an obligation (§10), `<-` moves ownership of the obligation into the call and `<<-` passes a non-owning view, the caller retaining ownership. A positionally bound argument is always a borrow, so down-stack ownership transfer travels only through by-name binding. The determination is the call site's: the same parameter may be borrowed at one call, consumed at another, and aliased at a third.
  
 Implicit context parameters (§3.6) are not supplied at the call site; they are filled by the typechecker from the caller's lexical scope. The call's argument list covers the regular parameters only.
  
@@ -706,7 +712,7 @@ The marks classify command-typed values uniformly across all of the language's c
  
 The marks form a partial order under subsumption: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful — its failure edge is statically dead — but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
  
-Parameter modes (§3.3) and parameter types are **invariant** under mark subsumption. A `:<Int 'r>` value is not interchangeable with `:<Int>` or `:<Int &r>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (productive obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
+Parameter modes (§3.3) and parameter types are **invariant** under mark subsumption. A `:<Int'>` value is not interchangeable with `:<Int>` or `:<Int&>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (productive obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
  
 ### 4.3 The `.fail` Directive
  
@@ -741,6 +747,8 @@ Signature-level failure-set declarations — how a command's signature names the
 Eleven block markers govern failure flow. They are enumerated as a syntactic list in §3.1, with `|` and its parametrized `|`-with-spec form treated as a single marker for the enumeration; this section enumerates all eleven by their **failure-mode role** — what each one consumes, what it permits to propagate, and where it places execution after consumption.
  
 #### Guard-only recovery: `?`, `?-`, `?:`
+ 
+A **guard** is the lead statement (or subordinate block) within a block-marker construct, whose success or failure determines whether the remainder of the block executes.
  
 The three guard-bearing markers consume their *guard*'s failure but not the failures of statements within their body.
  
@@ -814,7 +822,7 @@ means `(testA OR testB) AND (testC OR (testD OR testE))`. Each `|`-chain locally
  
 `@` (DO_ON_EXIT) registers a body that runs at frame exit, regardless of whether the frame exits via success or failure. `@!` (DO_ON_EXIT_FAIL) registers a body that runs only on failure exits. Neither construct sees nor consumes the propagating failure; the bodies execute as if no failure were active, even when the frame is exiting via failure.
  
-The `@` and `@!` markers are **frame-lifetime-tied**. They register a body against the enclosing command's frame; the body executes at that frame's retirement, in reverse registration order. This is the language's only intentional exception to the no-invisible-control-flow principle, and it is contained to the explicit registration via the `@` or `@!` marker — no class-level declaration causes implicit registration for frame slots of any particular type (§3.13). The discipline that governs *when* these blocks fire under a propagating failure is in §4.11.
+The `@` and `@!` markers are **frame-lifetime-tied**. They register a body against the enclosing command's frame; the body executes at that frame's retirement, in reverse registration order. Value-lifetime-tied cleanup is the separate province of the obligation system (§10); the `@`/`@!` hooks themselves have no class-level form — no class-level declaration causes implicit registration of a hook for frame slots of any particular type (§3.13). The discipline that governs *when* these blocks fire under a propagating failure is in §4.11.
  
 ### 4.5 Block-Marker Composition
  
@@ -838,7 +846,7 @@ The **canonical loop pattern** is `?? ?` paired with a sibling `^`, with `^` pla
  
 ```
 ?? ? hasMore: queue
-        process: pop: queue
+        process: (pop: queue)
     ^
 ```
  
@@ -1003,7 +1011,7 @@ The typechecker performs a forward-flow analysis over each command body's contro
 | `mixed(!)` | Some incoming paths reach this point clear, others with `failing(!)`. |
 | `unreachable` | No incoming path reaches this program point. |
  
-The states are mutually exclusive: at any program point, the state is exactly one of the six. The lattice's bottom is `unreachable`, which is the identity for the join operation. Above it sit `clear`, `failing(!)`, and `failing(?)` as pairwise-incomparable peers. `mixed(!)` is the join of `clear` with `failing(!)`. `mixed(?)` is the supremum: every join involving a `?`-flavored failure or pairing a propagating-failure path with a clear path produces `mixed(?)`. There is no element above `mixed(?)`.
+The states are mutually exclusive: at any program point, the state is exactly one of the six. The lattice's bottom is `unreachable`, which is the identity for the join operation. Above it sit `clear`, `failing(!)`, and `failing(?)` as pairwise-incomparable peers. `mixed(!)` is the join of `clear` with `failing(!)`. `mixed(?)` is the supremum: every join involving a `?`-flavored failure produces `mixed(?)`. There is no element above `mixed(?)`.
  
 Two reading rules summarize the join behavior. **Widening of `!` to `?`**: whenever a `!`-flavored state is joined with a `?`-flavored state, the result is `?`-flavored. The `?` mark is the supremum among the three failure modes. **`clear` plus failing produces `mixed`**: a node reached by both a clear path and a failing path is reachable on both, and downstream code must consider both possibilities.
  
@@ -1087,9 +1095,11 @@ Records compose: a record may have a field whose type is another record, and the
  
 The record/object split (§5.11) is the surface manifestation of the buffer-backed/non-buffer division: records are byte-aggregates with no identity beyond their contents; objects are identity-bearing aggregates whose fields may include non-buffer types. The choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics — not a graded distinction, but a categorical one.
  
-**Field access.** A record's fields are reached through the scope operator `::` (§9.6). The named form `record :: fieldName` selects the field by name; the positional form `record :: N` selects the Nth field by 1-based positional index, where positions are counted through `.inline` field promotion (§A.7). Both surfaces account for `.inline` uniformly: `.inline`-marked fields contribute their inner records' named fields to the outer's namespace *and* their inner records' positions to the outer's positional sequence. The `.inline`-field's own declared name remains a valid grouping reference — `outer :: inner` returns the inner-typed view of the inner's bytes — but does not correspond to a positional index. Out-of-range positional indices and unknown field names are static errors.
+**Field access.** A record's fields are reached through the scope operator `::` (§9.6). The named form `record :: fieldName` selects the field by name; the positional form `record :: N` selects the Nth field by 1-based positional index in declaration order. Out-of-range positional indices and unknown field names are static errors.
+
+A record-typed field may be declared with the `.splice` modifier (fully specified in §A.7), promoting the inner record's structure into the outer's accessible surface: each inner field name becomes directly addressable on the outer, and the inner's positions splice into the outer's positional sequence at the `.splice` field's site. Both `::` surfaces account for this promotion uniformly. The `.splice` field's declared name remains a valid grouping reference — `outer :: inner` returns the inner-typed view of the inner's bytes — but does not correspond to a positional index.
  
-Records also admit **inline forms** — anonymous declarations within a field or candidate position. An inline record nested inside an outer record's field declaration produces a nominally distinct type per declaration site; the same field structure appearing in two separate outer records yields two distinct inline types. Named records are typically preferred for re-use; inline forms are a convenience for one-off compound structure inside another declaration.
+Records also admit **inline definitions** — anonymous declarations within a field or candidate position. An inline record nested inside an outer record's field declaration produces a nominally distinct type per declaration site; the same field structure appearing in two separate outer records yields two distinct inline types. Named records are typically preferred for re-use; inline definitions are a convenience for one-off compound structure inside another declaration.
  
 ### 5.5 Buffer-Backed Subsumption
  
@@ -1168,6 +1178,8 @@ An **enumeration** is a compile-time-constant collection of named values of a si
  
 The **one-name form** (`.enum Severity : ...`) names the enum's type (here `Severity`); the values' representational type is inferred from the literal values. The **two-name form** (`.enum HttpCode Status : ...`) makes the representational type explicit (here `HttpCode`) and names the enum's type second (here `Status`). The two-name form is the form to use when the literal values must inhabit a non-default representational type — for example, a domain over `Int16` with associated invariants — and a constructor is available that is callable on each literal. The two names are not a "second-level grouping"; they are simply *type constraint* and *enum type*, with no nesting semantics.
  
+The `= literal` on each entry is optional. An entry without an explicit literal is auto-assigned C-style — the previous entry's value plus one, with the first entry defaulting to the representational type's zero — and explicit and auto-assigned entries may be mixed. Every value, whether written or auto-assigned, must inhabit the enum's representational type; one that does not is a static error.
+ 
 Enum values are compile-time constants. They are read-only at every use site, with values fixed at module compile time, and they participate in the type system as values of the enum's type — not as a special category. An enum's type is a buffer-backed type (it inherits the buffer-backed-ness of its representational type) and may serve as a record field, union candidate, parameter, receiver, and so on, on the same terms as any other buffer-backed type.
  
 Enums are **the language's single principled exception to the no-non-local-state principle.** A reference to an enum value is, structurally, a reference to non-local state — the value lives at module scope, not in any frame. The language admits this exception because enums are *constants*: they cannot be mutated, they have no per-thread or per-frame state, and they exist solely for the convenience of naming a fixed set of distinguished values. Whether enum values are constructed up-front at module load or computed on-demand at first use is implementation-dependent and not visible to the language.
@@ -1178,7 +1190,7 @@ The principle behind the exception is precise: it admits *compile-time-constant 
  
 A **pointer type** is written `^T`. The caret is a type-prefix and may stack: `^^T` is a pointer to a pointer to `T`. Pointers are non-buffer types — they reference other storage rather than carrying byte-content directly — and may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots (introduced via `#`), parameters, receivers, object fields, and variant candidates.
  
-The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in §7 and §6.5 respectively. Construction of a pointer to fresh storage — as distinct from `&` taking the address of an existing slot — uses the value-construction surface of §7.20, with the storage placement (frame region by default, or the named allocator under a `\` qualifier) determined there.
+The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in §7 and §6.5 respectively. Construction of a pointer to fresh storage — as distinct from `&` taking the address of an existing slot — uses the value-construction surface of §7.20, with the storage placement — the frame-bound region by default, or an allocator's source method for non-default storage (§10) — determined there.
  
 The language commits to **abstracted pointer semantics**. The user-visible meaning of `^T` is "pointer to `T`." Whether the runtime implementation is a thin pointer (carrying only the pointee's address), a fat pointer (carrying the address plus dispatch metadata), or a handle (a pointer to a pointer, supporting relocation by the allocator) is an implementation choice, made per type by the compiler, and not user-visible. The implementation latitude permits the compiler to choose, on a per-`T` basis, the representation that best serves `T`'s actual needs: a thin pointer for a small fixed-size buffer-backed `T`; a fat pointer for an object-typed `T`, supporting class dispatch; a handle for any `T` allocated in a relocation-supporting allocator.
  
@@ -1203,11 +1215,11 @@ The record/object split (§5.4) is the core split of the buffer-backed/non-buffe
  
 Objects are nominally typed: two `.object` declarations with identical field structure produce two distinct types.
  
-**Field access.** An object's fields are reached through the scope operator `::` (§9.6). The named form `object :: fieldName` selects the field by name; the positional form `object :: N` selects the Nth field by 1-based **declaration order**. Because object layout is implementation-determined (the language does not commit to a particular field-layout strategy for objects, per the discussion above), positional access is by declared order rather than by byte offset; `obj :: 1` is always the first field as the type was declared, irrespective of how the implementation chose to lay out the storage. Out-of-range positional indices and unknown field names are static errors. (Objects have no `.inline` modifier, per the grammar in Appendix B, so the inline-promotion rule from records does not apply.)
+**Field access.** An object's fields are reached through the scope operator `::` (§9.6). The named form `object :: fieldName` selects the field by name; the positional form `object :: N` selects the Nth field by 1-based **declaration order**. Because object layout is implementation-determined (the language does not commit to a particular field-layout strategy for objects, per the discussion above), positional access is by declared order rather than by byte offset; `obj :: 1` is always the first field as the type was declared, irrespective of how the implementation chose to lay out the storage. Out-of-range positional indices and unknown field names are static errors. (Objects have no `.splice` modifier, per the grammar in Appendix B, so the `.splice`-promotion rule from records does not apply.)
  
 **Object lifetime ceiling.** The frame in which an object's storage is introduced is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the frame that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime — object types are first-class types — but every object *value* is bound to an introducing frame. The frame-ownership lens (§1.5) makes the rule concrete: an object lives in a frame's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. The lifetime ceiling is whichever frame ends up holding the slot at the binding moment.
  
-**Frame-exit hooks via `@` and `@!` (§3.13) are tied to the frame slot, not to the object's identity transitively.** An `@` or `@!` block registered against a frame's body runs when *that frame's slot* retires, regardless of the type of the value the block references. An object embedded as a field of another aggregate — a field of another object, or transported via an unusual containment — does not participate in any implicit per-type cleanup mechanism, because the language has no such mechanism: `@` and `@!` are block markers only (§3.13), and the user writes them at the registration site they want. The discipline is **frame-lifetime-tied, not object-lifetime-tied**, which is more restrictive than C++'s destructor mechanism and is intentionally so: the language's at-stack mechanism is the single carve-out from the no-hidden-control-flow principle, and the explicit-registration rule keeps the carve-out narrow.
+**Frame-exit hooks via `@` and `@!` (§3.13) are tied to the frame slot, not to the object's identity.** An `@` or `@!` block registered against a frame's body runs when *that frame's slot* retires, regardless of the type of the value the block references; the hooks are frame-lifetime-tied, not object-lifetime-tied. Object-lifetime-tied cleanup is instead the province of the obligation system (§10): an obligated value's discharge fires at the end of *its* lifetime, and an object's retirement fires its own and its owned fields' obligations (§10.16). The two mechanisms are distinct and do not compete — `@`/`@!` register frame-tied cleanup explicitly at a block marker, while an obligation rides with the value it was acquired against — so a resource may be managed by whichever fits its lifetime.
  
 Object types may have class instances declared for them (§9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's class membership is a property of the object's type, not of any particular object value, and is determined at the type-declaration site or at instance-declaration sites.
  
@@ -1241,6 +1253,8 @@ A bare introduction of a variant slot — `# SomeVariant x` with no initializer 
 A variant declared with exactly one candidate is the language's idiomatic optional: a slot of that variant type is either absent or holds the single candidate's value. The absent state stands for "no value present"; the candidate state stands for "value present." The pattern composes with the rest of the variant machinery — testing for absent uses the `?- _ -< v` form, and engaging on the candidate uses a `?: 'narrow -< v` form (§7.13) — without any dedicated optional-type machinery beyond the variant declaration itself.
  
 The absent state is *always* a path through any variant. Code that operates on a variant's candidate must either explicitly handle the absent case or rely on a default arm in a `?:` chain catching it. The structural visibility of the absent path is what differentiates Basis variants from null-bearing reference types in languages where NULL is admitted everywhere a pointer is admitted: the absent state is acknowledged at the type level, surfaced syntactically through `_`, and addressed through standard composition rather than ignored until runtime.
+ 
+**A candidate's lifetime is bounded by its slot.** A variant's active candidate occupies the slot from the write that installed it until that candidate is replaced, the variant is cleared to absent (`v -< _`, §7.14), or the variant slot itself retires — whichever comes first. At each of those points the active candidate's lifetime ends; a candidate never outlives the slot holding it. This is the property the obligation system relies on for an obligated candidate (§10.15): if the variant owns the candidate's obligation, its discharge has a determinate firing point at each lifetime-ending event.
  
 The construction surface for variants — including the `${Candidate <- value}` form for non-absent introduction and the `_` markers in `-<` operations and aggregate literals — is treated in §7.12 alongside the rest of the variant construction story. The dynamic-narrowing operator `-<` and its absent-state forms (`_ -< v` to test non-absence, `v -< _` to clear to absent) are in §7.14.
  
@@ -1387,7 +1401,7 @@ The contract composes with the capture mechanisms (§§6.10, 8.4, 8.5). A lambda
 
 The transitive READ contract is callee-side: it constrains what the callee's body may do during its own execution, in its own frame. The contract does not propagate across the call boundary into the caller's analysis.
 
-**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, and access-path taint are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A PRODUCE or REFERENCE output of a downstream call appears in the caller's frame as a **freshly-bound local** — a local whose access path is rooted at the local itself, not at any of the caller's parameters. Taint on the caller's local is determined by the local's own access paths within the caller's body, independent of whatever taint analysis took place inside the callee.
+**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A PRODUCE or REFERENCE output of a downstream call appears in the caller's frame as a **freshly-bound local** — a local whose access path is rooted at the local itself, not at any of the caller's parameters. Taint on the caller's local is determined by the local's own access paths within the caller's body, independent of whatever taint analysis took place inside the callee.
 
 A concrete pattern illustrates the locality. A callee `getField: ^MyObj o, ^FieldT 'fp` is permitted to write a pointer-into-`o`'s-field into `'fp`. The callee's body has a READ access path on `o` and a writeable access path on `'fp`; the productive write composes a value of type `^FieldT` from the READ-rooted access path. The write is permitted because the callee's contract on `o` is satisfied — there is no write through `o` — and the result is a fresh value of pointer type produced into `'fp`. After the call, the caller's resulting `^FieldT` slot is a fresh local in the caller's frame; the caller's analysis tracks that local on its own access paths, with no inherited taint from the call.
 
@@ -1532,6 +1546,8 @@ The `<-` operator is the runtime placement primitive. It writes a value into a s
 - **Slot rewrite.** `&x <- value` rewrites the slot bound to a REFERENCE-mode parameter (where `&` is the parameter's mode marker per §6.2); `x <- value` rewrites a regular previously-initialized local (where the bare-name form applies). In both cases the slot must already be initialized at the point of the write; the write replaces its value. PRODUCE parameters do not admit rewrite — the write-once rule allows only one write per successful path.
 
 In all three positions, the typechecker enforces failure-atomicity (§7.18): a may-fail right-hand side whose evaluation fails leaves the left-hand slot in its pre-write state. For productive and reference writes, the pre-write state is the slot's contents before the `<-` evaluation began. For local introductions, the pre-write state is the slot's pre-introduction status — uninitialized for `#x <- value` whose right-hand side fails, since the `#`-introduction-with-initializer is a single atomic operation that either completes or does not.
+
+**The `<<-` operator.** A second placement operator, `<<-`, stores a value into a resting place as a *non-owning view*. It is admitted in the resting-place store positions — local introduction, plain-slot rewrite, and field write — and at by-name argument positions (§3.14). For an unobligated value `<<-` is an ordinary store, identical in effect to `<-`. The two diverge only when the stored value carries an obligation (§10): `<-` moves ownership of the obligation into the destination, which discharges it at the destination's lifetime end, while `<<-` installs a deliberate alias and leaves ownership with the source. `<<-` is the surface for back-edges — a parent pointer, a `prev` link — where the destination must reference an obligated value without owning its discharge (§10.11).
 
 ### 7.2 Local Introduction Syntax
 
@@ -1852,12 +1868,14 @@ The operator's surface forms and their meanings:
 | `T 'narrow -< p` | pointer `^P` admitting class-hierarchy narrowing | Same as object case applied to pointee type. | `TagMismatch` failure on type-mismatch. |
 | `T 'narrow -< u` | union `u` (T buffer-backed) | Existential subsumption check at compile time: `T` must appear on at least one declared candidate's subsumption chain. On compile-pass, the narrowing always succeeds at runtime. | Compile-time error if `T` is on no candidate's chain; otherwise no runtime failure (§7.15). |
 | `C 'narrow -< u` | union `u` (C a class) | Exactly-one-candidate admissibility: exactly one of `u`'s candidates must have a `C` instance. On compile-pass, the narrowing always succeeds at runtime, with the qualifying candidate's witness selected statically. | Compile-time error if no candidate or more than one candidate qualifies; otherwise no runtime failure (§7.15). |
-| `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds. |
+| `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds; idempotent. |
 | `_ -< v` | variant `v` | Test whether `v` is non-absent. | `TagMismatch` failure if `v` is absent. |
 
 In the form `T 'narrow -< value`, the binding follows the standard type-then-name convention (§3.3): the type T is the upper bound for the productive slot `'narrow`, which is bound to the narrowed value on success. The form is parallel to a parameter declaration `T 'name` — same syntax, same meaning at the binding site.
 
 The narrowed slot `'narrow` is productive — the operator's productive-side commits a value on success, paralleling the `<-` form's productive write. The same write-once obligation applies if `'narrow` is the constructor's productive receiver (which would be unusual; `'narrow` is most commonly a `#`-introduced local).
+
+**Clearing is idempotent.** `v -< _` clears `v` to absent regardless of `v`'s current state; clearing an already-absent variant is a defined no-op, not an error. When `v`'s active candidate is an obligated value the variant owns, the clear ends that candidate's lifetime and fires its discharge (§10.15); on an already-absent variant there is nothing to discharge and the operation simply leaves `v` absent.
 
 The operator's failure-set is `{TagMismatch}` — a single failure message the language emits for `-<` mismatches and for variant absent-cases on the `T 'narrow -< v` and `_ -< v` forms. The message integrates with typed failures (§4) per the standard machinery: a `?:` chain implicitly emits the `TagMismatch` message on the failure path; a `|: TagMismatch` recovery elsewhere catches it.
 
@@ -1929,33 +1947,23 @@ The embedded object's at-stack registration migrates to the new container's owni
 
 The pattern composes with the productive write-once rule (§6.13): the Phase 2 commit is a single `<-` to `'r`, which discharges the productive obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
 
-### 7.20 Allocation and the `\` Qualifier
+### 7.20 Allocation
 
 Value construction in Basis involves two distinct allocation activities, separated by where the storage lives:
 
-- **Slot allocation** is the frame storage for the slot itself — the fixed-size bytes that hold a local's value, fat pointer, or 3-word slot. This happens at `#` introduction and is implicit in the frame's existence; the user writes `# T x ...` and the slot's storage is provided by the frame.
+- **Slot allocation** is the frame storage for the slot itself — the fixed-size bytes that hold a local's value, fat pointer, or 3-word slot. This happens at `#` introduction and is implicit in the frame's existence; the user writes `# T x ...` and the frame provides the slot's storage. Slot allocation needs no syntax and incurs no obligation: the frame owns its slots and reclaims them at retirement.
 
-- **Memory allocation** is the storage for any variable-size data the slot's value references — the element bytes behind a `[]T` value, the pointee behind a constructed `^T`, the storage backing an object's identity. This happens at value construction.
+- **Memory allocation** is the storage for any variable-size data the slot's value references — the element bytes behind a `[]T` value, the pointee behind a constructed `^T`, the storage backing an object's identity. This happens at value construction, and has a default and a non-default path.
 
-Slot allocation never needs a qualifier: the frame owns its slots.
+The default is the **frame-bound region**: variable-size storage is drawn from a region tied to the current frame and freed at frame retirement, with nothing to track. It requires no syntax — `# []Int32 x <- $[1, 2, 3]` constructs a runtime-length buffer whose three-element data area lives in the current frame's region and is reclaimed when the frame retires, exactly as a slot is. This is the common case.
 
-Memory allocation has a default and an override. The default is the **frame-bound region**: storage is drawn from a region tied to the current frame and freed at frame retirement. The default requires no syntax — `# []Int32 x <- $[1, 2, 3]` constructs a runtime-length buffer whose three-element data area lives in the current frame's region.
+Non-default storage — heap allocation for data that outlives the frame, an arena scoped to a logical phase, a pool with a recycling discipline — is drawn from an **allocator**: a first-class value whose acquire/release pair is declared as a `.resource` or `.promise` (§10). Acquisition is an ordinary source-method call on the allocator, and the value it yields carries an obligation that the allocator's sink discharges. There is no allocation-site qualifier and no ambient allocation context: bringing an allocator into scope does nothing on its own, and storage is drawn only where the source method is called, visibly, at that call.
 
-When the user needs non-default storage — heap allocation for data that outlives the frame, an arena scoped to a logical phase, a pool with a recycling discipline — the `\` qualifier post-fixes the construction with the allocator value to use:
+    #storage <- arena :: allocate: size      ; obligated storage from an allocator's source (§10)
 
-    # []Int32 x <- $[1, 2, 3] \ heapAlloc
-    # ^Cache p  <- (Cache: arg1, arg2) \ heapAlloc
+Whether such storage may outlive the acquiring frame is set by which form the allocator's source is declared under: a `.resource` source confines the storage to the acquiring frame, a `.promise` source permits it to escape, its release deferred to the eventual owner's lifetime end (§10.10–§10.13). The obligation guarantees the release fires; the language's reachability rules (§5.11 for objects, §6 for parameter modes) independently govern where the value may be named.
 
-The allocator (here `heapAlloc`) is a first-class value: an in-scope name of a type that implements the `Allocator` class. **Bringing an allocator into scope does nothing on its own** — the value is used only when the user writes `\ allocator-expr` at a construction site. No ambient context affects allocation; every non-default allocation event is visible at the source where it happens.
-
-The `\` qualifier is **per-construction**, not per-statement or per-frame. Different constructions on different statements may use different allocators:
-
-    # []Int32 a <- $[1, 2, 3] \ heapAlloc
-    # []Int32 b <- $[4, 5, 6]                ; this one uses the frame region
-
-The qualifier is **syntactic sugar**: at typecheck and code generation, the construction desugars to explicit method invocations on the named allocator. The default-case construction (no `\`) similarly desugars to invocations on the language-provided frame-region allocator. The exact `Allocator` class shape — its methods, their signatures, the semantics of cross-allocator transfer — is part of the standard library and is not pinned down in this specification.
-
-**Lifetime ceiling rules are unaffected by the qualifier.** A `\ heapAlloc` qualifier on a construction places the value's variable-size data in the named allocator's storage but does not extend the value's lifetime ceiling. The language's visibility rules (§5.11 for objects, §6 for parameter modes) continue to govern reachability of the value through the language's slots and access paths; the allocator governs only where the underlying bytes live and when they are released. A heap-allocated object reached only through a frame-bound local is still subject to the local's lifetime ceiling at the language level, even though the heap-resident bytes persist in the allocator's own discipline.
+The exact `Allocator` class shape — its source and sink signatures and the semantics of cross-allocator transfer — is part of the standard library and is not pinned down in this specification; the language commits only to the obligation discipline that pairs each acquisition with its release (§10).
 
 ---
 
@@ -2304,7 +2312,7 @@ The `::` operator has four roles in Basis, distinguished by the kind of name to 
 
 - **Class-method resolution on a receiver.** `receiver :: methodName` resolves `methodName` against the class system: the receiver's type's instance dictionaries are consulted, and the dispatch is performed. This is the dispatch surface that drives the class-and-instance system (§9.12).
 
-- **Field-member access on aggregate-shaped values.** `value :: fieldName` or `value :: N` selects a field from an aggregate-shaped value — an `Aggregate`-typed slot (§7.4), a record (§5.4), or an object (§5.11). For records, both forms account for `.inline` field promotion (§A.7): named promotion makes inner-record field names accessible directly, and positional promotion splices the inner record's positions into the outer's sequence. For objects, positional access is by declaration order (object layout is implementation-determined).
+- **Field-member access on aggregate-shaped values.** `value :: fieldName` or `value :: N` selects a field from an aggregate-shaped value — an `Aggregate`-typed slot (§7.4), a record (§5.4), or an object (§5.11). For records, both forms account for `.splice` field promotion (§A.7): named promotion makes inner-record field names accessible directly, and positional promotion splices the inner record's positions into the outer's sequence. For objects, positional access is by declaration order (object layout is implementation-determined).
 
 - **Namespace and module resolution.** `ModuleName :: name` or `ClassName :: methodName` selects a name from a namespace (a module, or a class as a namespace for its declared methods). The namespace resolution is static; no dispatch is involved.
 
@@ -2509,6 +2517,205 @@ The exclusion does not extend to **fexpr-typed local slots themselves**: a local
 
 ---
 
+## 10. The Obligation System
+
+Basis provides two related top-level declaration forms that govern resource-obligation tracking. A **`.resource`** governs an obligation that must be discharged within the frame that acquired it — a strictly local duty. A **`.promise`** governs an obligation that may travel beyond its acquiring frame and be discharged in the future. The two share a single underlying model; `.promise` is `.resource` extended with escape. This section develops them in that order: §10.1–§10.9 develop `.resource` in full, and §10.10–§10.16 add only what escape requires.
+
+### 10.1 Motivation
+
+A resource carries a duty to be discharged at the end of its useful life: allocator-issued storage to be returned, a transaction to be committed or rolled back, a capability to be relinquished, a secrets buffer to be overwritten, stream-cipher material to be consumed. The obligation system tracks that duty and guarantees it is met. A **source** is the operation that incurs the duty, generating an obligation borne by the value it produces; a **sink** is the operation that discharges it.
+
+The system governs only what needs it. A slot introduced with `#` over a buffer-backed type is owned by its frame — its lifetime is evident from the indentation, and the frame reclaims it on retirement with no user action and nothing to track. The obligation system covers the rest: values whose discharge is a distinct act, meaningful in its own right rather than a frame reclaiming its own storage.
+
+The system confers a **linear obligation**: a duty discharged exactly once and never silently dropped. It is a property of a value's *acquisition*, not of its type. The same `^Node` is obligated when it comes from a malloc-style allocator and unobligated when it comes from an arena — where the arena itself, not its individual items, carries the obligation. Linearity attaches to the duty, not to the value: an obligated value may be read, moved, and copied as its type otherwise permits, and a copy is unobligated. The system does not police aliasing.
+
+A `.resource` is the **local** form: the obligated value must be discharged within the frame that acquired it. It cannot be returned, stored into a longer-lived structure, or otherwise made to outlive its origin. This is the right form for an obligation whose deferral is meaningless or dangerous — a secrets buffer that must be overwritten before its storage can be introspected, or storage drawn and released within a single operation. Because everything happens in one frame, a `.resource` is the simpler case in every respect.
+
+### 10.2 The `.resource` Declaration
+
+A `.resource` is a top-level form binding a single source method to one or more sink methods on a named receiver type. It is the sole declaration surface; no annotations on individual `.cmd` declarations are required or admitted.
+
+```
+.resource ReceiverType: sourceMethod[param] -> defaultSink
+.resource ReceiverType: sourceMethod[param] -> defaultSink | altSink | altSink2
+```
+
+The bracket notation `sourceMethod[param]` designates which productive parameter of the source method carries the obligation. The designation is optional when the source method has exactly one productive parameter — the obligated parameter is then unambiguous — and required when it has more than one. The `->` separator marks the source-to-sink transition. Sinks are separated by `|`, and **the first sink listed is the default**.
+
+Allocation, single sink (the lone sink is necessarily the default):
+
+```
+.resource ScratchArena: allocate -> deallocate
+```
+
+Transaction, multiple sinks (the default is the safe abort; commit is an explicit choice):
+
+```
+.resource LocalTxn: begin[transaction] -> rollback | commit
+```
+
+**The default sink.** The default fires when the obligation reaches the end of the acquiring frame with no explicit discharge having pre-empted it. For a `.resource` this firing happens at frame finalization, where the frame's parameters are still live — so the default is under no special argument restriction: like any sink fired in-frame it may take the obligated value together with constants or the enclosing command's parameters.
+
+**Non-default sinks.** A non-default sink may take any number of non-receiver arguments, provided exactly one is of the obligated (source-produced) type; that argument is the discharge argument and the remainder are programmer-supplied context. If a non-default sink has more than one argument of the obligated type, the discharge argument is designated with the same bracket notation used on the source: `sinkMethod[arg]`.
+
+**Identity.** Each declaration is assigned a unique implementation-defined identity within its module, parallel to failure-message identities at `.msg` declarations (§4.1). The obligation record carries this identity rather than the source method name, so overlapping method names across declarations on the same receiver remain unambiguous without whole-program compilation.
+
+**Class versus concrete receiver.** When the receiver is a class name, the declaration binds every instance implementing the named source method; the obligation is part of the class contract, as a failure set is (§4.9), and instances cannot opt out. When the receiver is concrete, the declaration applies to that type alone.
+
+### 10.3 What an Obligation Guarantees
+
+The guarantee is **one-directional**: the tracked obligation *fires*. The programmer cannot forget to close the file, free the storage, or overwrite the secret. That guarantee is to *invoke* the sink and nothing more — whether the sink succeeds is the sink's own contract. A sink that fails has still discharged the obligation; its failure propagates by ordinary means, and for a sink fired from an `@`/`@!` block the block's own machinery is available in situ to log or otherwise react to it. The system makes no claim, either, that the duty fires *only* once in the presence of aliasing. Closing a file twice through two copies of a handle, freeing through a dangling alias, or leaving a secret in an un-zeroed copy are genuine errors; Basis declines to detect or prevent them rather than blessing them as defined. Consequently the sink machinery is never defensively idempotent and performs no reference counting or alias bookkeeping — a discharge is a single call.
+
+**An accepted limitation: disposal, not performance.** Because every declaration carries a default, the system guarantees an obligation is *disposed* — released, closed, zeroed, or otherwise consumed exactly once — but not that a specific intended operation was the one that disposed it. A forgotten stream-cipher apply fires the default discard: the keystream material is consumed once and never lingers or is reused, but the encryption it was meant to perform did not happen. The limitation is accepted by design: the system secures the security-critical property — single consumption, no lingering — and leaves the functional correctness of the specific operation to the programmer.
+
+The analysis enforces these structural properties of a tracked obligation:
+
+1. **The obligation is never dropped.** An obligation acquired but not explicitly discharged fires its default at frame finalization.
+2. **The sink is invoked against the same source slot.** The source slot's identity — the receiver the source method was called against — is recorded at acquisition and verified at any explicit discharge.
+3. **The source slot maintains identity continuity.** Between acquisition and discharge the source slot must remain `init` and must never appear in a PRODUCE argument position; either would destroy the identity the obligation was issued against. REFERENCE and READ positions are unconstrained.
+
+### 10.4 Discharge
+
+A local obligation is discharged in one of three ways, all in-frame.
+
+**Direct discharge.** The sink is called explicitly in the frame body. The call fires immediately and transitions the obligated slot to `uninit`, so the slot cannot be read after the resource is released — a direct discharge is *done*, not merely scheduled. A direct call can select any sink, default or not; the full context is in hand at the call site.
+
+```
+.cmd processLocally: Int size =
+    #arena <- (ScratchArena: size)
+    #storage <- arena :: allocate: size
+    ; ... use storage ...
+    arena :: destroy                 ; direct discharge of arena; reclaims its storage
+```
+
+**Frame-exit discharge.** An ordinary `@` or `@!` block (§3.13) naming a sink against the obligated slot schedules that sink to fire at frame retirement — on all exits (`@`) or on failure exits only (`@!`). It can name a non-default, multi-argument sink: the block fires before the frame is finalized, while the enclosing command's parameters are still live, so the sink's extra arguments may be constants or those parameters. It uses no new mechanism beyond the existing frame-exit hooks.
+
+**Default at finalization.** If neither of the above has discharged the obligation on a given path, its default fires at frame finalization. This is the safety net.
+
+A sink fired from a frame-exit block, or as the default at finalization, is governed by the standard `@`-block failure rules; a sink failing in a direct call propagates by ordinary failure-state rules. In all cases discharge is by invocation: a failed sink still closes the obligation, with no reopen and no retry.
+
+### 10.5 The Obligation Analysis
+
+The analysis is a forward-flow analysis run alongside the four existing analyses of Appendix E. Like them it is strictly local to a frame. At each program point it maintains a set of open obligation records, each carrying `obligated_slot`, `source_slot`, the declaration identity, and a per-path `state` of `default-pending` or `discharged`.
+
+| Event | Effect |
+|---|---|
+| Successful source call named in a declaration | Open a record in state `default-pending` |
+| Direct explicit sink call, verified pairing | Fire the sink now; transition `obligated_slot` to `uninit`; record `discharged` |
+| `@` / `@!` block naming a sink against the obligated slot | Record `discharged` on the covered paths; the named sink fires at frame exit |
+| `source_slot` transitions to `uninit`, or appears in PRODUCE position | Static error: source identity destroyed before discharge |
+| Second explicit discharge on a path already `discharged` by a direct call | Caught by initialization tracking — the obligated slot is `uninit` after the first |
+| Any attempt to let the obligated value escape the frame (productive return, store into a longer-lived owner, consuming-marked argument, escaping variant candidate) | Static error: a `.resource` is local; use a `.promise` (§10.10) |
+
+**Failure paths.** Discharge state is tracked independently per path. A direct call discharges only its own path; a bare `@` block discharges all exit paths; an `@!` block discharges failure exits only. A `default-pending` obligation reaching any exit undischarged fires its default there.
+
+### 10.6 Cost
+
+A local obligation needs no runtime representation. The analysis tracks it statically per binding, and the discharge — direct call, frame-exit block, or default at finalization — is resolved at compile time and emitted into the frame's exit code, exactly as `@`/`@!` blocks compile today. This is type-agnostic: obligation-ness being per-acquisition, the malloc node and the arena node of identical type are two bindings the analysis treats differently, with no type-level machinery and no per-value tag. A `.resource` is therefore always free.
+
+### 10.7 No Competing Obligations
+
+A method may appear as a source in at most one declaration, and as a sink in at most one declaration, within the set visible at any use site — whether those declarations are `.resource` or `.promise`. Ambiguity is a static error at the declaration that introduces the conflict. Instance implementations are bound by their class's declarations; a type-local declaration naming the same implementing method is a conflict. The coherence machinery of §9.15 applies, except that resource and promise conflicts are always errors — there is no most-specific interpretation of two competing obligation families for one method.
+
+### 10.8 Class Dispatch
+
+The interaction with the class-and-instance system (§9) is fully determined by existing machinery. A class-level declaration is visible at a class-dispatched call site from the class and method alone, without knowledge of the concrete instance; every implementing instance is bound and cannot opt out. A type-local declaration resolves to a specific implementation at compile time with no witness involved. A type may carry both kinds orthogonally, subject only to §10.7.
+
+### 10.9 Pre-Implementation Notes
+
+Generic signatures and partial application are both admitted for source and sink methods. The semantics are settled; what they ask of the eventual implementation is recorded here, pending that work.
+
+**Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-frame discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument — a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization — so the single-argument default rule of §10.10 is unaffected. Under the witness-based generics strategy Basis is expected to adopt, the carried parameterization is simply the witness the source call already held.
+
+**Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated productive output — the only shape the mode-marker filter (§9.14) permits — so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type — that invoking a source reference yields an obligated value, that a sink reference discharges one — invariant in the manner of the parameter-mode markers (§6.12), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
+
+### 10.10 What `.promise` Adds
+
+A `.promise` is declared exactly as a `.resource` — same source/sink syntax, same default, same multi-sink form — and everything in §10.1–§10.9 holds. The single difference is that a `.promise`'s obligated value **may escape its acquiring frame**: it may be returned through productive output, stored into a longer-lived owner, handed down-stack by a consuming-marked argument, or installed as a candidate of a variant that outlives the frame. Its discharge is then deferred to the moment that value's eventual owner reaches the end of its lifetime — possibly a frame far removed from the acquisition site.
+
+A `.promise` that happens not to escape on a given path behaves and costs exactly as a `.resource`: it is discharged in-frame and needs no runtime representation. The keyword grants the *permission* to escape; the cost (§10.13) is incurred only by values that actually do.
+
+**The single-argument default restriction.** When a `.promise`'s value escapes, its deferred firing occurs where none of the originating frame's bindings survive, so it can supply no context beyond the obligated value itself. Because the same declared default must serve both the in-frame and the escaped case, **a `.promise`'s default sink must take exactly one non-receiver argument, of the obligated type.** This is the one rule a `.promise` adds to its declaration over a `.resource`. Non-default sinks remain unrestricted: they are reached only by a direct call or an in-frame `@`/`@!` block, where their extra arguments — constants or the enclosing command's parameters — are still live.
+
+### 10.11 Ownership and Transfer
+
+Escape happens by transferring ownership of the obligation. Ownership is not a standing mark on a binding or a qualifier on a type; it is the consequence of the operation that brings a value to rest, and it is provenance, not type. The owner of an obligation is whichever binding currently carries its anchored discharge (§10.13), and there is exactly one owner at any time.
+
+The owner/reference question arises only at **resting places** — a new persisting slot, an object field, a productive return, or a variant candidate that persists past the frame. It never arises for borrows: passing an obligated value as a READ or REFERENCE argument lends it without transferring ownership, which is how a value moves around through calls freely and unmarked.
+
+**Up-stack transfer is automatic.** Productive output carries ownership up. `#n <- f` desugars to `f: #n`; if `f` produces an obligated value, the obligation comes to rest in `n` with no additional syntax, and the producing frame's duty is discharged by the transfer.
+
+**Lateral transfer is operation-marked.** Storing an obligated value into a resting place distinguishes two operations:
+
+- `<-` **receives and owns.** The obligation moves into the resting place; it will fire when *that* place's lifetime ends. This is the unmarked, common case — putting a resource into a structure.
+- `<<-` **receives a non-owning view.** The destination is a deliberate alias; ownership stays with the source. This is the back-edge case — the `prev` pointer of a doubly-linked list, a parent pointer in a tree. Storing by `<<-` is the explicit acknowledgement that an alias whose hazards Basis does not police is being created here.
+
+For unobligated values both are ordinary stores; the ownership semantics activate only when the stored value carries an obligation.
+
+**Down-stack is a borrow by default; ownership travels by binding an argument by name.** A positionally bound argument is a borrow — it lends without transferring, and is the unmarked common case. Binding an argument *by name* at the call site, however, uses the same two arrows as a lateral store, with the same meanings: `foo: x <- bar` binds parameter `x` to `bar` and *moves ownership* into the call — the down-stack counterpart of productive output, used to hand a freshly built resource to a constructor or factory that will incorporate it — while `foo: x <<- bar` binds by name but passes a *non-owning view*, the caller retaining ownership. The determination is thus the call site's, not the callee's signature: the same parameter may be borrowed at one call, consumed at another, and aliased at a third, by the provenance of what is passed and the form of its binding (§3.14).
+
+Transfer is eager — ownership moves at call entry, not on the callee's success. On a callee failure the value does not return to the caller: the callee's frame discharges it, its default firing unless the callee arranged otherwise, and the caller's slot is `uninit` thereafter. This is a deliberate relaxation of failure atomicity for the consumed argument, the inverse of a productive output not being committed on failure.
+
+The callee needs nothing for any of this — no signature change, no static knowledge that an invocation transferred ownership. The obligation's runtime anchor rides in at entry and re-homes into the callee's frame, and the callee handles whatever arrived through its own stores, its own productive return, or its frame-end firing of the default. This mirrors a caller that receives an escaped obligation through productive output and likewise needs no static knowledge of it: static tracking lives only in the frame that currently holds the obligation, and the runtime anchor carries it across every boundary. The mismatches fall on the ceded side — lending to a callee that secretly keeps the value is a dangling capture (§10.14), and transferring to a callee that does not keep it simply discharges the obligation at the callee's frame end.
+
+**Consequences.** Because ownership is set by the operation and not the declaration, a field's owning-ness is a per-instance, potentially path-dependent fact, carried by the per-instance anchor (§10.13) and set by whichever store last reached it. A reader of an object declaration cannot tell from a field's type whether it owns or merely references an obligated value; that is inferred from the store sites. This is the deliberate trade of static documentation-at-the-declaration for freedom from multiplying datatypes by intended usage. Overwriting a field that owns an obligation fires the outgoing owner's discharge before the new value lands.
+
+**Owned-field discharge order is unspecified.** When an object retires, its owned fields are discharged. The object's own discharge may assume every field is still valid, but the order in which the fields are discharged — and hence the order of any cascade each sets off — is implementation-dependent, and a program must never rely on it. Where one field's correct disposal depends on another, the dependent step is performed explicitly in the object's own discharge, where all fields are still valid, rather than entrusted to the automatic order.
+
+**Recursive structures.** A list or tree stores its forward edges with `<-` (the parent owns its children) and its back edges with `<<-` (non-owning). The ownership graph is acyclic by construction. The distinction prevents the obvious double-discharge at the declaration level but does not detect runtime ownership cycles — a cycle of owning edges produces a retirement loop, a programmer error the typechecker does not attempt to catch. Inherently cyclic structures must break the owning cycle before retirement propagates, the natural mechanism being to clear the variant holding the owning edge (§10.15) before the containing object retires.
+
+### 10.12 Deferred Default on Escape
+
+When an obligated value escapes, its discharge travels with it and fires the default sink at the eventual owner's lifetime termination — unless an explicit discharge against the value pre-empts the default first, in this frame or a later one. This firing names no sink and supplies only the obligated value; the originating frame is gone, so none of its parameters remain to furnish other arguments. The default is the safety net: it fires at the obligation's lifetime termination if and only if no explicit sink was ever called against the value, and any explicit call — wherever the value has come to rest — pre-empts it.
+
+The transfer-out events extend the analysis of §10.5 with one row: ownership transfer of the obligated value out of the frame (productive return, `<-` into a longer-lived owner, or passing to a consuming-marked argument) records `discharged` for this frame, and the obligation re-homes to the new owner. A `<<-` store transfers nothing. Overwriting a `default-pending` obligated slot that has not been transferred ends the value's lifetime in that slot and fires its default at the overwrite point.
+
+### 10.13 Representation and Cost
+
+Cost is set by escape, not by representation class. A `.promise` that does not escape costs nothing, exactly as a `.resource` (§10.6).
+
+**A single escaping obligation: one anchored discharge.** When the value escapes, a discharge travels to wherever its lifetime ends, anchored to the holding location — a slot's frame-exit-hook entry, or an object instance's per-field discharge entry — never embedded in the value's bytes. It carries the default sink's identity and the source receiver to invoke it against. Because the anchor lives on the binding and not the bytes, the value's representation is never widened, a buffer-backed value still copies as bytes, and a copy is automatically unobligated — there is nothing to strip and nothing to forbid. The static analysis stays local; the runtime anchor handles the cross-frame firing.
+
+**A live batch of N individual obligations: intrinsically O(N).** N simultaneously live obligated values require N discharge entries; no representation choice avoids it. The mitigation is structural — stream rather than batch, so each obligation is acquired and discharged within an iteration and never coexists with the others, collapsing the case to the free one.
+
+The one standing structural cost is on object types whose fields can hold escaping obligated values: each such field needs room for a per-instance discharge entry, used or not per instance, because obligation-ness is recorded by the instance and not the type. Object types without such fields pay nothing; there are no global tables and no per-value tags on the common path. The cost follows wherever the obligation lives: arena-style allocation concentrates it on the single arena handle and leaves every node free, while malloc-style per-node ownership pays per node.
+
+**Where obligations may rest.** An obligation anchors only to an identity-bearing, lifetime-tracked location — a top-level slot or an object field — never a byte offset inside a buffer-backed aggregate. A record field, a union member, or a typed-buffer element is a byte offset within a value that copies wholesale; there is nowhere to attach the anchor, and a store into one is an ordinary byte copy that leaves the obligation on the source and yields an unobligated copy. The unifying rule: carrying an obligation confines a value to slot and object-field positions exactly as being non-buffer would, regardless of the value's underlying type. A batch of individually obligated buffer-backed items must therefore live in object fields or separate slots, not in a buffer-backed container.
+
+### 10.14 Source-Slot Lifetime and Aliasing
+
+The typechecker verifies the structural properties of an obligation but not the runtime lifetime of the source slot relative to the obligations it has issued. If the source slot — the allocator — is destroyed before a deferred default fires, the discharge executes against a defunct receiver. The idiomatic tool is implicit context parameters (§3.6): threading the allocator as an implicit through the call chain that builds and later retires a structure keeps the source alive across the obligations it issued. The typechecker verifies the implicit is present and correctly typed; the programmer is responsible for its lifetime.
+
+Symmetrically — and this applies to local obligations as well — when an obligated value is borrowed as a READ argument and its value is a pointer, the callee receives a copy of the pointer into the same storage; if the obligation is later discharged and the storage released, any escaped copies dangle. The obligation system guarantees the storage is released once; it does not guarantee no copies of the pointer outlive the release. Closing these gaps would require pointer-aliasing or lifetime analysis the language has deliberately declined.
+
+### 10.15 Obligated Values in Variants
+
+A variant whose active candidate is an obligated value is handled by the ownership rules of §10.11. Clearing the variant to absent (`v -< _`, §7.14) or replacing the active candidate ends that candidate's lifetime in the slot; if the variant owns the candidate's obligation, its discharge fires at that moment, as overwriting any owning slot does. A candidate installed by `<<-` fires nothing — the variant was never the owner.
+
+A variant is always set to absent when it goes out of scope, and this cleanup ends any active candidate's lifetime exactly as an explicit clear does. A programmer may therefore design on the assumption that an owned obligated candidate's discharge handler fires whenever the variant's own lifetime ends, with no explicit clear required: at frame finalization for a frame-local variant, or — for a variant that owns an obligated candidate and itself escapes — when the variant's eventual owner is retired, the obligation having travelled with it under the ordinary transfer rules.
+
+**A worked example: tearing down a circular list.** Make a singly-linked list circular by giving each node a variant field `next: absent | ^Node`, installing each present candidate with `<-` so a node owns its successor, and letting the last node's `next` own the first — closing the ring. Every edge is owning, so each node has exactly one owner, its predecessor; the ring owns itself.
+
+Retiring the ring by retiring a node would double-discharge it: the cascade would travel the ring and arrive back at the node already mid-retirement, freeing it twice. The teardown is instead initiated by clearing one node's link:
+
+```
+head :: next -< _      ; clear the head node's next link to absent
+```
+
+Because a variant clears *then* triggers, `head`'s `next` is set absent first, and only then is the discharge of its former candidate — the second node — fired. That discharge retires the second node, which clears *its* next (absent first) and fires the third, and so on around the ring. When the cascade reaches the node whose `next` owns the head, clearing that link fires the head's discharge; the head is retired, its `next` is found already absent — it was the first link cleared — so nothing further fires and the cascade unwinds. Every node is retired exactly once, and the walk terminates after a single lap.
+
+Two designed properties combine here. The first is the ordering: were a variant to trigger *then* clear, the head's link would still own the second node when the cascade circled back, firing it again and looping forever — clearing first guarantees that every owning edge is absent before its target is retired, so no edge is traversed twice and the ring unwinds in bounded time. The second is that clearing a variant is *idempotent*: clearing one that is already absent is a defined, safe no-op — redundant, never erroneous — in deliberate contrast to freeing a pointer twice, which is a serious error. So if retiring the head clears its already-absent `next` once more, that redundant clear is safe by design; the ordering ensures it fires nothing, and idempotence ensures that touching it again could do no harm in any case.
+
+---
+
+### 10.16 Object Retirement
+
+Object retirement is not separate machinery; it is the obligation system applied at two levels. When an object goes out of scope, the object's own obligation fires if it carries one — an object produced by a source is an obligated value like any other — and each of its owned fields' obligations fires as well. The per-instance discharge entries of §10.13 are exactly these field obligations.
+
+The system triggers all of them but arbitrates among none. The object's own discharge and a field's discharge can conflict — the object's discharge releasing storage a field's discharge still needs, or two discharges targeting an aliased resource — and ensuring they do not is the programmer's responsibility, as with every aliasing question the language declines to police. The tool for doing so is the guarantee of §10.11: during an object's own discharge its fields are valid, so any order-sensitive disposal is performed there, explicitly, leaving nothing for the unspecified automatic firing to get wrong.
+
+---
+
 ## Appendix A. Lexical Structure
 
 This appendix specifies the lexical surface of Basis: the token classes the lexer recognizes, the identifier shapes the parser distinguishes, the literal-token forms, the indentation discipline, and the disambiguation rules that resolve potentially-ambiguous adjacencies.
@@ -2521,8 +2728,9 @@ The lexer recognizes the following token classes:
 
 ```
 .alias    .class    .cmd      .decl     .domain   .enum     .fail
-.implicit .import   .inline   .instance .intrinsic .module  .msg
-.object   .program  .record   .sub      .test     .union    .variant
+.implicit .import   .instance .intrinsic .module   .msg      .object
+.program  .promise  .record   .resource .splice   .sub      .test
+.union    .variant
 ```
 
 The `.sub` keyword introduces subcommands at body-internal scope (§3.12); the rest are top-level forms (§2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
@@ -2539,6 +2747,7 @@ The `.sub` keyword introduces subcommands at body-internal scope (§3.12); the r
 | `==` | Equality test (in guard positions) |
 | `->` | Result-designator clause |
 | `<-` | Placement operator (§7.1) |
+| `<<-` | Non-owning-view placement operator (§10.11) |
 | `-<` | Dynamic narrowing operator (§7.14) |
 | `^` | Pointer prefix; rewind block marker |
 | `&` | Reference mode marker (identifier-shape); pointer-of operator |
@@ -2704,14 +2913,14 @@ The lexer recognizes `<*>` as the three-token sequence `<`, `*`, `>` and the par
 
 **`(T:Class)` constraint form.** At parameter and receiver positions, the form `(T:Class)` declares a type-variable-bound parameter where `T` is a type variable and `Class` is the bound class (§9.9 Case A). The lexer produces `(`, identifier-or-typename `T`, `:`, identifier-or-typename `Class`, `)`; the parser recognizes this token sequence at parameter-position productions as a single constrained-parameter form. Outside parameter and receiver positions, the form parses as an ordinary parenthesized expression.
 
-**`.inline` modifier.** The `.inline` modifier is applicable only to record-typed fields of a record declaration. Its semantic role is to promote the inner record's structure — both its named fields and its positional sequence — into the outer record's accessible surface:
+**`.splice` modifier.** The `.splice` modifier is applicable only to record-typed fields of a record declaration. Its semantic role is to promote the inner record's structure — both its named fields and its positional sequence — into the outer record's accessible surface:
 
-- **Named promotion.** Each inner-record field name becomes accessible directly on the outer (e.g., `outer :: a` for a field `a` of the inner). Name collisions through `.inline` promotion are a static error at the outer record's declaration site.
-- **Positional promotion.** The inner record's positions are spliced into the outer's positional sequence at the `.inline` field's declared position. Non-`.inline` fields each occupy one position; an `.inline` field contributes its inner record's positions (recursively, if the inner record itself contains `.inline` fields).
-- **The grouping reference remains.** The `.inline` field's declared name (e.g., `outer :: inner`) is a valid named reference returning the inner-typed view of the inner's bytes. It does not correspond to a positional index, since the inner's positions have been spliced into the outer's sequence.
-- **Byte layout is unaffected.** Records are packed regardless of `.inline` (§5.4); the modifier operates at the namespace-and-positional-structure level only.
+- **Named promotion.** Each inner-record field name becomes accessible directly on the outer (e.g., `outer :: a` for a field `a` of the inner). Name collisions through `.splice` promotion are a static error at the outer record's declaration site.
+- **Positional promotion.** The inner record's positions are spliced into the outer's positional sequence at the `.splice` field's declared position. Non-`.splice` fields each occupy one position; a `.splice` field contributes its inner record's positions (recursively, if the inner record itself contains `.splice` fields).
+- **The grouping reference remains.** The `.splice` field's declared name (e.g., `outer :: inner`) is a valid named reference returning the inner-typed view of the inner's bytes. It does not correspond to a positional index, since the inner's positions have been spliced into the outer's sequence.
+- **Byte layout is unaffected.** Records are packed regardless of `.splice` (§5.4); the modifier operates at the namespace-and-positional-structure level only.
 
-Applying `.inline` to a non-record-typed field (a domain, primitive, union, or buffer form) is a static error. The modifier appears before the field declaration in the form `.inline Field : Type`, as captured by the grammar in Appendix B.
+Applying `.splice` to a non-record-typed field (a domain, primitive, union, or buffer form) is a static error. The modifier appears before the field declaration in the form `.splice Field : Type`, as captured by the grammar in Appendix B.
 
 **Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (§3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, `:<*>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
 
@@ -2720,6 +2929,8 @@ Applying `.inline` to a non-record-typed field (a domain, primitive, union, or b
 **Slash adjacency.** A `/` token is overloaded: it separates the implicit-context-parameter list in signatures, and it is the division operator. The disambiguation is parser-side: at signature position (after the parameter list, before the body's `=`), `/` introduces the implicit list; in expression position, `/` is division.
 
 **Underscore disambiguation.** The `_` placeholder serves four roles (§3.15). The lexer produces a single `_` token uniformly; the parser routes to the appropriate role based on grammatical position (PRODUCE-discard at argument position; partial-application deferral inside `{...}`; variant absent state in aggregate-literal positions; variant absent test in `-<` operations).
+
+**Obligation-declaration brackets.** Inside a `.resource` or `.promise` declaration, `methodName[param]` designates a method's obligated parameter or discharge argument (§10.2). The bracketed group here always follows a lowercase *identifier* (a method name) and contains a lowercase *identifier* (a parameter name), within the obligation-clause of the declaration. This is disjoint from every other bracket use: indexing `value[index]` (§5.2) is an expression-position operation, not a top-level declaration; type parameters `Type[T]` (§9.1), message payloads `Name[PayloadType]` (§4.9), and failure sets `?[Name]` (§4.9) bracket *type names* or follow a type name or failure mark, never a lowercase method-name identifier. The parser recognizes the form by grammatical position — it is the only place an `identifier[identifier]` group appears in a declaration — and the capitalization rule (A.3) reinforces the distinction at the token level.
 
 ---
 
@@ -2748,8 +2959,8 @@ top-level-decl    ::= alias-decl    | class-decl    | cmd-decl
                     | decl-decl     | domain-decl   | enum-decl
                     | implicit-decl | instance-decl | intrinsic-decl
                     | msg-decl      | object-decl   | program-decl
-                    | record-decl   | test-decl     | union-decl
-                    | variant-decl
+                    | promise-decl  | record-decl   | resource-decl
+                    | test-decl     | union-decl    | variant-decl
 ```
 
 Each is introduced by its corresponding dot-prefixed keyword (§2.2). The `.sub` keyword is *not* a top-level form — it introduces subcommands at body-internal scope (§3.12); the subcommand-declaration production appears under *cmd-body* below.
@@ -2762,9 +2973,10 @@ class-entry       ::= decl-decl | cmd-decl
 cmd-decl          ::= .cmd cmd-signature = cmd-body
 decl-decl         ::= .decl cmd-signature
 domain-decl       ::= .domain TypeName : fixed-size-type-expr
-enum-decl         ::= .enum TypeName (: type-expr)? : enum-entries
-enum-entries      ::= enum-entry+
-enum-entry        ::= identifier (-> literal)?
+enum-decl         ::= .enum TypeName : enum-entries                ; one-name form (§5.9)
+                    | .enum TypeName TypeName : enum-entries        ; two-name form: repr-type enum-type (§5.9)
+enum-entries      ::= enum-entry ( , enum-entry )*
+enum-entry        ::= identifier ( = literal )?
 implicit-decl     ::= .implicit cmd-signature = cmd-body
 instance-decl     ::= .instance type-expr : class-list
 class-list        ::= class-ref ( , class-ref )*
@@ -2777,7 +2989,7 @@ field-decl        ::= identifier : type-expr
 program-decl      ::= .program cmd-body
 record-decl       ::= .record TypeName : record-fields
 record-fields     ::= record-field+
-record-field      ::= ( .inline )? identifier : fixed-size-type-expr ( = expr )?
+record-field      ::= ( .splice )? identifier : fixed-size-type-expr ( = expr )?
 test-decl         ::= .test string-literal : cmd-body                ; regular test
                     | .test string-literal ? cmd-body                ; speculative test
                     | .test string-literal = string-literal-list     ; test-aggregation suite
@@ -2788,6 +3000,10 @@ union-candidate   ::= identifier : fixed-size-type-expr
 variant-decl      ::= .variant TypeName : variant-candidates
 variant-candidates ::= variant-candidate+
 variant-candidate ::= identifier : type-expr
+resource-decl     ::= .resource type-expr : obligation-clause
+promise-decl      ::= .promise  type-expr : obligation-clause
+obligation-clause ::= method-designator -> method-designator ( | method-designator )*
+method-designator ::= identifier ( [ identifier ] )?
 ```
 
 ### B.3 Type Expressions
@@ -2892,18 +3108,19 @@ subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically sco
 statement         ::= assignment | call | block-marker-construct | local-intro
 
 local-intro       ::= # type-expr? identifier ( <- expr )?
+                    | # type-expr? identifier <<- expr           ; non-owning-view local (§10.11)
                     | # ' identifier <- expr                     ; PRODUCE intro shorthand
                     | # & identifier <- expr                     ; REFERENCE intro shorthand
 
 assignment        ::= identifier <- expr                         ; rewrite existing local
+                    | identifier <<- expr                        ; non-owning-view rewrite (§10.11)
                     | ' identifier <- expr                       ; productive write
                     | & identifier <- expr                       ; reference rewrite
                     | field-access <- expr                       ; field write
+                    | field-access <<- expr                      ; non-owning-view field write (§10.11)
 
 field-access      ::= expr :: identifier                         ; named field access
                     | expr :: integer-literal                    ; positional field access (1-based)
-
-allocator-qualified-expr ::= expr \ expr                         ; value construction qualified by allocator (§7.20)
 
 call              ::= regular-call | method-call | multi-method-call | constructor-call
 regular-call      ::= identifier ( : arg-list )?
@@ -2917,6 +3134,8 @@ receiver-expr-list ::= receiver-expr ( , receiver-expr )*
 
 arg-list          ::= arg ( , arg )*
 arg               ::= expr | # identifier | _
+                    | identifier <- expr                         ; by-name binding, ownership in (§10.11)
+                    | identifier <<- expr                        ; by-name binding, non-owning view (§10.11)
 ```
 
 Subcommand declarations appear at the head of *body-content* per §3.12's strict placement rule. After the contiguous subcommand-declaration block, only *statement*s are admitted.
@@ -2952,6 +3171,7 @@ The eleven markers (§3.1, §4.4) are sequenced as adjacent siblings at the same
 placement-stmt    ::= local-intro                                ; #x <- expr
                     | assignment                                 ; x <- expr or 'x <- expr or &x <- expr
                     | field-access <- expr
+                    | field-access <<- expr
 
 narrow-stmt       ::= type-expr ' identifier -< expr             ; T 'narrow -< v
                     | _ -< expr                                  ; _ -< v   (presence test)
@@ -2959,7 +3179,7 @@ narrow-stmt       ::= type-expr ' identifier -< expr             ; T 'narrow -< 
                     | type-expr -< expr                          ; T -< v   (existential narrowing for unions)
 ```
 
-The `<-` operator is the placement primitive (§7.1). The `-<` operator is the dynamic-narrowing primitive (§7.14, §7.15). The `_` token in `-< _` and `_ -<` positions is the variant absent-state placeholder (§3.15).
+The `<-` and `<<-` operators are the placement primitives (§7.1); `<<-` stores a non-owning view of an obligated value (§10.11). The `-<` operator is the dynamic-narrowing primitive (§7.14, §7.15). The `_` token in `-< _` and `_ -<` positions is the variant absent-state placeholder (§3.15).
 
 ### B.9 The `${...}` and `$[...]` Literal Fences
 
@@ -3092,14 +3312,16 @@ This appendix enumerates the AST node types the parser produces and the typechec
 | `MsgDecl` | `name: TypeName`, `payloadClass: TypeName?`, `parent: TypeName?` | *msg-decl* |
 | `ObjectDecl` | `name: TypeName`, `fields: [FieldDecl]` | *object-decl* |
 | `ProgramDecl` | `body: Expr` | *program-decl* |
+| `PromiseDecl` | `receiver: TypeExpr`, `source: MethodDesignator`, `sinks: [MethodDesignator]` | *promise-decl* |
 | `RecordDecl` | `name: TypeName`, `fields: [RecordField]` | *record-decl* |
+| `ResourceDecl` | `receiver: TypeExpr`, `source: MethodDesignator`, `sinks: [MethodDesignator]` | *resource-decl* |
 | `TestDecl` | `name: String`, `body: Expr` | *test-decl* |
 | `UnionDecl` | `name: TypeName`, `candidates: [UnionCandidate]` | *union-decl* |
 | `VariantDecl` | `name: TypeName`, `candidates: [VariantCandidate]` | *variant-decl* |
 | `ImportDecl` | `target: QualifiedName \| String`, `alias: QualifiedName?` | *import-decl* |
 | `ModuleDecl` | `name: QualifiedName` | *module-decl* |
 
-`ClassEntry` is a disjoint union of `DeclDecl` and `CmdDecl` for class members (§9.3). `ClassRef` carries an optional `delegate: identifier` field for the `(delegate fieldName)` clause (§9.4).
+`ClassEntry` is a disjoint union of `DeclDecl` and `CmdDecl` for class members (§9.3). `ClassRef` carries an optional `delegate: identifier` field for the `(delegate fieldName)` clause (§9.4). `MethodDesignator` is `{ method: identifier, designatedParam: identifier? }`; in `ResourceDecl` and `PromiseDecl` the `sinks` list is non-empty and its first element is the default sink (§10.2).
 
 ### C.2 Type-Expression Nodes
 
@@ -3707,11 +3929,11 @@ $$
 **Six-state failure-state lattice.** The body's failure state at each program point is one of:
 
 1. `clear` — no in-flight failure; subsequent statements execute.
-2. `failing(:)` — never-fails-mark; impossible (no transitions land here).
-3. `failing(?)` — may-fail-mark with failure in flight; subsequent statements skip until recovery.
-4. `failing(!)` — must-fail-mark with failure in flight; behaves as `failing(?)` for control-flow but with a stricter conformance check.
-5. `mixed(?)` — at convergence (CFG join), some predecessors are `failing(?)` and others are `clear`.
-6. `mixed(!)` — at convergence, some predecessors are `failing(!)` and others are `clear`.
+2. `failing(?)` — may-fail-mark with failure in flight; subsequent statements skip until recovery.
+3. `failing(!)` — must-fail-mark with failure in flight; behaves as `failing(?)` for control-flow but with a stricter conformance check.
+4. `mixed(?)` — at convergence (CFG join), some predecessors are `failing(?)` and others are `clear`.
+5. `mixed(!)` — at convergence, some predecessors are `failing(!)` and others are `clear`.
+6. `unreachable` — no incoming path reaches this point; the lattice's bottom and join identity. Carries reachability within the lattice (§4.13, E.3): conformance quantifies over reachable exits, and a body all of whose exits are `unreachable` conforms vacuously.
 
 The transfer-function table for each block marker and each call-site shape is in Appendix E.
 
@@ -3741,7 +3963,7 @@ The no-capture rule (§3.12) is enforced as a typechecker invariant on subcomman
 
 ## Appendix E. Static Analyses (Joint CFG-Walking Composition)
 
-This appendix specifies the four static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, and fexpr-relevance taint. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
+This appendix specifies the five static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, fexpr-relevance taint, and obligation tracking. The first four are specified here (E.2–E.5); the obligation analysis is specified with the obligation system itself (§10.5) and appears below only as it composes with the others. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
 
 ### E.1 The Shared CFG Walk
 
@@ -3750,12 +3972,12 @@ Each command body is compiled to a control-flow graph (CFG) at parse time. Nodes
 The typechecker performs a single forward-flow walk over this CFG, maintaining a **state vector** at each program point:
 
 ```
-StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, fexprTaint: TaintLattice)
+StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, fexprTaint: TaintLattice, obligations: ObligationSet)
 ```
 
 Each component is a separate lattice; the joint state-vector forms the product lattice. At convergent CFG points, the join is performed component-wise — each analysis joins per its own lattice rules.
 
-Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2–E.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
+Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2–E.5, except the obligation component's, which are in §10.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
 
 ### E.2 Initialization Analysis
 
@@ -3793,26 +4015,26 @@ The lattice is per-slot. The state vector tracks initialization for every named 
 **Lattice.** Six states per program point:
 
 $$
-\{\ \text{clear},\ \text{failing}(:),\ \text{failing}(?),\ \text{failing}(!),\ \text{mixed}(?),\ \text{mixed}(!)\ \}
+\{\ \text{clear},\ \text{failing}(?),\ \text{failing}(!),\ \text{mixed}(?),\ \text{mixed}(!),\ \text{unreachable}\ \}
 $$
 
 - **`clear`** — no in-flight failure; subsequent statements execute.
-- **`failing(:)`** — the `:` mark is never-fails; this state is unreachable in well-formed code (no statement can produce it). Present in the lattice for completeness; behaves as $\bot$.
 - **`failing(?)`** — may-fail-mark failure in flight; subsequent statements are skipped until a recovery context engages.
 - **`failing(!)`** — must-fail-mark failure in flight; subsequent statements are skipped; the body cannot reach a `clear` exit through this path.
 - **`mixed(?)`** — at a convergence point, some predecessors are `failing(?)` and others are `clear`. Means: a may-fail path is in flight on some predecessor branches; subsequent statements are reachable only on the `clear`-path branches.
 - **`mixed(!)`** — analogous to `mixed(?)` but the failing branches are must-fail.
+- **`unreachable`** — no incoming path reaches this program point. It is the lattice's bottom and the identity for the join: joining an unreached edge with any state yields that state. The state genuinely occurs — a point dominated by an unrecoverable `failing(!)` exit sits in it — and it is what carries reachability inside the lattice, so conformance over reachable exits (below) needs no separate machinery (§4.13).
 
 **Join table** (rows are state-A, columns are state-B; cell is the joined state):
 
-| A \ B | clear | failing(:) | failing(?) | failing(!) | mixed(?) | mixed(!) |
+| A \ B | clear | failing(?) | failing(!) | mixed(?) | mixed(!) | unreachable |
 | --- | --- | --- | --- | --- | --- | --- |
-| **clear** | clear | clear | mixed(?) | mixed(!) | mixed(?) | mixed(!) |
-| **failing(:)** | clear | failing(:) | failing(?) | failing(!) | mixed(?) | mixed(!) |
-| **failing(?)** | mixed(?) | failing(?) | failing(?) | mixed(?) | mixed(?) | mixed(?) |
-| **failing(!)** | mixed(!) | failing(!) | mixed(?) | failing(!) | mixed(?) | mixed(!) |
+| **clear** | clear | mixed(?) | mixed(!) | mixed(?) | mixed(!) | clear |
+| **failing(?)** | mixed(?) | failing(?) | mixed(?) | mixed(?) | mixed(?) | failing(?) |
+| **failing(!)** | mixed(!) | mixed(?) | failing(!) | mixed(?) | mixed(!) | failing(!) |
 | **mixed(?)** | mixed(?) | mixed(?) | mixed(?) | mixed(?) | mixed(?) | mixed(?) |
-| **mixed(!)** | mixed(!) | mixed(!) | mixed(?) | mixed(!) | mixed(?) | mixed(!) |
+| **mixed(!)** | mixed(!) | mixed(?) | mixed(!) | mixed(?) | mixed(!) | mixed(!) |
+| **unreachable** | clear | failing(?) | failing(!) | mixed(?) | mixed(!) | unreachable |
 
 (The lattice is symmetric so the table folds along the diagonal; presented in full for ease of lookup.)
 
@@ -3905,17 +4127,17 @@ A slot is **fexpr-tainted** if its value is, or may transitively reach, a fexpr-
 
 **Conformance.** Body fails to typecheck if any of the seven fexpr restrictions (§8.13, A–G) are violated:
 
-- A — fexpr-typed value assigned to long-lived storage (e.g., a global, a module-scope identifier).
-- B — pointer to a fexpr-typed slot.
-- C — fexpr-typed value in a field of a long-lived containment (object field with object-ceiling outliving the fexpr's defining frame).
-- D — fexpr-typed value as a candidate of a variant.
-- E — fexpr-typed value in a lambda's capture list.
-- F — fexpr-typed value returned via a constructor.
-- G — fexpr-typed value written to a productive or reference parameter of the defining frame.
+- A — a productive or reference fexpr-typed parameter.
+- B — a pointer to a fexpr-typed slot.
+- C — a fexpr-typed value in an object field, record field, or variant candidate.
+- D — a bare-identifier copy of a fexpr-typed value.
+- E — a fexpr-typed value in a lambda's capture list.
+- F — a fexpr-typed value from a constructor's productive output.
+- G — a fexpr-typed value written to a productive or reference parameter of the defining frame.
 
 ### E.6 Joint Analysis Composition
 
-The four analyses share the CFG walk and the join points, but their transfer functions are independent. The composed analysis runs as:
+The five analyses share the CFG walk and the join points, but their transfer functions are independent. The composed analysis runs as:
 
 ```
 state <- state_vector_at_entry
@@ -3924,12 +4146,13 @@ for each statement s in CFG order:
     state.failure <- failure_transfer(s, state.failure)
     state.readTaint <- read_taint_transfer(s, state.readTaint)
     state.fexprTaint <- fexpr_taint_transfer(s, state.fexprTaint)
+    state.obligations <- obligation_transfer(s, state.obligations)   ; §10.5
     
     on CFG branch (multiple successors):
         propagate state to each successor
 
 at each convergence point:
-    state <- (init join, failure join, read_taint join, fexpr_taint join)
+    state <- (init join, failure join, read_taint join, fexpr_taint join, obligation join)
             of all predecessor states (component-wise)
 ```
 
@@ -3938,15 +4161,7 @@ The components do not interact at transfer functions except at specific cross-co
 - The `.fail` statement updates `failure` and may propagate READ-taint (if the failure payload's value is READ-tainted, the failure is marked accordingly for downstream recovery analysis).
 - A productive write `'r <- expr` updates `init` and verifies READ-taint conformance simultaneously (a tainted RHS rejected if `'r` is a productive write through a READ-rooted path).
 
-### E.7 Reachability Rider
-
-Every conformance check applies only to **reachable** program points. A statement after an unrecoverable `failing(!)` state is unreachable per the lattice and contributes no conformance requirement.
-
-The reachability is computed alongside the CFG walk: a node is reachable if any incoming edge has `clear` or `mixed(?)` or `mixed(!)` state at the predecessor.
-
-A body whose every exit edge is unreachable (a non-terminating body) trivially satisfies every conformance rule — the universal quantification over reachable exits has an empty domain.
-
-### E.8 Worked Example
+### E.7 Worked Example
 
 Consider the factorial subcommand:
 
@@ -3977,11 +4192,11 @@ Conformance:
 
 The body typechecks.
 
-### E.9 Composed-Analysis Performance
+### E.8 Composed-Analysis Performance
 
 The joint state-vector grows linearly with the number of named slots in scope; each component lattice contributes its per-slot dimension. For a typical command body with $O(10)$ slots, the state vector is small enough that the analysis terminates in $O(N \cdot V)$ time where $N$ is CFG node count and $V$ is the per-state-vector size — well within compile-time budgets for any practical body.
 
-Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite height bounds the iteration count to $O(\text{slots} \times \text{max-lattice-height})$ per loop. The lattices' heights are small (init: 3, failure: 6, taint: 2), so fixpoint convergence is fast.
+Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite height bounds the iteration count to $O(\text{slots} \times \text{max-lattice-height})$ per loop. The lattices' heights are small (init: 3, failure: 6, taint: 2, obligation per-path state: 2), so fixpoint convergence is fast.
 
 ---
 
@@ -4136,7 +4351,7 @@ The model describes the value's location across the failure-flow path. The `@` a
 - **Registration time.** A `@ body` or `@! body` block at the source level adds the block to the current frame's registration list. The block is registered at the point of execution flow, not at the body's source-level declaration: a `@ body` inside a conditional is registered only if the conditional engages.
 - **Firing order.** At frame retirement (success or failure exit), blocks fire in *reverse registration order*. The most-recently-registered block runs first.
 - **Failure-exit filtering.** `@!` blocks fire only when the frame exits via failure ($\Phi$ non-$\epsilon$ at exit). `@` blocks fire on every exit.
-- **No value-attached firing.** Frame-exit hooks are not tied to any value's lifetime; they are tied to the frame's retirement. A value that has moved out of the frame (via failure-payload move, etc.) is not in the registration list's responsibility.
+- **No value-attached firing.** Frame-exit hooks are not tied to any value's lifetime; they are tied to the frame's retirement. A value that has moved out of the frame (via failure-payload move, etc.) is not in the registration list's responsibility. Value-lifetime-tied discharge is the obligation system's province (§10), not the hook discipline's.
 
 ### F.7 The Single-In-Flight Invariant
 
@@ -4156,7 +4371,7 @@ An object's lifetime is bounded by its *introducing frame* (§5.11):
 - A productive `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the caller's frame on successful copy-restore.
 - Transitive containment: an object embedded as a field of another object inherits the containing object's lifetime ceiling.
 
-At frame retirement, every object whose lifetime ceiling is this frame is reclaimed.
+At frame retirement, every object whose lifetime ceiling is this frame is reclaimed; an object that carries an obligation, or owns obligated fields, fires those discharges as part of this reclamation (§10.16).
 
 ### F.9 Variant Three-Word Slot
 
@@ -4192,6 +4407,8 @@ The full firing sequence at frame retirement:
 4. Return to caller's frame.
 ```
 
+A frame's pending obligation discharges fire at this same retirement, emitted into the frame's exit code alongside the hooks (§10.6, §10.16).
+
 A failure during a block's body propagates per the standard rules — the block's body is itself a frame-bound context. The single-in-flight invariant (F.7) prevents a block-fired failure from coexisting with the outer failure: blocks fire from a no-active-failure state, and any failure they fire is consumed locally or propagates to the caller's frame after the outer failure has already advanced.
 
 ### F.12 Per-Invocation Fexpr Frame (`F`)
@@ -4217,7 +4434,7 @@ No runtime witness construction is required. The covariance rule for payload cla
 
 ### F.14 Operational Summary
 
-Basis's operational semantics is small: 11 reduction rules, four slot structures (failure, variant, class-typed Case B, frame's failure slot), one lifecycle table (frame entry/exit and retirement). The model is conservative — no implicit dispatch, no hidden control flow, no garbage-collection daemons. Every reduction step is locally determined by the current verb, the failure register, and the lexical state — meeting the no-non-local-state and no-hidden-control-flow commitments of §1.4.
+Basis's operational semantics is small: 11 reduction rules, four slot structures (failure, variant, class-typed Case B, frame's failure slot), one lifecycle table (frame entry/exit and retirement). The model is conservative — no implicit dispatch, no dynamic stack-unwinding, no garbage-collection daemons. Every reduction step is locally determined by the current verb, the failure register, and the lexical state; the one effect emitted without an explicit verb is a resource obligation's discharge at lifetime end (§10), resolved at compile time into the frame's exit code.
 
 ---
 
@@ -4310,7 +4527,7 @@ The `::` operator is the scope operator (§1.5). Its role at name resolution dep
 
 - **Module prefix.** `ModuleName :: TypeName` (or `ModuleName :: identifier`) resolves through the imported-module's namespace.
 
-- **Aggregate-shaped field access.** `value :: fieldName` or `value :: N` accesses a field of an aggregate-shaped value: an `Aggregate`-typed slot (§7.4), a record (§5.4), or an object (§5.11). For records, both forms account for `.inline` field promotion (§A.7). For objects, positional access is by declaration order.
+- **Aggregate-shaped field access.** `value :: fieldName` or `value :: N` accesses a field of an aggregate-shaped value: an `Aggregate`-typed slot (§7.4), a record (§5.4), or an object (§5.11). For records, both forms account for `.splice` field promotion (§A.7). For objects, positional access is by declaration order.
 
 The disambiguating context for `::` is the LHS's type and the namespace's contents.
 
