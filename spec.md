@@ -124,7 +124,7 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Liskov substitution as a design tool.** Where the language admits a subtyping relation, the design preserves Liskov substitutability. The buffer-backed parent-chain subsumption preserves Liskov by construction (the upcast is one-directional and carries no value rewriting). The class-instance system preserves Liskov by class-method-contract (instances must satisfy the class's declared shape). Where Liskov substitution fails — as it does for the union $\to$ candidate-or-parent byte-reinterpretation, where the bytes' meaning depends on the active candidate — the relation is given a distinct name (byte-reinterpretation subsumption) and not conflated with Liskov-preserving subsumption.
 
-**Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement, with nothing to track. Non-default storage — heap, pool, arena, etc. — is drawn from an allocator, whose acquire/release pair is governed by the obligation system (§10): acquisition is an ordinary source-method call producing an obligated value, and bringing an allocator into scope does nothing on its own until such a call is made. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
+**Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement — or, for a scope-local value, as early as the close of its enclosing `.scope` block (§3.17) — with nothing to track. Non-default storage — heap, pool, arena, etc. — is drawn from an allocator, whose acquire/release pair is governed by the obligation system (§10): acquisition is an ordinary source-method call producing an obligated value, and bringing an allocator into scope does nothing on its own until such a call is made. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
 
 These lenses recur throughout this specification. Sections that depend on a particular lens for their correctness call it out at the relevant point.
 
@@ -535,30 +535,28 @@ The `.sub` introducer takes the same signature surface as the regular `.cmd` for
 
 **Visibility and nesting.** A subcommand is visible from the body it is declared in and from any deeper bodies nested within that body — including the bodies of sibling subcommands and the bodies of subcommands nested deeper. Subcommands may nest: a subcommand's body may contain its own `.sub` declarations at the top, and those nested subcommands follow the same scoping discipline against their immediate enclosing body. A nested subcommand resolves names through its lexical chain: itself (for recursion), its siblings within the same enclosing body, and any subcommand visible at any outer enclosing body along the chain to the outermost enclosing command. The visibility chain follows the lexical nesting structure; it does not extend to the module or any other command.
 
-**Two design purposes.** Subcommands serve two needs that would otherwise require separate language features:
+**Two design purposes.** Subcommands serve two needs:
 
 1. **Helper commands internal to a command.** Many algorithms have a clean specification at the call boundary but an implementation that wants a private helper — a tail-recursive version with an accumulator, a worker function not exposed in the module's public surface, a body that wants to be expressed as several cooperating commands without polluting the module's namespace. The factorial-with-accumulator example above is the canonical case: `factorial` exposes the simple input-and-result signature its callers expect, while `factorialAcc` carries the tail-recursive implementation as a private helper, threading the productive `'r` slot through each recursive call.
 
-2. **Ad-hoc scoping for `@` and `@!` blocks.** Basis has no unnamed block scope. Where another language might introduce one to ensure a destructor fires, Basis uses a subcommand whose frame retirement triggers the `@` and `@!` blocks registered within it:
+2. **Ad-hoc scoping for cleanup.** A subcommand's frame retirement fires the `@` and `@!` blocks registered within it, bounding cleanup to a region smaller than the enclosing command's body. The **scope block** (§3.17) serves this directly, establishing the same retirement boundary inline — without a separate signature, parameter threading, or call:
 
    ```
    .cmd processFile: String path =
-       .sub useFile: String filepath =
-           #handle <- openFile: filepath
-           @ closeHandle: handle      ; fires when useFile returns
+       .scope
+           #handle <- openFile: path
+           @ closeHandle: handle      ; fires at scope end
            process: handle
-       
-       useFile: path
        ; closeHandle has already fired here
    ```
 
-   The subcommand's frame retires when `useFile:` returns; the `@`-block registered in its body fires at that retirement. The enclosing command continues with the resource released. The pattern is uniform for any cleanup whose scope is smaller than the enclosing command's body.
+   A subcommand suits a bounded region only when that region also needs its own parameters or recursion; for pure scoping, a `.scope` block is the lighter tool.
 
-Both purposes are served by the same mechanism — a lexically scoped command whose frame creates a fresh `@`/`@!` registration context — without introducing a separate ad-hoc-scope construct.
+The helper-command purpose is the subcommand's primary one; pure ad-hoc scoping is the province of the scope block (§3.17), the language's dedicated unnamed-block-scope construct.
 
 ### 3.13 Frame-Exit Hooks: `@` and `@!`
 
-A command body may register inline cleanup that runs at frame retirement using the `@` and `@!` **block markers**. The forms are:
+A command body may register inline cleanup that runs at scope end — frame retirement, or the close of an enclosing `.scope` block (§3.17) — using the `@` and `@!` **block markers**. The forms are:
 
 ```
 .cmd processFile: String path =
@@ -568,9 +566,9 @@ A command body may register inline cleanup that runs at frame retirement using t
     process: handle
 ```
 
-`@` is read "at exit"; `@!` is "at exit on failure." Each marker introduces a body whose execution is deferred to the enclosing command's frame retirement, not to the source line where the marker appears.
+`@` is read "at exit"; `@!` is "at exit on failure." Each marker introduces a body whose execution is deferred to the end of the nearest enclosing scope — the command frame's retirement, or the close of an enclosing `.scope` block (§3.17) — not to the source line where the marker appears.
 
-The handlers fire in **reverse order of registration** — the most-recently-introduced handler runs first. They compose with the failure system: if a frame is retiring on a failure path, the propagating failure remains in flight while the handlers run, then continues to propagate after they complete. Handlers themselves may invoke commands that fail internally and recover internally; what they may not do is generate a *new* in-flight failure during the exit cleanup, which would conflict with the single-in-flight invariant (§4.12).
+The handlers fire in **reverse order of registration** — the most-recently-introduced handler runs first. They compose with the failure system: if a scope is exiting on a failure path, the propagating failure remains in flight while the handlers run, then continues to propagate after they complete. Handlers themselves may invoke commands that fail internally and recover internally; what they may not do is generate a *new* in-flight failure during the exit cleanup, which would conflict with the single-in-flight invariant (§4.12).
 
 `@` and `@!` blocks are not destructors. They are RAII-equivalent in functional role; they are not RAII in mechanism.
 
@@ -684,6 +682,46 @@ Command-typed values are typed by command-type expressions of the form `:<paramT
 Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application — including the mode-marker filter (PRODUCE deferred-only, REFERENCE applied with ceiling-tracking, READ flexible) — are in §9.14.
  
 The four constructional forms — their capture rules, their ceiling computations, their mark-conformance rules, and the seven fexpr-restrictions A–G — are detailed in §8. The class-system extension that admits fexpr-typed parameters under fexpr-relevance taint is in §9.20.
+ 
+### 3.17 Scope Blocks: `.scope`
+ 
+A **scope block**, introduced by the `.scope` keyword, is a lexical region inside a command body that establishes a retirement boundary without establishing a new frame. It makes no call, passes no parameters, and imposes no copy-restore boundary; control enters and leaves it by ordinary sequential flow. What it adds over plain sequencing is a boundary at which scope-local storage is reclaimed and scope-local cleanup fires.
+ 
+A command frame is itself a scope — the outermost one of its body — and the language's retirement machinery (obligation discharge, §10; frame-exit hooks, §3.13) is defined at scope boundaries generally. The `.scope` block is the explicit, nested form of the same concept: where a frame's scope ends at frame retirement, a `.scope` block's scope ends at the dedent that closes its body.
+ 
+The form is the keyword followed by an indented body:
+ 
+```
+.scope
+    #conn <- (Connection: host)     ; obligated; released at scope end
+    send: conn, payload
+    ; conn's obligation fires here, at scope end
+```
+ 
+**Composition follows `%`.** A `.scope` block has the failure-flow behavior of a `%` block (§4.4): no control-flow effect of its own, body run as ordinary sequential statements, and an unrecovered failure inside propagates out. Like `%`, a `.scope` may stand as the **guard** of a `?`, `?-`, or `?:` construct — the guard succeeds iff the whole scope body succeeds — which is the idiom for a guard whose test needs a resource acquired and released within the guard itself:
+ 
+```
+? .scope
+    #conn <- (Connection: host)     ; acquired for the test
+    reachable: conn                 ; the actual guard condition
+  proceedKnowingReachable           ; ?-consequent: runs on guard success, conn already released
+```
+ 
+The connection is released at the end of the guard scope — on either outcome — before control continues past the `?`.
+ 
+**Scope-local declarations.** A slot introduced with `#` inside a scope block is local to that scope: visible only within the body, gone at the dedent. Names from enclosing scopes remain visible and usable inside the block; only new `#`-introductions are confined.
+ 
+**Shadowing.** A `.scope` block is an ordinary nested scope, so a scope-local introduction may shadow a name visible from an enclosing scope, exactly as a block-marker body may. The same-scope rule of §6.3 governs collisions *within* a single scope — `x` and `'x` may not coexist in one scope — but does not reach across the scope boundary; cross-scope shadowing is admitted (Appendix G.10). Inside the block a use resolves to the scope-local binding; the enclosing binding it hides is reachable again past the dedent.
+ 
+**Storage reclamation at scope end.** A scope-local value's lifetime ends at the scope's close, and the variable-size storage drawn from the frame-bound region (§7.20) for it may be reclaimed there rather than at frame retirement — a `.scope` carves a nested sub-region out of the frame's region that an implementation may reclaim when the scope closes. The early reclamation is guaranteed wherever deferring it would be observable: a scope inside a loop has each iteration's scope-local storage reclaimed at that iteration's scope end, so the loop does not accumulate the storage of every pass.
+ 
+**Obligation discharge at scope end.** An obligation still owned by a scope-local binding at scope end fires its discharge there (§10), exactly as an obligation owned by a frame-local binding fires at frame retirement. Ownership transferred outward before scope end — by a productive write to an enclosing slot, a `<-` into an enclosing binding, or a by-name move into a call (§10.11) — leaves the scope owning nothing for that obligation, so nothing fires at scope end; the obligation travels with its new owner. Only what the scope still owns at its close is discharged there — the scope-boundary analog of returning a resource out of the block.
+ 
+**Frame-exit hooks fire at scope end.** An `@` or `@!` block (§3.13) registered within a scope block is registered against that scope and fires at the scope's end rather than at the enclosing frame's retirement — `@` on every exit from the scope, `@!` only on a failure exit. A scope's auto-fired obligation discharges and its explicit `@`/`@!` hooks share a single cleanup list, fired in reverse registration order (§10.6). A hook registered in the frame body outside any `.scope` continues to fire at frame retirement. The nearest enclosing scope is always the firing boundary.
+ 
+**Nesting.** Scope blocks nest; each establishes its own boundary. An inner scope's end reclaims its own locals and fires its own hooks and obligations; the outer boundary handles what the outer scope still owns.
+ 
+**Relationship to subcommands.** A `.scope` block and a subcommand (§3.12) can both bound cleanup to a region smaller than the enclosing command's body — a subcommand's frame retirement fires the `@`/`@!` blocks registered in it — but a `.scope` provides that boundary directly, without a separate signature, parameter threading, or call. A subcommand earns its weight here only when the bounded region also needs its own parameters or recursion; for pure scoping, a `.scope` is the form to reach for. The distinction is that a subcommand is a *call* (a fresh frame entered by invocation, with its own parameters), while a `.scope` is an *inline region* (no call, sharing the enclosing frame's parameters and visible locals).
  
 ---
  
@@ -816,13 +854,13 @@ The `%`-body provides logical conjunction without a new construct. Within a `%`-
  
 means `(testA OR testB) AND (testC OR (testD OR testE))`. Each `|`-chain locally resolves a disjunction; only the failure that ultimately escapes — from a conjunct whose disjunctive alternatives were exhausted — is what the enclosing `?`-family construct sees. The failure value surfaced is the failure of the last-tried alternative in whichever conjunct gave up.
  
-`%` does not combine with `??` (no failure-escape to elevate) and does not pair with `-`.
+`%` does not combine with `??` (no failure-escape to elevate) and does not pair with `-`. A `.scope` block (§3.17) composes in failure flow exactly as `%` does, including in guard position; it adds only the scope-local declaration, storage-reclamation, and cleanup-boundary semantics of §3.17.
  
 #### Frame-exit hooks: `@` and `@!`
  
-`@` (DO_ON_EXIT) registers a body that runs at frame exit, regardless of whether the frame exits via success or failure. `@!` (DO_ON_EXIT_FAIL) registers a body that runs only on failure exits. Neither construct sees nor consumes the propagating failure; the bodies execute as if no failure were active, even when the frame is exiting via failure.
+`@` (DO_ON_EXIT) registers a body that runs at scope exit, regardless of whether the scope exits via success or failure. `@!` (DO_ON_EXIT_FAIL) registers a body that runs only on failure exits. Neither construct sees nor consumes the propagating failure; the bodies execute as if no failure were active, even when the scope is exiting via failure.
  
-The `@` and `@!` markers are **frame-lifetime-tied**. They register a body against the enclosing command's frame; the body executes at that frame's retirement, in reverse registration order. Value-lifetime-tied cleanup is the separate province of the obligation system (§10); the `@`/`@!` hooks themselves have no class-level form — no class-level declaration causes implicit registration of a hook for frame slots of any particular type (§3.13). The discipline that governs *when* these blocks fire under a propagating failure is in §4.11.
+The `@` and `@!` markers are **scope-lifetime-tied**. They register a body against the nearest enclosing scope — the command frame or an enclosing `.scope` block (§3.17); the body executes at that scope's end, in reverse registration order. Value-lifetime-tied cleanup is the separate province of the obligation system (§10); the `@`/`@!` hooks themselves have no class-level form — no class-level declaration causes implicit registration of a hook for slots of any particular type (§3.13). The discipline that governs *when* these blocks fire under a propagating failure is in §4.11.
  
 ### 4.5 Block-Marker Composition
  
@@ -980,11 +1018,11 @@ The value's lifetime across a re-fail chain is governed by the holding-frame mod
  
 The frame-exit hooks `@` and `@!` (§4.4) compose with failure flow as follows.
  
-`@`-bodies run on every frame exit. When a failure propagates out of a body containing `@` blocks, the `@` bodies fire as part of the frame's retirement, in the order they were registered, before the failure propagates to the caller. The bodies execute as if no failure were active: they neither see nor consume the propagating failure. A failure produced *within* an `@`-body propagates through the cleanup machinery's own rules, not back into the original failure's flow.
+`@`-bodies run on every scope exit. When a failure propagates out of a scope containing `@` blocks, the `@` bodies fire as part of that scope's exit, in reverse registration order, before the failure propagates past the scope. The bodies execute as if no failure were active: they neither see nor consume the propagating failure. A failure produced *within* an `@`-body propagates through the cleanup machinery's own rules, not back into the original failure's flow.
  
 `@!`-bodies run only on failure exits. The composition with the propagating failure is identical to `@`'s, restricted to the failure-exit case.
 
-**Block hooks are frame-bound, not value-bound.** The `@` and `@!` registration list is a property of the registering frame, not of any value the block's body references. When a value referenced inside an `@`-block is moved out of the frame — for example, used as a payload in a `.fail` directive — the block's reference to that name continues to refer to the original frame slot, which after the move no longer holds the value. The user is responsible for ensuring that the order of operations within the frame body keeps the block's references valid until the block fires, or for registering cleanup at the destination frame instead. The language does not transport block-registered cleanup across move boundaries; the **holding frame** model below governs the *value's* location across the failure-flow path, while the `@` and `@!` registration list remains anchored to the frame in which the marker appeared.
+**Block hooks are frame-bound, not value-bound.** The `@` and `@!` registration list is a property of the registering scope, not of any value the block's body references. When a value referenced inside an `@`-block is moved out of the frame — for example, used as a payload in a `.fail` directive — the block's reference to that name continues to refer to the original frame slot, which after the move no longer holds the value. The user is responsible for ensuring that the order of operations within the frame body keeps the block's references valid until the block fires, or for registering cleanup at the destination frame instead. The language does not transport block-registered cleanup across move boundaries; the **holding frame** model below governs the *value's* location across the failure-flow path, while the `@` and `@!` registration list remains anchored to the scope in which the marker appeared.
 
 **The holding-frame model.** At any moment, a payload value lives in exactly one frame, its *holding frame*. Initially the holding frame is the originating frame of the `.fail` that produced the value. Propagation up the call stack copies the failure slot's three words (message, pointer, witness) without moving the value — the holding frame does not change during propagation. The holding frame *does* change at two events: at **binding**, when a `|`-with-spec engages and the value moves into the recovery frame; and at **re-fail**, when a fresh `.fail` in the handler's frame takes the bound value as its payload and the value moves into the new originating frame. Both events are moves: the value's identity is preserved; only its holding frame changes. The model describes the value's location, not any handler timing — cleanup of a value that has moved out of its originating frame is the recovery handler's responsibility, expressed through ordinary statements within the handler body or through `@` and `@!` registrations within that body. There is no class-level mechanism that auto-registers cleanup for values of a particular type.
  
@@ -1217,9 +1255,9 @@ Objects are nominally typed: two `.object` declarations with identical field str
  
 **Field access.** An object's fields are reached through the scope operator `::` (§9.6). The named form `object :: fieldName` selects the field by name; the positional form `object :: N` selects the Nth field by 1-based **declaration order**. Because object layout is implementation-determined (the language does not commit to a particular field-layout strategy for objects, per the discussion above), positional access is by declared order rather than by byte offset; `obj :: 1` is always the first field as the type was declared, irrespective of how the implementation chose to lay out the storage. Out-of-range positional indices and unknown field names are static errors. (Objects have no `.splice` modifier, per the grammar in Appendix B, so the `.splice`-promotion rule from records does not apply.)
  
-**Object lifetime ceiling.** The frame in which an object's storage is introduced is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the frame that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime — object types are first-class types — but every object *value* is bound to an introducing frame. The frame-ownership lens (§1.5) makes the rule concrete: an object lives in a frame's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. The lifetime ceiling is whichever frame ends up holding the slot at the binding moment.
+**Object lifetime ceiling.** The scope in which an object's storage is introduced — a command frame, or a `.scope` block within one (§3.17) — is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the scope that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime — object types are first-class types — but every object *value* is bound to an introducing scope. The frame-ownership lens (§1.5) makes the rule concrete: an object lives in its scope's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. At such a call boundary the lifetime ceiling is whichever frame ends up holding the slot at the binding moment.
  
-**Frame-exit hooks via `@` and `@!` (§3.13) are tied to the frame slot, not to the object's identity.** An `@` or `@!` block registered against a frame's body runs when *that frame's slot* retires, regardless of the type of the value the block references; the hooks are frame-lifetime-tied, not object-lifetime-tied. Object-lifetime-tied cleanup is instead the province of the obligation system (§10): an obligated value's discharge fires at the end of *its* lifetime, and an object's retirement fires its own and its owned fields' obligations (§10.16). The two mechanisms are distinct and do not compete — `@`/`@!` register frame-tied cleanup explicitly at a block marker, while an obligation rides with the value it was acquired against — so a resource may be managed by whichever fits its lifetime.
+**Frame-exit hooks via `@` and `@!` (§3.13) are tied to the registering scope, not to the object's identity.** An `@` or `@!` block registered within a scope runs when *that scope* ends, regardless of the type of the value the block references; the hooks are scope-lifetime-tied, not object-lifetime-tied. Object-lifetime-tied cleanup is instead the province of the obligation system (§10): an obligated value's discharge fires at the end of *its* lifetime, and an object's retirement fires its own and its owned fields' obligations (§10.16). The two mechanisms are distinct and do not compete — `@`/`@!` register scope-tied cleanup explicitly at a block marker, while an obligation rides with the value it was acquired against — so a resource may be managed by whichever fits its lifetime.
  
 Object types may have class instances declared for them (§9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's class membership is a property of the object's type, not of any particular object value, and is determined at the type-declaration site or at instance-declaration sites.
  
@@ -1951,11 +1989,11 @@ The pattern composes with the productive write-once rule (§6.13): the Phase 2 c
 
 Value construction in Basis involves two distinct allocation activities, separated by where the storage lives:
 
-- **Slot allocation** is the frame storage for the slot itself — the fixed-size bytes that hold a local's value, fat pointer, or 3-word slot. This happens at `#` introduction and is implicit in the frame's existence; the user writes `# T x ...` and the frame provides the slot's storage. Slot allocation needs no syntax and incurs no obligation: the frame owns its slots and reclaims them at retirement.
+- **Slot allocation** is the frame storage for the slot itself — the fixed-size bytes that hold a local's value, fat pointer, or 3-word slot. This happens at `#` introduction and is implicit in the frame's existence; the user writes `# T x ...` and the frame provides the slot's storage. Slot allocation needs no syntax and incurs no obligation: the frame owns its slots and reclaims them at retirement, and a slot local to a `.scope` block may be reclaimed at the scope's close (§3.17).
 
 - **Memory allocation** is the storage for any variable-size data the slot's value references — the element bytes behind a `[]T` value, the pointee behind a constructed `^T`, the storage backing an object's identity. This happens at value construction, and has a default and a non-default path.
 
-The default is the **frame-bound region**: variable-size storage is drawn from a region tied to the current frame and freed at frame retirement, with nothing to track. It requires no syntax — `# []Int32 x <- $[1, 2, 3]` constructs a runtime-length buffer whose three-element data area lives in the current frame's region and is reclaimed when the frame retires, exactly as a slot is. This is the common case.
+The default is the **frame-bound region**: variable-size storage is drawn from a region tied to the current frame and freed at frame retirement, with nothing to track. Storage for a value local to a `.scope` block (§3.17) may be reclaimed earlier, at that scope's end — a `.scope` carves a nested sub-region of the frame's region. It requires no syntax — `# []Int32 x <- $[1, 2, 3]` constructs a runtime-length buffer whose three-element data area lives in the current frame's region and is reclaimed when its scope ends, exactly as a slot is. This is the common case.
 
 Non-default storage — heap allocation for data that outlives the frame, an arena scoped to a logical phase, a pool with a recycling discipline — is drawn from an **allocator**: a first-class value whose acquire/release pair is declared as a `.resource` or `.promise` (§10). Acquisition is an ordinary source-method call on the allocator, and the value it yields carries an obligation that the allocator's sink discharges. There is no allocation-site qualifier and no ambient allocation context: bringing an allocator into scope does nothing on its own, and storage is drawn only where the source method is called, visibly, at that call.
 
@@ -2519,17 +2557,17 @@ The exclusion does not extend to **fexpr-typed local slots themselves**: a local
 
 ## 10. The Obligation System
 
-Basis provides two related top-level declaration forms that govern resource-obligation tracking. A **`.resource`** governs an obligation that must be discharged within the frame that acquired it — a strictly local duty. A **`.promise`** governs an obligation that may travel beyond its acquiring frame and be discharged in the future. The two share a single underlying model; `.promise` is `.resource` extended with escape. This section develops them in that order: §10.1–§10.9 develop `.resource` in full, and §10.10–§10.16 add only what escape requires.
+Basis provides two related top-level declaration forms that govern resource-obligation tracking. A **`.resource`** governs an obligation that must be discharged within the scope that acquired it — a strictly local duty. A **`.promise`** governs an obligation that may travel beyond its acquiring scope and be discharged in the future. The two share a single underlying model; `.promise` is `.resource` extended with escape. This section develops them in that order: §10.1–§10.9 develop `.resource` in full, and §10.10–§10.16 add only what escape requires.
 
 ### 10.1 Motivation
 
 A resource carries a duty to be discharged at the end of its useful life: allocator-issued storage to be returned, a transaction to be committed or rolled back, a capability to be relinquished, a secrets buffer to be overwritten, stream-cipher material to be consumed. The obligation system tracks that duty and guarantees it is met. A **source** is the operation that incurs the duty, generating an obligation borne by the value it produces; a **sink** is the operation that discharges it.
 
-The system governs only what needs it. A slot introduced with `#` over a buffer-backed type is owned by its frame — its lifetime is evident from the indentation, and the frame reclaims it on retirement with no user action and nothing to track. The obligation system covers the rest: values whose discharge is a distinct act, meaningful in its own right rather than a frame reclaiming its own storage.
+The system governs only what needs it. A slot introduced with `#` over a buffer-backed type is owned by its frame — its lifetime is evident from the indentation, and it is reclaimed at the end of its scope with no user action and nothing to track. The obligation system covers the rest: values whose discharge is a distinct act, meaningful in its own right rather than a frame reclaiming its own storage.
 
 The system confers a **linear obligation**: a duty discharged exactly once and never silently dropped. It is a property of a value's *acquisition*, not of its type. The same `^Node` is obligated when it comes from a malloc-style allocator and unobligated when it comes from an arena — where the arena itself, not its individual items, carries the obligation. Linearity attaches to the duty, not to the value: an obligated value may be read, moved, and copied as its type otherwise permits, and a copy is unobligated. The system does not police aliasing.
 
-A `.resource` is the **local** form: the obligated value must be discharged within the frame that acquired it. It cannot be returned, stored into a longer-lived structure, or otherwise made to outlive its origin. This is the right form for an obligation whose deferral is meaningless or dangerous — a secrets buffer that must be overwritten before its storage can be introspected, or storage drawn and released within a single operation. Because everything happens in one frame, a `.resource` is the simpler case in every respect.
+A `.resource` is the **local** form: the obligated value must be discharged within the scope that acquired it. It cannot be returned, stored into a longer-lived structure, transferred to an enclosing scope, or otherwise made to outlive that scope. This is the right form for an obligation whose deferral is meaningless or dangerous — a secrets buffer that must be overwritten before its storage can be introspected, or storage drawn and released within a single operation. Because everything happens in one scope, a `.resource` is the simpler case in every respect.
 
 ### 10.2 The `.resource` Declaration
 
@@ -2554,7 +2592,7 @@ Transaction, multiple sinks (the default is the safe abort; commit is an explici
 .resource LocalTxn: begin[transaction] -> rollback | commit
 ```
 
-**The default sink.** The default fires when the obligation reaches the end of the acquiring frame with no explicit discharge having pre-empted it. For a `.resource` this firing happens at frame finalization, where the frame's parameters are still live — so the default is under no special argument restriction: like any sink fired in-frame it may take the obligated value together with constants or the enclosing command's parameters.
+**The default sink.** The default fires when the obligation reaches the end of the acquiring scope — the frame, or a `.scope` block holding it (§3.17) — with no explicit discharge having pre-empted it. For a `.resource` this firing happens at that scope's end, where the frame's parameters are still live — so the default is under no special argument restriction: like any sink fired in-frame it may take the obligated value together with constants or the enclosing command's parameters.
 
 **Non-default sinks.** A non-default sink may take any number of non-receiver arguments, provided exactly one is of the obligated (source-produced) type; that argument is the discharge argument and the remainder are programmer-supplied context. If a non-default sink has more than one argument of the obligated type, the discharge argument is designated with the same bracket notation used on the source: `sinkMethod[arg]`.
 
@@ -2570,15 +2608,15 @@ The guarantee is **one-directional**: the tracked obligation *fires*. The progra
 
 The analysis enforces these structural properties of a tracked obligation:
 
-1. **The obligation is never dropped.** An obligation acquired but not explicitly discharged fires its default at frame finalization.
+1. **The obligation is never dropped.** An obligation acquired but not explicitly discharged fires its default at the end of its acquiring scope.
 2. **The sink is invoked against the same source slot.** The source slot's identity — the receiver the source method was called against — is recorded at acquisition and verified at any explicit discharge.
 3. **The source slot maintains identity continuity.** Between acquisition and discharge the source slot must remain `init` and must never appear in a PRODUCE argument position; either would destroy the identity the obligation was issued against. REFERENCE and READ positions are unconstrained.
 
 ### 10.4 Discharge
 
-A local obligation is discharged in one of three ways, all in-frame.
+A local obligation is discharged in one of three ways, all within its acquiring scope.
 
-**Direct discharge.** The sink is called explicitly in the frame body. The call fires immediately and transitions the obligated slot to `uninit`, so the slot cannot be read after the resource is released — a direct discharge is *done*, not merely scheduled. A direct call can select any sink, default or not; the full context is in hand at the call site.
+**Direct discharge.** The sink is called explicitly in the body. The call fires immediately and transitions the obligated slot to `uninit`, so the slot cannot be read after the resource is released — a direct discharge is *done*, not merely scheduled. A direct call can select any sink, default or not; the full context is in hand at the call site.
 
 ```
 .cmd processLocally: Int size =
@@ -2588,30 +2626,30 @@ A local obligation is discharged in one of three ways, all in-frame.
     arena :: destroy                 ; direct discharge of arena; reclaims its storage
 ```
 
-**Frame-exit discharge.** An ordinary `@` or `@!` block (§3.13) naming a sink against the obligated slot schedules that sink to fire at frame retirement — on all exits (`@`) or on failure exits only (`@!`). It can name a non-default, multi-argument sink: the block fires before the frame is finalized, while the enclosing command's parameters are still live, so the sink's extra arguments may be constants or those parameters. It uses no new mechanism beyond the existing frame-exit hooks.
+**Frame-exit discharge.** An ordinary `@` or `@!` block (§3.13) naming a sink against the obligated slot schedules that sink to fire at the end of its enclosing scope (§3.17) — on all exits (`@`) or on failure exits only (`@!`). It can name a non-default, multi-argument sink: the block fires while the enclosing command's parameters are still live, so the sink's extra arguments may be constants or those parameters. It uses no new mechanism beyond the existing frame-exit hooks.
 
-**Default at finalization.** If neither of the above has discharged the obligation on a given path, its default fires at frame finalization. This is the safety net.
+**Default at finalization.** If neither of the above has discharged the obligation on a given path, its default fires at the end of the acquiring scope. This is the safety net.
 
 A sink fired from a frame-exit block, or as the default at finalization, is governed by the standard `@`-block failure rules; a sink failing in a direct call propagates by ordinary failure-state rules. In all cases discharge is by invocation: a failed sink still closes the obligation, with no reopen and no retry.
 
 ### 10.5 The Obligation Analysis
 
-The analysis is a forward-flow analysis run alongside the four existing analyses of Appendix E. Like them it is strictly local to a frame. At each program point it maintains a set of open obligation records, each carrying `obligated_slot`, `source_slot`, the declaration identity, and a per-path `state` of `default-pending` or `discharged`.
+The analysis is a forward-flow analysis run alongside the four existing analyses of Appendix E. Like them it runs strictly within a single command body, propagating across no call boundary; the obligations it tracks are confined to the scope that acquired them. At each program point it maintains a set of open obligation records, each carrying `obligated_slot`, `source_slot`, the declaration identity, and a per-path `state` of `default-pending` or `discharged`.
 
 | Event | Effect |
 |---|---|
 | Successful source call named in a declaration | Open a record in state `default-pending` |
 | Direct explicit sink call, verified pairing | Fire the sink now; transition `obligated_slot` to `uninit`; record `discharged` |
-| `@` / `@!` block naming a sink against the obligated slot | Record `discharged` on the covered paths; the named sink fires at frame exit |
+| `@` / `@!` block naming a sink against the obligated slot | Record `discharged` on the covered paths; the named sink fires at scope exit |
 | `source_slot` transitions to `uninit`, or appears in PRODUCE position | Static error: source identity destroyed before discharge |
 | Second explicit discharge on a path already `discharged` by a direct call | Caught by initialization tracking — the obligated slot is `uninit` after the first |
-| Any attempt to let the obligated value escape the frame (productive return, store into a longer-lived owner, consuming-marked argument, escaping variant candidate) | Static error: a `.resource` is local; use a `.promise` (§10.10) |
+| Any attempt to let the obligated value escape the scope (productive return, store into a longer-lived owner, transfer to an enclosing scope, consuming-marked argument, escaping variant candidate) | Static error: a `.resource` is scope-local; use a `.promise` (§10.10) |
 
 **Failure paths.** Discharge state is tracked independently per path. A direct call discharges only its own path; a bare `@` block discharges all exit paths; an `@!` block discharges failure exits only. A `default-pending` obligation reaching any exit undischarged fires its default there.
 
 ### 10.6 Cost
 
-A local obligation needs no runtime representation. The analysis tracks it statically per binding, and the discharge — direct call, frame-exit block, or default at finalization — is resolved at compile time and emitted into the frame's exit code, exactly as `@`/`@!` blocks compile today. This is type-agnostic: obligation-ness being per-acquisition, the malloc node and the arena node of identical type are two bindings the analysis treats differently, with no type-level machinery and no per-value tag. A `.resource` is therefore always free.
+A local obligation needs no runtime representation. The analysis tracks it statically per binding, and the discharge — direct call, frame-exit block, or default at finalization — is resolved at compile time and emitted into the enclosing scope's exit code, exactly as `@`/`@!` blocks compile today. This is type-agnostic: obligation-ness being per-acquisition, the malloc node and the arena node of identical type are two bindings the analysis treats differently, with no type-level machinery and no per-value tag. A `.resource` is therefore always free.
 
 ### 10.7 No Competing Obligations
 
@@ -2625,23 +2663,23 @@ The interaction with the class-and-instance system (§9) is fully determined by 
 
 Generic signatures and partial application are both admitted for source and sink methods. The semantics are settled; what they ask of the eventual implementation is recorded here, pending that work.
 
-**Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-frame discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument — a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization — so the single-argument default rule of §10.10 is unaffected. Under the witness-based generics strategy Basis is expected to adopt, the carried parameterization is simply the witness the source call already held.
+**Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-scope discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument — a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization — so the single-argument default rule of §10.10 is unaffected. Under the witness-based generics strategy Basis is expected to adopt, the carried parameterization is simply the witness the source call already held.
 
 **Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated productive output — the only shape the mode-marker filter (§9.14) permits — so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type — that invoking a source reference yields an obligated value, that a sink reference discharges one — invariant in the manner of the parameter-mode markers (§6.12), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
 
 ### 10.10 What `.promise` Adds
 
-A `.promise` is declared exactly as a `.resource` — same source/sink syntax, same default, same multi-sink form — and everything in §10.1–§10.9 holds. The single difference is that a `.promise`'s obligated value **may escape its acquiring frame**: it may be returned through productive output, stored into a longer-lived owner, handed down-stack by a consuming-marked argument, or installed as a candidate of a variant that outlives the frame. Its discharge is then deferred to the moment that value's eventual owner reaches the end of its lifetime — possibly a frame far removed from the acquisition site.
+A `.promise` is declared exactly as a `.resource` — same source/sink syntax, same default, same multi-sink form — and everything in §10.1–§10.9 holds. The single difference is that a `.promise`'s obligated value **may escape its acquiring scope**: it may be returned through productive output, stored into a longer-lived owner, handed down-stack by a consuming-marked argument, transferred to an enclosing scope, or installed as a candidate of a variant that outlives the scope. Its discharge is then deferred to the moment that value's eventual owner reaches the end of its lifetime — possibly a scope far removed from the acquisition site.
 
-A `.promise` that happens not to escape on a given path behaves and costs exactly as a `.resource`: it is discharged in-frame and needs no runtime representation. The keyword grants the *permission* to escape; the cost (§10.13) is incurred only by values that actually do.
+A `.promise` that happens not to escape on a given path behaves and costs exactly as a `.resource`: it is discharged within its acquiring scope and needs no runtime representation. The keyword grants the *permission* to escape; the cost (§10.13) is incurred only by values that actually do.
 
-**The single-argument default restriction.** When a `.promise`'s value escapes, its deferred firing occurs where none of the originating frame's bindings survive, so it can supply no context beyond the obligated value itself. Because the same declared default must serve both the in-frame and the escaped case, **a `.promise`'s default sink must take exactly one non-receiver argument, of the obligated type.** This is the one rule a `.promise` adds to its declaration over a `.resource`. Non-default sinks remain unrestricted: they are reached only by a direct call or an in-frame `@`/`@!` block, where their extra arguments — constants or the enclosing command's parameters — are still live.
+**The single-argument default restriction.** When a `.promise`'s value escapes, its deferred firing occurs where none of the originating scope's bindings survive, so it can supply no context beyond the obligated value itself. Because the same declared default must serve both the in-scope and the escaped case, **a `.promise`'s default sink must take exactly one non-receiver argument, of the obligated type.** This is the one rule a `.promise` adds to its declaration over a `.resource`. Non-default sinks remain unrestricted: they are reached only by a direct call or an `@`/`@!` block in the acquiring scope, where their extra arguments — constants or the enclosing command's parameters — are still live.
 
 ### 10.11 Ownership and Transfer
 
 Escape happens by transferring ownership of the obligation. Ownership is not a standing mark on a binding or a qualifier on a type; it is the consequence of the operation that brings a value to rest, and it is provenance, not type. The owner of an obligation is whichever binding currently carries its anchored discharge (§10.13), and there is exactly one owner at any time.
 
-The owner/reference question arises only at **resting places** — a new persisting slot, an object field, a productive return, or a variant candidate that persists past the frame. It never arises for borrows: passing an obligated value as a READ or REFERENCE argument lends it without transferring ownership, which is how a value moves around through calls freely and unmarked.
+The owner/reference question arises only at **resting places** — a new persisting slot, an object field, a productive return, or a variant candidate that persists past the scope. It never arises for borrows: passing an obligated value as a READ or REFERENCE argument lends it without transferring ownership, which is how a value moves around through calls freely and unmarked.
 
 **Up-stack transfer is automatic.** Productive output carries ownership up. `#n <- f` desugars to `f: #n`; if `f` produces an obligated value, the obligation comes to rest in `n` with no additional syntax, and the producing frame's duty is discharged by the transfer.
 
@@ -2666,9 +2704,9 @@ The callee needs nothing for any of this — no signature change, no static know
 
 ### 10.12 Deferred Default on Escape
 
-When an obligated value escapes, its discharge travels with it and fires the default sink at the eventual owner's lifetime termination — unless an explicit discharge against the value pre-empts the default first, in this frame or a later one. This firing names no sink and supplies only the obligated value; the originating frame is gone, so none of its parameters remain to furnish other arguments. The default is the safety net: it fires at the obligation's lifetime termination if and only if no explicit sink was ever called against the value, and any explicit call — wherever the value has come to rest — pre-empts it.
+When an obligated value escapes, its discharge travels with it and fires the default sink at the eventual owner's lifetime termination — unless an explicit discharge against the value pre-empts the default first, in this frame or a later one. This firing names no sink and supplies only the obligated value; the originating scope is gone, so none of its bindings remain to furnish other arguments. The default is the safety net: it fires at the obligation's lifetime termination if and only if no explicit sink was ever called against the value, and any explicit call — wherever the value has come to rest — pre-empts it.
 
-The transfer-out events extend the analysis of §10.5 with one row: ownership transfer of the obligated value out of the frame (productive return, `<-` into a longer-lived owner, or passing to a consuming-marked argument) records `discharged` for this frame, and the obligation re-homes to the new owner. A `<<-` store transfers nothing. Overwriting a `default-pending` obligated slot that has not been transferred ends the value's lifetime in that slot and fires its default at the overwrite point.
+The transfer-out events extend the analysis of §10.5 with one row: ownership transfer of the obligated value out of the scope (productive return, `<-` into a longer-lived owner, or passing to a consuming-marked argument) records `discharged` for this scope, and the obligation re-homes to the new owner. A `<<-` store transfers nothing. Overwriting a `default-pending` obligated slot that has not been transferred ends the value's lifetime in that slot and fires its default at the overwrite point.
 
 ### 10.13 Representation and Cost
 
@@ -2692,7 +2730,7 @@ Symmetrically — and this applies to local obligations as well — when an obli
 
 A variant whose active candidate is an obligated value is handled by the ownership rules of §10.11. Clearing the variant to absent (`v -< _`, §7.14) or replacing the active candidate ends that candidate's lifetime in the slot; if the variant owns the candidate's obligation, its discharge fires at that moment, as overwriting any owning slot does. A candidate installed by `<<-` fires nothing — the variant was never the owner.
 
-A variant is always set to absent when it goes out of scope, and this cleanup ends any active candidate's lifetime exactly as an explicit clear does. A programmer may therefore design on the assumption that an owned obligated candidate's discharge handler fires whenever the variant's own lifetime ends, with no explicit clear required: at frame finalization for a frame-local variant, or — for a variant that owns an obligated candidate and itself escapes — when the variant's eventual owner is retired, the obligation having travelled with it under the ordinary transfer rules.
+A variant is always set to absent when it goes out of scope, and this cleanup ends any active candidate's lifetime exactly as an explicit clear does. A programmer may therefore design on the assumption that an owned obligated candidate's discharge handler fires whenever the variant's own lifetime ends, with no explicit clear required: at the end of its scope for a non-escaping variant (frame retirement, or a `.scope` block's close; §3.17), or — for a variant that owns an obligated candidate and itself escapes — when the variant's eventual owner is retired, the obligation having travelled with it under the ordinary transfer rules.
 
 **A worked example: tearing down a circular list.** Make a singly-linked list circular by giving each node a variant field `next: absent | ^Node`, installing each present candidate with `<-` so a node owns its successor, and letting the last node's `next` own the first — closing the ring. Every edge is owning, so each node has exactly one owner, its predecessor; the ring owns itself.
 
@@ -2729,11 +2767,11 @@ The lexer recognizes the following token classes:
 ```
 .alias    .class    .cmd      .decl     .domain   .enum     .fail
 .implicit .import   .instance .intrinsic .module   .msg      .object
-.program  .promise  .record   .resource .splice   .sub      .test
+.program  .promise  .record   .resource .scope    .splice   .sub      .test
 .union    .variant
 ```
 
-The `.sub` keyword introduces subcommands at body-internal scope (§3.12); the rest are top-level forms (§2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
+The `.sub` and `.scope` keywords introduce body-internal constructs — subcommands (§3.12) and scope blocks (§3.17) respectively; the rest are top-level forms (§2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
 
 **Punctuation tokens.** Single-character and short-sequence punctuation:
 
@@ -3105,7 +3143,9 @@ body-content      ::= subcommand-decl* statement+
 
 subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (§3.12)
 
-statement         ::= assignment | call | block-marker-construct | local-intro
+statement         ::= assignment | call | block-marker-construct | scope-block | local-intro
+
+scope-block       ::= .scope cmd-body                            ; body-internal block (§3.17), composing like group-block
 
 local-intro       ::= # type-expr? identifier ( <- expr )?
                     | # type-expr? identifier <<- expr           ; non-owning-view local (§10.11)
@@ -3140,6 +3180,8 @@ arg               ::= expr | # identifier | _
 
 Subcommand declarations appear at the head of *body-content* per §3.12's strict placement rule. After the contiguous subcommand-declaration block, only *statement*s are admitted.
 
+A *scope-block* (`.scope`) is a body-internal keyword construct, not one of the eleven block markers (§3.1). It composes in failure flow exactly as *group-block* (`%`) does — an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:` — while adding the scope-local declaration, storage-reclamation, and obligation-discharge semantics of §3.17.
+
 ### B.7 Block Markers and Indentation-Sensitive Composition
 
 ```
@@ -3163,7 +3205,7 @@ at-block          ::= @ cmd-body                                 ; @ DO_ON_EXIT
                     | @! cmd-body                                ; @! DO_ON_EXIT_FAIL
 ```
 
-The eleven markers (§3.1, §4.4) are sequenced as adjacent siblings at the same indentation level. A *cmd-body* with multiple statements is an indented block of statements (per §A.5); statements within a body include further *block-marker-construct*s, producing arbitrarily deep nesting.
+The eleven markers (§3.1, §4.4) are sequenced as adjacent siblings at the same indentation level. A *cmd-body* with multiple statements is an indented block of statements (per §A.5); statements within a body include further *block-marker-construct*s, producing arbitrarily deep nesting. The `.scope` keyword construct (*scope-block*, §B.6) is not among these eleven markers but sequences as a sibling among them and composes like *group-block* (§3.17).
 
 ### B.8 The `<-` and `-<` Operator Forms
 
@@ -3369,6 +3411,7 @@ The distinction between `CommandTypeExpr` and `FexprTypeExpr` reflects the famil
 | `DoRecover` | `\|` | `spec: RecoverySpec?`, `body: CmdBody` |
 | `DoElse` | `-` | `body: CmdBody` |
 | `DoBlock` | `%` | `body: CmdBody` |
+| `DoScope` | `.scope` | `body: CmdBody` |
 | `DoOnExit` | `@` | `body: CmdBody` |
 | `DoOnExitFail` | `@!` | `body: CmdBody` |
 | `DoBranch` | (paired with `?` or `?-`) | (the `-` is a sibling, recorded in the parent body's statement list) |
@@ -3376,6 +3419,8 @@ The distinction between `CommandTypeExpr` and `FexprTypeExpr` reflects the famil
 `RecoverySpec` carries the spec for `|`-with-spec: `{ messageName: TypeName, binding: identifier? }`. The recovery production `| Name name -> body` populates `messageName = Name`, `binding = name`, with `body` as the recovery body. The bare `|` form has `spec = null`.
 
 The chain composition of `?:` blocks (§4.4) is recorded as adjacent `DoWhenSelect` nodes in the parent body's statement list; no AST-level "chain" node is constructed.
+
+`DoScope` is the node for the `.scope` keyword construct (§3.17). `.scope` is not a block marker; its node parallels `DoBlock` because it composes the same way in failure flow (§4.4).
 
 ### C.5 Expression Nodes
 
@@ -3959,6 +4004,20 @@ $$
 
 The no-capture rule (§3.12) is enforced as a typechecker invariant on subcommand bodies: a name resolution that would resolve to an identifier in the enclosing command's body (other than implicit-context-parameter resolution at the call site, which is parameter-supplied) is a static error.
 
+### D.16 Scope-Block Typing
+
+A `.scope` block (§3.17) introduces a sub-scope whose local introductions are visible only within the block. Unlike a subcommand (D.15), it is not a call: its body shares the enclosing frame's parameters and visible locals, so no no-capture rule applies, and a scope-local introduction may shadow an enclosing name (G.10).
+
+$$
+\frac{\begin{array}{c}
+\Gamma \vdash \#x\ \text{introduced in `.scope` block}\ B \\
+\text{use site of}\ x\ \text{is within}\ B
+\end{array}}{\Gamma \vdash x\ \text{visible at use site, out of scope after}\ B}
+\quad \text{(ScopeVisibility)}
+$$
+
+At the block's close, every obligation still owned by a scope-local binding is discharged (§10.5, §10), scope-local frame-bound-region storage is reclaimed (§7.20), and any `@`/`@!` hooks registered within the block fire (§4.11) — together, in the reverse-registration order of §3.17.
+
 ---
 
 ## Appendix E. Static Analyses (Joint CFG-Walking Composition)
@@ -3978,6 +4037,8 @@ StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice,
 Each component is a separate lattice; the joint state-vector forms the product lattice. At convergent CFG points, the join is performed component-wise — each analysis joins per its own lattice rules.
 
 Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2–E.5, except the obligation component's, which are in §10.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
+
+A `.scope` block (§3.17) appears in the CFG as a region with a single entry edge and a single exit edge. Scope entry introduces no new analysis context — the walk continues in the same per-command-body pass (§10.5). At the exit edge the walk drops the block's scope-local slots from every component's tracked set, and the obligation component fires the discharge of any obligation still owned by a scope-local binding (§10.5).
 
 ### E.2 Initialization Analysis
 
@@ -4263,6 +4324,8 @@ $$
 \end{aligned}
 $$
 
+A `.scope` block (§3.17) reuses this boundary machinery without being a recovery context. Entry pushes a scope whose exit verb `scopepop` fires the scope's cleanup; the body runs as in the $\epsilon$-branch. A `.scope` carries no recovery spec, so the $\phi$-branch's `recover(...)` engagement is absent: an in-flight failure reaching the boundary is neither matched nor consumed — `scopepop` fires the scope's cleanup and the failure then propagates past, exactly as past a `%` group (§4.4). The cleanup `scopepop` performs is the frame-exit cleanup of R10—R11 applied at an inner boundary: the scope's `@`/`@!` hooks and the discharges of obligations still owned by its scope-local bindings fire in one reverse-registration order (§3.17, §10.6), and the scope-local storage is reclaimed. `scopepop` is a boundary verb, not an ordinary sibling; it is reached on both the success and failure paths, so the cleanup is not subject to failure-skip (R4).
+
 **R6 — Recovery engagement.** A `|`-with-spec block engages on a propagating failure whose message matches the spec:
 
 $$
@@ -4311,6 +4374,8 @@ $$
 
 The originating-frame deferred-retirement rule of §4.12 applies: the frame holding the payload value cannot retire until consumption, but the `@` and `@!` blocks fire at the failure-exit moment (before consumption).
 
+Frame retirement is the outermost instance of scope-exit cleanup: the frame is the outermost scope (§3.17), and R10—R11 describe its boundary. The identical cleanup — fire `@` on every exit and `@!` on failure exits in reverse registration order, discharge pending obligations, reclaim storage — fires at each inner `.scope` boundary via `scopepop` (R5), scoped there to the hooks registered within the `.scope`, the obligations owned by its scope-local bindings, and its scope-local storage. The distinction at an inner boundary: the frame does not retire — on a success exit control proceeds to the `.scope`'s next sibling, and on a failure exit the unconsumed failure propagates to the next outer scope (ultimately reaching frame exit, R11).
+
 ### F.3 Frame Model
 
 A *frame* is the operational unit corresponding to a single command invocation. Each frame has:
@@ -4321,6 +4386,8 @@ A *frame* is the operational unit corresponding to a single command invocation. 
 - **Caller link** — a pointer to the calling frame, for control return.
 
 Frames are allocated on the call stack at frame entry and retired at frame exit. Retirement reclaims the slot storage; deferred retirement (§4.12) postpones reclamation when the frame is the originating frame of an in-flight failure.
+
+When a `.scope` block (§3.17) is active, the registration list and slot storage are partitioned by scope: the `@`/`@!` hooks and the scope-local storage introduced within a `.scope` belong to that scope's partition, fired and reclaimed at the `.scope` boundary (R5, F.11). The frame — the outermost scope — owns the remainder, fired and reclaimed at retirement. The caller link and failure slot are per-frame, not per-scope; a `.scope` makes no call and allocates no failure slot of its own.
 
 ### F.4 The Failure Slot
 
@@ -4342,16 +4409,17 @@ A payload value's *holding frame* is the frame whose slot storage currently cont
 - **Re-fail event.** When a recovery handler re-emits the payload as a fresh failure (§4.10), the value moves into the new originating frame. The holding frame becomes the new originating frame.
 - **Consumption event.** When a recovery handler completes without re-failing, the value is consumed; the holding frame retires normally.
 
-The model describes the value's location across the failure-flow path. The `@` and `@!` block-marker registrations remain frame-bound (per §3.13, the block markers are not value-bound).
+The model describes the value's location across the failure-flow path. The `@` and `@!` block-marker registrations remain scope-bound — to the nearest enclosing scope, the frame or a `.scope` (§3.17) — rather than value-bound (per §3.13, the block markers are not value-bound).
 
 ### F.6 The Frame-Exit Hook Discipline (Block-Form Only)
 
-`@`-blocks and `@!`-blocks registered within a frame's body fire at that frame's retirement (§3.13). The discipline:
+`@`-blocks and `@!`-blocks registered directly in a frame's body, outside any `.scope`, fire at that frame's retirement (§3.13); those registered inside a `.scope` block fire at the `.scope`'s boundary (§3.17). The discipline:
 
 - **Registration time.** A `@ body` or `@! body` block at the source level adds the block to the current frame's registration list. The block is registered at the point of execution flow, not at the body's source-level declaration: a `@ body` inside a conditional is registered only if the conditional engages.
 - **Firing order.** At frame retirement (success or failure exit), blocks fire in *reverse registration order*. The most-recently-registered block runs first.
 - **Failure-exit filtering.** `@!` blocks fire only when the frame exits via failure ($\Phi$ non-$\epsilon$ at exit). `@` blocks fire on every exit.
 - **No value-attached firing.** Frame-exit hooks are not tied to any value's lifetime; they are tied to the frame's retirement. A value that has moved out of the frame (via failure-payload move, etc.) is not in the registration list's responsibility. Value-lifetime-tied discharge is the obligation system's province (§10), not the hook discipline's.
+- **Scope-block registration.** A hook registered inside a `.scope` block registers against that scope rather than the frame, and fires at the `.scope`'s boundary via `scopepop` (R5). The firing order and failure-exit filtering above apply identically at the inner boundary. The frame is the outermost scope, so a hook outside every `.scope` registers against it.
 
 ### F.7 The Single-In-Flight Invariant
 
@@ -4409,6 +4477,8 @@ The full firing sequence at frame retirement:
 
 A frame's pending obligation discharges fire at this same retirement, emitted into the frame's exit code alongside the hooks (§10.6, §10.16).
 
+The same sequence runs at a `.scope` boundary (R5): steps 1—2 fire the hooks registered within the `.scope` together with the discharges of obligations owned by its scope-local bindings, in one reverse-registration order (§3.17, §10.6); step 3 reclaims the scope-local storage rather than the whole frame; and step 4 proceeds to the `.scope`'s next sibling (success) or propagates the unconsumed failure to the next outer scope (failure), instead of returning to the caller.
+
 A failure during a block's body propagates per the standard rules — the block's body is itself a frame-bound context. The single-in-flight invariant (F.7) prevents a block-fired failure from coexisting with the outer failure: blocks fire from a no-active-failure state, and any failure they fire is consumed locally or propagates to the caller's frame after the outer failure has already advanced.
 
 ### F.12 Per-Invocation Fexpr Frame (`F`)
@@ -4434,7 +4504,7 @@ No runtime witness construction is required. The covariance rule for payload cla
 
 ### F.14 Operational Summary
 
-Basis's operational semantics is small: 11 reduction rules, four slot structures (failure, variant, class-typed Case B, frame's failure slot), one lifecycle table (frame entry/exit and retirement). The model is conservative — no implicit dispatch, no dynamic stack-unwinding, no garbage-collection daemons. Every reduction step is locally determined by the current verb, the failure register, and the lexical state; the one effect emitted without an explicit verb is a resource obligation's discharge at lifetime end (§10), resolved at compile time into the frame's exit code.
+Basis's operational semantics is small: 11 reduction rules, four slot structures (failure, variant, class-typed Case B, frame's failure slot), one lifecycle table (frame entry/exit and retirement). The model is conservative — no implicit dispatch, no dynamic stack-unwinding, no garbage-collection daemons. Every reduction step is locally determined by the current verb, the failure register, and the lexical state; the one effect emitted without an explicit verb is a resource obligation's discharge at lifetime end (§10), resolved at compile time into the enclosing scope's exit code — the frame's, or an inner `.scope`'s (§3.17).
 
 ---
 
@@ -4449,6 +4519,7 @@ Basis uses *lexical* scoping: a name's binding is determined by the source struc
 - **Module scope.** Each module forms a top-level scope containing all its top-level declarations.
 - **Command body scope.** Each command body (including subcommand bodies, class-method bodies, lambda bodies, fexpr bodies) forms a scope that contains the command's parameters, implicit context parameters, and any locals introduced via `#name` placement.
 - **Block-marker body scope.** Each block-marker construct (`?` body, `?:` body, `|` body, `@` body, etc.) introduces a sub-scope inheriting from its enclosing scope. Names introduced inside a block-marker body are visible only within that body.
+- **Scope-block scope.** A `.scope` block (§3.17) introduces a sub-scope inheriting from its enclosing scope, exactly like a block-marker body: names introduced inside it via `#` are visible only within the block and gone at the dedent, and may shadow enclosing bindings (G.10).
 - **Subcommand body scope.** A subcommand's body has its own lexical scope per §3.12; the subcommand does *not* capture from the enclosing command's scope.
 
 A scope holds a set of `(name, type, mode)` triples. Multiple bindings of the same name in the same scope is a static error (§6.3's same-scope rule for identifier shapes specifically).
