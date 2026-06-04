@@ -2,7 +2,7 @@
  
 *This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
  
-*This is just an overview (and slightly out of date); please see `spec.md` for all the gory details.*
+*This is just an overview; please see `spec.md` for all the gory details.*
  
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
@@ -12,8 +12,9 @@ There is no greater technical obscurity than creating a new programming language
 - Direct semantic match to Hexagonal Architecture... you can reason about impacts with the ease of Haskell, but without having to learn category theory.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
 - Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it has safety features that render it inherently less space and time efficient than languages like C and Zig.  If you're writing an OS Kernel, you won't regret trying out Zig. &#9786;
+  
 ### Guiding Principles:
-- RAII should be orthogonal to the type-system
+
 - No non-local state access
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
@@ -24,6 +25,7 @@ There is no greater technical obscurity than creating a new programming language
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 - Syntactic whitespace improves legibility
+- RAII should be orthogonal to the type-system
 - Every feature should be load-bearing, orthogonal, and simple to reason about
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
