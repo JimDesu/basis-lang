@@ -1,32 +1,30 @@
 # The Basis Programming Language.  
-
+ 
 *This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
-
+ 
 *This is just an overview (and slightly out of date); please see `spec.md` for all the gory details.*
-
+ 
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
-
+ 
 ### Practical Upshots:
-
+ 
 - Direct semantic match to Hexagonal Architecture... you can reason about impacts with the ease of Haskell, but without having to learn category theory.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
 - Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it has safety features that render it inherently less space and time efficient than languages like C and Zig.  If you're writing an OS Kernel, you won't regret trying out Zig. &#9786;
-
 ### Guiding Principles:
 - RAII should be orthogonal to the type-system
 - No non-local state access
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
 - Polymorphism isn't just for object types
-- Hierarchical statecharts shouldn't be hard 
+- Hierarchical statecharts shouldn't be hard *(planned; not yet specified)* 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 - Syntactic whitespace improves legibility
 - Every feature should be load-bearing, orthogonal, and simple to reason about
-
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
@@ -43,9 +41,8 @@ Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
     * $\phi$ represents a particular failure
 * $\Sigma$ represents the current variable state
     * $\sigma/c$ is sigma bound within the scope of c  
-
 General excution is described by the following rules:
-
+ 
 $$
 \begin{align}
 \text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies & \langle \vec{v}, \epsilon, \Sigma' \rangle \\
@@ -61,10 +58,10 @@ $$
 \text{looping}\quad & v=rewind(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle
 \end{align}
 $$
-
+ 
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. 
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. Resources and obligations — how RAII works without touching the type system — are §10. 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
  
@@ -122,7 +119,7 @@ A source file is a sequence of three optional sections:
  
 - Optionally, a single `.module` declaration naming the file's module.
 - Zero or more `.import` declarations.
-- Zero or more top-level definitions: `.alias`, `.class`, `.cmd`, `.decl`, `.intrinsic`, `.domain`, `.enum`, `.instance`, `.object`, `.program`, `.record`, `.test`, `.union`, `.variant`.
+- Zero or more top-level definitions: `.alias`, `.class`, `.cmd`, `.decl`, `.domain`, `.enum`, `.implicit`, `.instance`, `.intrinsic`, `.msg`, `.object`, `.program`, `.promise`, `.record`, `.resource`, `.test`, `.union`, `.variant`.
 ```
 .module App::Models
 .import Std:Core
@@ -185,7 +182,7 @@ Parameters declare `Type name`. The `'` prefix on a parameter name marks the par
 .cmd compute: Int x, Int 'result = 'result <- x * 2
 ```
  
-Without `'`, the parameter is read-only (READ-mode). Reference semantics — a parameter the body may both read and write — are expressed today by passing a pointer (`^Type`) and using the postfix `^` and `&` operators in the body to dereference and take addresses; the parameter-mode design space includes a dedicated reference mode that the references describe.
+Without `'`, the parameter is read-only (READ-mode). The `&` prefix marks the third mode, **reference** — a parameter the body may both read and write, under copy-restore: a written value commits to the caller's slot on success, and on failure the slot is bit-identical to its pre-call state. The caller must supply an already-initialized slot, since the callee may read it. So every parameter is in one of three modes: READ (bare name), PRODUCE (`'name`), or REFERENCE (`&name`).
  
 A command's *expression-style result* — the value when the command is invoked inline as an expression like `#q <- compute: 7` — is determined by the writeable parameters in its signature. A writeable parameter is either productive (`'name`, write-once on success) or reference (`&name`, read-and-write with copy-restore semantics):
  
@@ -239,18 +236,18 @@ Methods dispatch on the runtime types of all receivers in concert. The implement
  
 ### 3.3 Frame-exit hooks: `@` and `@!`
  
-A class or module may declare methods that run at frame exit:
+`@` and `@!` are block markers written *in a command body*, each registering a cleanup body to run when the enclosing scope ends:
  
 ```
-.class Resource:
-    .decl Resource r: String name
-    .decl @ Resource r           ; runs at frame exit (success or failure)
-    .decl @! Resource r          ; runs at frame exit only on failure
+.cmd withLock / Lock lock =
+    acquire: lock
+    @ release: lock          ; runs on every exit, success or failure
+    process: lock
 ```
  
-`@` is read "at exit"; `@!` is "at exit on failure." These execute when the frame holding the value retires, in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system.
+`@` is read "at exit," `@!` "at exit on failure." Hooks fire in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system; §4.5 develops the failure interaction.
  
-This is an `RAII`-equivalent mechanism, but the hooks are *not* destructors: they are tied to **stack-frame lifetime**, not to object lifetime. An `@` handler fires only when a frame slot directly holding the value retires; a value that exists solely as a field within a record or object does *not* fire its `@` handler when that container goes away. The value must occupy a slot in the stack frame — not be buried inside another structure — for the handler to fire.
+The hooks are tied to **scope lifetime**, not object lifetime. By default the enclosing scope is the command's frame; a `.scope` block — a C++-RAII-style region inside a body — makes the boundary smaller, so a hook registered inside one fires at the `.scope`'s close. They are *not* per-type destructors: no class-level form auto-registers a hook for every value of a type. Cleanup that should follow a *value's* lifetime — firing wherever the value finally comes to rest, even across calls — is the obligation system's job (§10), which is how Basis delivers RAII without putting anything in the type.
  
 ### 3.4 Calling commands
  
@@ -337,8 +334,8 @@ Indentation establishes block scopes. The first character of a block-bearing lin
 | `^` | "rewind" | Sibling block that rewinds control to its *preceding sibling* at the same indentation level. Body is optional: a bodiless `^` rewinds unconditionally; a `^` with a body rewinds on body success and consumes any body failure (terminating the loop). Requires a preceding sibling — a bare `^` with none is a static error. |
 | `\|` | "recover" | Catch-all recovery: runs only when an earlier sibling at the same indentation has produced a propagating failure. |
 | `\| TypeName name ->` | "recover, when of type" | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. |
-| `@` | "at exit" | At frame exit, fire the body. |
-| `@!` | "at exit, on failure" | At frame exit, fire the body only on the failure path. |
+| `@` | "at exit" | At the end of the enclosing scope (the command frame, or a `.scope` block), fire the body. |
+| `@!` | "at exit, on failure" | At the end of the enclosing scope, fire the body only on the failure path. |
  
 The if-then-else idiom uses `?` and `-`:
  
@@ -583,7 +580,7 @@ Enumerations are compile-time constants — read-only values fixed at module com
  
 ## 6. Parameters and Mode Markers
  
-Every parameter has a *mode* describing what the body and caller can do with it. Today's grammar admits two mode shapes — READ (the default, read-only) and productive `'` (write-once on success). The full design includes a third — reference `&` (read-and-write with copy-restore semantics) — currently realized via pointer-typed parameters until first-class reference mode is implemented.
+Every parameter has a *mode* describing what the body and caller can do with it. There are three: READ (the default, read-only), PRODUCE (`'`, write-once on success), and REFERENCE (`&`, read-and-write under copy-restore — writes commit on success, the slot is untouched on failure).
  
 ### 6.1 The productive marker `'`
  
@@ -614,7 +611,7 @@ A parameter without `'` is read-only. The body may inspect it but cannot modify 
  
 ### 6.3 The same-scope rule
  
-A name introduced as a writeable parameter (`'r` or, in the future, `&r`) cannot be shadowed by another binding of the same base name (`r`) in the same scope. The rule prevents the user from accidentally referring to "the same name" while operating at different mode contracts. The lexer treats `'r`, `&r`, and `r` as identifier-shape variants of the same name.
+A name introduced as a writeable parameter (`'r` or `&r`) cannot be shadowed by another binding of the same base name (`r`) in the same scope. The rule prevents the user from accidentally referring to "the same name" while operating at different mode contracts. The lexer treats `'r`, `&r`, and `r` as identifier-shape variants of the same name.
  
 ### 6.4 The transitive READ contract
  
@@ -780,7 +777,7 @@ A lambda is a command literal extended with an explicit capture list, separated 
 :<Int x / Int counter>{ counter <- counter + x }
 ```
  
-Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
+Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or reference (`&`, live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
  
 ### 8.4 Fexpr
  
@@ -928,6 +925,22 @@ Each slot independently carries its dictionary witness in the slot itself (a 3-w
 Multiple instances for the same `(class, type)` pair may exist across modules. Resolution at a use site follows Julia-style "more specialized module wins" pragmatics: the most-specialized in-scope instance wins; genuine ties are static errors. Intra-module duplicates (two `instance C: T` declarations in the same module) are always errors. Orphan instances — instances declared in a module that defined neither the class nor the type — are permitted; the language warns at import time when a new import competes with an already-visible instance for an already-used `(class, type)` pair, restoring local predictability without restricting what may be declared.
  
 Class dispatch resolves through a witness captured at the value's first class-typed-slot boundary. For non-buffer types — objects, variants — runtime identity is carried by the value's representation directly (object headers, variant 3-word slots), and dispatch through any class-typed parameter consults that runtime identity. For buffer-backed values, dispatch identity is captured when the value enters a class-typed slot and is preserved through subsequent class-typed slots — but is **lost** if the value passes through an intermediate *non-class-typed* parent buffer-backed parameter, which carries only bytes. The next class-typed slot the value enters then captures the parent's instance, not the child's. To preserve domain-specific dispatch on a buffer-backed value, the dispatch must reach the class-typed slot directly, or through a chain of class-typed slots — without intermediate upcast through a parent buffer-backed parameter.
-
-
-
+ 
+## 10. Resources and Obligations
+ 
+The first guiding principle says RAII should be orthogonal to the type system, and this is where that pays off. A *resource* is any value carrying a duty to be discharged at the end of its useful life — storage to hand back to an allocator, a transaction to commit or roll back, a lock to release, a secrets buffer to scrub. Basis tracks that duty and guarantees it is met exactly once, without attaching anything to the value's type.
+ 
+The duty is a property of how a value was *acquired*, not of what it is. A `^Node` from a malloc-style allocator is obligated; the same `^Node` lent out by an arena is free — the arena carries the one obligation, not each item it hands out. Obligation-ness is per-acquisition, never a tag on the type, which is exactly what "orthogonal to the type system" buys: no `Owned[T]` wrapper, no ownership annotations threaded through every signature.
+ 
+You declare the pairing once, at top level, naming the *source* that generates the duty — borne by the value it produces — and the *sink(s)* that discharge it:
+ 
+```
+.resource ScratchArena: allocate -> deallocate              ; lone sink is the default
+.resource LocalTxn: begin[transaction] -> rollback | commit  ; first sink listed is the default
+```
+ 
+The first sink listed is the *default* — what fires if the value reaches the end of its scope undischarged. So the lock-leak from §4.3 needs no babysitting: declare the lock's acquire/release as a `.resource`, and the release fires at the scope boundary on success *and* on failure, with no explicit `@` to remember. To choose between sinks — commit versus the safe-default rollback — pre-empt the default with a direct sink call or an `@`/`@!` block.
+ 
+A `.resource` is *local*: its value must be discharged in the scope that acquired it. When a resource must outlive its origin — returned through a productive result, stored into a longer-lived structure — declare it a `.promise` instead: identical in every other respect, but its discharge defers to wherever the value finally comes to rest. Allocation rides entirely on this — no special allocator syntax, just a source call on an allocator value (spec.md §7.20 and §10 carry the full treatment).
+ 
+The discharge boundary is, by default, the enclosing command frame. A `.scope` block makes it smaller: a resource acquired inside a `.scope` is released at the scope's close rather than at the command's return — what you want inside a loop, so each pass releases its own resources as it ends.
