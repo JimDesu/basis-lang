@@ -11,7 +11,6 @@ There is no greater technical obscurity than creating a new programming language
 
 - Direct semantic match to Hexagonal Architecture... you can reason about impacts with the ease of Haskell, but without having to learn category theory.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
-- Stylistic support for both high and low level coding tasks, whether that's passing buffers or navigating statecharts.
 - Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it has safety features that render it inherently less space and time efficient than languages like C and Zig.  If you're writing an OS Kernel, you won't regret trying out Zig. &#9786;
 
 ### Guiding Principles:
