@@ -25,7 +25,8 @@ The core differentiating reasons for going through the effort of making this lan
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
-- Syntactic whitespace improves legibility 
+- Syntactic whitespace improves legibility
+- Every feature should be load-bearing, orthogonal, and simple to reason about
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
