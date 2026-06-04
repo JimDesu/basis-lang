@@ -7,8 +7,8 @@
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
 
-### Practical Upshot:
-The core differentiating reasons for going through the effort of making this language are:
+### Practical Upshots:
+
 - Direct semantic match to Hexagonal Architecture... the language makes Hexagonal Architecture the natural way to code.  Hexagonal architecture is the procedural equivalent to how large Haskell code-bases work, and is a proven approach to keeping large code-bases tractable.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
 - Stylistic support for both high and low level coding tasks, whether that's passing buffers or navigating statecharts.
