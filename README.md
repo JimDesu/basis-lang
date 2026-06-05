@@ -19,7 +19,6 @@ There is no greater technical obscurity than creating a new programming language
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
 - Polymorphism isn't just for object types
-- Hierarchical statecharts shouldn't be hard *(planned; not yet specified)* 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
