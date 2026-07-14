@@ -70,7 +70,7 @@ Some of what follows is settled and parsing today; some is design that the compi
 
 ### A quick note on Basis syntax
 
-Basis has a large feature set that relies on expressing a significant amount of semantics in the code.  Basis has a head-normal, indentation-based syntax that is clear and relatively simple, but has significant semantic density.  In order to avoid death-by-verbosity, Basis employs a veritable soup of symbols where other languages would use keywords.  On a scale of Perl to APL, it's about Haskell'ish in symbolic density.  You can scan Basis code very rapidly once you get acclimated, but it does take some getting used to.
+Basis has a mostly head-normal, indentation-based syntax that is clear and relatively simple, but has significant semantic density.  In order to avoid COBOL-style death-by-verbosity, Basis employs a veritable soup of symbols where other languages would use keywords.  On a scale of Perl to APL, it's about Haskell'ish in symbolic density.  You can scan Basis code very rapidly once you get acclimated, but it does take some getting used to.
  
 ## 1. At a Glance
  
