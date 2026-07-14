@@ -3768,9 +3768,11 @@ The subtyping relation `<:` is the union of multiple sources of subsumption:
 
 **Buffer-backed parent-chain subsumption (§5.5):**
 
-$$
-\frac{\Gamma \vdash \tau : \texttt{.domain}\ T : \sigma}{\Gamma \vdash \tau <: \sigma}
-$$
+```
+Gamma |- tau : .domain T : sigma
+--------------------------------
+Gamma |- tau <: sigma
+```
 
 $$
 \frac{\Gamma \vdash \tau\ \text{fixed-size buffer-backed} \qquad \tau\ \text{has byte-width}\ N}{\Gamma \vdash \tau <: [N]}
@@ -3827,13 +3829,12 @@ $$
 \quad \text{(ExprCall, with reading-from-}m\text{ semantics)}
 $$
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{subject} : \text{variant-type} \\
-\Gamma \vdash T\ \text{narrowing-target of variant}
-\end{array}}{\Gamma \vdash (T\ \texttt{'narrow -< subject}) : T}
-\quad \text{(ExprNarrow, with TagMismatch on failure)}
-$$
+```
+Gamma |- subject : variant-type
+Gamma |- T narrowing-target of variant
+-----------------------------------------------
+Gamma |- (T 'narrow -< subject) : T      (ExprNarrow, with TagMismatch on failure)
+```
 
 ### D.5 Construction-Form Typing
 
@@ -3886,14 +3887,13 @@ $$
 
 **Bare literal:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{rhs is a literal of kind}\ K \\
-\Gamma \vdash \text{lhs has type}\ \sigma \\
-\sigma\ \text{admits}\ K\text{-kind literals directly OR}\ \texttt{.implicit}\ \text{registers}\ K \to \sigma
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{rhs}\ \text{ok}}
-\quad \text{(with}\ \texttt{.implicit}\ \text{insertion if needed)}
-$$
+```
+Gamma |- rhs is a literal of kind K
+Gamma |- lhs has type sigma
+sigma admits K-kind literals directly, OR .implicit registers K -> sigma
+------------------------------------------------------------------------
+Gamma |- lhs <- rhs   ok      (with .implicit insertion if needed)
+```
 
 ### D.6 Call-Site Typing
 These are the formal typing judgments for the call forms whose prose homes are §3.14 (calling commands) and §6.7 (the receiver rules); the notation is defined in D.1.
@@ -3965,99 +3965,97 @@ The dynamic-narrowing operator (§7.14) admits multiple type-pair scenarios:
 
 **Variant narrowing:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash v : \text{variant}\ V\ \text{with candidate types}\ T_1, \ldots, T_n \\
-\Gamma \vdash T\ \text{is at-or-below some}\ T_i\ \text{in}\ T\text{'s subsumption chain}
-\end{array}}{\Gamma \vdash T\ \texttt{'narrow -<}\ v : T}
-\quad \text{(may-fail: TagMismatch if}\ v\text{'s tag}\ \ne T_i\ \text{or}\ v\ \text{absent)}
-$$
+```
+Gamma |- v : variant V with candidate types T1, ..., Tn
+Gamma |- T is at-or-below some Ti in T's subsumption chain
+---------------------------------------------------------
+Gamma |- T 'narrow -< v : T      (may-fail: TagMismatch if v's tag != Ti, or v absent)
+```
 
-$$
-\frac{\Gamma \vdash v : \text{variant}\ V}{\Gamma \vdash \texttt{\_ -<}\ v : \text{ok}}
-\quad \text{(Variant absent test; may-fail: TagMismatch if}\ v\ \text{is in absent state)}
-$$
+```
+Gamma |- v : variant V
+----------------------
+Gamma |- _ -< v : ok      (Variant absent test; may-fail: TagMismatch if v is in absent state)
+```
 
-$$
-\frac{\Gamma \vdash v : \text{variant}\ V}{\Gamma \vdash v\ \texttt{-< \_} : \text{ok}}
-\quad \text{(Variant absent clear; always-succeeds;}\ v\ \text{becomes absent)}
-$$
+```
+Gamma |- v : variant V
+----------------------
+Gamma |- v -< _ : ok      (Variant absent clear; always-succeeds; v becomes absent)
+```
 
 **Class hierarchy narrowing:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{obj} : \text{object type}\ O \\
-\Gamma \vdash T\ \text{at-or-below}\ O\ \text{in class hierarchy}
-\end{array}}{\Gamma \vdash T\ \texttt{'narrow -<}\ \text{obj} : T}
-\quad \text{(may-fail: TagMismatch on type-mismatch)}
-$$
+```
+Gamma |- obj : object type O
+Gamma |- T at-or-below O in class hierarchy
+-------------------------------------------
+Gamma |- T 'narrow -< obj : T      (may-fail: TagMismatch on type-mismatch)
+```
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash p : {\uparrow}P \\
-\Gamma \vdash T\ \text{at-or-below}\ P
-\end{array}}{\Gamma \vdash T\ \texttt{'narrow -<}\ p : {\uparrow}T}
-\quad \text{(Pointer narrowing; may-fail: TagMismatch on type-mismatch)}
-$$
+```
+Gamma |- p : ^P
+Gamma |- T at-or-below P
+------------------------
+Gamma |- T 'narrow -< p : ^T      (Pointer narrowing; may-fail: TagMismatch on type-mismatch)
+```
 
 **Union narrowing (compile-time only):**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash u : \text{union}\ U \\
-\Gamma \vdash T\ \text{appears on at least one union-candidate's subsumption chain}
-\end{array}}{\Gamma \vdash T\ \texttt{'narrow -<}\ u : T}
-\quad \text{(no runtime failure; the recovery branch is unreachable)}
-$$
+```
+Gamma |- u : union U
+Gamma |- T appears on at least one union-candidate's subsumption chain
+---------------------------------------------------------------------
+Gamma |- T 'narrow -< u : T      (no runtime failure; the recovery branch is unreachable)
+```
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash u : \text{union}\ U \\
-\Gamma \vdash \text{exactly one union-candidate type has a}\ C\text{-class instance}
-\end{array}}{\Gamma \vdash C\ \texttt{'narrow -<}\ u : C\text{-witness-typed binding}}
-\quad \text{(Class-narrowing on union)}
-$$
+```
+Gamma |- u : union U
+Gamma |- exactly one union-candidate type has a C-class instance
+----------------------------------------------------------------
+Gamma |- C 'narrow -< u : C-witness-typed binding      (Class-narrowing on union)
+```
 
 ### D.9 Lambda, Fexpr, Command-Literal, and Command-Reference Typing
 
 **Command literal:**
 
-$$
-\frac{\Gamma \vdash \text{body} : \text{mark}\,;\,F\ \text{under}\ (\Gamma\ \text{extended with params})}{\Gamma \vdash \text{mark}\langle\text{params}\rangle\texttt{\{body\}} : \text{mark}\langle\text{param-types}\rangle}
-\quad \text{(lifted to command-typed value)}
-$$
+```
+Gamma |- body : mark ; F   under (Gamma extended with params)
+------------------------------------------------------------
+Gamma |- mark<params>{body} : mark<param-types>      (lifted to command-typed value)
+```
 
 **Lambda:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{each capture entry resolves in}\ \Gamma\ \text{at READ or UPDATE mode} \\
-\Gamma \vdash \text{body} : \text{mark}\,;\,F\ \text{under}\ (\Gamma\text{-captures-extended}) \\
-\text{ceiling} = D\ (\text{lambda's defining frame,}\ \S8.4)
-\end{array}}{\Gamma \vdash \text{mark}\langle\text{params / captures}\rangle\texttt{\{body\}} : \text{mark}\langle\text{param-types}\rangle}
-$$
+```
+Gamma |- each capture entry resolves in Gamma at READ or UPDATE mode
+Gamma |- body : mark ; F   under (Gamma-captures-extended)
+ceiling = D   (lambda's defining frame, §8.4)
+-------------------------------------------------------------------
+Gamma |- mark<params / captures>{body} : mark<param-types>
+```
 
 **Fexpr:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{body} : \text{mark}\,;\,F\ \text{under}\ (\Gamma\ \text{at fexpr-relevance taint}) \\
-\text{no free names resolve to long-lived storage (Restrictions A--G of}\ \S8.13)
-\end{array}}{\Gamma \vdash \text{mark}\texttt{\{body\}} : \text{mark}\langle * \rangle}
-$$
+```
+Gamma |- body : mark ; F   under (Gamma at fexpr-relevance taint)
+no free names resolve to long-lived storage (Restrictions A--G of §8.13)
+-----------------------------------------------------------------------
+Gamma |- mark{body} : mark<*>
+```
 
-$D$ = current frame; $F$ = fexpr-relevance-tainted (passes through every taint check).
+D = current frame; F = fexpr-relevance-tainted (passes through every taint check).
 
 **Command reference:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{underlying cmd resolves in}\ \Gamma\ \text{as either bare or method form} \\
-\Gamma \vdash \text{each partial arg type-checks at its position} \\
-\text{CREATE positions are not bound (must be deferred via}\ \texttt{\_}\text{)}
-\end{array}}{\Gamma \vdash \texttt{\{receiver :: name : args\}} : \text{underlying-type with bound positions elided}}
-$$
+```
+Gamma |- underlying cmd resolves in Gamma as either bare or method form
+Gamma |- each partial arg type-checks at its position
+CREATE positions are not bound (must be deferred via _)
+----------------------------------------------------------------------
+Gamma |- {receiver :: name : args} : underlying-type with bound positions elided
+```
 
 ### D.10 Class-Method Dispatch Typing
 
@@ -4104,13 +4102,13 @@ $$
 
 A command reference with partial application (§9.14) produces a command-typed value with bound positions elided:
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{underlying cmd has type}\ (R\ \text{receiver}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
-\Gamma \vdash \text{partial-app applies: receiver (always); some subset of args; CREATE positions deferred via}\ \texttt{\_} \\
-\text{ceiling: derived from captured mode markers (UPDATE captures yield ceiling = D)}
-\end{array}}{\Gamma \vdash \texttt{\{receiver :: cmd : applied-args\}} : \text{mark}\langle\text{deferred-arg-types}\rangle}
-$$
+```
+Gamma |- underlying cmd has type (R receiver, tau1 m1, ..., taun mn) -> mark
+Gamma |- partial-app applies: receiver (always); some subset of args; CREATE positions deferred via _
+ceiling: derived from captured mode markers (UPDATE captures yield ceiling = D)
+----------------------------------------------------------------------------------------------------
+Gamma |- {receiver :: cmd : applied-args} : mark<deferred-arg-types>
+```
 
 The ceiling-tracking rule for partial application (§9.14):
 
