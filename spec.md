@@ -108,9 +108,9 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Frame-ownership.** Every slot is owned by some frame. "Return values" in the conventional C++/Java/Rust sense do not exist: output flows through writeable parameter slots that the caller owns, written to by copy-restore on success. When reasoning about value semantics, mode contracts, aliasing, or lifetime ceilings, the question is *which frame owns this slot* &mdash; not "what does this function return."
 
-**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals; nothing propagates across a call boundary. The discipline migrates to the frame that has the right context. Developed in &sect;6.6.
+**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals; nothing propagates across a call boundary. The discipline migrates to the frame that has the right context. Developed in &sect;6.5.
 
-**Access paths, not storage.** The transitive READ contract operates on access paths &mdash; the named ways through which a value is reached &mdash; not on storage locations. The language does not detect aliasing; it tracks paths. Developed in &sect;6.5.
+**Access paths, not storage.** The transitive READ contract operates on access paths &mdash; the named ways through which a value is reached &mdash; not on storage locations. The language does not detect aliasing; it tracks paths. Developed in &sect;6.4.
 
 **Buffer-backed containment.** Byte-aggregate containers &mdash; records, unions, `[N]T`, and domain parents &mdash; admit only fixed-size buffer-backed contents. The runtime-length forms `[]` and `[]T` are excluded from these positions, as are all non-buffer types (pointers, command-typed values, objects, variants). Objects and variants, being identity-bearing or tagged-sum constructs rather than byte aggregates, admit any type in their fields or candidates respectively. This rule eliminates whole categories of static-analysis questions: cases that presuppose a byte-aggregate structure containing non-fixed-size components are not Basis cases.
 
@@ -132,7 +132,7 @@ These lenses recur throughout this specification. Sections that depend on a part
 
 ## 2. Source Files and Modules
 
-This section defines the structure of a Basis source file, the top-level definition forms it may contain, the module system that links source files into compilation units, and the lexical conventions that govern identifier shape and indentation. Material below the source-file level &mdash; the full grammar, the lexer's token classes, the indentation algorithm, and the disambiguation rules &mdash; is treated in Appendix A and Appendix B.
+This section defines the structure of a Basis source file, the top-level definition forms it may contain, the module system that links source files into compilation units, and the lexical conventions that govern identifier form and indentation. Material below the source-file level &mdash; the full grammar, the lexer's token classes, the indentation algorithm, and the disambiguation rules &mdash; is treated in Appendix A and Appendix B.
 
 ### 2.1 File Structure
 
@@ -309,7 +309,7 @@ This section describes the surface of commands &mdash; signatures, parameters, c
 
 ### 3.1 The Unit of Execution
 
-A command has exactly two possible outcomes per invocation: it *succeeds*, or it *fails*. Success and failure are orthogonal to any value the command produces &mdash; they are not encoded as result tags or sentinel values, and a successful command may produce no value, while a failed command's writeable-parameter slots are guaranteed not to be modified (&sect;4, &sect;6). The success/failure axis composes through the failure-mode marks (`:`, `?`, `!` per &sect;4.2) and through the block-marker constructs (&sect;4.4); the value-production axis composes through the parameter-passing mechanics (&sect;6.4) and the `<-` operator (&sect;7.1).
+A command has exactly two possible outcomes per invocation: it *succeeds*, or it *fails*. Success and failure are orthogonal to any value the command produces &mdash; they are not encoded as result tags or sentinel values, and a successful command may produce no value, while a failed command's writeable-parameter slots are guaranteed not to be modified (&sect;4, &sect;6). The success/failure axis composes through the failure-mode marks (`:`, `?`, `!` per &sect;4.2) and through the block-marker constructs (&sect;4.4); the value-production axis composes through the parameter-passing mechanics (&sect;6.3) and the `<-` operator (&sect;7.1).
 
 Commands have *single-shot* semantics. Each invocation produces one outcome; there is no backtracking, no resumption, no Icon-style multi-valued evaluation. The block-marker constructs that compose commands &mdash; `?`, `?-`, `?:`, `??`, `^`, `|`, `@`, `@!`, `%`, `-` (&sect;4.4) &mdash; combine single-shot outcomes; they do not introduce a generator-style multi-valued flow.
 
@@ -327,7 +327,7 @@ A regular command's signature has the form:
 - The **parameter list** `parmList` is a comma-separated list of `Type 'name`, `Type &name`, or `Type name` declarations &mdash; covering the three parameter modes CREATE, UPDATE, and READ respectively (&sect;3.3, &sect;6). The type-then-name order is uniform: the type appears first, the (mode-marked) name follows. The form `name : Type` is not Basis syntax in any binding position, including parameter declarations.
 - The **implicit context parameter list** `implicitParmList` follows an optional `/` separator and uses the same per-parameter syntax as the regular list. Implicit parameters are filled at the call site by uniqueness-of-type from the caller's lexical scope (&sect;3.6).
 - The **result designator** `-> resultName` names which already-declared parameter or receiver carries the expression-style result when the command is invoked in expression position (&sect;3.7). The clause is required to enable expression-position invocation when the command has more than one writeable parameter &mdash; otherwise the expression's result would be ambiguous. A command without expression-position use may omit the clause regardless of writeable-parameter count. The clause may also be supplied to designate a READ parameter as the result.
-- The **body** follows `=`. The body's structure determines the failure-state-lattice paths (&sect;4.13); the typechecker confirms that the body conforms to the signature's failure mark and that every CREATE parameter is written exactly once on every successful path (&sect;6.13).
+- The **body** follows `=`. The body's structure determines the failure-state-lattice paths (&sect;4.13); the typechecker confirms that the body conforms to the signature's failure mark and that every CREATE parameter is written exactly once on every successful path (&sect;6.12).
 A command that takes no regular parameters omits the parameter list:
 
 ```
@@ -337,7 +337,7 @@ A command that takes no regular parameters omits the parameter list:
 A command that takes regular parameters but no implicit parameters omits the slash and the implicit list:
 
 ```
-.cmd double: Int 'result, Int x = 'result <- x + x
+.cmd double: Int 'result, Int x = result <- x + x
 ```
 
 A command with implicit parameters has the slash and the implicit list:
@@ -352,19 +352,19 @@ The signature variations for constructors (&sect;3.9), single-receiver methods (
 
 Every parameter and every receiver carries one of four *modes*, which together determine the contract between caller and callee at that position:
 
-- **READ** (no marker, bare name) &mdash; the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (&sect;6.5).
+- **READ** (no marker, bare name) &mdash; the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (&sect;6.4).
 - **CREATE** (`'` marker on the name, e.g., `'result`) &mdash; the callee is statically obligated to write the parameter's slot exactly once on every successful return path (&sect;3.4).
 - **UPDATE** (`&` marker on the name, e.g., `&counter`) &mdash; the callee may read the parameter, may write it, may do both, may do neither.
 - **DISPOSE** (`~` marker on the name, e.g., `~socket`) &mdash; the callee consumes the parameter, ending the value's life and discharging its finalizing duty (&sect;10). The mode and its `~ x` operation are developed in &sect;7.22.
 
-The markers are part of the identifier itself, not separate tokens: `'name`, `&name`, `~name`, and `name` are four identifier shapes of the same name, and every use site inside the body carries the marker matching the parameter's mode &mdash; a body with a CREATE parameter `'result` writes `'result <- value`, never `result <- value`.
+The markers are separate tokens, not part of the identifier, and they appear only in a parameter declaration. Inside a command body every name is bare: a body with a CREATE parameter `'result` writes `result <- value`, and a name's mode is the mode of its declaration (&sect;6.2).
 
 The marker placement varies by syntactic context:
 
 - In **named contexts** &mdash; parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries &mdash; the marker travels with the name in identifier-shape: `Int 'result`, `Logger &counter`, `Socket ~s`, `Showable s`.
 - In **nameless contexts** &mdash; command-type expressions `:<...>`, `?<...>`, `!<...>`, where parameter types are listed without names &mdash; the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`: `Int'`, `^String&`, `Socket~`, `Logger`.
 
-This section is the surface. The full discipline &mdash; each mode's caller-side and callee-side contract, copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, the same-scope rule for the four identifier shapes, parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape &mdash; is &sect;6.
+This section is the surface. The full discipline &mdash; each mode's caller-side and callee-side contract, copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape &mdash; is &sect;6.
 
 ### 3.4 Create Parameters
 
@@ -372,13 +372,13 @@ A CREATE parameter (`'name`) carries the *write-once-on-success* contract: the c
 
 The pattern most user code follows is *compute-then-commit*: the body computes its inputs into local slots, then performs a single CREATE `<-` write near its end. This pattern naturally satisfies the rule and supports the atomic-compound-construction guarantee (&sect;7.11).
 
-The full rule &mdash; the static errors for a missing or a repeated write, the exemption of failure paths, and the joint failure-state and initialization lattice walk that checks it &mdash; is &sect;6.13.
+The full rule &mdash; the static errors for a missing or a repeated write, the exemption of failure paths, and the joint failure-state and initialization lattice walk that checks it &mdash; is &sect;6.12.
 
 ### 3.5 Update Parameters
 
-An UPDATE parameter (`&name`) carries no write obligation: the callee may read it, write it, or do neither. The caller's pre-call slot must be initialized (the parameter is readable from the callee's perspective, so reading uninitialized would be a static error per &sect;6.13's whole-slot tracking). Copy-restore at the call boundary preserves failure atomicity: any write the callee makes to the slot during its execution is committed back to the caller's slot only if the call succeeds; on failure the caller's slot reads identically to its pre-call state.
+An UPDATE parameter (`&name`) carries no write obligation: the callee may read it, write it, or do neither. The caller's pre-call slot must be initialized (the parameter is readable from the callee's perspective, so reading uninitialized would be a static error per &sect;6.12's whole-slot tracking). Copy-restore at the call boundary preserves failure atomicity: any write the callee makes to the slot during its execution is committed back to the caller's slot only if the call succeeds; on failure the caller's slot reads identically to its pre-call state.
 
-UPDATE parameters are the natural shape for in-place mutation (&sect;6.9). A method that updates a counter, a parser that advances a position, a logger that mutates an output buffer &mdash; all use UPDATE receivers or UPDATE parameters. The contrast with CREATE mode is the obligation: CREATE commits to a write on every successful path, while UPDATE commits to nothing.
+UPDATE parameters are the natural shape for in-place mutation (&sect;6.8). A method that updates a counter, a parser that advances a position, a logger that mutates an output buffer &mdash; all use UPDATE receivers or UPDATE parameters. The contrast with CREATE mode is the obligation: CREATE commits to a write on every successful path, while UPDATE commits to nothing.
 
 ### 3.6 Implicit Context Parameters
 
@@ -405,12 +405,12 @@ All three parameter modes are admitted in the implicit list. Three rules govern 
 A command invoked in *expression position* &mdash; as the right-hand side of `<-`, as a parenthesized argument in another command's call, or as a guard or scrutinee in a block-marker construct &mdash; produces a value that the surrounding context binds. The `-> name` clause names which already-declared parameter or receiver carries that expression-style value:
 
 ```
-.cmd quotrem: Int 'q, Int 'r, Int n, Int d -> 'q =
-    'q <- n / d
-    'r <- n % d
+.cmd quotrem: Int 'q, Int 'r, Int n, Int d -> q =
+    q <- n / d
+    r <- n % d
 ```
 
-A caller writes `#x <- quotrem: 'remainder, 10, 3` to bind the quotient to `x`, supplying `'remainder` as the slot for the remainder. The `->` clause does not introduce a new parameter &mdash; it designates which already-declared parameter participates in the expression-style sugar.
+A caller writes `#x <- quotrem: remainder, 10, 3` to bind the quotient to `x`, supplying `remainder` as the slot for the remainder. The `->` clause does not introduce a new parameter &mdash; it designates which already-declared parameter participates in the expression-style sugar.
 
 The clause is well-formed when `name` references a parameter or receiver of the command. The designated parameter is not required to be writeable. The expression-style value's type and reading depend on the designated parameter's mode:
 
@@ -425,9 +425,9 @@ When a command has exactly one writeable parameter &mdash; CREATE (`'name`) or r
 
 ```
 .cmd square: Int x, Int 'result =
-    'result <- x * x
+    result <- x * x
  
-#nine <- square: 3                ; 'result is the implicit expression-style result
+#nine <- square: 3                ; result is the implicit expression-style result
 ```
 
 When a command has two or more writeable parameters, the implicit selection is not available &mdash; the signature must specify which writeable parameter carries the expression-style result via an explicit `-> name` if expression-position invocation is desired. A command without expression-position use may omit the clause. When a command has zero writeable parameters, the command is not expression-callable unless an explicit `-> name` designates a READ parameter as the result.
@@ -440,7 +440,7 @@ A constructor is a command that produces a value of a specified type. Its signat
 
 ```
 .cmd Widget 'w: Int x, Int y =
-    'w <- ${x <- x, y <- y}
+    w <- ${x <- x, y <- y}
 ```
 
 The receiver `Widget 'w` is the constructed-value slot. All other parameters (after the colon) are inputs. The body's job is to fill `'w`. The body typically uses an aggregate literal `${...}` (&sect;7.4) to construct in place; the compute-then-commit pattern of &sect;3.4 applies &mdash; the constructor performs whatever subordinate work is needed in local slots, then commits a single CREATE write to the receiver near the body's end.
@@ -465,10 +465,10 @@ A *method* takes one or more receivers, then `::`, then the command name and any
 ```
 .cmd Logger logger :: log: String message = ...
 .cmd Counter &c :: increment = c <- c + 1
-.cmd Buffer 'b :: clear = 'b <- ${}
+.cmd Buffer 'b :: clear = b <- ${}
 ```
 
-The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes &mdash; READ, CREATE, UPDATE, and DISPOSE &mdash; each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, and finalization respectively (&sect;6.9). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (&sect;7.22).
+The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes &mdash; READ, CREATE, UPDATE, and DISPOSE &mdash; each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, and finalization respectively (&sect;6.8). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (&sect;7.22).
 
 A method invocation uses the same `::` syntax, parenthesized only for multi-receiver methods (&sect;3.11):
 
@@ -479,7 +479,7 @@ counter :: increment
 
 Methods dispatch on the runtime type of their receiver &mdash; a method named `log` is resolved against the receiver's type's class instance for the relevant class, with the dispatch site syntactically marked by `::`. The full dispatch mechanics &mdash; the witness-slot model, single-class dispatch, the dictionary structure, instance coherence &mdash; are in &sect;9.
 
-Receivers are always carried at the marker placement of the named-context rule (&sect;3.3) &mdash; `Type 'name`, `Type &name`, `Type ~name`, or `Type name`. The constructor case is &sect;3.9 above: constructors admit a CREATE receiver only, where methods admit all four. The receiver-mode-by-signature-shape table, and the full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules, are in &sect;6.7 and &sect;6.8. The block markers `@` and `@!` (&sect;3.13) are not signature shapes &mdash; they introduce bodies, not methods, and do not carry receivers at the signature level.
+Receivers are always carried at the marker placement of the named-context rule (&sect;3.3) &mdash; `Type 'name`, `Type &name`, `Type ~name`, or `Type name`. The constructor case is &sect;3.9 above: constructors admit a CREATE receiver only, where methods admit all four. The receiver-mode-by-signature-shape table, and the full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules, are in &sect;6.6 and &sect;6.7. The block markers `@` and `@!` (&sect;3.13) are not signature shapes &mdash; they introduce bodies, not methods, and do not carry receivers at the signature level.
 
 ### 3.11 Multi-Receiver Methods
 
@@ -491,7 +491,7 @@ A method invocation over multiple receivers takes a tuple of receivers, parenthe
     ; (logger :: emit) and (severity :: prefix) dispatch independently
     ...
  
-(consoleLogger, warning) :: format: 'output, "couldn't open file"
+(consoleLogger, warning) :: format: output, "couldn't open file"
 ```
 
 The receiver tuple appears in parentheses both at declaration and at call.
@@ -508,10 +508,10 @@ A **subcommand** is a command declared with the `.sub` keyword inside another co
 .cmd factorial: Int n, Int 'result =
     .sub factorialAcc: Int n, Int acc, Int 'r =
         ?: n == 0
-            'r <- acc
-        factorialAcc: n - 1, n * acc, 'r
+            r <- acc
+        factorialAcc: n - 1, n * acc, r
     
-    factorialAcc: n, 1, 'result
+    factorialAcc: n, 1, result
 ```
 
 The `.sub` introducer takes the same signature surface as the regular `.cmd` form (parameters, implicit context parameters, mode markers, failure marks, the `-> name` result designator) and the same body grammar. The full failure-mark surface (`:`, `?`, `!` per &sect;4.2) and the full signature surface (CREATE, UPDATE, READ parameters; implicit context parameters; single or multiple writeable parameters) apply identically to subcommands and regular commands.
@@ -582,7 +582,7 @@ A command invocation has four surface forms by signature shape, distinguished by
 
 - **Constructor call** &mdash; type name as prefix:
   ```
-  Widget: # 'w, x, y                ; statement-style
+  Widget: # w, x, y                ; statement-style
   #w <- (Widget: x, y)              ; expression-style, parenthesized
   ```
 
@@ -594,7 +594,7 @@ A command invocation has four surface forms by signature shape, distinguished by
 
 - **Multi-receiver method call** &mdash; parenthesized receiver tuple, `::`, command name:
   ```
-  (consoleLogger, warning) :: format: 'output, "couldn't open file"
+  (consoleLogger, warning) :: format: output, "couldn't open file"
   ```
 
 The argument list follows a `:` after the prefix. Inter-argument commas are required, even when arguments span multiple lines under indentation:
@@ -628,9 +628,9 @@ Implicit context parameters (&sect;3.6) are not supplied at the call site; they 
 For a command in expression position, the writeable parameter designated as the expression-style result (&sect;3.7) is *omitted* from the argument list. The remaining parameters are supplied in declaration order:
 
 ```
-.cmd quotrem: Int 'q, Int 'r, Int n, Int d -> 'q = ...
+.cmd quotrem: Int 'q, Int 'r, Int n, Int d -> q = ...
  
-#x <- quotrem: 'remainder, 10, 3   ; 'q omitted (it's #x); arg list is 'r, n, d
+#x <- quotrem: remainder, 10, 3    ; q omitted (it's #x); arg list is r, n, d
 ```
 
 UPDATE-mode parameters always appear in the argument list &mdash; they cannot be omitted via the expression-style sugar, because the caller's slot is required pre-initialized regardless of whether the command is invoked as a statement or as an expression.
@@ -710,7 +710,7 @@ The connection is released at the end of the guard scope &mdash; on either outco
 
 **Scope-local declarations.** A slot introduced with `#` inside a scope block is local to that scope: visible only within the body, gone at the dedent. Names from enclosing scopes remain visible and usable inside the block; only new `#`-introductions are confined.
 
-**Shadowing.** A `.scope` block is an ordinary nested scope, so a scope-local introduction may shadow a name visible from an enclosing scope, exactly as a block-marker body may. The same-scope rule of &sect;6.3 governs collisions *within* a single scope &mdash; `x` and `'x` may not coexist in one scope &mdash; but does not reach across the scope boundary; cross-scope shadowing is admitted (Appendix G.10). Inside the block a use resolves to the scope-local binding; the enclosing binding it hides is reachable again past the dedent.
+**Shadowing.** A `.scope` block is an ordinary nested scope, so a scope-local introduction may shadow a name visible from an enclosing scope, exactly as a block-marker body may. Name collisions *within* a single scope are forbidden (a name is bound at most once per scope, Appendix G.3), but that does not reach across the scope boundary; cross-scope shadowing is admitted (Appendix G.10). Inside the block a use resolves to the scope-local binding; the enclosing binding it hides is reachable again past the dedent.
 
 **Storage reclamation at scope end.** A scope-local value's lifetime ends at the scope's close, and the variable-size storage drawn from the frame-bound region (&sect;7.20) for it may be reclaimed there rather than at frame retirement &mdash; a `.scope` carves a nested sub-region out of the frame's region that an implementation may reclaim when the scope closes. The early reclamation is guaranteed wherever deferring it would be observable: a scope inside a loop has each iteration's scope-local storage reclaimed at that iteration's scope end, so the loop does not accumulate the storage of every pass.
 
@@ -749,7 +749,7 @@ The marks classify command-typed values uniformly across all of the language's c
 
 The marks form a partial order under subsumption: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful &mdash; its failure edge is statically dead &mdash; but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
 
-Parameter modes (&sect;3.3) and parameter types are **invariant** under mark subsumption. A `:<Int'>` value is not interchangeable with `:<Int>`, `:<Int&>`, or `:<Int~>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts, DISPOSE consume commitments) breaks if the mode is permitted to vary. The rule is developed in &sect;6.12.
+Parameter modes (&sect;3.3) and parameter types are **invariant** under mark subsumption. A `:<Int'>` value is not interchangeable with `:<Int>`, `:<Int&>`, or `:<Int~>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts, DISPOSE consume commitments) breaks if the mode is permitted to vary. The rule is developed in &sect;6.11.
 
 ### 4.3 The `.fail` Directive
 
@@ -1087,7 +1087,7 @@ The grammar enforces the byte-aggregate-vs-other distinction by partitioning the
 
 The containment rule's load-bearing consequence is that mutation either succeeds fully or fails fully (principle 4, &sect;1.2). A record's bytes are unambiguously a byte-aggregate, copy-restored to the caller's slot atomically on success and not at all on failure. A record-with-pointers would punch a hole in this &mdash; the pointer copies, the pointee doesn't, and partial-failure semantics drift. The containment rule eliminates the concern at the type level rather than relying on convention or analysis.
 
-The split also determines whole-slot initialization tracking (&sect;6.14): a buffer-backed slot is one byte-aggregate, not a graph, and tracking it as a unit is sound because no field can have non-byte semantics. The static analyses treat each form per its category, with the guarantees of one category not silently leaking into the other.
+The split also determines whole-slot initialization tracking (&sect;6.13): a buffer-backed slot is one byte-aggregate, not a graph, and tracking it as a unit is sound because no field can have non-byte semantics. The static analyses treat each form per its category, with the guarantees of one category not silently leaking into the other.
 
 ### 5.2 Buffer Primitives
 
@@ -1227,7 +1227,7 @@ The principle behind the exception is precise: it admits *compile-time-constant 
 
 A **pointer type** is written `^T`. The caret is a type-prefix and may stack: `^^T` is a pointer to a pointer to `T`. Pointers are non-buffer types &mdash; they reference other storage rather than carrying byte-content directly &mdash; and may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots (introduced via `#`), parameters, receivers, object fields, and variant candidates.
 
-The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in &sect;7 and &sect;6.5 respectively. Construction of a pointer to fresh storage &mdash; as distinct from `&` taking the address of an existing slot &mdash; uses the value-construction surface of &sect;7.20, with the storage placement &mdash; the frame-bound region by default, or an allocator's source method for non-default storage (&sect;10) &mdash; determined there.
+The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in &sect;7 and &sect;6.4 respectively. Construction of a pointer to fresh storage &mdash; as distinct from `&` taking the address of an existing slot &mdash; uses the value-construction surface of &sect;7.20, with the storage placement &mdash; the frame-bound region by default, or an allocator's source method for non-default storage (&sect;10) &mdash; determined there.
 
 The language commits to **abstracted pointer semantics**. The user-visible meaning of `^T` is "pointer to `T`." Whether the runtime implementation is a thin pointer (carrying only the pointee's address), a fat pointer (carrying the address plus dispatch metadata), or a handle (a pointer to a pointer, supporting relocation by the allocator) is an implementation choice, made per type by the compiler, and not user-visible. The implementation latitude permits the compiler to choose, on a per-`T` basis, the representation that best serves `T`'s actual needs: a thin pointer for a small fixed-size buffer-backed `T`; a fat pointer for an object-typed `T`, supporting class dispatch; a handle for any `T` allocated in a relocation-supporting allocator.
 
@@ -1237,7 +1237,7 @@ User-visible operations on `^T` are uniform across these choices: dereference, a
 
 A `^Object` parameter is conceptually a double-indirection. Object-typed values are themselves indirections (objects are stack/heap-allocated with potentially non-contiguous fields, accessed via fat pointers); a `^Object` therefore points to a *slot* containing an object reference, and a writeable `^Object` parameter allows the callee to point that slot at a different object on success. The double-indirection structure is what lets writeable-`^Object` parameters serve as object-yielding result slots in the no-return-values world.
 
-Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-local-state principle: the pointer is itself a parameter (or transitively reachable from one through the provision chain), and operations through the pointer touch storage that arrived by explicit provision. The transitive READ contract (&sect;6.5) refines this rule along access paths rooted at READ parameters: writes through a `^T` reached by such a path are forbidden, while writes through a `^T` reached by an UPDATE-rooted or CREATE-rooted path are permitted normally.
+Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-local-state principle: the pointer is itself a parameter (or transitively reachable from one through the provision chain), and operations through the pointer touch storage that arrived by explicit provision. The transitive READ contract (&sect;6.4) refines this rule along access paths rooted at READ parameters: writes through a `^T` reached by such a path are forbidden, while writes through a `^T` reached by an UPDATE-rooted or CREATE-rooted path are permitted normally.
 
 ### 5.11 Objects
 
@@ -1348,38 +1348,38 @@ The fexpr-typed family rounds out the type forms of Basis. The type forms admitt
 
 ## 6. Parameters and Mode Markers
 
-This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are part of the identifier itself in named contexts and migrate to type-suffix position in nameless contexts. Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.14) verifies that CREATE parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, &sect;6.5; fexpr-relevance, &sect;6.15) verify that read-only contracts and ceiling bounds are preserved across access paths.
+This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, &sect;6.4; fexpr-relevance, &sect;6.14) verify that read-only contracts and ceiling bounds are preserved across access paths.
 
-The &sect;3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.8), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
+The &sect;3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
 ### 6.1 The Four Modes
 
 A parameter or receiver in Basis carries one of four **modes** &mdash; **READ**, **CREATE**, **UPDATE**, or **DISPOSE** &mdash; that determine the contract between caller and callee at that position. The modes are roles, not directions: each describes what the callee is permitted or obligated to do; the caller's side of the contract is derivable from the callee's.
 
-**READ** &mdash; the bare-name form, no marker. The callee may read through any access path reached from the parameter; it may not write through any such path. The transitive read-only contract (&sect;6.5) makes this commitment trustworthy: the language statically prevents the value from being smuggled into a writeable position downstream. The caller's slot is bit-identical to its pre-call state after the call regardless of outcome.
+**READ** &mdash; the bare-name form, no marker. The callee may read through any access path reached from the parameter; it may not write through any such path. The transitive read-only contract (&sect;6.4) makes this commitment trustworthy: the language statically prevents the value from being smuggled into a writeable position downstream. The caller's slot is bit-identical to its pre-call state after the call regardless of outcome.
 
-**CREATE** &mdash; marked with `'` on the name (e.g., `'result`). The callee is statically obligated to write the parameter's slot exactly once on every successful return path &mdash; the **write-once-on-success** rule (&sect;6.13). The caller may pass either an initialized or an uninitialized slot. On success, the produced value is committed to the caller's slot via copy-restore (&sect;6.4); on failure, the caller's slot is bit-identical to its pre-call state.
+**CREATE** &mdash; marked with `'` on the name (e.g., `'result`). The callee is statically obligated to write the parameter's slot exactly once on every successful return path &mdash; the **write-once-on-success** rule (&sect;6.12). The caller may pass either an initialized or an uninitialized slot. On success, the produced value is committed to the caller's slot via copy-restore (&sect;6.3); on failure, the caller's slot is bit-identical to its pre-call state.
 
-**UPDATE** &mdash; marked with `&` on the name (e.g., `&counter`). The callee may read the parameter, may write the parameter, may do neither &mdash; there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read and reading uninitialized is forbidden by the whole-slot tracking discipline (&sect;6.14). Copy-restore semantics apply on the writeability axis: on success, any write the callee performs is committed back to the caller's slot; on failure, no write-back occurs.
+**UPDATE** &mdash; marked with `&` on the name (e.g., `&counter`). The callee may read the parameter, may write the parameter, may do neither &mdash; there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read and reading uninitialized is forbidden by the whole-slot tracking discipline (&sect;6.13). Copy-restore semantics apply on the writeability axis: on success, any write the callee performs is committed back to the caller's slot; on failure, no write-back occurs.
 
 **DISPOSE** &mdash; marked with `~` on the name (e.g., `~socket`). The callee consumes the parameter, ending the value's lifetime: it discharges the value's finalizing duty and leaves the slot `uninit`. The caller must supply an owned value &mdash; finalizing through a borrow would end a value another binding still owns &mdash; and the caller's slot is `uninit` after the call on both edges, a deliberate relaxation of failure atomicity. A `~` receiver names a *finalizer*. The mode, its `~ x` body-level operation, and the field-teardown gate are developed in &sect;7.22.
 
-The four modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.7 (the R1 and R2 rules) and &sect;6.8 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.11) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
+The four modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.6 (the R1 and R2 rules) and &sect;6.7 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.11) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
 
 ### 6.2 Marker Placement
 
-The mode markers `'`, `&`, and `~` are **part of the identifier itself**, not separate marker tokens. The lexer recognizes `'name`, `&name`, `~name`, and `name` as four identifier shapes of the same name. Every read and every write inside the command body uses the marker that matches the parameter's mode &mdash; a body that has a CREATE parameter `'result` writes `'result <- value`, never `result <- value`. The marker is visible at every use site, not only at the declaration. The same-scope rule (&sect;6.3) prevents the four shapes from coexisting in the same scope.
+The mode markers `'`, `&`, and `~` are separate syntactic elements, not part of any identifier. A marker appears only in a parameter declaration &mdash; the position that establishes a parameter's mode. Identifiers everywhere else, including every use of a parameter inside a command body, are bare: a body with a CREATE parameter `result` writes `result <- value`. A mode marker on a name outside a parameter declaration is a syntax error. Because a use site carries no marker, the mode of a name is the mode of the binding it resolves to (&sect;6.1), read from the declaration, not restated at each use.
 
 The placement convention varies by syntactic context, depending on whether names are available to carry the marker.
 
-**Named contexts** are positions where parameters or bindings carry names &mdash; parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries (&sect;6.10), local introductions. In named contexts, the marker travels with the name in identifier-shape:
+**Named contexts** are positions where a parameter or receiver carries a name &mdash; parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries (&sect;6.9). In a named context, the marker is a prefix on the name:
 
     Int 'result            ; CREATE parameter
     Logger &counter        ; UPDATE parameter
     Showable s             ; READ parameter
     Socket ~s              ; DISPOSE parameter
 
-The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, or `Type name`, with the type preceding the (mode-marked) name. The form `name : Type` is not Basis syntax in any binding position.
+The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, or `Type name`, with the type preceding the name and the marker, when present, standing between them as a prefix on the name. The form `name : Type` is not Basis syntax in any binding position. A local introduced with `#` carries no mode marker: it is not a parameter, so no parameter-mode contract applies to it, and it is governed by the ordinary lexical-scope rules (&sect;G.1).
 
 **Nameless contexts** are positions where parameter types are listed without names &mdash; command-type expressions (&sect;5.14, &sect;5.15) most prominently, and any other type-position where a parameter type appears unaccompanied by a binding name. In nameless contexts, the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`:
 
@@ -1394,21 +1394,15 @@ The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, or `Type
 
 A pointer-to-`Int32` as an UPDATE parameter is `^Int32&`, with `^` as prefix and `&` as suffix on opposite sides of the type &mdash; visually distinct, no token blob. The two markers serve unrelated roles: `^` is a type former, indicating the parameter's type is a pointer; `&` is a mode marker on the parameter position the type inhabits. Their visual separation reflects that role separation.
 
-The two placements agree on what the markers mean &mdash; `'` is CREATE, `&` is UPDATE, and `~` is DISPOSE in both &mdash; and differ only on placement to suit the surrounding syntax. The named-context placement attaches the marker to the binding name because there is one; the nameless-context placement attaches the marker to the type because there is no name to attach it to.
+The two placements agree on what the markers mean &mdash; `'` is CREATE, `&` is UPDATE, and `~` is DISPOSE in both &mdash; and differ only on placement to suit the surrounding syntax. In a named declaration the marker is a prefix on the name; in a nameless context the marker is a suffix on the type, since there is no name to carry it.
 
-### 6.3 The Same-Scope Rule
+### 6.3 Call-Boundary Mechanics
 
-Within any scope, **two-or-more identifiers that differ only by mode-character marking must not coexist.** The rule is symmetric across all three pairs: `x` and `'x` are mutually exclusive; `x` and `&x` are mutually exclusive; `'x` and `&x` are mutually exclusive. The rule applies both to identifiers introduced into a scope by binding (parameters, receivers, captures, local slots) and to command-parameter-list declarations: a command may not be declared with two parameters whose names collide modulo marker.
+The call-boundary mechanics realize the per-mode contracts at the operational level. The type-system rules of &sect;&sect;6.1&ndash;6.2 and the static analyses of &sect;&sect;6.4, 6.12, 6.13 commit to behavior; the call-boundary mechanism is what makes that behavior real.
 
-The motivation is reader confidence. Two textually-similar names referring to genuinely different slots in the same context produce a class of subtle reader-bugs &mdash; did this read from the CREATE slot or the reference slot? Forbidding the coexistence costs a rename; the benefit is that scope-local reasoning never has to disambiguate near-identical names.
+A single caller slot may be supplied to more than one parameter in one call. Binding the same slot at both a CREATE and an UPDATE position in a single call is forbidden: the resulting aliasing would defeat copy-restore failure-atomicity, since the two writes-back would race on the same storage.
 
-A separate concern is passing a single slot at multiple modes in one call. A caller passing a value `x` into a callee may legitimately pass `x` at one parameter position and `'x` (or `&x`) at another in the same call. The same-scope rule does not forbid this &mdash; the call-site argument list is not a scope, and the modes refer to roles at the call boundary, not to identifiers in the caller's scope. The aliasing concern this raises &mdash; the same caller-slot bound under two mode contracts simultaneously &mdash; is an aliasing question, separately addressed by the rule that disallows binding a single slot at CREATE and UPDATE positions in the same call (since the resulting aliasing would defeat copy-restore failure-atomicity).
-
-### 6.4 Call-Boundary Mechanics
-
-The call-boundary mechanics realize the per-mode contracts at the operational level. The type-system rules of &sect;&sect;6.1&ndash;6.3 and the static analyses of &sect;&sect;6.5, 6.13, 6.14 commit to behavior; the call-boundary mechanism is what makes that behavior real.
-
-**READ parameters** are passed by value at the observable level. The callee receives a copy of the caller's slot. The caller's slot is bit-identical to its pre-call state after the call, regardless of whether the call succeeds or fails. Implementation latitude: the implementation may pass READ parameters by reference under the hood, since the transitive READ contract (&sect;6.5) precludes the writes that would make by-reference observable; the language commits to by-value at the *observable* level only.
+**READ parameters** are passed by value at the observable level. The callee receives a copy of the caller's slot. The caller's slot is bit-identical to its pre-call state after the call, regardless of whether the call succeeds or fails. Implementation latitude: the implementation may pass READ parameters by reference under the hood, since the transitive READ contract (&sect;6.4) precludes the writes that would make by-reference observable; the language commits to by-value at the *observable* level only.
 
 **CREATE and UPDATE parameters** are passed by **call-by-copy-restore**. The callee receives a copy of the caller's slot value, operates on the copy, and on *successful* return the (possibly-modified) copy is written back to the caller's slot. On *failure*, no write-back occurs; the caller's slot is bit-identical to its pre-call state.
 
@@ -1416,9 +1410,9 @@ The copy-restore mechanism is the operational realization of the language's "mut
 
 The pointer case composes cleanly. For a parameter of pointer type `^T`, the *pointer value* itself is what's copied (READ) or copy-restored (CREATE / UPDATE), not the pointee. A writeable `^T` (i.e., `^T'` or `^T&` per the nameless-context rule of &sect;6.2, or `^T 'name` / `^T &name` per the named-context rule) lets the callee swap which `T` the caller's slot points at; a non-writeable `^T` does not. The pointee's storage is reached *through* the pointer; reads and writes through the pointer touch storage that, by the no-non-local-state principle's provision-chain rule (&sect;1.4), was reached by explicit provision.
 
-For CREATE parameters specifically, the caller's slot may be uninitialized at the call boundary, and the copy-restore mechanism handles the initialization gracefully: the callee's local copy is a fresh slot of the parameter type that the callee is statically obligated to fill via the CREATE write, and on success the produced value is committed to the caller's slot. On failure the caller's slot remains in its pre-call state, which for a fresh `#`-introduction was uninitialized &mdash; the initialization analysis (&sect;6.14) tracks this as the slot remaining uninitialized after the failed call. The caller's analysis records the call's two outcomes as separate edges on the failure-state lattice (&sect;4.13), with the initialization analysis joining the per-edge results.
+For CREATE parameters specifically, the caller's slot may be uninitialized at the call boundary, and the copy-restore mechanism handles the initialization gracefully: the callee's local copy is a fresh slot of the parameter type that the callee is statically obligated to fill via the CREATE write, and on success the produced value is committed to the caller's slot. On failure the caller's slot remains in its pre-call state, which for a fresh `#`-introduction was uninitialized &mdash; the initialization analysis (&sect;6.13) tracks this as the slot remaining uninitialized after the failed call. The caller's analysis records the call's two outcomes as separate edges on the failure-state lattice (&sect;4.13), with the initialization analysis joining the per-edge results.
 
-### 6.5 The Transitive READ Contract
+### 6.4 The Transitive READ Contract
 
 A READ parameter introduces a contract: the callee may not write through any access path reached from the parameter. **Reachability is transitive** through pointer dereference, field access, indexing, and any other operation that extends an access path rooted at the parameter.
 
@@ -1426,7 +1420,7 @@ The contract is callee-side and verified at type-checking. A callee whose body w
 
 The contract operates on **access paths**, not on storage locations (&sect;1.5 standing lens). The same storage may be reached at runtime through multiple access paths simultaneously, one of which is READ-rooted and another of which is UPDATE-rooted; writes through the UPDATE-rooted path are permitted while writes through the READ-rooted path are forbidden. The language does not detect aliasing; it tracks paths.
 
-The mechanism is enforced via a flow-sensitive **taint** property on slots and slot-views, propagated jointly with the failure-state lattice (&sect;4.13) and the initialization analysis (&sect;6.14) over the same CFG walk. The transfer-function rules:
+The mechanism is enforced via a flow-sensitive **taint** property on slots and slot-views, propagated jointly with the failure-state lattice (&sect;4.13) and the initialization analysis (&sect;6.13) over the same CFG walk. The transfer-function rules:
 
 - A READ parameter introduces a tainted slot at the callee's frame entry.
 - Operations that yield slot-views reached through a tainted slot produce tainted slot-views &mdash; pointer dereference, field access, indexing, and any other access-path-extending operation propagate the taint.
@@ -1437,9 +1431,9 @@ The classification of which operations propagate taint and which produce a fresh
 
 A forbidden pointer-write pattern follows directly from the rule: a write through a `^T` reached from a READ parameter's binding is a static error. The `^T` is itself read-only-through-this-access for the duration of the call.
 
-The contract composes with the capture mechanisms (&sect;&sect;6.10, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (&sect;3.16), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
+The contract composes with the capture mechanisms (&sect;&sect;6.9, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (&sect;3.16), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
 
-### 6.6 The Frame-Ownership Reading
+### 6.5 The Frame-Ownership Reading
 
 The transitive READ contract is callee-side: it constrains what the callee's body may do during its own execution, in its own frame. The contract does not propagate across the call boundary into the caller's analysis.
 
@@ -1451,19 +1445,19 @@ The frame-ownership lens is sufficient because each frame's signature carries th
 
 The aliasing question &mdash; whether a fresh local in the caller's frame might at runtime alias storage the caller passed at READ &mdash; is intentionally not addressed by the static taint analyses. The language tracks access paths, not storage locations (&sect;1.5 standing lens). The READ contract's static soundness is the callee-side commitment that the callee will not perform writes through its own READ-rooted paths; the caller's analysis is its own concern, with the caller's signature determining what the caller's body may do. The two-sided locality is what keeps the analyses tractable.
 
-### 6.7 The R1 and R2 Receiver Rules
+### 6.6 The R1 and R2 Receiver Rules
 
 Receivers participate in the same four-mode discipline as parameters, but the receiver-mode rules carry an additional structural constraint that parameters do not. The receiver in a method dispatch must exist as a real value at runtime, regardless of the receiver's declared mode, because dispatch resolves a method-bearing value from the receiver's type and invokes it on the receiver's value. Dispatching on an uninitialized slot is meaningless. Two rules govern receiver-mode mechanics uniformly across signature shapes:
 
 **R1 &mdash; call-site initialization.** At any method call site, every receiver must be initialized at the call boundary, regardless of the receiver's declared mode. This is uniform across CREATE, UPDATE, READ, and DISPOSE receivers. The R1 rule is the structural commitment that makes dispatch well-defined: the receiver's runtime type identifies the instance dictionary (&sect;9), and that identification requires a real value. CREATE receivers are initialized at the call site even though the callee will write them on success &mdash; initialization-then-overwrite is the rule, not initialization-on-success. A DISPOSE receiver is likewise initialized at the call site and then consumed by the callee &mdash; initialization-then-consume &mdash; leaving the slot `uninit` on return (&sect;7.22).
 
-**R2 &mdash; callee-body obligation.** The body of a method, with respect to a receiver of mode `M`, has the same callee-side obligations as a parameter of mode `M` would have. CREATE receivers must be written exactly once on every successful return path. UPDATE receivers carry no write obligation; the body may read, write, or do neither. READ receivers may read through any access path reached from the receiver but may not write through any such path (the transitive READ contract of &sect;6.5). A DISPOSE receiver is consumed: the callee ends the receiver's life, leaving the slot `uninit` on return (&sect;7.22). The R2 rule preserves the per-mode discipline at the callee body, identical to non-receiver parameters.
+**R2 &mdash; callee-body obligation.** The body of a method, with respect to a receiver of mode `M`, has the same callee-side obligations as a parameter of mode `M` would have. CREATE receivers must be written exactly once on every successful return path. UPDATE receivers carry no write obligation; the body may read, write, or do neither. READ receivers may read through any access path reached from the receiver but may not write through any such path (the transitive READ contract of &sect;6.4). A DISPOSE receiver is consumed: the callee ends the receiver's life, leaving the slot `uninit` on return (&sect;7.22). The R2 rule preserves the per-mode discipline at the callee body, identical to non-receiver parameters.
 
 R1 lifts the caller-side obligation uniformly across all receiver modes &mdash; always initialized at the call site. R2 keeps the callee-side variation that the writeability marker is for. The two rules together say: dispatch always operates on a real receiver, and the mode marker tells the callee what it commits to doing with that receiver.
 
 R1 and R2 apply to multi-receiver methods (&sect;3.11) per receiver independently. Different receivers in a tuple may carry different modes; the per-receiver R1 and R2 rules apply to each per its declared mode. A multi-receiver method `(Logger logger, Counter &c) :: report: ...` has logger at READ (R1 requires logger initialized at the call site; R2 forbids the body from writing through any access path reached from logger) and counter at UPDATE (R1 requires counter initialized; R2 imposes no obligation on whether the body writes counter).
 
-### 6.8 Receiver Modes by Signature Shape
+### 6.7 Receiver Modes by Signature Shape
 
 Each signature shape restricts the set of valid receiver modes to those that are semantically meaningful for that shape. The table summarizes the per-shape restrictions:
 
@@ -1476,15 +1470,15 @@ The reasoning behind the per-shape restrictions:
 
 **Constructor receivers must be CREATE.** A constructor's job is to fill the receiver slot. An UPDATE constructor receiver would mean "construct drawing on the receiver's existing state" &mdash; which is in-place modification, not construction; the method-with-UPDATE-receiver case (&sect;3.10) covers that idiom. A READ constructor receiver would mean "construct a thing the caller cannot observe" &mdash; forcibly producing an inaccessible object, which has no purpose. The CREATE-only rule preserves the constructor's defining feature: at a successful return, the receiver slot holds the constructed value. A DISPOSE constructor receiver would mean consuming the receiver as the constructor runs &mdash; finalizing what it is meant to create, the exact inverse of construction; receiver-finalization is the dual act, expressed as an ordinary method with a DISPOSE receiver (&sect;7.22).
 
-**Method receivers admit all four modes.** The mode is declared per method; READ, UPDATE, CREATE, and DISPOSE give externalized-effect, in-place-mutation, re-initialize, and consume semantics respectively (&sect;6.9). A DISPOSE receiver finalizes the receiver itself &mdash; the destruction-dual of the constructor's CREATE receiver &mdash; but, using ordinary `::` dispatch rather than the constructor's special call-site form, it needs no separate signature shape; its full treatment is in &sect;7.22. More often, finalization marks the *consumed argument* `~` on a method whose receiver is ordinary &mdash; `Heap h :: free: Storage ~s` finalizes `~s` while `h` stays an ordinary manager &mdash; which is simply a DISPOSE parameter, no special shape at all.
+**Method receivers admit all four modes.** The mode is declared per method; READ, UPDATE, CREATE, and DISPOSE give externalized-effect, in-place-mutation, re-initialize, and consume semantics respectively (&sect;6.8). A DISPOSE receiver finalizes the receiver itself &mdash; the destruction-dual of the constructor's CREATE receiver &mdash; but, using ordinary `::` dispatch rather than the constructor's special call-site form, it needs no separate signature shape; its full treatment is in &sect;7.22. More often, finalization marks the *consumed argument* `~` on a method whose receiver is ordinary &mdash; `Heap h :: free: Storage ~s` finalizes `~s` while `h` stays an ordinary manager &mdash; which is simply a DISPOSE parameter, no special shape at all.
 
 A **finalizer** is not a separate signature shape. Where a constructor is its own shape &mdash; a distinct grammar production with a CREATE-only receiver &mdash; a finalizer is simply a method whose receiver carries the DISPOSE mode, and it occupies the method row above. The two are duals in semantics (one fills the receiver slot, the other consumes it) without being duals in grammar: no `~`-specific signature form exists, and none is needed.
 
 The block markers `@` and `@!` (&sect;3.13) are not signature shapes &mdash; they introduce bodies, not methods, and do not appear in this table.
 
-This table is the single home for the per-shape receiver-mode restrictions; &sect;3.10 introduces the surface and points here. It is stated in the context of the R1 and R2 rules of &sect;6.7, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a CREATE receiver carries the write-once obligation, an UPDATE receiver carries no obligation, a READ receiver carries the transitive READ contract, and a DISPOSE receiver is consumed &mdash; initialized at the call site (R1) and left `uninit` on return (&sect;7.22).
+This table is the single home for the per-shape receiver-mode restrictions; &sect;3.10 introduces the surface and points here. It is stated in the context of the R1 and R2 rules of &sect;6.6, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a CREATE receiver carries the write-once obligation, an UPDATE receiver carries no obligation, a READ receiver carries the transitive READ contract, and a DISPOSE receiver is consumed &mdash; initialized at the call site (R1) and left `uninit` on return (&sect;7.22).
 
-### 6.9 Idiomatic Uses by Mode
+### 6.8 Idiomatic Uses by Mode
 
 Each parameter or receiver mode has a distinctive idiomatic use; the choice of mode at a declaration site is a design decision about what the position commits to.
 
@@ -1498,17 +1492,17 @@ Each parameter or receiver mode has a distinctive idiomatic use; the choice of m
 
 The four modes form a complete discipline: every parameter and receiver in the language belongs to exactly one of them, and the choice is structural &mdash; the language has no "default" mode, no mode that emerges from absence of declaration. The READ mode appears as the bare-name form (no marker); it is the no-marker case in the syntax, but it is no less a deliberate declaration than the other three.
 
-### 6.10 Capture-List Mode Constraints
+### 6.9 Capture-List Mode Constraints
 
 Lambda forms (&sect;8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of &sect;6.2 &mdash; `'name`, `&name`, or bare `name` for CREATE, UPDATE, and READ respectively.
 
 **Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` (the defining frame; see &sect;8.5 for the formal D/I/F three-frame model) through ceiling-flattening of reference captures (&sect;8.4), at which point the CREATE slot may no longer exist. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
 
-Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (&sect;8.5). A free name in a fexpr body that binds a CREATE parameter `'name` in the defining frame accesses the slot at CREATE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of &sect;5.15 / &sect;6.15), so the CREATE slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
+Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (&sect;8.5). A free name in a fexpr body that binds a CREATE parameter `'name` in the defining frame accesses the slot at CREATE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of &sect;5.15 / &sect;6.14), so the CREATE slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
 
 The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or UPDATE value &mdash; whether captured explicitly via a lambda's slash list or implicitly via a fexpr's free-name resolution &mdash; carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
 
-### 6.11 Implicit Context Parameters Across Modes
+### 6.10 Implicit Context Parameters Across Modes
 
 Implicit context parameters (&sect;3.6) &mdash; parameters listed after the `/` separator in a command's signature, filled at the call site by uniqueness-of-type from the caller's lexical scope &mdash; admit READ, UPDATE, and CREATE, but not DISPOSE. An implicit parameter declared `Logger logger` is a READ implicit; one declared `Logger &counter` is an UPDATE implicit; one declared `Int 'result` is a CREATE implicit. DISPOSE is excluded: a finalizing position consumes an owned, obligated value and leaves its source slot `uninit`, but an implicit is supplied by the typechecker rather than from a caller binding chosen for the purpose &mdash; there is no designated slot for the consume to empty, and a value found by type alone carries no guaranteed obligation to discharge. A value to be finalized must be named explicitly, as a `~` argument or a `~ x` operation (&sect;7.22). The resolution mechanism treats the modes uniformly: at the call site, the typechecker locates a value in the caller's lexical scope whose type matches the implicit parameter's declared type, and supplies that identifier as the argument with the implicit's declared mode contract.
 
@@ -1516,7 +1510,7 @@ The mode contracts at implicit parameters follow the same R1-and-R2-style discip
 
 A constraint specific to implicit context parameters: **implicit parameters cannot carry default declarations from class instances.** Where a class declares a method whose signature includes implicit parameters, the resolution at the dispatch site uses the dispatching frame's lexical scope, not the instance's defining-frame scope; the instance has no role in supplying values for the implicit slots. The motivation is to keep implicit resolution lexically transparent: the values come from where the call is made, not from where the dispatched implementation was defined. The constraint composes with the class-system mechanics in &sect;9 without further interaction.
 
-### 6.12 Parameter-Mode Invariance Under Mark Subsumption
+### 6.11 Parameter-Mode Invariance Under Mark Subsumption
 
 The failure-mode marks (&sect;4.2) form a subsumption order: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>`, `:<Int32&>`, or `:<Int32~>`; a `?<String'>` value is not interchangeable with `?<String>`, `?<String&>`, or `?<String~>`. The subsumption relation is solely on the failure-mark axis.
 
@@ -1526,7 +1520,7 @@ The type-system rule recorded here is that `Type X` and `Type Y` for distinct mo
 
 The invariance composes with the buffer-backed-hierarchy subsumption rules (&sect;5.5) without conflict: a `:<Inches>` value may be acceptable at a `:<Int32>`-typed slot under the buffer-backed parent-chain rule, since `Inches` subsumes to `Int32` in the underlying parameter type. But the mode markers must match. A `:<Inches'>` value is not acceptable at a `:<Int32>`-typed slot, because the CREATE marker is missing on the latter; the parent-chain subsumption applies to the parameter type, not to the parameter type and mode together.
 
-### 6.13 Create Write-Once
+### 6.12 Create Write-Once
 
 A CREATE parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation &mdash; the failure-atomicity principle commits that CREATE slots are never partially written when a command fails.
 
@@ -1534,17 +1528,17 @@ The rule is structural, not stylistic. There is no "you may write twice if you a
 
 The compute-then-commit pattern (&sect;3.4) is the natural shape that satisfies the rule. The body computes its inputs into local slots, then performs a single CREATE `<-` write near its end. The pattern composes with the atomic-compound-construction guarantee (&sect;7.11): an aggregate literal `${...}` is a single construct that produces a complete value, and a CREATE write of an aggregate literal is a single write.
 
-The discipline composes with the failure-state-lattice analysis (&sect;4.13). The body's CFG is walked with both the failure-state lattice and the initialization analysis (&sect;6.14) jointly; the typechecker confirms that every path to a `clear`-state exit has performed exactly one write to each CREATE parameter. The &sect;4.13 well-formedness rule for body conformance &mdash; that conformance quantifies over reachable exits only, with non-terminating bodies vacuously conformant &mdash; applies here: a body with no reachable successful exit (a `!`-marked body, or a divergent body) imposes no CREATE-write obligation, since the universal quantification over reachable successful exits has an empty domain.
+The discipline composes with the failure-state-lattice analysis (&sect;4.13). The body's CFG is walked with both the failure-state lattice and the initialization analysis (&sect;6.13) jointly; the typechecker confirms that every path to a `clear`-state exit has performed exactly one write to each CREATE parameter. The &sect;4.13 well-formedness rule for body conformance &mdash; that conformance quantifies over reachable exits only, with non-terminating bodies vacuously conformant &mdash; applies here: a body with no reachable successful exit (a `!`-marked body, or a divergent body) imposes no CREATE-write obligation, since the universal quantification over reachable successful exits has an empty domain.
 
 The interaction with UPDATE parameters is stable. UPDATE parameters may be written zero, one, or many times across any path; the write-once rule applies only to CREATE parameters. A method that writes an UPDATE parameter twice on the same path is well-formed; the same method written with a CREATE parameter would be ill-formed.
 
 The interaction with the `-> name` result designator (&sect;3.7) is direct: a CREATE-typed `-> 'name` produces a post-write-back value in expression position; the post-write-back value is observable only when the call succeeded, since the CREATE write occurred on success per the write-once rule.
 
-### 6.14 Whole-Slot Tracking
+### 6.13 Whole-Slot Tracking
 
 The initialization analysis tracks each slot as a unit, not as a graph of fields. A buffer-backed compound &mdash; a record, a union, a typed buffer &mdash; is initialized when its bytes are written as a whole; partial-field initialization is not a state the analysis tracks. The discipline applies uniformly across all type forms: buffer-backed types (records, unions, typed buffers, domains) and non-buffer types (pointers, command-typed values, fexpr-typed values, objects, variants) are each tracked as one slot per declaration, not as graphs of constituents.
 
-The whole-slot tracking is what makes "exactly one write" a coherent statement for compounds (&sect;6.13). A CREATE record parameter is written by a single aggregate-literal write that produces all its fields in one operation; the analysis records the slot as initialized after the write, with no intermediate state where some fields are written and others are not. The atomic compound construction guarantee (&sect;7.11) is the construction-side facet of the same rule: an aggregate literal constructs the whole compound at once, with no observable per-field intermediate state. A value placed by the copy operator `<<` (&sect;7.1) is likewise a single whole-slot write: the duplicated buffer-backed value initializes the destination as one unit, with no per-element intermediate state.
+The whole-slot tracking is what makes "exactly one write" a coherent statement for compounds (&sect;6.12). A CREATE record parameter is written by a single aggregate-literal write that produces all its fields in one operation; the analysis records the slot as initialized after the write, with no intermediate state where some fields are written and others are not. The atomic compound construction guarantee (&sect;7.11) is the construction-side facet of the same rule: an aggregate literal constructs the whole compound at once, with no observable per-field intermediate state. A value placed by the copy operator `<<` (&sect;7.1) is likewise a single whole-slot write: the duplicated buffer-backed value initializes the destination as one unit, with no per-element intermediate state.
 
 The discipline eliminates whole categories of static-analysis questions. A record-with-pointers would punch a hole in per-slot tracking &mdash; the pointer copies, the pointee doesn't &mdash; but the buffer-backed containment rule (&sect;1.5, &sect;5.1) forbids buffer-backed types from containing pointers, and the rule extends transitively to all the buffer-backed compounds. The cases that presuppose a buffer-backed structure containing non-buffer-backed components are not Basis cases; the analysis can treat each buffer-backed slot as a uniform byte-aggregate without per-field decomposition.
 
@@ -1552,11 +1546,11 @@ For variants (&sect;5.13), the absent state is a structural property of the type
 
 For non-buffer types other than variants &mdash; pointers, command-typed values, fexpr-typed values, objects &mdash; the slot has no zero-default state, and bare introduction is not admitted. A `# ^Int32 x` declaration is a static error; an initializing form (`#x <- ...` or `Type: #x, ...` in argument position) is required. The whole-slot tracking treats these slots as initialized only after a complete write; partial states are not modeled.
 
-The implementation of the analysis is a forward-flow walk over the body's CFG, joining initialization states at convergent nodes; the join of `init` and `init` is `init`, of `uninit` and `uninit` is `uninit`, and `init` joined with `uninit` is a contradiction at the join point that gates a use of the slot at that point. The full transfer-function table is in Appendix E. The analysis runs in parallel with the failure-state lattice (&sect;4.13) and the taint analyses (&sect;&sect;6.5, 6.15) over the same CFG with the same join points but with independent transfer functions per analysis.
+The implementation of the analysis is a forward-flow walk over the body's CFG, joining initialization states at convergent nodes; the join of `init` and `init` is `init`, of `uninit` and `uninit` is `uninit`, and `init` joined with `uninit` is a contradiction at the join point that gates a use of the slot at that point. The full transfer-function table is in Appendix E. The analysis runs in parallel with the failure-state lattice (&sect;4.13) and the taint analyses (&sect;&sect;6.4, 6.14) over the same CFG with the same join points but with independent transfer functions per analysis.
 
-### 6.15 Fexpr-Relevance Taint
+### 6.14 Fexpr-Relevance Taint
 
-A second taint axis operates parallel to the READ-taint discipline (&sect;6.5): the **fexpr-relevance** taint. The two axes are orthogonal &mdash; a slot may be untainted, READ-tainted, fexpr-relevance-tainted, or both &mdash; and propagate by independent transfer functions on the same CFG walk.
+A second taint axis operates parallel to the READ-taint discipline (&sect;6.4): the **fexpr-relevance** taint. The two axes are orthogonal &mdash; a slot may be untainted, READ-tainted, fexpr-relevance-tainted, or both &mdash; and propagate by independent transfer functions on the same CFG walk.
 
 The fexpr-relevance taint exists to enforce the **defining-frame ceiling** property of fexpr-typed values (&sect;5.15). A fexpr cannot escape upward, cannot be stored in a long-lived position, cannot be captured by a value that outlives its defining frame. The taint axis is what tracks "this slot or value is reached from a fexpr-typed slot whose ceiling is the fexpr's defining frame `D`," propagating that information through the per-frame analysis so that any assignment that would violate the ceiling is a static error.
 
@@ -1570,7 +1564,7 @@ The enforcement points where fexpr-relevance taint blocks an operation are the s
 - Bare-identifier copy of a fexpr value into a non-fexpr-typed slot is forbidden &mdash; the copy would erase the fexpr type information and bypass the structural enforcement.
 - Capture of fexpr-typed values by lambdas is forbidden &mdash; a lambda's capture-list ceiling is the lambda's defining frame, not the fexpr's, and the two need not coincide.
 
-The propagation is **per-frame and ceiling-bound to the fexpr's `D`**. The taint flows through the local analysis until it reaches an enforcement point, where the typechecker either confirms the assignment respects the ceiling or rejects it. Fexpr-relevance taint, like READ-taint (&sect;6.6), does not propagate across frame boundaries: a fexpr-typed parameter passed to a callee enters the callee's frame as a fresh fexpr-typed slot, with the type-level discipline enforced afresh in the callee's analysis. The structural restrictions enumerated above are absolute &mdash; they apply at every assignment and storage point, to every value carrying fexpr-relevance taint (whether the value's type is itself fexpr or whether the taint was acquired by binding a fexpr-typed argument into a command-reference per &sect;8.12), regardless of which frame the operation occurs in &mdash; so each frame can enforce the ceiling discipline locally without needing to know specific identities of upstream frames.
+The propagation is **per-frame and ceiling-bound to the fexpr's `D`**. The taint flows through the local analysis until it reaches an enforcement point, where the typechecker either confirms the assignment respects the ceiling or rejects it. Fexpr-relevance taint, like READ-taint (&sect;6.5), does not propagate across frame boundaries: a fexpr-typed parameter passed to a callee enters the callee's frame as a fresh fexpr-typed slot, with the type-level discipline enforced afresh in the callee's analysis. The structural restrictions enumerated above are absolute &mdash; they apply at every assignment and storage point, to every value carrying fexpr-relevance taint (whether the value's type is itself fexpr or whether the taint was acquired by binding a fexpr-typed argument into a command-reference per &sect;8.12), regardless of which frame the operation occurs in &mdash; so each frame can enforce the ceiling discipline locally without needing to know specific identities of upstream frames.
 
 The interaction with method dispatch &mdash; admitting fexpr-typed parameters in methods, the `FexprFailure` standard message, and the per-instance defaults-incompatibility &mdash; is in &sect;9.20. The full transfer-function table for the fexpr-relevance analysis, parallel to the READ-taint table, is in Appendix E.
 
@@ -1581,14 +1575,14 @@ The two taint axes operate on access paths in the same way (&sect;1.5 standing l
 
 This section specifies how values are constructed and how slots are initialized in Basis. Every construction in the language flows through the `<-` operator (&sect;7.1), which writes a value into a slot and enforces the failure-atomicity discipline (&sect;7.18). The right-hand side of `<-` accepts five distinct surface shapes (&sect;7.3), each fitting a subset of left-hand-side types: parenthesized command call, aggregate literal `${...}`, sequence literal `$[...]`, bare identifier, and bare literal. The construction surfaces compose with the language's existing mechanisms &mdash; the failure system (&sect;4), the parameter-mode discipline (&sect;6), the type system (&sect;5) &mdash; without introducing new control-flow primitives.
 
-The `.implicit` mechanism (&sect;7.8) admits bare literals at typed slots by registering type-conversion constructors. The `-<` dynamic-narrowing operator (&sect;7.14, &sect;7.15) is the runtime counterpart to `<-` for narrowing across type hierarchies, applied uniformly across variants, class hierarchies, and unions. The `=` defaults declaration (&sect;7.10) supplies type-level default values for buffer-backed types whose bytes do not have a meaningful zero. The atomic compound construction discipline (&sect;7.11) is the structural shape that satisfies the CREATE write-once obligation (&sect;6.13) for compound types.
+The `.implicit` mechanism (&sect;7.8) admits bare literals at typed slots by registering type-conversion constructors. The `-<` dynamic-narrowing operator (&sect;7.14, &sect;7.15) is the runtime counterpart to `<-` for narrowing across type hierarchies, applied uniformly across variants, class hierarchies, and unions. The `=` defaults declaration (&sect;7.10) supplies type-level default values for buffer-backed types whose bytes do not have a meaningful zero. The atomic compound construction discipline (&sect;7.11) is the structural shape that satisfies the CREATE write-once obligation (&sect;6.12) for compound types.
 
 ### 7.1 The Placement Operators
 
 **The `<-` operator.** The primary placement operator, `<-`, is the runtime placement primitive: it writes a value into a slot, observing the slot's parameter-mode contract and the language's failure-atomicity discipline. It appears in three syntactic positions:
 
 - **Local introduction.** `#x <- value` introduces a fresh local slot `x` and binds it to the right-hand value; `# T x <- value` is the explicitly-typed variant (&sect;7.2). The introduced slot's type is the right-hand value's type when no explicit type is supplied.
-- **Create write.** `'r <- value` writes a CREATE parameter or receiver. Under the write-once-on-success rule (&sect;6.13), this is typically the constructor body's single Phase 2 commit (&sect;7.11).
+- **Create write.** `'r <- value` writes a CREATE parameter or receiver. Under the write-once-on-success rule (&sect;6.12), this is typically the constructor body's single Phase 2 commit (&sect;7.11).
 - **Slot rewrite.** `&x <- value` rewrites the slot bound to an UPDATE-mode parameter (where `&` is the parameter's mode marker per &sect;6.2); `x <- value` rewrites a regular previously-initialized local (where the bare-name form applies). In both cases the slot must already be initialized at the point of the write; the write replaces its value. CREATE parameters do not admit rewrite &mdash; the write-once rule allows only one write per successful path.
 
 In all three positions, the typechecker enforces failure-atomicity (&sect;7.18): a may-fail right-hand side whose evaluation fails leaves the left-hand slot in its pre-write state. For CREATE and reference writes, the pre-write state is the slot's contents before the `<-` evaluation began. For local introductions, the pre-write state is the slot's pre-introduction status &mdash; uninitialized for `#x <- value` whose right-hand side fails, since the `#`-introduction-with-initializer is a single atomic operation that either completes or does not.
@@ -1716,7 +1710,7 @@ The form is well-defined for three categories of types:
 
 - **Buffer-backed types** (records, plain domains, unions, buffer primitives `[N]` / `[]`, typed buffers `[N]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (&sect;5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling moves by invoking a conversion constructor or by routing through a shared ancestor.
 - **Pointers `^T`.** The pointer value is copied; both pointers reference the same target. The pointed-to storage is unaffected.
-- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values and slot references for fexpr values. Capture-ceiling and fexpr-relevance taint (&sect;6.15) apply to the copy as they do to the source.
+- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values and slot references for fexpr values. Capture-ceiling and fexpr-relevance taint (&sect;6.14) apply to the copy as they do to the source.
 
 The form is **rejected at the typechecker** for two non-buffer types:
 
@@ -1825,7 +1819,7 @@ A typed-buffer default uses the sequence form:
 
 In both examples, the `=` RHS is an Aggregate Literal (Rule 1 of &sect;7.4) or Sequence Literal whose contents are bare literals &mdash; `0.0` is a `Decimal` literal, `1` and `2` and `3` are `Integer` literals &mdash; bridged to the LHS field/element types (`Float32`, `Int32`) via `.implicit` constructors at the field/element boundary. Defaults are **typically** Literal-form because they describe compile-time-constant values; the language admits initialization-temporary form (Rule 2 or Rule 3) at `=` positions when the default involves runtime-computed components, but the literal form is preferred where applicable for clarity and for compile-time constant-folding.
 
-The `=` form is **not** an exception to the no-defaults discipline (&sect;5.1, &sect;6.14) but the user-facing mechanism for declaring a type's invariant-respecting default. The discipline is:
+The `=` form is **not** an exception to the no-defaults discipline (&sect;5.1, &sect;6.13) but the user-facing mechanism for declaring a type's invariant-respecting default. The discipline is:
 
 - **Buffer-backed types whose bytes have a meaningful zero** acquire a zero-default by composition. No `=` declaration is needed; `# T x` produces a zero-filled initialized slot.
 - **Buffer-backed types whose invariants forbid zero** declare an explicit default via `=`. Without the declaration, `# T x` is rejected; only `# T x <- value` works.
@@ -1837,7 +1831,7 @@ The programmer is responsible for deciding whether a buffer-backed type's invari
 
 ### 7.11 Atomic Compound Construction
 
-The CREATE write-once rule (&sect;6.13) requires every successful return path through a constructor's body to write the CREATE receiver `'r` exactly once. Combined with the whole-slot tracking discipline (&sect;6.14) &mdash; which tracks the slot as a unit, not as a graph of fields &mdash; the rule implies that compound construction is **atomic**: a single conceptual write fills the entire slot.
+The CREATE write-once rule (&sect;6.12) requires every successful return path through a constructor's body to write the CREATE receiver `'r` exactly once. Combined with the whole-slot tracking discipline (&sect;6.13) &mdash; which tracks the slot as a unit, not as a graph of fields &mdash; the rule implies that compound construction is **atomic**: a single conceptual write fills the entire slot.
 
 The constructor body's natural shape is two-phase:
 
@@ -1975,7 +1969,7 @@ A placement &mdash; `<-` (move), `<<-` (view), or `<<` (copy) &mdash; whose righ
 - **Short-circuit on failure.** Once a subexpression fails, subsequent subexpressions in the same `<-` are not evaluated. The whole operation propagates the failure.
 - **Failure mode propagates from the `<-` form.** The form acquires the failure mode of any may-fail subexpression: a `<-` containing one or more `?`-marked subexpressions is may-fail; a `<-` containing a `!`-marked subexpression is must-fail. The standard failure-system conformance rules apply (&sect;4.13).
 
-The atomicity falls out of copy-restore (&sect;6.4): the language commits no half-written state on failure, regardless of which subexpression failed and at what point. No new transactional machinery is introduced.
+The atomicity falls out of copy-restore (&sect;6.3): the language commits no half-written state on failure, regardless of which subexpression failed and at what point. No new transactional machinery is introduced.
 
 The implementation device: each subexpression's value is computed into a temporary slot until every subexpression of the placement has succeeded; only then does the commit into the LHS slot fire &mdash; by move, view, or copy, per the operator. The user-side observation is that the LHS is unchanged across the entire placement if any subexpression fails.
 
@@ -1993,7 +1987,7 @@ The pre-construction in Phase 1 introduces the embedded object as a local in the
 
 The embedded object's at-stack registration migrates to the new container's owning frame at the moment of the aggregate literal's atomic placement. This composes with the existing frame-migration mechanism for objects (&sect;3.13); no new mechanism is introduced. If `buildContainer` fails &mdash; say, a `?`-call inside Phase 1 &mdash; the partially-constructed `contained` object is registered with `buildContainer`'s frame and is cleaned up via the failure-exit machinery there. The atomicity story holds: no half-built container exists at any caller's frame.
 
-The pattern composes with the CREATE write-once rule (&sect;6.13): the Phase 2 commit is a single `<-` to `'r`, which discharges the CREATE obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
+The pattern composes with the CREATE write-once rule (&sect;6.12): the Phase 2 commit is a single `<-` to `'r`, which discharges the CREATE obligation in one write. The Phase 1 locals (`contained` here) are ordinary locals, tracked individually, with their initialization states independent of `'r`'s.
 
 ### 7.20 Allocation
 
@@ -2042,7 +2036,7 @@ The rejection is guaranteed rather than best-effort: `tmp`'s region is this fram
 | UPDATE | `&name` / `Type&` | stays `init` | read and/or write, copy-restore |
 | DISPOSE | `~name` / `Type~` | `init -> uninit` | finalize / consume |
 
-The marker is part of the identifier shape (&sect;3.3), written named (`Socket ~s`) or type-suffixed in a nameless command-type position (`Socket~`, `^Storage~`), exactly as `'` and `&` are. The same-scope rule (&sect;6.3) extends to forbid a fourth coexisting shape of one name. A `~` *receiver* names a **finalizer** &mdash; a method that consumes its receiver:
+The marker appears in a parameter or receiver declaration (&sect;6.2), written as a prefix on the name (`Socket ~s`) or as a type-suffix in a nameless command-type position (`Socket~`, `^Storage~`), exactly as `'` and `&` are. A `~` *receiver* names a **finalizer** &mdash; a method that consumes its receiver:
 
 ```
 .cmd Socket ~s :: disconnect = ...     ; calling sock :: disconnect consumes sock
@@ -2061,7 +2055,7 @@ The marker is part of the identifier shape (&sect;3.3), written named (`Socket ~
 
 Ownership rests in the scope-local `t`, and the scope boundary discharges it; no hand-written finalizer is involved. A slot may also be ended early and explicitly, with the `~ x` operation below.
 
-**The finalizing parameter.** The `~` mode extends from receivers to ordinary parameters: a `~`-marked parameter is a *finalizing position* &mdash; the callee ends the argument's lifetime. Because you cannot finalize what you do not own &mdash; a finalize through a borrow would end a value another binding still owns, a double-discharge &mdash; a `~` parameter requires the call site to supply an **owned** argument, and passing there transfers ownership in and consumes it. The caller's source binding is `uninit` after the call on **both** the success and failure edges; any later use is the use-after-finalize static error (&sect;6.14).
+**The finalizing parameter.** The `~` mode extends from receivers to ordinary parameters: a `~`-marked parameter is a *finalizing position* &mdash; the callee ends the argument's lifetime. Because you cannot finalize what you do not own &mdash; a finalize through a borrow would end a value another binding still owns, a double-discharge &mdash; a `~` parameter requires the call site to supply an **owned** argument, and passing there transfers ownership in and consumes it. The caller's source binding is `uninit` after the call on **both** the success and failure edges; any later use is the use-after-finalize static error (&sect;6.13).
 
 The non-`~` dual is the **re-home rule**: a non-`~` parameter that *receives* ownership &mdash; a by-name `<-` at the call site (&sect;3.14, &sect;10.11) &mdash; must forward that ownership, on every success path, to an owner that outlives the call (a CREATE return, or an `<-` into a longer-lived slot or field). It may neither let the duty default-fire at its own frame end on success nor pass the argument into a consuming position. The single permitted unmarked lifetime-ending is the failure path, where eager transfer (&sect;10.11) lets the default safety net fire and leaves the caller's source `uninit`. The rule and the `~` parameter co-define each other: `~` *is* the position the rule exempts &mdash; the one that consumes instead of forwarding &mdash; so passing an argument onward into a `~` position is itself consuming, which makes `~` transitive. The control-flow verification this places on the typechecker is developed with the transfer machinery in Appendix E.
 
@@ -2078,14 +2072,14 @@ The non-`~` dual is the **re-home rule**: a non-`~` parameter that *receives* ow
 
 **The precondition, and its footgun.** Finalization requires that no **non-self-sufficient** duty be outstanding on the value. The &sect;10.5 proviso disposes of the rest: a finalizing discharge first fires the value's outstanding *self-sufficient* defaults as cleanup, then consumes. A duty whose default is not self-sufficient cannot be fired that way &mdash; finalizing over it strands it silently, an unpoliced footgun (Appendix I, B2). The remedy is the programmer's: discharge such duties explicitly before finalizing, or design the obligation's default to be self-sufficient (&sect;10.2), which the declaration rule makes the ordinary case. The narrowing guard `?- .obligated` is the conservative test &mdash; it proves the value clear of *all* duties, which is sufficient but stricter than the precondition requires, since the obligation narrowing asks whether any duty remains and offers no dedicated guard for the non-self-sufficient subset alone.
 
-**Owned-only, and its footgun.** Like the `~` parameter, `~ x` wants `x` to own its obligation. Where the binding is *provably* non-owning &mdash; a `<<-` view, or a known interior view &mdash; `~ x` is a static error (&sect;6.14). A received parameter is not such a case: ownership of an obligation is provenance, not the parameter's mode (&sect;10.2), so whether a READ or `&` parameter owns the obligation is the caller's to decide &mdash; by positional borrow versus by-name `<-` &mdash; and is undecidable in the callee. (An `&` parameter's copy-restore returns the *value* to the caller, but the obligation it carries flows independently, so `&` is no more provably-non-owning than READ.) So `~` on a parameter &mdash; or on any binding the checker cannot prove non-owning &mdash; is **allowed and unpoliced**: finalizing through a runtime non-owner strands a duty or double-frees, an acknowledged footgun on the &sect;10.3 shelf with the aliasing hazards. Owned-only is the discipline the decidable cases enforce, not a wall.
+**Owned-only, and its footgun.** Like the `~` parameter, `~ x` wants `x` to own its obligation. Where the binding is *provably* non-owning &mdash; a `<<-` view, or a known interior view &mdash; `~ x` is a static error (&sect;6.13). A received parameter is not such a case: ownership of an obligation is provenance, not the parameter's mode (&sect;10.2), so whether a READ or `&` parameter owns the obligation is the caller's to decide &mdash; by positional borrow versus by-name `<-` &mdash; and is undecidable in the callee. (An `&` parameter's copy-restore returns the *value* to the caller, but the obligation it carries flows independently, so `&` is no more provably-non-owning than READ.) So `~` on a parameter &mdash; or on any binding the checker cannot prove non-owning &mdash; is **allowed and unpoliced**: finalizing through a runtime non-owner strands a duty or double-frees, an acknowledged footgun on the &sect;10.3 shelf with the aliasing hazards. Owned-only is the discipline the decidable cases enforce, not a wall.
 
 **Variants.** If `x` is a variant, `~ x` finalizes its active payload first &mdash; one level: the payload's own finalizer or discharge runs, then `x` goes `uninit`. It does not on its own recurse into a payload record's fields; that is the payload's business, governed by the field rule below. This one-level cascade is the *only* variant-specific finalization behavior &mdash; a variant is otherwise an ordinary slot (auto-finalized at scope end) or an ordinary field (programmer-managed), with no exemption.
 
 **Discharge is not finalization.** A discharge *clears a duty*; finalization *consumes the value*. The two part wherever a discharge readies a value for reuse rather than ending it: overwriting a secrets buffer to zero is a complete discharge that leaves a perfectly valid buffer. Which one a sink performs is read off its position, not separately declared &mdash; a **finalizing sink** discharges through a `~` position and sets the slot `uninit`; a **non-finalizing sink** discharges through an UPDATE or READ position and the slot stays `init`, a live, reusable value. &sect;10.4 develops the rule.
 
 ```
-.cmd Vault v :: zero: Secret &s = &s <- ${}     ; non-finalizing: s stays a live buffer
+.cmd Vault v :: zero: Secret &s = s <- ${}     ; non-finalizing: s stays a live buffer
 .cmd Heap  h :: free: Storage ~s = ...          ; finalizing: s -> uninit
 ```
 
@@ -2107,7 +2101,7 @@ Teardown factors freely around the gate, which sits only on the field-touching a
 
 The four constructional forms producing command-typed values &mdash; command reference, command literal, lambda, and fexpr &mdash; share a common umbrella: each produces a value of a command type, may be invoked, and (subject to per-form restrictions) may be captured, passed as an argument, or stored in a slot. The forms differ along three axes: whether they have a body of their own (command literals, lambdas, and fexprs do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, fexprs capture implicitly by free name, command references bind partial-application arguments); and how their lifetimes relate to the construction site (lambdas and fexprs are ceiling-tracked; command literals have no construction-site ties; command references inherit ceiling from any reference-bound arguments).
 
-This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, the context-variables umbrella across the forms, the constraints on combining fexprs with the other forms, and the seven fexpr restrictions that ensure fexpr ceiling-tracking remains sound. The mode-and-taint mechanisms governing captures (&sect;6.10, &sect;6.15) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and UPDATE only, &sect;6.10), the fexpr free-name-access mode inheritance from the defining frame (&sect;6.10, &sect;6.15), and the fexpr-relevance taint discipline (&sect;6.15).
+This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, the context-variables umbrella across the forms, the constraints on combining fexprs with the other forms, and the seven fexpr restrictions that ensure fexpr ceiling-tracking remains sound. The mode-and-taint mechanisms governing captures (&sect;6.9, &sect;6.14) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and UPDATE only, &sect;6.9), the fexpr free-name-access mode inheritance from the defining frame (&sect;6.9, &sect;6.14), and the fexpr-relevance taint discipline (&sect;6.14).
 
 ### 8.1 The Four Constructional Forms
 
@@ -2117,7 +2111,7 @@ The four forms are summarized below.
 | --- | --- | --- | --- | --- |
 | Command reference | `{cmd}`, `{cmd: x, _, y}`, `{receiver :: methodName}` | no (refers to an existing command's body) | partial-application bindings only | ordinary; ceiling-tracked iff any `&`-bound argument |
 | Command literal | `:<args>{body}` | yes | none | ordinary object lifecycle |
-| Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and UPDATE modes only (&sect;6.10) | ceiling computed from captures (&sect;8.4) |
+| Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and UPDATE modes only (&sect;6.9) | ceiling computed from captures (&sect;8.4) |
 | Fexpr | `:{body}`, `?{body}`, `!{body}` | yes | implicit by free name; mode inherited from defining frame's binding | ceiling = `D` (the defining frame), uniformly (&sect;8.5) |
 
 The `:<args>{body}` and `:<args / captures>{body}` forms share the outer notation; the presence or absence of the slash discriminates command literal from lambda. The fexpr forms `:{body}`, `?{body}`, `!{body}` are distinct: they have no angle-bracketed parameter list, since fexprs take no arguments of their own &mdash; their effective parameters are the free names in the body, resolved against the defining frame at invocation. The leading mark on a fexpr (`:`, `?`, `!`) is the body's failure character (&sect;4) and appears in the fexpr's type signature `:<*>`, `?<*>`, `!<*>` correspondingly.
@@ -2138,11 +2132,11 @@ The receiver-binding via `::` and positional-argument binding via `: ...` are or
 
 A command reference has no body of its own; it refers to the underlying command's body. Invocation through a command reference is dispatched the same as a direct call to the underlying command, except that the bound arguments (in partial-application or receiver-elision) are supplied automatically and the dispatch lookup (in receiver-elision) is short-circuited.
 
-**Mode restrictions on bound arguments.** A command reference may bind arguments at READ or UPDATE positions of the underlying command's parameter list. CREATE positions cannot be bound: a CREATE parameter discharges its write at the invocation site, where the receiving frame owns the slot, and pre-binding would either capture a slot in the construction frame (defeating frame-ownership) or defer the slot identity to invocation (which is not partial application). The user resolves by leaving the CREATE position open with `_`, allowing each invocation to supply the CREATE slot. The rule parallels the lambda capture-list mode constraint (&sect;6.10): CREATE is forbidden for the same structural reason in both surfaces.
+**Mode restrictions on bound arguments.** A command reference may bind arguments at READ or UPDATE positions of the underlying command's parameter list. CREATE positions cannot be bound: a CREATE parameter discharges its write at the invocation site, where the receiving frame owns the slot, and pre-binding would either capture a slot in the construction frame (defeating frame-ownership) or defer the slot identity to invocation (which is not partial application). The user resolves by leaving the CREATE position open with `_`, allowing each invocation to supply the CREATE slot. The rule parallels the lambda capture-list mode constraint (&sect;6.9): CREATE is forbidden for the same structural reason in both surfaces.
 
 **Reference-chain flattening.** When a command reference binds a `&`-mode argument (e.g., `{cmd: &x}`), the binding flattens through any reference chain: if `&x` is itself an UPDATE parameter of the constructing command's frame, the binding chains through to the origin slot's frame. The command reference's effective ceiling is the origin slot's owning frame &mdash; the frame at which the slot lives, not the immediate constructing frame. A command reference with no `&`-bound arguments has no ceiling beyond the ordinary object lifecycle; it can be returned, stored, or moved freely.
 
-**Excluded combinations with fexprs.** Per &sect;8.12, command references can bind fexpr-typed arguments under the fexpr-tainting discipline of &sect;6.15: the resulting command-typed value carries the fexpr-relevance taint of any fexpr-typed bound argument, propagating the `D`-ceiling constraint of the bound fexpr to the command-reference value.
+**Excluded combinations with fexprs.** Per &sect;8.12, command references can bind fexpr-typed arguments under the fexpr-tainting discipline of &sect;6.14: the resulting command-typed value carries the fexpr-relevance taint of any fexpr-typed bound argument, propagating the `D`-ceiling constraint of the bound fexpr to the command-reference value.
 
 ### 8.3 Command Literal
 
@@ -2158,7 +2152,7 @@ The angle-bracketed parameter list declares the command's parameters using the s
 
 **The pure-thunk form.** The form `:<>{body}` is a zero-argument command literal &mdash; a body that takes no parameters. It is useful where a deferred-body value is needed without parameterization. The pure-thunk type is `:<>`, distinct from the fexpr types `:<*>`, `?<*>`, `!<*>`. There is no subsumption across the family boundary &mdash; a fexpr-typed slot is not assignable to a pure-thunk slot, even though both are never-fails.
 
-A command literal's body is subject to the **transitive READ contract** (&sect;6.5): if the body reads or modifies state reached through a parameter, the parameter's mode contract &mdash; including any taint propagated through the storage graph in the constructing frame's analysis &mdash; applies to the body's operations on that state. The contract is local to the construction frame's analysis; the command literal value, once constructed, carries the obligations as a property of the value but does not propagate further analysis state across the frame boundary.
+A command literal's body is subject to the **transitive READ contract** (&sect;6.4): if the body reads or modifies state reached through a parameter, the parameter's mode contract &mdash; including any taint propagated through the storage graph in the constructing frame's analysis &mdash; applies to the body's operations on that state. The contract is local to the construction frame's analysis; the command literal value, once constructed, carries the obligations as a property of the value but does not propagate further analysis state across the frame boundary.
 
 ### 8.4 Lambda
 
@@ -2168,11 +2162,11 @@ A lambda is a command-typed value with an explicit capture list. The surface for
 
 The slash separates the parameter list from the capture list. The capture list enumerates names from the construction site that the body may reference; the body may reference its own parameters, the captured names, and any language-visible names independent of capture (top-level commands, constants), and nothing else.
 
-**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.10): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.10): lambdas may outlive the defining frame through ceiling-flattening of reference captures, leaving the CREATE slot potentially nonexistent at invocation; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
+**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.9): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.9): lambdas may outlive the defining frame through ceiling-flattening of reference captures, leaving the CREATE slot potentially nonexistent at invocation; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
 
 **Reference-chain flattening for `&` captures.** A `&`-mode capture is flattened to the origin slot's owning frame, parallel to the rule for command-reference `&` bindings (&sect;8.2). If `&x` captures a name that is itself an UPDATE parameter of the constructing frame, the capture chains through to the origin; the lambda's ceiling becomes the origin slot's owning frame.
 
-**Per-invocation copy-restore for `&` captures.** For each invocation of a lambda with `&` captures, the captured slot reference is bound at invocation time per the standard copy-restore discipline of &sect;6.4: the invocation observes the slot's current value, may mutate it during the invocation, and the mutations are written back at the invocation's successful completion. Failures during the invocation leave the captured slot's pre-invocation value preserved, per failure-atomicity (&sect;7.18). This is distinct from command-reference `&` *bindings* (&sect;8.2), which are partial-application and operate on the bound slot directly without per-invocation copy-restore.
+**Per-invocation copy-restore for `&` captures.** For each invocation of a lambda with `&` captures, the captured slot reference is bound at invocation time per the standard copy-restore discipline of &sect;6.3: the invocation observes the slot's current value, may mutate it during the invocation, and the mutations are written back at the invocation's successful completion. Failures during the invocation leave the captured slot's pre-invocation value preserved, per failure-atomicity (&sect;7.18). This is distinct from command-reference `&` *bindings* (&sect;8.2), which are partial-application and operate on the bound slot directly without per-invocation copy-restore.
 
 **Ceiling computation.** A lambda's ceiling is computed from its captures: a lambda with no `&` captures has no ceiling beyond the ordinary object lifecycle; a lambda with `&` captures has the ceiling of the most-restrictive reference-flattened owning frame across all `&` captures. The ceiling controls where the lambda value may be moved, returned, or stored; movement to a frame longer-lived than the ceiling is rejected.
 
@@ -2198,13 +2192,13 @@ The leading mark &mdash; `:`, `?`, `!` &mdash; is the body's failure character (
 
 The model captures the structural property that a fexpr's body, when invoked, modifies `D`'s state as if the body were inlined at the call site &mdash; but the call site is at `I`, not at `D` (the inlining is logical, not lexical). The `D` ceiling discipline ensures the fexpr cannot escape `D`: the fexpr's lifetime is bounded by `D`'s frame retirement.
 
-**Implicit captures by free name.** A fexpr's body references names that are not its own parameters (it has no parameters); those references resolve at invocation time against the defining frame `D`. Each captured access carries the mode of the binding in `D` (&sect;6.10): a `&x` in `D` is reference-accessible from the fexpr body; a READ `x` is read-only; a CREATE `'x` is CREATE-accessible (writes to it through the fexpr count toward `D`'s write-once analysis as if the body were inlined). The fexpr cannot escalate access; it can only do what `D`'s mode-marking already permits.
+**Implicit captures by free name.** A fexpr's body references names that are not its own parameters (it has no parameters); those references resolve at invocation time against the defining frame `D`. Each captured access carries the mode of the binding in `D` (&sect;6.9): a `&x` in `D` is reference-accessible from the fexpr body; a READ `x` is read-only; a CREATE `'x` is CREATE-accessible (writes to it through the fexpr count toward `D`'s write-once analysis as if the body were inlined). The fexpr cannot escalate access; it can only do what `D`'s mode-marking already permits.
 
-**Direct captured-slot access (not copy-restore).** Unlike lambda `&` captures, fexpr free-name accesses do not undergo per-invocation copy-restore. The body accesses `D`'s slots directly at each invocation; mutations are applied to `D`'s state in place. The structural justification is that fexprs cannot escape `D` (the ceiling discipline) and `D`'s analysis sees fexpr invocations as inlining points in its own CFG, so the standard frame-local discipline (&sect;6.4) governs without an additional copy-restore layer.
+**Direct captured-slot access (not copy-restore).** Unlike lambda `&` captures, fexpr free-name accesses do not undergo per-invocation copy-restore. The body accesses `D`'s slots directly at each invocation; mutations are applied to `D`'s state in place. The structural justification is that fexprs cannot escape `D` (the ceiling discipline) and `D`'s analysis sees fexpr invocations as inlining points in its own CFG, so the standard frame-local discipline (&sect;6.3) governs without an additional copy-restore layer.
 
 **The `D` ceiling, uniformly.** Every fexpr's ceiling is `D` itself &mdash; the defining frame. A fexpr cannot be assigned upward (to a CREATE or UPDATE parameter of `D` &mdash; Restriction G of &sect;8.13), cannot be returned from a constructor (Restriction F), cannot be captured by a lambda (Restriction E), cannot be embedded in long-lived containers (Restriction C), and cannot be referenced by pointer (Restriction B). The ceiling discipline is uniform across all fexpr-typed slots and is structurally enforced by the seven restrictions (&sect;8.13).
 
-**Fexpr-relevance taint composes with the model.** Per &sect;6.15, a fexpr-relevance taint is computed at the fexpr's construction site against `D`'s state graph: any of `D`'s slots whose value may be observed or modified by the body's free-name accesses is fexpr-relevance-tainted in `D`'s analysis. The taint discipline is local to `D`; it does not propagate across frame boundaries (per the local-frame analysis principle of &sect;1.5). The taint flows into the fexpr value at construction time and travels with the value down-stack to invocation sites. At the invocation site (in `I`), no additional analysis state is added &mdash; the invocation is treated as inlining of the body into `D`'s analysis at the invocation point, with the body's free-name accesses operating on `D`'s slots through the taint discipline `D` already computed.
+**Fexpr-relevance taint composes with the model.** Per &sect;6.14, a fexpr-relevance taint is computed at the fexpr's construction site against `D`'s state graph: any of `D`'s slots whose value may be observed or modified by the body's free-name accesses is fexpr-relevance-tainted in `D`'s analysis. The taint discipline is local to `D`; it does not propagate across frame boundaries (per the local-frame analysis principle of &sect;1.5). The taint flows into the fexpr value at construction time and travels with the value down-stack to invocation sites. At the invocation site (in `I`), no additional analysis state is added &mdash; the invocation is treated as inlining of the body into `D`'s analysis at the invocation point, with the body's free-name accesses operating on `D`'s slots through the taint discipline `D` already computed.
 
 ### 8.6 Failure-Mark Conformance
 
@@ -2226,7 +2220,7 @@ Command-typed values carry a failure mark (`:`, `?`, or `!`) as part of their ty
 
 ### 8.7 Capture-Shadowing
 
-**Lambda permits capture-shadowing.** A lambda body may declare a local of the same name as a captured name; the local shadows the captured name within the body's scope, per the standard lexical-scoping rules of &sect;6.3. The captured name is unaffected outside the body; the lambda's invocation accesses the local where the body declares one and the captured slot where it does not.
+**Lambda permits capture-shadowing.** A lambda body may declare a local of the same name as a captured name; the local shadows the captured name within the body's scope, per the ordinary lexical-scoping rules (Appendix G.1, shadowing at G.10). The captured name is unaffected outside the body; the lambda's invocation accesses the local where the body declares one and the captured slot where it does not.
 
 **Fexpr forbids capture-shadowing.** A fexpr body's free-name resolution is by name against `D`'s scope; introducing a local of the same name in the fexpr body would create ambiguity at invocation, since the fexpr's body could be re-resolved against `D` (resolving to `D`'s binding) or against the body's local (resolving to the local). The language declines to make this choice ad hoc and forbids the configuration: a fexpr body's local introduction with the same name as any free-name reference in the body is a static error. The user resolves by choosing distinct names.
 
@@ -2284,7 +2278,7 @@ The umbrella rule: fexprs travel exclusively *down-stack* from `D` &mdash; passe
 
 Each restriction names the channel it closes and why the closure is structural rather than analytic; the rationales are stated once, in &sect;8.13.
 
-**One admitted combination &mdash; command references binding fexpr-typed arguments &mdash; under the fexpr-tainting discipline of &sect;6.15.** A command reference of the form `{cmd: ..., my_fexpr, ...}` is well-formed when the fexpr-relevance taint of `my_fexpr` is propagated to the resulting command-typed value. The taint marks the command-typed value as carrying a `D`-ceiling constraint inherited from the bound fexpr; the value cannot be moved beyond `my_fexpr`'s `D`. The fexpr-tainting machinery makes this binding tractable: the ceiling constraint travels through the partial-application boundary on the command-reference value, and the typechecker enforces the constraint at every assignment, store, or move involving the resulting value.
+**One admitted combination &mdash; command references binding fexpr-typed arguments &mdash; under the fexpr-tainting discipline of &sect;6.14.** A command reference of the form `{cmd: ..., my_fexpr, ...}` is well-formed when the fexpr-relevance taint of `my_fexpr` is propagated to the resulting command-typed value. The taint marks the command-typed value as carrying a `D`-ceiling constraint inherited from the bound fexpr; the value cannot be moved beyond `my_fexpr`'s `D`. The fexpr-tainting machinery makes this binding tractable: the ceiling constraint travels through the partial-application boundary on the command-reference value, and the typechecker enforces the constraint at every assignment, store, or move involving the resulting value.
 
 If the typechecker subsequently shows that the fexpr-tainting machinery is insufficient to admit other combinations, those combinations remain structurally excluded; the language admits exactly the combinations whose ceiling constraints can be carried by the existing tainting machinery, and no others.
 
@@ -2306,9 +2300,9 @@ The seven restrictions govern fexpr-typed slots and fexpr-typed values throughou
 
 - **Restriction G &mdash; No fexpr written to defining-frame writeable parameters.** A fexpr cannot be assigned to any CREATE or UPDATE parameter of `D` itself. *Rationale:* a CREATE or UPDATE parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, &sect;1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling. The fexpr is `D`-bounded &mdash; passed down-stack only, never assigned up-stack directly or transitively.
 
-**Transitive application to fexpr-relevance-tainted values.** The seven restrictions apply not only to values of fexpr type but also to **fexpr-relevance-tainted** values &mdash; values that have inherited a `D`-ceiling constraint via the fexpr-tainting discipline of &sect;6.15. The principal case is a command-reference value that binds a fexpr-typed argument (&sect;8.12): the resulting `:<...>` value is tainted and carries the bound fexpr's `D`-ceiling. Such a tainted command-reference is, for the purposes of the seven restrictions, treated as if it were a fexpr-typed value &mdash; it cannot be a CREATE, UPDATE, or consuming parameter (A), cannot be pointed to (B), cannot appear in an object field, record field, or variant candidate (C), cannot be bare-identifier-copied (D), cannot be captured by a lambda (E), cannot be a constructor's CREATE output (F), and cannot be written to a writeable parameter of its `D` (G). Any operation that would be illegal for a fexpr-typed value is equally illegal for a fexpr-relevance-tainted value of any underlying type.
+**Transitive application to fexpr-relevance-tainted values.** The seven restrictions apply not only to values of fexpr type but also to **fexpr-relevance-tainted** values &mdash; values that have inherited a `D`-ceiling constraint via the fexpr-tainting discipline of &sect;6.14. The principal case is a command-reference value that binds a fexpr-typed argument (&sect;8.12): the resulting `:<...>` value is tainted and carries the bound fexpr's `D`-ceiling. Such a tainted command-reference is, for the purposes of the seven restrictions, treated as if it were a fexpr-typed value &mdash; it cannot be a CREATE, UPDATE, or consuming parameter (A), cannot be pointed to (B), cannot appear in an object field, record field, or variant candidate (C), cannot be bare-identifier-copied (D), cannot be captured by a lambda (E), cannot be a constructor's CREATE output (F), and cannot be written to a writeable parameter of its `D` (G). Any operation that would be illegal for a fexpr-typed value is equally illegal for a fexpr-relevance-tainted value of any underlying type.
 
-The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative &mdash; some channels closed by them might admit a more nuanced rule under additional analysis machinery (the &sect;6.15 fexpr-tainting axis is one such direction, applied selectively in &sect;8.12 to admit command-reference fexpr-typed bindings).
+The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative &mdash; some channels closed by them might admit a more nuanced rule under additional analysis machinery (the &sect;6.14 fexpr-tainting axis is one such direction, applied selectively in &sect;8.12 to admit command-reference fexpr-typed bindings).
 ---
 
 ## 9. Classes, Instances, and Dispatch
@@ -2638,19 +2632,19 @@ The reuse-vs-wrap disambiguation is **static and local**: the typechecker examin
 
 ### 9.20 Class-Method Fexpr-Typed Parameters
 
-A class method's signature may declare a fexpr-typed parameter, subject to the fexpr-tainting discipline of &sect;6.15. The class-method dispatch boundary is treated as a partial-application boundary for tainting purposes: any fexpr-typed argument flows into the dispatched method's frame as a READ-mode parameter, with the fexpr-relevance taint carried through as if the dispatch were a direct call.
+A class method's signature may declare a fexpr-typed parameter, subject to the fexpr-tainting discipline of &sect;6.14. The class-method dispatch boundary is treated as a partial-application boundary for tainting purposes: any fexpr-typed argument flows into the dispatched method's frame as a READ-mode parameter, with the fexpr-relevance taint carried through as if the dispatch were a direct call.
 
 **The `FexprFailure` standard message.** When a fexpr-tainting violation is detected at a dispatch boundary &mdash; a fexpr-typed argument whose ceiling cannot be honored by the dispatched implementation &mdash; the language raises a `FexprFailure` failure with a payload identifying the violation. `FexprFailure` is a built-in failure message; its payload class and hierarchy are part of the standard library.
 
 **Defaults are incompatible with fexpr-typed parameters.** A class method with a fexpr-typed parameter cannot have a default body in the class declaration: the default body would need to be analyzable at class-declaration time, but the fexpr's defining frame `D` is not in scope at that point. The user resolves by either omitting the default (making the class method `.decl`-form only) or by avoiding fexpr-typed parameters on commands that need defaults.
 
-**Partial application is compatible.** A command reference `{cmd: ..., my_fexpr, ...}` that binds a fexpr-typed argument at a class method's parameter position is well-formed under the &sect;8.2 partial-application rules and &sect;6.15 fexpr-tainting: the resulting command-typed value carries the fexpr-relevance taint, and its ceiling tracks the bound fexpr's `D`.
+**Partial application is compatible.** A command reference `{cmd: ..., my_fexpr, ...}` that binds a fexpr-typed argument at a class method's parameter position is well-formed under the &sect;8.2 partial-application rules and &sect;6.14 fexpr-tainting: the resulting command-typed value carries the fexpr-relevance taint, and its ceiling tracks the bound fexpr's `D`.
 
 ### 9.21 Variants with Fexpr Candidates
 
 A variant whose candidate type-list contains a fexpr-typed candidate is **disallowed**. The structural difficulty is that a variant slot's lifetime can exceed the lifetimes of values stored at its candidates &mdash; by the variant's transit through parameters, returns, or storage &mdash; and a fexpr candidate's `D`-ceiling is incompatible with the variant's potentially-longer lifetime.
 
-The exclusion does not extend to **fexpr-typed local slots themselves**: a local fexpr-typed slot is well-formed (&sect;6.15). The exclusion *does* extend, via the transitive application of &sect;8.13's restrictions, to **fexpr-relevance-tainted command-reference candidates** &mdash; a candidate that is a command-reference value binding a fexpr-typed argument per &sect;8.12 carries the bound fexpr's `D`-ceiling and is rejected at the variant candidate position by the same rule (Restriction C applied transitively). The forbidden combinations are direct fexpr-typed candidates and fexpr-tainted command-reference candidates; the fexpr-typing restrictions of &sect;8.13 enumerate the full set of forbidden positions.
+The exclusion does not extend to **fexpr-typed local slots themselves**: a local fexpr-typed slot is well-formed (&sect;6.14). The exclusion *does* extend, via the transitive application of &sect;8.13's restrictions, to **fexpr-relevance-tainted command-reference candidates** &mdash; a candidate that is a command-reference value binding a fexpr-typed argument per &sect;8.12 carries the bound fexpr's `D`-ceiling and is rejected at the variant candidate position by the same rule (Restriction C applied transitively). The forbidden combinations are direct fexpr-typed candidates and fexpr-tainted command-reference candidates; the fexpr-typing restrictions of &sect;8.13 enumerate the full set of forbidden positions.
 
 
 ---
@@ -2780,7 +2774,7 @@ Generic signatures and partial application are both admitted for source and sink
 
 **Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-scope discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument &mdash; a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization &mdash; so the single-argument default rule of &sect;10.10 is unaffected. Under the witness-based generics strategy Basis is expected to adopt, the carried parameterization is simply the witness the source call already held.
 
-**Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated CREATE output &mdash; the only shape the mode-marker filter (&sect;9.14) permits &mdash; so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type &mdash; that invoking a source reference yields an obligated value, that a sink reference discharges one &mdash; invariant in the manner of the parameter-mode markers (&sect;6.12), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
+**Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated CREATE output &mdash; the only shape the mode-marker filter (&sect;9.14) permits &mdash; so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type &mdash; that invoking a source reference yields an obligated value, that a sink reference discharges one &mdash; invariant in the manner of the parameter-mode markers (&sect;6.11), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
 
 ### 10.10 What `.promise` Adds
 
@@ -2885,7 +2879,7 @@ Finalization composes by recursion: finalizing a sub-object held in a field runs
 
 ## Appendix A. Lexical Structure
 
-This appendix specifies the lexical surface of Basis: the token classes the lexer recognizes, the identifier shapes the parser distinguishes, the literal-token forms, the indentation discipline, and the disambiguation rules that resolve potentially-ambiguous adjacencies.
+This appendix specifies the lexical surface of Basis: the token classes the lexer recognizes, the identifier and marker tokens the parser distinguishes, the literal-token forms, the indentation discipline, and the disambiguation rules that resolve potentially-ambiguous adjacencies.
 
 ### A.1 Token Inventory
 
@@ -2942,19 +2936,13 @@ The `$` character is reserved for the literal-fence prefixes (`${`, `$[`); it ha
 
 **Comment.** A `;` starts a line comment that extends to the end of the physical line. There are no nested comments and no block-comment form. The line containing a `;` is logically truncated at the `;` for all parsing purposes; the lexer skips the comment text and emits a newline as if the `;` were the line's end.
 
-### A.2 Identifier Shapes
+### A.2 Mode Markers and Identifiers
 
-Basis recognizes three shapes for an identifier of any given name:
+Identifiers are always bare names. The mode markers `'` (CREATE), `&` (UPDATE), and `~` (DISPOSE) are separate lexical tokens, not part of any identifier, and they are grammatical only in a parameter declaration &mdash; as a prefix on the name in a named context (`Int 'result`), or as a suffix on the type in a nameless context (`Int'`, `Socket~`). A mode marker anywhere else, including any use of a name inside a command body, is a syntax error.
 
-- `name` &mdash; bare identifier; READ access in a parameter declaration or use site
-- `'name` &mdash; CREATE identifier; CREATE access
-- `&name` &mdash; reference identifier; UPDATE access
+A type expression `Int 'result` lexes as three tokens &mdash; `Int`, the marker `'`, and the identifier `result` &mdash; with the marker standing between the type and the name. The marker `'` is thus a distinct token; it is not fused into the identifier.
 
-The lexer recognizes `'name`, `&name`, and `name` as three distinct identifier tokens of the same name. The same-scope rule (&sect;6.3) prevents the three shapes from coexisting in the same scope: introducing `x` and `'x` in the same scope is a static error, since both refer to the same logical name with different mode contracts.
-
-The mode-marker prefix is part of the identifier token; it does not lex as separate punctuation. A type expression `Int 'r` has tokens `Int`, then `'r` (a single identifier token), not `Int`, then `'`, then `r`.
-
-Identifier-shape detection is purely lexical. The parser does not need context to determine whether `'r` is an identifier or a marker followed by an identifier &mdash; the leading `'` immediately followed by a name character produces the CREATE-identifier token.
+Because a use site carries no marker, an identifier's mode is not recoverable from the identifier itself. A name's mode is the mode of the binding it resolves to (Appendix G.2), fixed at the declaration and read from there.
 
 ### A.3 Type Names vs. Identifier Names
 
@@ -3221,7 +3209,7 @@ command-type-expr ::= : < param-type-list > result-designator-cmd?    ; never-fa
 param-type-list   ::= ( param-type ( , param-type )* )?
 param-type        ::= type-expr mode-marker?
 mode-marker       ::= '                                ; CREATE
-                    | &                                ; reference
+                    | &                                ; UPDATE
                     | ~                                ; DISPOSE (S6.2)
                                                        ; (READ has no marker)
 result-designator-cmd ::= -> identifier
@@ -3289,14 +3277,10 @@ scope-block       ::= .scope cmd-body                            ; body-internal
 local-intro       ::= # type-expr? identifier ( <- expr )?
                     | # type-expr? identifier <<- expr           ; non-owning-view local (S10.11)
                     | # type-expr? identifier << expr            ; copy local (S7.1)
-                    | # ' identifier <- expr                     ; CREATE intro shorthand
-                    | # & identifier <- expr                     ; UPDATE intro shorthand
 
 assignment        ::= identifier <- expr                         ; rewrite existing local
                     | identifier <<- expr                        ; non-owning-view rewrite (S10.11)
                     | identifier << expr                         ; copy rewrite (S7.1)
-                    | ' identifier <- expr                       ; CREATE write
-                    | & identifier <- expr                       ; reference rewrite
                     | field-access <- expr                       ; field write
                     | field-access <<- expr                      ; non-owning-view field write (S10.11)
                     | field-access << expr                       ; copy field write (S7.1)
@@ -3360,7 +3344,7 @@ The eleven markers (&sect;3.1, &sect;4.4) are sequenced as adjacent siblings at 
 
 ```
 placement-stmt    ::= local-intro                                ; #x <- expr
-                    | assignment                                 ; x <- expr or 'x <- expr or &x <- expr
+                    | assignment                                 ; x <- expr (mode comes from the binding)
                     | choice-stmt                                ; first-success choice (S7.17)
                     | field-access <- expr
                     | field-access <<- expr
@@ -3548,7 +3532,7 @@ The distinction between `CommandTypeExpr` and `FexprTypeExpr` reflects the famil
 
 `Param` is a record `{ type: TypeExpr | ClassBoundedType, mode: Mode, name: identifier }`.
 
-`Receiver` is `Param` with the additional invariant that the receiver's mode is constrained per the per-shape table (&sect;6.8): CREATE only for constructors; all four modes for methods. A **finalizer** is a method whose receiver mode is DISPOSE &mdash; it is not a separate signature shape and has no node of its own (&sect;6.8).
+`Receiver` is `Param` with the additional invariant that the receiver's mode is constrained per the per-shape table (&sect;6.7): CREATE only for constructors; all four modes for methods. A **finalizer** is a method whose receiver mode is DISPOSE &mdash; it is not a separate signature shape and has no node of its own (&sect;6.7).
 
 `ClassBoundedType` records the `(T:Class)` form: `{ typeVar: TypeName, boundClass: TypeName }`.
 
@@ -3581,7 +3565,7 @@ The chain composition of `?:` blocks (&sect;4.4) is recorded as adjacent `DoWhen
 
 | Node | Fields | Notes |
 | --- | --- | --- |
-| `Identifier` | `name: String`, `mode: Mode` | Per identifier shape: `name`, `'name`, `&name`, `~name` |
+| `Identifier` | `name: String` | A use-site name; always bare. Its mode is the mode of the binding it resolves to, not stored here (&sect;6.2, Appendix G.2). |
 | `IntegerLit` | `value: Int`, `kind: IntegerKind` | Decimal, Hex (literal-token), Binary forms |
 | `DecimalLit` | `value: Decimal` | |
 | `StringLit` | `value: String` | |
@@ -3612,7 +3596,7 @@ The five RHS shapes admitted at `<-` positions (&sect;7.3):
 | `ParenCall` | `call: ConstructorCall \| Call` |
 | `AggregateLit` | (per C.5) |
 | `SequenceLit` | (per C.5) |
-| `BareIdentifier` | `name: identifier`, `mode: Mode` |
+| `BareIdentifier` | `name: identifier` |
 | `BareLiteral` | `value: Lit` |
 
 The construction-form classification is determined at the parser by the RHS shape; the typechecker dispatches construction-rule machinery (&sect;7) accordingly.
@@ -3643,7 +3627,7 @@ Two further statement nodes derive from the placement family:
 
 `QualifiedMethodName` carries the `{ClassName :: methodName}` disambiguation form: `{ className: TypeName, methodName: identifier }`.
 
-`Capture` is `{ name: identifier, mode: { READ, UPDATE } }` per &sect;6.10.
+`Capture` is `{ name: identifier, mode: { READ, UPDATE } }` per &sect;6.9.
 
 ### C.8 Class / Instance / Declaration Nodes
 
@@ -3674,7 +3658,7 @@ Recovery contexts are part of the body-statement-node hierarchy (C.4): a `DoReco
 
 Several invariants are maintained at AST construction:
 
-- **Identifier-shape consistency.** An `Identifier` node's `mode` field is determined entirely by the leading character of the source token: `name` -> READ, `'name` -> CREATE, `&name` -> UPDATE, `~name` -> DISPOSE. The parser does not infer mode from context.
+- **Use-site identifiers carry no mode.** An `Identifier` node records only a name; a mode marker at a use site is a syntax error (Appendix A.2). Mode is a property of the *binding* &mdash; recorded on `Param`, `Receiver`, and `Capture` nodes at the declaration &mdash; and a use's governing mode is recovered by resolving the name to its binding (Appendix G.2), not stored on the use-site node.
 - **Operators are recorded, never inferred.** A `Placement` or `Choice` node's `op` field is set from the operator token (`<-`, `<<-`, `<<`) as written. The parser does not deduce a placement's disposition from the shapes of its operands; the move/view/copy distinction is syntactic (&sect;7.1).
 - **Choice arity.** A `Choice` node carries at least two alternatives. A single-alternative choice is not a distinct form &mdash; it is an ordinary `Placement`.
 - **Create-receiver-only-for-constructors.** A `ConstructorSignature` node's receiver mode is always CREATE. The parser rejects constructor signatures with non-CREATE receiver markers.
@@ -3896,7 +3880,7 @@ Gamma |- lhs <- rhs   ok      (with .implicit insertion if needed)
 ```
 
 ### D.6 Call-Site Typing
-These are the formal typing judgments for the call forms whose prose homes are &sect;3.14 (calling commands) and &sect;6.7 (the receiver rules); the notation is defined in D.1.
+These are the formal typing judgments for the call forms whose prose homes are &sect;3.14 (calling commands) and &sect;6.6 (the receiver rules); the notation is defined in D.1.
 
 **Regular call:**
 
@@ -3917,7 +3901,7 @@ $$
 \Gamma \vdash R \in \text{class containing method}\ m \\
 \Gamma \vdash m : (R\ \text{receiver-mode}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
 \text{Each}\ \text{arg}_i\ \text{satisfies position}\ i\ \text{per}\ m_i \\
-\text{Receiver mode satisfies the R1 (call-site initialization) rule of}\ \S6.7
+\text{Receiver mode satisfies the R1 (call-site initialization) rule of}\ \S6.6
 \end{array}}{\Gamma \vdash \text{receiver}\ \texttt{::}\ m\texttt{:}\ \text{args}\ \text{ok}}
 \quad \text{(with failure mark = mark)}
 $$
@@ -4239,7 +4223,7 @@ The lattice is per-slot. The state vector tracks initialization for every named 
 | `uninit`, `uninit` | `uninit` |
 | `init`, `uninit` | `uncertain` (read-then-use is a static error) |
 
-**Conformance.** At every successful exit edge of a command body, every CREATE parameter must have state `init`. Otherwise, the body fails to typecheck (the CREATE write-once obligation per &sect;6.13).
+**Conformance.** At every successful exit edge of a command body, every CREATE parameter must have state `init`. Otherwise, the body fails to typecheck (the CREATE write-once obligation per &sect;6.12).
 
 ### E.3 Failure-State Lattice Analysis
 
@@ -4339,7 +4323,7 @@ $$
 \text{FexprTaintLattice} = \{\,\text{untainted},\ \text{fexpr-tainted}\,\}\ \text{per slot}, \qquad \bot = \text{untainted},\ \top = \text{fexpr-tainted}
 $$
 
-A slot is **fexpr-tainted** if its value is, or may transitively reach, a fexpr-typed value (&sect;6.15, &sect;8.13).
+A slot is **fexpr-tainted** if its value is, or may transitively reach, a fexpr-typed value (&sect;6.14, &sect;8.13).
 
 **Sources.**
 
@@ -4400,10 +4384,10 @@ Consider the factorial subcommand:
 .cmd factorial: Int n, Int 'result =
     .sub factorialAcc: Int n, Int acc, Int 'r =
         ?: n == 0
-            'r <- acc
-        factorialAcc: n - 1, n * acc, 'r
+            r <- acc
+        factorialAcc: n - 1, n * acc, r
     
-    factorialAcc: n, 1, 'result
+    factorialAcc: n, 1, result
 ```
 
 The CFG for `factorialAcc`'s body has three nodes:
@@ -4524,7 +4508,7 @@ Analogous rules for `?-` (engage on guard failure), `?:` (chain semantics: first
 <^body's body, phi, Sigma>             ->  <epsilon, epsilon, Sigma>   (body failed; loop exits)
 ```
 
-**R9 &mdash; Frame entry.** A command call introduces a new frame. The callee's frame is allocated; arguments are copy-restored into the callee's slots per their modes (&sect;6.4). The current frame's slots remain in scope but are not directly accessible to the callee.
+**R9 &mdash; Frame entry.** A command call introduces a new frame. The callee's frame is allocated; arguments are copy-restored into the callee's slots per their modes (&sect;6.3). The current frame's slots remain in scope but are not directly accessible to the callee.
 
 **R10 &mdash; Frame exit (success).** When a command body reaches a `clear` exit, the frame retires. `@`-blocks and `@!`-blocks registered against this frame fire in reverse registration order. After all blocks fire, the frame's storage is reclaimable.
 
@@ -4688,34 +4672,26 @@ Basis uses *lexical* scoping: a name's binding is determined by the source struc
 - **Scope-block scope.** A `.scope` block (&sect;3.17) introduces a sub-scope inheriting from its enclosing scope, exactly like a block-marker body: names introduced inside it via `#` are visible only within the block and gone at the dedent, and may shadow enclosing bindings (G.10).
 - **Subcommand body scope.** A subcommand's body has its own lexical scope per &sect;3.12; the subcommand does *not* capture from the enclosing command's scope.
 
-A scope holds a set of `(name, type, mode)` triples. Multiple bindings of the same name in the same scope is a static error (&sect;6.3's same-scope rule for identifier shapes specifically).
+A scope holds a set of `(name, type, mode)` triples. Multiple bindings of the same name in the same scope is a static error (G.3): a name is bound at most once per scope.
 
-### G.2 Identifier-Shape Distinction
+### G.2 Mode of a Resolved Name
 
-A name binding in a scope is associated with an identifier shape per the mode of the binding:
+A binding in a scope carries a mode &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; fixed by its declaration. A use site is a bare name with no marker (A.2), so resolution proceeds by name alone: the name resolves to a binding (G.4), and the mode governing that use is the mode recorded on the binding found.
 
-- READ binding: the name resolves as `name`.
-- CREATE binding: the name resolves as `'name`.
-- UPDATE binding: the name resolves as `&name`.
+There is thus no matching of marker shapes at a use site, and no way for one name to denote different-moded bindings in a single scope: a name is bound at most once per scope (G.3), and its one binding fixes its mode. A nested scope may rebind the name at a different mode (shadowing, G.10); resolution still returns a single binding, the innermost one in scope.
 
-The lexer emits one of these three identifier-token-shapes per use site (per A.2). The resolution algorithm searches for a binding whose identifier shape matches the token shape at the use site.
+### G.3 Duplicate-Name Enforcement
 
-**Same-scope rule (&sect;6.3).** A scope may contain at most one binding of any given name across the three identifier shapes. Introducing `x` and `'x` in the same scope is a static error: the two refer to the same logical name with conflicting mode contracts, and the language refuses to admit the ambiguity. The rule prevents the bug-prone pattern of having the same name available in two different modes within a single body.
-
-The rule applies to bindings *within a single scope only*; nested scopes may rebind the name at different modes if needed (shadowing).
-
-### G.3 Same-Scope Rule Enforcement
-
-At each scope's construction (during parsing or during typechecking, depending on implementation), the typechecker verifies the same-scope rule:
+At each scope's construction (during parsing or during typechecking, depending on implementation), the typechecker verifies that no name is bound more than once in the scope:
 
 ```
 For each scope S:
     For each pair of bindings (b1, b2) in S:
-        If b1.name == b2.name (regardless of identifier shape):
+        If b1.name == b2.name:
             Static error: name 'X' bound multiple times in same scope
 ```
 
-The check operates on the underlying name (after stripping any `'` or `&` prefix); the three identifier shapes are recognized as the same name.
+Bindings are keyed by name. Mode is a property recorded on each binding, not part of its identity, so two bindings of one name conflict regardless of their modes.
 
 ### G.4 Name Resolution at Use Site
 
@@ -4813,7 +4789,7 @@ Inner scopes may shadow outer scopes' bindings:
 
 For subcommand bodies, "shadowing" is moot &mdash; the outer scope's names aren't visible to begin with. For block-marker bodies and other lexical sub-scopes, ordinary shadowing applies: a name introduced inside the inner scope hides any outer binding of the same name within that scope.
 
-The same-scope rule (G.3) prohibits intra-scope shadowing across identifier shapes; cross-scope shadowing (an inner scope introducing a binding of the same name) is admitted.
+Duplicate-name enforcement (G.3) prohibits binding a name twice within one scope; cross-scope shadowing (an inner scope introducing a binding of the same name) is admitted.
 
 ### G.11 Forward References
 
@@ -4821,7 +4797,7 @@ Top-level declarations are forward-referenceable within a single source file &md
 
 ```
 .cmd factorial: Int n, Int 'result =
-    helper: n, 1, 'result
+    helper: n, 1, result
 
 .cmd helper: Int n, Int acc, Int 'r = ...      ; declared after factorial
 ```
@@ -4836,7 +4812,7 @@ A name resolution that finds no binding is a static error: "name `X` not in scop
 
 A name resolution that finds multiple bindings (e.g., two imported modules both declare a name `X`) is also a static error: "name `X` ambiguous between modules `M1` and `M2`." The user resolves with explicit module qualification: `M1::X` or `M2::X`.
 
-A use-site identifier shape that does not match any binding's shape is a more specific error: "no `'x` binding in scope at this position; `x` is bound at READ mode." This catches typos that confuse the user about a binding's mode.
+A mode marker written at a use site is a syntax error: markers are grammatical only in parameter declarations (A.2). Using a name in a way its binding's mode forbids &mdash; for instance writing to a READ-bound name &mdash; is a mode error reported against the binding: "`x` is bound at READ mode; it may not be written here."
 
 ---
 
