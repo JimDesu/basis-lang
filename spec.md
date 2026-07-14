@@ -3851,21 +3851,25 @@ $$
 
 **Aggregate literal:**
 
+For `lhs <- ${...}` (aggregate literal):
+
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{lhs has type}\ \sigma \\
 \sigma\ \text{admits Aggregate-shape construction}\ (\S7.4) \\
 \text{Each entry's RHS satisfies the corresponding position}
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \texttt{\$\{...\}}\ \text{ok}}
+\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{aggregate literal ok}}
 $$
 
 **Sequence literal:**
+
+For `lhs <- $[...]` (sequence literal):
 
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{lhs has element type}\ \tau\ \text{(lhs is a typed buffer or sequence-admitting type)} \\
 \text{Each sequence entry has type}\ \subseteq \tau\ \text{(with .implicit bridging)}
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \texttt{\$[...]}\ \text{ok}}
+\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{sequence literal ok}}
 $$
 
 **Bare identifier:**
