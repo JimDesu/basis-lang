@@ -1,31 +1,32 @@
 # The Basis Programming Language.  
- 
+
 *This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
- 
-*This is just an overview; please see `spec.md` for all the gory details.*
- 
+
+*This is just an overview (and slightly out of date); please see `spec.md` for all the gory details.*
+
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
- 
+
 ### Practical Upshots:
- 
+
 - Direct semantic match to Hexagonal Architecture... you can reason about impacts with the ease of Haskell, but without having to learn category theory.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
-- Basis is designed to be useable as a general purpose language that can handle both high level and low level coding, but it has safety features that render it inherently less space and time efficient than languages like C and Zig.  If you're writing an OS Kernel, you won't regret trying out Zig. &#9786;
-  
-### Guiding Principles:
+- Basis supports two styles of programming: a low-level style for code that must own its byte-level representation, and a high-level style for code organized around objects and behavior. Either can be chosen, or the two mixed, as the situation calls for. Basis's safety features have some space and time cost compared to C or Zig; if you're writing an OS kernel, you may prefer Zig. &#9786;.
 
+### Guiding Principles:
+- RAII should be orthogonal to the type-system
 - No non-local state access
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
 - Polymorphism isn't just for object types
+- Hierarchical statecharts shouldn't be hard 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
 - Syntactic sugar is superior to semantic sugar
 - Syntactic whitespace improves legibility
-- RAII should be orthogonal to the type-system
 - Every feature should be load-bearing, orthogonal, and simple to reason about
+
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
@@ -42,8 +43,9 @@ Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
     * $\phi$ represents a particular failure
 * $\Sigma$ represents the current variable state
     * $\sigma/c$ is sigma bound within the scope of c  
+
 General excution is described by the following rules:
- 
+
 $$
 \begin{align}
 \text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies & \langle \vec{v}, \epsilon, \Sigma' \rangle \\
@@ -59,12 +61,16 @@ $$
 \text{looping}\quad & v=rewind(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle
 \end{align}
 $$
- 
+
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. Resources and obligations — how RAII works without touching the type system — are §10. 
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
+
+#### A note on syntax
+
+Basis has a large feature set that relies on expressing a significant amount of semantics in the code.  Basis has a head-normal, indentation-based syntax that is clear and relatively simple, but has significant semantic density.  In order to avoid death-by-verbosity, Basis employs a veritable soup of symbols where other languages would use keywords.  On a scale of Perl to APL, it's about Haskell'ish in symbolic density.  You can scan Basis code very rapidly once you get acclimated, but it does take some getting used to.
  
 ## 1. At a Glance
  
@@ -74,13 +80,13 @@ Hello, world:
 .program writeLn: "Hello, world!"
 ```
  
-A regular command, with a parameter and a productive output:
+A regular command, with a parameter and a CREATE output:
  
 ```
 .cmd double: Int 'result, Int x = 'result <- x + x
 ```
  
-The signature reads "command `double` takes a productive `Int` named `result` and an `Int` named `x`; the body assigns `x + x` into the productive slot." Productive parameters — the slots a command writes to on success — are marked by a `'` prefix on the parameter name; the lexer treats `'name` and `name` as distinct identifier shapes, so the body writes to `'result`, not `result`. There is no `return` statement: production is by writing to a named slot.
+The signature reads "command `double` takes a CREATE `Int` named `result` and an `Int` named `x`; the body assigns `x + x` into the CREATE slot." CREATE parameters — the slots a command writes to on success — are marked by a `'` prefix on the parameter name; the lexer treats `'name` and `name` as distinct identifier shapes, so the body writes to `'result`, not `result`. There is no `return` statement: production is by writing to a named slot.
  
 A command that may fail, and a caller that handles the failure:
  
@@ -96,7 +102,7 @@ A command that may fail, and a caller that handles the failure:
         writeLn: "couldn't divide"
 ```
  
-The `?` prefix on `safeDivide`'s name in `.cmd ?safeDivide` declares "may fail." The body uses `?` as a block marker — "when `d = 0`," do the indented block, which fires `.fail DivByZero: n` to construct a payload-bearing failure with the numerator carried in the payload. Because `safeDivide` has exactly one writeable parameter — productive `'result` — that slot is automatically the value when the command is invoked as an expression, which is what makes `#q <- safeDivide: 10, 0` a legal use site: the call's `'result` slot is supplied by `#q`. If the call fails, the typed-recovery block `| DivByZero e -> ...` catches and recovers, binding the constructed payload to `e`; the bound name `e` is in scope only inside the recovery body.
+The `?` prefix on `safeDivide`'s name in `.cmd ?safeDivide` declares "may fail." The body uses `?` as a block marker — "when `d = 0`," do the indented block, which fires `.fail DivByZero: n` to construct a payload-bearing failure with the numerator carried in the payload. Because `safeDivide` has exactly one writeable parameter — CREATE `'result` — that slot is automatically the value when the command is invoked as an expression, which is what makes `#q <- safeDivide: 10, 0` a legal use site: the call's `'result` slot is supplied by `#q`. If the call fails, the typed-recovery block `| DivByZero e -> ...` catches and recovers, binding the constructed payload to `e`; the bound name `e` is in scope only inside the recovery body.
  
 Three points distinguish this from mainstream-language exception handling. First, failure messages in Basis are not exceptions — there is no stack unwinding (§4 covers propagation in detail). Second, the pattern `| DivByZero e ->` is a typed match that selects `DivByZero` and any of its subtypes within the message hierarchy, so a recovery block written for a parent message catches all of its descendants. Third, `e` binds only to the message's payload (the `Int` numerator here), not to the message as a whole — the identity `DivByZero` is matched by the pattern, never bound.
  
@@ -120,7 +126,7 @@ A source file is a sequence of three optional sections:
  
 - Optionally, a single `.module` declaration naming the file's module.
 - Zero or more `.import` declarations.
-- Zero or more top-level definitions: `.alias`, `.class`, `.cmd`, `.decl`, `.domain`, `.enum`, `.implicit`, `.instance`, `.intrinsic`, `.msg`, `.object`, `.program`, `.promise`, `.record`, `.resource`, `.test`, `.union`, `.variant`.
+- Zero or more top-level definitions: `.alias`, `.class`, `.cmd`, `.decl`, `.intrinsic`, `.domain`, `.enum`, `.instance`, `.object`, `.program`, `.record`, `.test`, `.union`, `.variant`.
 ```
 .module App::Models
 .import Std:Core
@@ -177,20 +183,20 @@ A failing-mark example:
 .cmd !explode: String reason = .fail Explosion: reason
 ```
  
-Parameters declare `Type name`. The `'` prefix on a parameter name marks the parameter as **productive** — the body must write to it on every successful path:
+Parameters declare `Type name`. The `'` prefix on a parameter name marks the parameter as **CREATE**-mode — the body must write to it on every successful path:
  
 ```
 .cmd compute: Int x, Int 'result = 'result <- x * 2
 ```
  
-Without `'`, the parameter is read-only (READ-mode). The `&` prefix marks the third mode, **reference** — a parameter the body may both read and write, under copy-restore: a written value commits to the caller's slot on success, and on failure the slot is bit-identical to its pre-call state. The caller must supply an already-initialized slot, since the callee may read it. So every parameter is in one of three modes: READ (bare name), PRODUCE (`'name`), or REFERENCE (`&name`).
+Without `'`, the parameter is read-only (READ-mode). Reference semantics — a parameter the body may both read and write — are expressed today by passing a pointer (`^Type`) and using the postfix `^` and `&` operators in the body to dereference and take addresses; the parameter-mode design space includes a dedicated reference mode that the references describe.
  
-A command's *expression-style result* — the value when the command is invoked inline as an expression like `#q <- compute: 7` — is determined by the writeable parameters in its signature. A writeable parameter is either productive (`'name`, write-once on success) or reference (`&name`, read-and-write with copy-restore semantics):
+A command's *expression-style result* — the value when the command is invoked inline as an expression like `#q <- compute: 7` — is determined by the writeable parameters in its signature. A writeable parameter is either CREATE (`'name`, write-once on success) or UPDATE (`&name`, read-and-write with copy-restore semantics):
  
 - **Exactly one writeable parameter:** that single slot is automatically the expression-style result. No further annotation is needed.
 - **More than one writeable parameter:** an explicit `-> name` clause is required, naming which already-declared writeable parameter is the expression-style result. The `->` does *not* introduce a new parameter — it only designates which existing writeable parameter participates in the expression-style sugar.
 - **Zero writeable parameters:** a read parameter may still be designated as the expression-style result via an explicit `-> name` clause. Without such a designation, the command is not expression-callable.
-For example, a command with two productive outputs needs the `->` clause to make one of them the expression-style result:
+For example, a command with two CREATE outputs needs the `->` clause to make one of them the expression-style result:
  
 ```
 .cmd quotrem: Int 'q, Int 'r, Int n, Int d -> q =
@@ -198,7 +204,7 @@ For example, a command with two productive outputs needs the `->` clause to make
     'r <- n % d
 ```
  
-A caller may now write `#x <- quotrem: 'remainder, 10, 3` to bind the quotient to `x` while supplying `'remainder` as the slot for the remainder. The same rule applies to commands that mix productive and reference parameters: any combination of two or more writeable slots requires `-> name` to designate which is the expression-style result.
+A caller may now write `#x <- quotrem: 'remainder, 10, 3` to bind the quotient to `x` while supplying `'remainder` as the slot for the remainder. The same rule applies to commands that mix CREATE and UPDATE parameters: any combination of two or more writeable slots requires `-> name` to designate which is the expression-style result.
  
 Implicit context parameters appear after a `/` separator, taking precedence-by-uniqueness-of-type from the caller's lexical scope:
  
@@ -210,7 +216,7 @@ The caller of `writeAll` need not pass `logger` explicitly if their scope contai
  
 ### 3.2 Constructors and methods
  
-A constructor's signature names a type as the productive receiver:
+A constructor's signature names a type as the CREATE receiver:
  
 ```
 .cmd Widget 'w: Int x, Int y =
@@ -237,18 +243,18 @@ Methods dispatch on the runtime types of all receivers in concert. The implement
  
 ### 3.3 Frame-exit hooks: `@` and `@!`
  
-`@` and `@!` are block markers written *in a command body*, each registering a cleanup body to run when the enclosing scope ends:
+A class or module may declare methods that run at frame exit:
  
 ```
-.cmd withLock / Lock lock =
-    acquire: lock
-    @ release: lock          ; runs on every exit, success or failure
-    process: lock
+.class Resource:
+    .decl Resource r: String name
+    .decl @ Resource r           ; runs at frame exit (success or failure)
+    .decl @! Resource r          ; runs at frame exit only on failure
 ```
  
-`@` is read "at exit," `@!` "at exit on failure." Hooks fire in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system; §4.5 develops the failure interaction.
+`@` is read "at exit"; `@!` is "at exit on failure." These execute when the frame holding the value retires, in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system.
  
-The hooks are tied to **scope lifetime**, not object lifetime. By default the enclosing scope is the command's frame; a `.scope` block — a C++-RAII-style region inside a body — makes the boundary smaller, so a hook registered inside one fires at the `.scope`'s close. They are *not* per-type destructors: no class-level form auto-registers a hook for every value of a type. Cleanup that should follow a *value's* lifetime — firing wherever the value finally comes to rest, even across calls — is the obligation system's job (§10), which is how Basis delivers RAII without putting anything in the type.
+This is an `RAII`-equivalent mechanism, but the hooks are *not* destructors: they are tied to **stack-frame lifetime**, not to object lifetime. An `@` handler fires only when a frame slot directly holding the value retires; a value that exists solely as a field within a record or object does *not* fire its `@` handler when that container goes away. The value must occupy a slot in the stack frame — not be buried inside another structure — for the handler to fire.
  
 ### 3.4 Calling commands
  
@@ -284,13 +290,13 @@ process: arg1,
   arg3
 ```
  
-The `_` token is a placeholder; like `::`, it serves multiple purposes. In a productive parameter position at a call site, `_` says "I don't care about this result" — for example, a caller of `quotrem` (§3.1) who needs only the quotient may write:
+The `_` token is a placeholder; like `::`, it serves multiple purposes. In a CREATE parameter position at a call site, `_` says "I don't care about this result" — for example, a caller of `quotrem` (§3.1) who needs only the quotient may write:
  
 ```
 #x <- quotrem: _, 10, 3
 ```
  
-The remainder is computed and discarded. The discard form of `_` is valid only in productive parameter positions. Its other uses are partial application (§9.5) and variant construction (§5.6, §7).
+The remainder is computed and discarded. The discard form of `_` is valid only in CREATE parameter positions. Its other uses are partial application (§9.5) and variant construction (§5.6, §7).
  
 ## 4. Failure and Recovery
  
@@ -335,8 +341,8 @@ Indentation establishes block scopes. The first character of a block-bearing lin
 | `^` | "rewind" | Sibling block that rewinds control to its *preceding sibling* at the same indentation level. Body is optional: a bodiless `^` rewinds unconditionally; a `^` with a body rewinds on body success and consumes any body failure (terminating the loop). Requires a preceding sibling — a bare `^` with none is a static error. |
 | `\|` | "recover" | Catch-all recovery: runs only when an earlier sibling at the same indentation has produced a propagating failure. |
 | `\| TypeName name ->` | "recover, when of type" | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. |
-| `@` | "at exit" | At the end of the enclosing scope (the command frame, or a `.scope` block), fire the body. |
-| `@!` | "at exit, on failure" | At the end of the enclosing scope, fire the body only on the failure path. |
+| `@` | "at exit" | At frame exit, fire the body. |
+| `@!` | "at exit, on failure" | At frame exit, fire the body only on the failure path. |
  
 The if-then-else idiom uses `?` and `-`:
  
@@ -391,7 +397,7 @@ A failure message may be **bound to a class** — meaning that the payload's run
  
 The class binding makes failures *contractual*: a recovery handler does not need to know the concrete type of the payload, only the operations the bound class promises. Different `.fail` sites for the same message may pass values of different concrete types, all satisfying the same class, and consumers continue to work without change. This is Haskell-style typeclass dispatch sliced through the failure machinery.
  
-### 4.5 At-stack handlers and lifecycle
+### 4.5 Cleanup: at-stack handlers and obligations
  
 `@` and `@!` blocks register cleanup that runs at frame exit:
  
@@ -404,6 +410,16 @@ The class binding makes failures *contractual*: a recovery handler does not need
 ```
  
 If `process: handle` fails, both `closeHandle` and `logIncomplete` fire as the frame retires (in reverse order of registration). On success, only `closeHandle` fires. The handlers cannot themselves create new in-flight failures during exit-cleanup processing; they may, however, invoke commands that fail internally and recover internally.
+
+Frame-exit hooks are one half of Basis's cleanup story. The other is the **obligation system**: a value can carry a *duty* — close this handle, free this buffer, join this thread — that the compiler tracks and requires to be discharged exactly once, never silently dropped. A value acquired from a **resource** (an ordinary acquire) or a **promise** (a value that becomes available later) carries such a duty; the duty is settled either explicitly or by finalizing the value with the **DISPOSE** mode (`~`), the destruction-dual of construction. When the owner of an obligated value goes out of scope, its duty fires — so a promise standing for a spawned thread can auto-join that thread at scope end, with no explicit join call:
+
+```
+#worker <- spawn: task        ; worker carries a join-obligation
+; ... use worker ...
+; at scope end, worker's obligation fires — the thread is joined automatically
+```
+
+Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value* — it can be moved to a new owner, handed to a callee, or stored, and the duty follows. The full system — resources, promises, ownership transfer, and object retirement — is in the spec.
  
 ### 4.6 What the static analysis tracks
  
@@ -417,7 +433,7 @@ Block markers and recovery contexts manipulate the lattice precisely; the typech
  
 ## 5. Types
  
-The type system has two layers. **Buffer-backed** types are pure-bytes values: their layout is fully described by their fields' bytes, and they may be embedded inline in records, in arrays, in unions. **Non-buffer** types — pointers, objects, command-typed values, variants — have their own lifecycle machinery and are referenced indirectly. The two-layer split is what gives Basis predictable layouts at low level (records stay packable, domains stay byte-faithful) while preserving rich object-and-variant semantics where they are useful.
+The type system has two layers, and they are what let Basis work in either style. **Buffer-backed** types are pure-bytes values: their layout is fully described by their fields' bytes, and they may be embedded inline in records, in arrays, in unions — the substrate for byte-level work. **Non-buffer** types — pointers, objects, command-typed values, variants — carry their own lifecycle machinery and are referenced indirectly — the substrate for object-and-behavior work. A program can stay close to the bytes, work in terms of objects, or mix the two as each part of the problem warrants.
  
 ### 5.1 Buffers and ranges
  
@@ -581,18 +597,18 @@ Enumerations are compile-time constants — read-only values fixed at module com
  
 ## 6. Parameters and Mode Markers
  
-Every parameter has a *mode* describing what the body and caller can do with it. There are three: READ (the default, read-only), PRODUCE (`'`, write-once on success), and REFERENCE (`&`, read-and-write under copy-restore — writes commit on success, the slot is untouched on failure).
+Every parameter has a *mode* describing what the body and caller can do with it: **READ** (the default, read-only), **CREATE** `'` (write-once on success), and **UPDATE** `&` (read-and-write, with copy-restore semantics). A fourth mode, **DISPOSE** `~`, consumes a value to finalize it; it belongs with the resource-cleanup story (§4.5).
  
-### 6.1 The productive marker `'`
+### 6.1 The CREATE marker `'`
  
-A parameter name prefixed with `'` is productive: the body must write to it on every successful exit path, and the caller must supply an uninitialized slot to receive the write:
+A parameter name prefixed with `'` is **CREATE**-mode: the body must write to it on every successful exit path, and the caller must supply an uninitialized slot to receive the write:
  
 ```
 .cmd compute: Int x, Int 'result =
     'result <- x * x
 ```
  
-A command with exactly one writeable parameter — productive (`'name`) or reference (`&name`) — is automatically expression-callable: the single writeable slot becomes the expression-style result, with no further annotation required:
+A command with exactly one writeable parameter — CREATE (`'name`) or UPDATE (`&name`) — is automatically expression-callable: the single writeable slot becomes the expression-style result, with no further annotation required:
  
 ```
 .cmd square: Int x, Int 'result =
@@ -604,7 +620,7 @@ A command with exactly one writeable parameter — productive (`'name`) or refer
  
 When a command has two or more writeable parameters, an explicit `-> name` clause is required to designate which one becomes the expression-style result; the named parameter must already be declared in the list with the appropriate writeable marker. The `->` does not introduce a new parameter.
  
-A productive parameter that the body fails to write on some path is a static error. A productive parameter the body writes more than once on the same path is a static error. The discipline composes with the failure-state lattice: writes on a path that ends in a propagating failure are exempt from the obligation, since the productive write-once obligation is *write-once-on-success*.
+A CREATE parameter that the body fails to write on some path is a static error. A CREATE parameter the body writes more than once on the same path is a static error. The discipline composes with the failure-state lattice: writes on a path that ends in a propagating failure are exempt from the obligation, since the CREATE write-once obligation is *write-once-on-success*.
  
 ### 6.2 The implicit-READ default
  
@@ -612,7 +628,7 @@ A parameter without `'` is read-only. The body may inspect it but cannot modify 
  
 ### 6.3 The same-scope rule
  
-A name introduced as a writeable parameter (`'r` or `&r`) cannot be shadowed by another binding of the same base name (`r`) in the same scope. The rule prevents the user from accidentally referring to "the same name" while operating at different mode contracts. The lexer treats `'r`, `&r`, and `r` as identifier-shape variants of the same name.
+A name introduced as a writeable parameter (`'r` or, in the future, `&r`) cannot be shadowed by another binding of the same base name (`r`) in the same scope. The rule prevents the user from accidentally referring to "the same name" while operating at different mode contracts. The lexer treats `'r`, `&r`, and `r` as identifier-shape variants of the same name.
  
 ### 6.4 The transitive READ contract
  
@@ -661,6 +677,8 @@ The choice form gives concise fallback behavior:
 #config <- readFile: "user.cfg" | readFile: "default.cfg" | (Config: emptyDefaults)
 ```
  
+`<-` is the *move* placement: it commits a value into the slot, and if the value carries an obligation, the obligation moves with it. Two siblings adjust that behavior: `<<-` places a **view** (a non-owning alias — the obligation stays with the original owner), and `<<` places a **copy** (an independent duplicate). The distinction is invisible for ordinary values and matters most for obligation-bearing ones, where it decides who owes the duty; the spec covers the three in full.
+
 `#` is not restricted to the LHS of `<-`; it may also appear in argument position at a call site, introducing a fresh local that the called command may write into. See §6 for the parameter-mode discipline that governs such locals.
  
 ### 7.2 Sequence literals
@@ -682,7 +700,7 @@ An aggregate literal builds a record, object, or variant value. The fence is `${
 #p <- ${x <- 3, y <- 4}
 ```
  
-A positional form is admitted where the lhs type is contextually explicit — for example, at typed parameter positions or on the rhs of a typed productive slot. Values are listed in the lhs type's declaration order, without field names:
+A positional form is admitted where the lhs type is contextually explicit — for example, at typed parameter positions or on the rhs of a typed CREATE slot. Values are listed in the lhs type's declaration order, without field names:
  
 ```
 'origin <- ${3, 4}                                  ; positional; 'origin's declared type provides the field order
@@ -692,7 +710,7 @@ Where the lhs type is not contextually explicit, the positional form is rejected
  
 ### 7.4 Atomic compound construction
  
-Compound construction is *atomic*: a constructor whose body partially succeeds and then fails leaves the productive output uninitialized — never partially constructed. The compute-then-commit pattern means a constructor body computes all the work first, then commits via a single productive `<-` write near the end. This guarantees the slot's pre-call state survives any failure.
+Compound construction is *atomic*: a constructor whose body partially succeeds and then fails leaves the CREATE output uninitialized — never partially constructed. The compute-then-commit pattern means a constructor body computes all the work first, then commits via a single CREATE `<-` write near the end. This guarantees the slot's pre-call state survives any failure.
  
 ### 7.5 The `-<` dynamic-narrowing operator
  
@@ -778,7 +796,7 @@ A lambda is a command literal extended with an explicit capture list, separated 
 :<Int x / Int counter>{ counter <- counter + x }
 ```
  
-Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or reference (`&`, live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
+Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
  
 ### 8.4 Fexpr
  
@@ -884,11 +902,12 @@ Method receivers carry mode markers:
  
 | Receiver mode | Surface | Idiomatic use |
 |---|---|---|
-| Productive `'` | `'r` | "Re-initialize the receiver" — factory-like operations |
-| Reference `&` (designed; current via `^`) | `&r` | In-place modification |
+| CREATE `'` | `'r` | "Re-initialize the receiver" — factory-like operations |
+| UPDATE `&` | `&r` | In-place modification |
+| DISPOSE `~` | `~r` | Finalize/consume the receiver (§4.5) |
 | READ (no marker) | `r` | Externalized-effect operations (logging, sending, emitting) — the receiver mediates an effect on the world |
  
-Constructors take productive receivers only: `.cmd Widget 'w: Int x, Int y = ...`. At-stack methods (`@`, `@!`) take READ or reference receivers, not productive.
+Constructors take CREATE receivers only: `.cmd Widget 'w: Int x, Int y = ...`. At-stack methods (`@`, `@!`) take READ or UPDATE receivers, not CREATE.
  
 ### 9.5 Partial application
  
@@ -926,22 +945,3 @@ Each slot independently carries its dictionary witness in the slot itself (a 3-w
 Multiple instances for the same `(class, type)` pair may exist across modules. Resolution at a use site follows Julia-style "more specialized module wins" pragmatics: the most-specialized in-scope instance wins; genuine ties are static errors. Intra-module duplicates (two `instance C: T` declarations in the same module) are always errors. Orphan instances — instances declared in a module that defined neither the class nor the type — are permitted; the language warns at import time when a new import competes with an already-visible instance for an already-used `(class, type)` pair, restoring local predictability without restricting what may be declared.
  
 Class dispatch resolves through a witness captured at the value's first class-typed-slot boundary. For non-buffer types — objects, variants — runtime identity is carried by the value's representation directly (object headers, variant 3-word slots), and dispatch through any class-typed parameter consults that runtime identity. For buffer-backed values, dispatch identity is captured when the value enters a class-typed slot and is preserved through subsequent class-typed slots — but is **lost** if the value passes through an intermediate *non-class-typed* parent buffer-backed parameter, which carries only bytes. The next class-typed slot the value enters then captures the parent's instance, not the child's. To preserve domain-specific dispatch on a buffer-backed value, the dispatch must reach the class-typed slot directly, or through a chain of class-typed slots — without intermediate upcast through a parent buffer-backed parameter.
- 
-## 10. Resources and Obligations
- 
-The first guiding principle says RAII should be orthogonal to the type system, and this is where that pays off. A *resource* is any value carrying a duty to be discharged at the end of its useful life — storage to hand back to an allocator, a transaction to commit or roll back, a lock to release, a secrets buffer to scrub. Basis tracks that duty and guarantees it is met exactly once, without attaching anything to the value's type.
- 
-The duty is a property of how a value was *acquired*, not of what it is. A `^Node` from a malloc-style allocator is obligated; the same `^Node` lent out by an arena is free — the arena carries the one obligation, not each item it hands out. Obligation-ness is per-acquisition, never a tag on the type, which is exactly what "orthogonal to the type system" buys: no `Owned[T]` wrapper, no ownership annotations threaded through every signature.
- 
-You declare the pairing once, at top level, naming the *source* that generates the duty — borne by the value it produces — and the *sink(s)* that discharge it:
- 
-```
-.resource ScratchArena: allocate -> deallocate              ; lone sink is the default
-.resource LocalTxn: begin[transaction] -> rollback | commit  ; first sink listed is the default
-```
- 
-The first sink listed is the *default* — what fires if the value reaches the end of its scope undischarged. So the lock-leak from §4.3 needs no babysitting: declare the lock's acquire/release as a `.resource`, and the release fires at the scope boundary on success *and* on failure, with no explicit `@` to remember. To choose between sinks — commit versus the safe-default rollback — pre-empt the default with a direct sink call or an `@`/`@!` block.
- 
-A `.resource` is *local*: its value must be discharged in the scope that acquired it. When a resource must outlive its origin — returned through a productive result, stored into a longer-lived structure — declare it a `.promise` instead: alike but for two things — its value may escape, its discharge deferring to wherever the value finally comes to rest; and its default sink must take a single argument, the obligated value itself. Allocation rides entirely on this — no special allocator syntax, just a source call on an allocator value (spec.md §7.20 and §10 carry the full treatment).
- 
-The discharge boundary is, by default, the enclosing command frame. A `.scope` block makes it smaller: a resource acquired inside a `.scope` is released at the scope's close rather than at the command's return — what you want inside a loop, so each pass releases its own resources as it ends.
