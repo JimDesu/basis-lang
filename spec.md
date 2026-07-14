@@ -3854,9 +3854,9 @@ $$
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{lhs has type}\ \sigma \\
-\sigma\ \text{admits Aggregate-shape construction (§7.4)} \\
+\sigma\ \text{admits Aggregate-shape construction}\ (\S7.4) \\
 \text{Each entry's RHS satisfies the corresponding position}
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \texttt{\${...\}}\ \text{ok}}
+\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \texttt{\$\{...\}}\ \text{ok}}
 $$
 
 **Sequence literal:**
@@ -3913,7 +3913,7 @@ $$
 \Gamma \vdash R \in \text{class containing method}\ m \\
 \Gamma \vdash m : (R\ \text{receiver-mode}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
 \text{Each}\ \text{arg}_i\ \text{satisfies position}\ i\ \text{per}\ m_i \\
-\text{Receiver mode satisfies the R1 (call-site initialization) rule of §6.7}
+\text{Receiver mode satisfies the R1 (call-site initialization) rule of}\ \S6.7
 \end{array}}{\Gamma \vdash \text{receiver}\ \texttt{::}\ m\texttt{:}\ \text{args}\ \text{ok}}
 \quad \text{(with failure mark = mark)}
 $$
@@ -3926,7 +3926,7 @@ $$
 \text{each}\ R_i\ \text{in a class containing}\ m \\
 \Gamma \vdash m : ((R_1, \ldots, R_k)\ \text{receiver-tuple}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
 \text{Each receiver and arg satisfies its position} \\
-\text{Joint instance resolution per §3.11 / §9.4}
+\text{Joint instance resolution per}\ \S3.11\ /\ \S9.4
 \end{array}}{\Gamma \vdash (\text{receiver}_1, \ldots, \text{receiver}_k)\ \texttt{::}\ m\texttt{:}\ \text{args}\ \text{ok}}
 $$
 
@@ -4030,7 +4030,7 @@ $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{each capture entry resolves in}\ \Gamma\ \text{at READ or UPDATE mode} \\
 \Gamma \vdash \text{body} : \text{mark}\,;\,F\ \text{under}\ (\Gamma\text{-captures-extended}) \\
-\text{ceiling} = D\ (\text{lambda's defining frame, §8.4})
+\text{ceiling} = D\ (\text{lambda's defining frame,}\ \S8.4)
 \end{array}}{\Gamma \vdash \text{mark}\langle\text{params / captures}\rangle\texttt{\{body\}} : \text{mark}\langle\text{param-types}\rangle}
 $$
 
@@ -4039,7 +4039,7 @@ $$
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{body} : \text{mark}\,;\,F\ \text{under}\ (\Gamma\ \text{at fexpr-relevance taint}) \\
-\text{no free names resolve to long-lived storage (Restrictions A–G of §8.13)}
+\text{no free names resolve to long-lived storage (Restrictions A--G of}\ \S8.13)
 \end{array}}{\Gamma \vdash \text{mark}\texttt{\{body\}} : \text{mark}\langle * \rangle}
 $$
 
