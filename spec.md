@@ -300,90 +300,90 @@ The full lexer specification &mdash; the token classes, the literal-token gramma
 
 
 ---
- 
+
 ## 3. Commands
- 
+
 A *command* is the unit of execution in Basis. Every operation a program performs &mdash; every effect, every computation, every dispatch &mdash; is structurally a command invocation. Commands take parameters of declared types and modes, may produce values into writeable parameter slots, may fail with a message, and compose hierarchically through indentation, block markers, and recovery contexts. Commands are first-class values: they may be referenced, partially applied, captured in lambdas, stored in fields, and invoked indirectly through dispatch.
- 
+
 This section describes the surface of commands &mdash; signatures, parameters, constructors, methods, subcommands, frame-exit hooks, and calling conventions. The full parameter-mode discipline (the static analyses, the transitive READ contract, taint propagation) is in &sect;6. The first-class command-typed value forms &mdash; command reference, command literal, lambda, fexpr &mdash; are in &sect;8. The class-and-instance dispatch system that resolves method calls is in &sect;9.
- 
+
 ### 3.1 The Unit of Execution
- 
+
 A command has exactly two possible outcomes per invocation: it *succeeds*, or it *fails*. Success and failure are orthogonal to any value the command produces &mdash; they are not encoded as result tags or sentinel values, and a successful command may produce no value, while a failed command's writeable-parameter slots are guaranteed not to be modified (&sect;4, &sect;6). The success/failure axis composes through the failure-mode marks (`:`, `?`, `!` per &sect;4.2) and through the block-marker constructs (&sect;4.4); the value-production axis composes through the parameter-passing mechanics (&sect;6.4) and the `<-` operator (&sect;7.1).
- 
+
 Commands have *single-shot* semantics. Each invocation produces one outcome; there is no backtracking, no resumption, no Icon-style multi-valued evaluation. The block-marker constructs that compose commands &mdash; `?`, `?-`, `?:`, `??`, `^`, `|`, `@`, `@!`, `%`, `-` (&sect;4.4) &mdash; combine single-shot outcomes; they do not introduce a generator-style multi-valued flow.
- 
+
 Surface forms that look like expression evaluation &mdash; the right-hand side of `<-`, parenthesized command invocations in argument position, the choice form `lhs <- a | b | c` &mdash; desugar into command sequences whose effects produce what the surface form denotes. The operational semantics has commands and failure flow; it has no separate expression-evaluation primitive (Appendix F). The expression-style sugar (&sect;3.7, &sect;3.8, &sect;3.14) is uniformly resolved into command-call form by the parser; the typechecker and the analyses operate on the command-call form.
- 
+
 ### 3.2 Signature Shape
- 
+
 A regular command's signature has the form:
- 
+
 ```
 .cmd <mark>name : parmList / implicitParmList -> resultName = body
 ```
- 
+
 - The optional **failure-mark prefix** on the name is one of `?` (may-fail), `!` (must-fail), or none (never-fails). The mark is not part of the command's identifier name; it is a syntactic adornment on the declaration, governed by the failure-mode discipline of &sect;4.2. A command named `parse` declared as `.cmd ?parse: ...` is invoked by the bare name `parse`, not `?parse`.
 - The **parameter list** `parmList` is a comma-separated list of `Type 'name`, `Type &name`, or `Type name` declarations &mdash; covering the three parameter modes CREATE, UPDATE, and READ respectively (&sect;3.3, &sect;6). The type-then-name order is uniform: the type appears first, the (mode-marked) name follows. The form `name : Type` is not Basis syntax in any binding position, including parameter declarations.
 - The **implicit context parameter list** `implicitParmList` follows an optional `/` separator and uses the same per-parameter syntax as the regular list. Implicit parameters are filled at the call site by uniqueness-of-type from the caller's lexical scope (&sect;3.6).
 - The **result designator** `-> resultName` names which already-declared parameter or receiver carries the expression-style result when the command is invoked in expression position (&sect;3.7). The clause is required to enable expression-position invocation when the command has more than one writeable parameter &mdash; otherwise the expression's result would be ambiguous. A command without expression-position use may omit the clause regardless of writeable-parameter count. The clause may also be supplied to designate a READ parameter as the result.
 - The **body** follows `=`. The body's structure determines the failure-state-lattice paths (&sect;4.13); the typechecker confirms that the body conforms to the signature's failure mark and that every CREATE parameter is written exactly once on every successful path (&sect;6.13).
 A command that takes no regular parameters omits the parameter list:
- 
+
 ```
 .cmd hello = writeLn: "Hello, world!"
 ```
- 
+
 A command that takes regular parameters but no implicit parameters omits the slash and the implicit list:
- 
+
 ```
 .cmd double: Int 'result, Int x = 'result <- x + x
 ```
- 
+
 A command with implicit parameters has the slash and the implicit list:
- 
+
 ```
 .cmd writeAll: List[String] lines / Logger logger = ...
 ```
- 
+
 The signature variations for constructors (&sect;3.9), single-receiver methods (&sect;3.10), and multi-receiver methods (&sect;3.11) modify the prefix portion of the signature shape &mdash; the part before the parameter list &mdash; but otherwise reuse the parameter, implicit, result-designator, and body grammar of the regular form. Subcommands (&sect;3.12) use the regular-command signature shape (no receiver, no class-bound dispatch) and follow the same body grammar; the `.sub` introducer and the lexical-scope restriction are what distinguish a subcommand from a regular `.cmd`. Frame-exit hooks (&sect;3.13) are block markers within bodies, not signature shapes; they have no signature surface.
- 
+
 ### 3.3 Parameter Modes
- 
+
 Every parameter and every receiver carries one of four *modes*, which together determine the contract between caller and callee at that position:
- 
+
 - **READ** (no marker, bare name) &mdash; the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (&sect;6.5).
 - **CREATE** (`'` marker on the name, e.g., `'result`) &mdash; the callee is statically obligated to write the parameter's slot exactly once on every successful return path (&sect;3.4).
 - **UPDATE** (`&` marker on the name, e.g., `&counter`) &mdash; the callee may read the parameter, may write it, may do both, may do neither.
 - **DISPOSE** (`~` marker on the name, e.g., `~socket`) &mdash; the callee consumes the parameter, ending the value's life and discharging its finalizing duty (&sect;10). The mode and its `~ x` operation are developed in &sect;7.22.
- 
+
 The markers are part of the identifier itself, not separate tokens: `'name`, `&name`, `~name`, and `name` are four identifier shapes of the same name, and every use site inside the body carries the marker matching the parameter's mode &mdash; a body with a CREATE parameter `'result` writes `'result <- value`, never `result <- value`.
- 
+
 The marker placement varies by syntactic context:
- 
+
 - In **named contexts** &mdash; parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries &mdash; the marker travels with the name in identifier-shape: `Int 'result`, `Logger &counter`, `Socket ~s`, `Showable s`.
 - In **nameless contexts** &mdash; command-type expressions `:<...>`, `?<...>`, `!<...>`, where parameter types are listed without names &mdash; the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`: `Int'`, `^String&`, `Socket~`, `Logger`.
- 
+
 This section is the surface. The full discipline &mdash; each mode's caller-side and callee-side contract, copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, the same-scope rule for the four identifier shapes, parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape &mdash; is &sect;6.
- 
+
 ### 3.4 Create Parameters
- 
+
 A CREATE parameter (`'name`) carries the *write-once-on-success* contract: the callee's body writes the slot exactly once on every path that reaches a successful exit, and paths that reach a failure exit leave it untouched &mdash; CREATE slots are never partially written when a command fails.
- 
+
 The pattern most user code follows is *compute-then-commit*: the body computes its inputs into local slots, then performs a single CREATE `<-` write near its end. This pattern naturally satisfies the rule and supports the atomic-compound-construction guarantee (&sect;7.11).
- 
+
 The full rule &mdash; the static errors for a missing or a repeated write, the exemption of failure paths, and the joint failure-state and initialization lattice walk that checks it &mdash; is &sect;6.13.
- 
+
 ### 3.5 Update Parameters
- 
+
 An UPDATE parameter (`&name`) carries no write obligation: the callee may read it, write it, or do neither. The caller's pre-call slot must be initialized (the parameter is readable from the callee's perspective, so reading uninitialized would be a static error per &sect;6.13's whole-slot tracking). Copy-restore at the call boundary preserves failure atomicity: any write the callee makes to the slot during its execution is committed back to the caller's slot only if the call succeeds; on failure the caller's slot reads identically to its pre-call state.
- 
+
 UPDATE parameters are the natural shape for in-place mutation (&sect;6.9). A method that updates a counter, a parser that advances a position, a logger that mutates an output buffer &mdash; all use UPDATE receivers or UPDATE parameters. The contrast with CREATE mode is the obligation: CREATE commits to a write on every successful path, while UPDATE commits to nothing.
- 
+
 ### 3.6 Implicit Context Parameters
- 
+
 Parameters listed after the `/` separator in a command's signature are *implicit context parameters* &mdash; the language's Scala-implicit-style mechanism for threading shared context through call chains. They are filled at the call site by *uniqueness-of-type* resolution against the caller's lexical scope: at the call point, the typechecker searches the caller's in-scope identifiers for one whose type matches the implicit parameter's declared type, and supplies that identifier as the argument. Ambiguity (two in-scope values of the same type) is a static error, resolvable by the caller passing the value explicitly. Absence (no in-scope value of the matching type) is also a static error.
- 
+
 ```
 .cmd writeAll: List[String] lines / Logger logger = ...
  
@@ -391,100 +391,100 @@ Parameters listed after the `/` separator in a command's signature are *implicit
     #log <- (Logger: "console")
     writeAll: lines           ; logger filled by uniqueness-of-type
 ```
- 
+
 The mechanism resolves at compile time. The provision-chain reading of the no-non-local-state principle (&sect;1.4) treats implicit context parameters as a *syntactic* convenience &mdash; the value must actually exist in the caller's lexical scope to be eligible, so the implicit's resolution does not enable access to state that was not already accessible. The implicit list is not a way to reach ambient state; it is a way to thread accessible state through call chains without writing the parameter at every call site.
- 
+
 All three parameter modes are admitted in the implicit list. Three rules govern the slash-list's internal grammar:
 
 - **Commas are required.** Implicit parameters in the slash-list are separated by commas, exactly as in the regular parameter list. Whitespace alone is not a separator.
 - **The `/` does not introduce a new indentation grouping level.** The slash is a separator within the signature, not the head of a nested block. A signature that wraps across lines does so under the signature's ordinary continuation context; the `/` does not change the indentation discipline.
 - **The result designator (&sect;3.7) may not name an implicit context parameter.** The `-> name` clause selects from regular parameters and receivers only. Implicit parameters are caller-injected context, not output channels; designating one as the expression-position result would conflate context resolution with CREATE output.
- 
+
 ### 3.7 The `-> name` Result Designator
- 
+
 A command invoked in *expression position* &mdash; as the right-hand side of `<-`, as a parenthesized argument in another command's call, or as a guard or scrutinee in a block-marker construct &mdash; produces a value that the surrounding context binds. The `-> name` clause names which already-declared parameter or receiver carries that expression-style value:
- 
+
 ```
 .cmd quotrem: Int 'q, Int 'r, Int n, Int d -> 'q =
     'q <- n / d
     'r <- n % d
 ```
- 
+
 A caller writes `#x <- quotrem: 'remainder, 10, 3` to bind the quotient to `x`, supplying `'remainder` as the slot for the remainder. The `->` clause does not introduce a new parameter &mdash; it designates which already-declared parameter participates in the expression-style sugar.
- 
+
 The clause is well-formed when `name` references a parameter or receiver of the command. The designated parameter is not required to be writeable. The expression-style value's type and reading depend on the designated parameter's mode:
- 
+
 - **CREATE `'name`** &mdash; the expression evaluates to the parameter's declared type; the value is the *post-write-back* value the callee committed to the caller's slot.
 - **UPDATE `&name`** &mdash; the expression evaluates to the parameter's declared type; the value is the *post-call* slot value, after copy-restore.
 - **READ `name`** &mdash; the expression evaluates to the parameter's declared type; the value is the *initial* value the caller passed in. This admits a predicate-with-passthrough idiom &mdash; a may-fail check whose success makes the input value available to the next stage in an expression chain.
 In all three cases, failure of the call propagates as expression failure, and the pre-call state of the caller's slot for `name` is preserved by failure atomicity.
- 
+
 ### 3.8 Implicit `-> name` for Single-Writeable Commands
- 
+
 When a command has exactly one writeable parameter &mdash; CREATE (`'name`) or reference (`&name`) &mdash; that single slot is automatically the expression-style result, and no `-> name` clause is required. The implicit form applies the same per-mode rules of &sect;3.7: the single writeable parameter's mode determines whether the expression value is the post-write-back value (CREATE) or the post-call slot value (UPDATE).
- 
+
 ```
 .cmd square: Int x, Int 'result =
     'result <- x * x
  
 #nine <- square: 3                ; 'result is the implicit expression-style result
 ```
- 
+
 When a command has two or more writeable parameters, the implicit selection is not available &mdash; the signature must specify which writeable parameter carries the expression-style result via an explicit `-> name` if expression-position invocation is desired. A command without expression-position use may omit the clause. When a command has zero writeable parameters, the command is not expression-callable unless an explicit `-> name` designates a READ parameter as the result.
- 
+
 This is a desugaring rule (per principle 10, &sect;1.2): a single-writeable command with no `-> name` is treated as if it had `-> writeableParam` declared explicitly. The desugared form reaches the same typechecker rules; the only difference is surface convenience.
- 
+
 ### 3.9 Constructors
- 
+
 A constructor is a command that produces a value of a specified type. Its signature names the type as the receiver, with the CREATE mode marker:
- 
+
 ```
 .cmd Widget 'w: Int x, Int y =
     'w <- ${x <- x, y <- y}
 ```
- 
+
 The receiver `Widget 'w` is the constructed-value slot. All other parameters (after the colon) are inputs. The body's job is to fill `'w`. The body typically uses an aggregate literal `${...}` (&sect;7.4) to construct in place; the compute-then-commit pattern of &sect;3.4 applies &mdash; the constructor performs whatever subordinate work is needed in local slots, then commits a single CREATE write to the receiver near the body's end.
- 
+
 Constructor receivers must be CREATE &mdash; the alternatives are not meaningful for the constructor signature shape. An UPDATE receiver would describe in-place modification of an existing value, which is the method-with-UPDATE-receiver case (&sect;3.10). A READ receiver would describe constructing a value the caller cannot observe, which has no purpose. The receiver-mode-by-signature-shape table (&sect;3.10) captures this restriction and the analogous restrictions for the other shapes.
- 
+
 A constructor is invoked by the type name as the call's prefix:
- 
+
 ```
 #w <- (Widget: 3, 4)              ; expression-style invocation
 Widget: #w, 3, 4                  ; statement-style with receiver in argument position
 ```
- 
+
 The expression-style form omits the receiver from the argument list &mdash; the receiver slot is supplied by the surrounding `<-`. The statement-style form may supply the receiver as `#name` in argument position to introduce a fresh local that the constructor writes into; the two forms produce equivalent effects, and the choice is stylistic.
- 
+
 A `.implicit`-declared constructor (&sect;7.8) is structurally a constructor with the additional property that the typechecker may insert calls to it automatically when a literal of the source type appears in a context expecting the constructed type. Apart from the additional registration, `.implicit` constructors share the constructor signature shape and the CREATE-receiver rule.
- 
+
 ### 3.10 Methods with a Single Receiver
- 
+
 A *method* takes one or more receivers, then `::`, then the command name and any further parameters. With a single receiver &mdash; the common case &mdash; the receiver appears bare, without parentheses:
- 
+
 ```
 .cmd Logger logger :: log: String message = ...
 .cmd Counter &c :: increment = c <- c + 1
 .cmd Buffer 'b :: clear = 'b <- ${}
 ```
- 
+
 The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes &mdash; READ, CREATE, UPDATE, and DISPOSE &mdash; each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, and finalization respectively (&sect;6.9). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (&sect;7.22).
- 
+
 A method invocation uses the same `::` syntax, parenthesized only for multi-receiver methods (&sect;3.11):
- 
+
 ```
 myLogger :: log: "ready"
 counter :: increment
 ```
- 
+
 Methods dispatch on the runtime type of their receiver &mdash; a method named `log` is resolved against the receiver's type's class instance for the relevant class, with the dispatch site syntactically marked by `::`. The full dispatch mechanics &mdash; the witness-slot model, single-class dispatch, the dictionary structure, instance coherence &mdash; are in &sect;9.
- 
+
 Receivers are always carried at the marker placement of the named-context rule (&sect;3.3) &mdash; `Type 'name`, `Type &name`, `Type ~name`, or `Type name`. The constructor case is &sect;3.9 above: constructors admit a CREATE receiver only, where methods admit all four. The receiver-mode-by-signature-shape table, and the full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules, are in &sect;6.7 and &sect;6.8. The block markers `@` and `@!` (&sect;3.13) are not signature shapes &mdash; they introduce bodies, not methods, and do not carry receivers at the signature level.
- 
+
 ### 3.11 Multi-Receiver Methods
- 
+
 A method invocation over multiple receivers takes a tuple of receivers, parenthesized, dispatching based on all their types in concert:
- 
+
 ```
 .cmd (Logger logger, Severity severity) :: format: String 'result, String message =
     ; body authored against Logger and Severity classes;
@@ -493,11 +493,11 @@ A method invocation over multiple receivers takes a tuple of receivers, parenthe
  
 (consoleLogger, warning) :: format: 'output, "couldn't open file"
 ```
- 
+
 The receiver tuple appears in parentheses both at declaration and at call.
- 
+
 The dispatch implementation composes per-receiver single-class dispatches &mdash; there is no joint-instance dictionary keyed on the tuple of receiver types. The combined behavior is the product of the receivers' types, but each receiver's dispatch resolves through its own class's dictionary independently. This admits methods that span receivers from different modules without requiring those modules to coordinate: the implementations of `Logger`'s `emit` method and `Severity`'s `prefix` method are looked up separately at the call site.
- 
+
 Each receiver in a multi-receiver method declaration carries its own mode marker. Different receivers may carry different modes &mdash; `(Logger logger, Counter &c)` is a valid receiver tuple with logger READ and counter UPDATE. The R1 (call-site initialization) and R2 (callee-body obligation) rules apply to each receiver independently per its declared mode.
 
 ### 3.12 Subcommands
@@ -570,75 +570,75 @@ The handlers fire in **reverse order of registration** &mdash; the most-recently
 The receiver-mode rules of the parent command's body apply to the `@` and `@!` block's body the same way as to any other sub-block: variables in scope at the block's registration point are accessible inside the block, with their mode markers preserved. The block runs in the parent command's frame context at retirement; it has no parameter list of its own.
 
 The full block-marker semantics for `@` and `@!`, including their composition with failure flow, are in &sect;4.4 and &sect;4.11.
- 
+
 ### 3.14 Calling Commands
- 
+
 A command invocation has four surface forms by signature shape, distinguished by the prefix preceding the colon-separated argument list:
- 
+
 - **Regular call** &mdash; bare command name as prefix:
   ```
   process: arg1, arg2
   ```
- 
+
 - **Constructor call** &mdash; type name as prefix:
   ```
   Widget: # 'w, x, y                ; statement-style
   #w <- (Widget: x, y)              ; expression-style, parenthesized
   ```
- 
+
 - **Single-receiver method call** &mdash; receiver, `::`, command name:
   ```
   myLogger :: log: "ready"
   counter :: increment
   ```
- 
+
 - **Multi-receiver method call** &mdash; parenthesized receiver tuple, `::`, command name:
   ```
   (consoleLogger, warning) :: format: 'output, "couldn't open file"
   ```
- 
+
 The argument list follows a `:` after the prefix. Inter-argument commas are required, even when arguments span multiple lines under indentation:
- 
+
 ```
 process: arg1,
     arg2,
     arg3
 ```
- 
+
 Arguments are always comma-separated. The grammar treats the colon as the start of the argument list and the indentation/dedent transitions as standard whitespace, so the argument list can extend across lines when indented under the call's first line.
- 
+
 The `#` prefix on an argument introduces a fresh local in argument position. The form is the call-site dual of `#name <- expr` for local introduction (&sect;7.1):
- 
+
 ```
 quotrem: #remainder, 10, 3         ; #remainder introduces a CREATE-bound local
 ```
- 
+
 The form is naturally suited to CREATE-mode parameter slots: the local is uninitialized at introduction and is filled by the call's CREATE write on success. At READ-mode parameter slots, an existing in-scope identifier or expression is supplied in the argument list rather than a fresh introduction. At UPDATE-mode parameter slots, the caller-slot is required pre-initialized, so the local must be introduced and initialized by an earlier statement before the call.
- 
+
 **By-name argument binding.** An argument may be supplied by naming the callee parameter it binds rather than giving it positionally, which lets the call site choose how the callee relates to an obligated argument (&sect;10). The choice is the placement operator (&sect;7.1), in three dispositions:
- 
+
 - `paramName <- arg` &mdash; **own**: ownership of the obligation moves into the call, and responsibility for discharging it passes to the callee. The moved-from `arg` survives as a non-owning **view** of the value on the success edge, becoming `uninit` only where the call finalizes it &mdash; the surviving-view rule is &sect;10.11, its dangling-view footgun catalogued in Appendix I (A2).
 - `paramName <<- arg` &mdash; **view**: the callee borrows `arg` for the duration of the call; the caller keeps ownership and stays responsible for the discharge.
 - `paramName << arg` &mdash; **copy**: the callee receives an independent duplicate of a buffer-backed `arg` (&sect;7.1), the original untouched.
- 
+
 By default &mdash; when an argument is supplied positionally &mdash; a downstream call passes by **view**: the caller keeps ownership and the callee borrows. This fits the common case, a callee that only reads or updates and so has no business discharging the obligation. The exception is a **finalizer** (&sect;6, &sect;10), whose purpose *is* to discharge the obligation &mdash; an argument bound to a finalizing parameter passes by **own**, handing the duty across. A positionally supplied argument to a non-finalizing parameter is always a view, so transferring ownership to such a parameter requires an explicit by-name `<-`. For an unobligated argument there is no duty to keep or hand over, so **own** and **view** coincide; only **copy**, which duplicates the value, still differs.
- 
+
 Implicit context parameters (&sect;3.6) are not supplied at the call site; they are filled by the typechecker from the caller's lexical scope. The call's argument list covers the regular parameters only.
- 
+
 For a command in expression position, the writeable parameter designated as the expression-style result (&sect;3.7) is *omitted* from the argument list. The remaining parameters are supplied in declaration order:
- 
+
 ```
 .cmd quotrem: Int 'q, Int 'r, Int n, Int d -> 'q = ...
  
 #x <- quotrem: 'remainder, 10, 3   ; 'q omitted (it's #x); arg list is 'r, n, d
 ```
- 
+
 UPDATE-mode parameters always appear in the argument list &mdash; they cannot be omitted via the expression-style sugar, because the caller's slot is required pre-initialized regardless of whether the command is invoked as a statement or as an expression.
- 
+
 ### 3.15 The `_` Placeholder
- 
+
 The `_` token is a single-character placeholder serving four distinct uses across the language. The uses are syntactically disjoint &mdash; context determines which is meant &mdash; and are listed here for completeness; the relevant sections cover each role in detail.
- 
+
 - **Discard at CREATE positions.** At a CREATE parameter position in a call, `_` says "I don't care about this output." The CREATE write happens (the callee's contract is unchanged), but the caller declines to bind the result.
   ```
   #x <- quotrem: _, 10, 3            ; remainder discarded; quotient bound to x
@@ -648,201 +648,201 @@ The `_` token is a single-character placeholder serving four distinct uses acros
   ```
   {add: 5, _}                        ; first argument bound, second deferred
   ```
- 
+
 - **Variant absent state.** In aggregate-literal positions for variant-typed fields, `_` stands in for the absent-state value (&sect;5.13, &sect;7.16):
   ```
   Container: ${data <- payload, optional <- _}    ; optional field in absent state
   ```
- 
+
 - **Variant absent test and reset.** With the `-<` operator, `_ -< v` tests whether `v` holds a non-absent state, and `v -< _` resets `v` to its absent state (&sect;7.14):
   ```
   ?- _ -< shape                      ; runs when shape is absent
       handleAbsent
   shape -< _                         ; reset shape to absent
   ```
- 
+
 The four uses are syntactically distinguishable by surrounding context. The lexer treats `_` uniformly as a single token; the parser routes it to the appropriate non-terminal based on its position.
- 
+
 ### 3.16 First-Class Commands
- 
+
 Commands are values. A command-typed value may be stored in a field, passed as an argument, returned from a constructor, or invoked indirectly. The language admits four constructional forms that produce command-typed values:
- 
+
 | Form | Surface | Captures? | Body? |
 |---|---|---|---|
 | Command reference | `{name}` or `{cmd: x, _, y}` | No | No (refers to existing command) |
 | Command literal | `:<args>{body}` (also `?<...>`, `!<...>`) | No | Yes |
 | Lambda | `:<args / caps>{body}` | Yes (explicit slash list) | Yes |
 | Fexpr | `:{body}` (also `?{body}`, `!{body}`) | Yes (implicit by free name) | Yes |
- 
+
 The four forms cover the design space &mdash; function-pointer-style references, eagerly-evaluated thunks, closures over defining-frame state, and user-defined control-flow primitives &mdash; through a uniform set of constructions that share the failure-mode discipline (the `:` / `?` / `!` mark) and the four-way taxonomy.
- 
+
 Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (&sect;3.3): `:<Int, Int'>`, `?<String'>`, `!<>`. Fexpr-typed values are typed by the parallel family `:<*>`, `?<*>`, `!<*>` &mdash; the `*` distinguishes the fexpr family from ordinary command-typed values, and there is no subsumption across the family boundary. The full type-form tables and family rules are in &sect;5.14 and &sect;5.15.
- 
+
 Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application &mdash; including the mode-marker filter (CREATE deferred-only, UPDATE applied with ceiling-tracking, READ flexible) &mdash; are in &sect;9.14.
- 
+
 The four constructional forms &mdash; their capture rules, their ceiling computations, their mark-conformance rules, and the seven fexpr-restrictions A&ndash;G &mdash; are detailed in &sect;8. The class-system extension that admits fexpr-typed parameters under fexpr-relevance taint is in &sect;9.20.
- 
+
 ### 3.17 Scope Blocks: `.scope`
- 
+
 A **scope block**, introduced by the `.scope` keyword, is a lexical region inside a command body that establishes a retirement boundary without establishing a new frame. It makes no call, passes no parameters, and imposes no copy-restore boundary; control enters and leaves it by ordinary sequential flow. What it adds over plain sequencing is a boundary at which scope-local storage is reclaimed and scope-local cleanup fires.
- 
+
 A command frame is itself a scope &mdash; the outermost one of its body &mdash; and the language's retirement machinery (obligation discharge, &sect;10; frame-exit hooks, &sect;3.13) is defined at scope boundaries generally. The `.scope` block is the explicit, nested form of the same concept: where a frame's scope ends at frame retirement, a `.scope` block's scope ends at the dedent that closes its body.
- 
+
 The form is the keyword followed by an indented body:
- 
+
 ```
 .scope
     #conn <- (Connection: host)     ; obligated; released at scope end
     send: conn, payload
     ; conn's obligation fires here, at scope end
 ```
- 
+
 **Composition follows `%`.** A `.scope` block has the failure-flow behavior of a `%` block (&sect;4.4): no control-flow effect of its own, body run as ordinary sequential statements, and an unrecovered failure inside propagates out. Like `%`, a `.scope` may stand as the **guard** of a `?`, `?-`, or `?:` construct &mdash; the guard succeeds iff the whole scope body succeeds &mdash; which is the idiom for a guard whose test needs a resource acquired and released within the guard itself:
- 
+
 ```
 ? .scope
     #conn <- (Connection: host)     ; acquired for the test
     reachable: conn                 ; the actual guard condition
   proceedKnowingReachable           ; ?-consequent: runs on guard success, conn already released
 ```
- 
+
 The connection is released at the end of the guard scope &mdash; on either outcome &mdash; before control continues past the `?`.
- 
+
 **Scope-local declarations.** A slot introduced with `#` inside a scope block is local to that scope: visible only within the body, gone at the dedent. Names from enclosing scopes remain visible and usable inside the block; only new `#`-introductions are confined.
- 
+
 **Shadowing.** A `.scope` block is an ordinary nested scope, so a scope-local introduction may shadow a name visible from an enclosing scope, exactly as a block-marker body may. The same-scope rule of &sect;6.3 governs collisions *within* a single scope &mdash; `x` and `'x` may not coexist in one scope &mdash; but does not reach across the scope boundary; cross-scope shadowing is admitted (Appendix G.10). Inside the block a use resolves to the scope-local binding; the enclosing binding it hides is reachable again past the dedent.
- 
+
 **Storage reclamation at scope end.** A scope-local value's lifetime ends at the scope's close, and the variable-size storage drawn from the frame-bound region (&sect;7.20) for it may be reclaimed there rather than at frame retirement &mdash; a `.scope` carves a nested sub-region out of the frame's region that an implementation may reclaim when the scope closes. The early reclamation is guaranteed wherever deferring it would be observable: a scope inside a loop has each iteration's scope-local storage reclaimed at that iteration's scope end, so the loop does not accumulate the storage of every pass.
- 
+
 **Obligation discharge at scope end.** An obligation still owned by a scope-local binding at scope end fires its discharge there (&sect;10), exactly as an obligation owned by a frame-local binding fires at frame retirement. Ownership transferred outward before scope end &mdash; by a CREATE write to an enclosing slot, a `<-` into an enclosing binding, or a by-name move into a call (&sect;10.11) &mdash; leaves the scope owning nothing for that obligation, so nothing fires at scope end; the obligation travels with its new owner. Only what the scope still owns at its close is discharged there &mdash; the scope-boundary analog of returning a resource out of the block.
- 
+
 **Frame-exit hooks fire at scope end.** An `@` or `@!` block (&sect;3.13) registered within a scope block is registered against that scope and fires at the scope's end rather than at the enclosing frame's retirement &mdash; `@` on every exit from the scope, `@!` only on a failure exit. A scope's auto-fired obligation discharges and its explicit `@`/`@!` hooks share a single cleanup list, fired in reverse registration order (&sect;10.6). A hook registered in the frame body outside any `.scope` continues to fire at frame retirement. The nearest enclosing scope is always the firing boundary.
- 
+
 **Nesting.** Scope blocks nest; each establishes its own boundary. An inner scope's end reclaims its own locals and fires its own hooks and obligations; the outer boundary handles what the outer scope still owns.
- 
+
 **Relationship to subcommands.** A `.scope` block and a subcommand (&sect;3.12) can both bound cleanup to a region smaller than the enclosing command's body &mdash; a subcommand's frame retirement fires the `@`/`@!` blocks registered in it &mdash; but a `.scope` provides that boundary directly, without a separate signature, parameter threading, or call. A subcommand earns its weight here only when the bounded region also needs its own parameters or recursion; for pure scoping, a `.scope` is the form to reach for. The distinction is that a subcommand is a *call* (a fresh frame entered by invocation, with its own parameters), while a `.scope` is an *inline region* (no call, sharing the enclosing frame's parameters and visible locals).
- 
+
 ---
- 
+
 ## 4. Failure and Recovery
- 
+
 A *failure* in Basis is a propagating signal that some path of execution did not reach its intended outcome. Failures are first-class control flow, not an out-of-band channel: they are produced by the `.fail` directive, propagate up the call stack by skipping subsequent siblings at each indentation level, and are consumed by recovery contexts at well-defined source positions. Every command's signature declares what failures it admits and how it composes with callers; the typechecker's failure-state lattice (&sect;4.13) verifies the declarations.
- 
+
 This section describes the failure-handling surface end-to-end: what a failure carries (&sect;4.1), how the three failure-mode marks compose (&sect;4.2), how `.fail` produces a failure (&sect;4.3), how the eleven block markers enumerated in &sect;3.1 dispatch failure flow (&sect;&sect;4.4&ndash;4.5), how recovery handlers match and bind failure values (&sect;&sect;4.6&ndash;4.8), how messages are declared in hierarchies and propagated through signature-level failure sets (&sect;4.9), how a recovered value can be re-emitted as a fresh failure (&sect;4.10), how at-stack handlers compose with failure flow (&sect;4.11), why at most one failure may be in flight per thread (&sect;4.12), and how the typechecker's six-state failure-state lattice gates body conformance (&sect;4.13). The full transfer-function table for the lattice is in Appendix E; the operational rules for failure propagation are in Appendix F.
- 
+
 ### 4.1 Failures Are Not Exceptions
- 
+
 A Basis failure is not an exception in the C++/Java/C# sense. There is no stack-unwinding mechanism that runs ad-hoc cleanup as it climbs frames, no try/catch construct, no special "exception state" lying outside the language's normal semantics. Failures are an ordinary state in a six-state lattice (&sect;4.13), and propagation is structural: the failure-state lattice transitions at each block marker according to a transfer function that can be read off the source position, and propagation past a frame's body is by skipping subsequent siblings at each indentation level &mdash; not by unwinding.
- 
+
 A failure carries two pieces of information: an identity (the **message** &mdash; see &sect;4.9) and an optional **payload value** whose type satisfies the message's bound class (&sect;4.7). The message names the kind of failure; the payload carries any data the failure needs to convey to a downstream recovery handler. Both are stored in a fixed-size **failure slot** allocated as part of each command's frame; the slot is occupied only while a failure is in flight. Propagation copies the slot's contents up the stack &mdash; three words on a 64-bit target: the message identifier, a pointer to the payload's storage, and a class witness for the payload's concrete type with respect to the message's bound class &mdash; without copying or moving the payload value itself. The payload stays put until a recovery handler binds it (&sect;4.6), at which point it moves into the handler's frame.
- 
+
 Cleanup that mainstream languages express through `try`/`finally` is expressed in Basis through frame-exit hooks `@` and `@!` (&sect;&sect;3.13, 4.4, 4.11). The hooks compose with the failure flow &mdash; `@` runs on every frame exit regardless of outcome, `@!` runs only on failure exits &mdash; but they are not part of the failure machinery itself. A frame's hooks fire on its retirement schedule; the failure that may be in flight at retirement is a separate thing the hooks neither see nor consume.
- 
+
 ### 4.2 The Three Marks
- 
+
 Every command-typed value in Basis carries one of three **failure-mode marks** as part of its visible signature:
- 
+
 - The `:` mark &mdash; the **never-fails** mark &mdash; denotes a command whose body must reach exit on a non-failing path on every reachable execution. The `:` mark is the absence of any prefix on the command's name; a never-fails command is declared `.cmd name: ...`.
 - The `?` mark &mdash; the **may-fail** mark &mdash; denotes a command whose body may either succeed or produce a propagating failure. A may-fail command is declared `.cmd ?name: ...`. The mark applies to every signature position where a callable appears: command-type slots, class-method declarations, lambda and fexpr signatures, and methods are all so marked.
 - The `!` mark &mdash; the **must-fail** mark &mdash; denotes a command whose body must reach exit on a propagating-failure path on every reachable execution; no successful return is possible. A must-fail command is declared `.cmd !name: ...`. The `.fail` directive itself (&sect;4.3) is the canonical `!`-call.
 The marks classify command-typed values uniformly across all of the language's command-bearing constructs: named `.cmd` declarations, command-typed slots (`:<...>`, `?<...>`, `!<...>`), class methods, single- and multi-receiver methods, lambdas, and fexprs (&sect;&sect;3.10&ndash;3.11, 5.15&ndash;5.16, 8). The same conformance rules apply to all.
- 
+
 The marks form a partial order under subsumption: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful &mdash; its failure edge is statically dead &mdash; but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
- 
+
 Parameter modes (&sect;3.3) and parameter types are **invariant** under mark subsumption. A `:<Int'>` value is not interchangeable with `:<Int>`, `:<Int&>`, or `:<Int~>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts, DISPOSE consume commitments) breaks if the mode is permitted to vary. The rule is developed in &sect;6.12.
- 
+
 ### 4.3 The `.fail` Directive
- 
+
 A failure is produced by the `.fail` directive, which has three surface forms:
- 
+
 ```
 .fail
 .fail Name
 .fail Name: payload
 ```
- 
+
 A bare `.fail` produces a payload-less, message-less failure. `.fail Name` produces a failure carrying message `Name` with no payload. `.fail Name: payload` produces a failure carrying message `Name` with the value of `payload` as its payload; the typechecker requires that `payload`'s type satisfy the class bound to `Name` (&sect;4.7).
- 
+
 The `.fail` directive is itself a `!`-call: its post-call lattice state is `failing(!)` carrying the propagating set `{Name}` (or empty, for bare `.fail`). The next ordinary statement in the surrounding block is reachable only along the failure-skip path, which means: not at all, unless caught by a recovery context.
- 
+
 Payload expressions whose surface contains `:` must be parenthesized to disambiguate them from a continuation of the `.fail` directive's syntax:
- 
+
 ```
 .fail Net::Disconnected: (lastError: u)
 ```
- 
+
 Without the parentheses, the parser cannot determine where the payload expression ends and a continuation of the directive begins.
- 
+
 Two forms are explicitly disallowed: a `.fail` whose right-hand side is a raw value with no message (`.fail (a + b)` &mdash; a value cannot carry the role of a failure message), and a `.fail` that uses a payload type's name in message position (`.fail Widget: x, y` &mdash; `Widget` is a type, not a message identifier; the constructor call `(Widget: x, y)` produces a payload value, but a separate message identifier is needed). Both are message-required-when-payload-present violations.
- 
+
 Re-failing a recovered value &mdash; passing a `|`-with-spec-bound payload forward as the payload of a fresh failure &mdash; is an ordinary `.fail` invocation in the handler's frame; it requires an explicit message because the recovery binding captures only the payload, not the original message. The full mechanics are in &sect;4.10.
- 
+
 Signature-level failure-set declarations &mdash; how a command's signature names the messages it may emit &mdash; are addressed in &sect;4.9.
- 
+
 ### 4.4 Block Markers
- 
+
 Eleven block markers govern failure flow. They are enumerated as a syntactic list in &sect;3.1, with `|` and its parametrized `|`-with-spec form treated as a single marker for the enumeration; this section enumerates all eleven by their **failure-mode role** &mdash; what each one consumes, what it permits to propagate, and where it places execution after consumption.
- 
+
 #### Guard-only recovery: `?`, `?-`, `?:`
- 
+
 A **guard** is the lead statement (or subordinate block) within a block-marker construct, whose success or failure determines whether the remainder of the block executes.
- 
+
 The three guard-bearing markers consume their *guard*'s failure but not the failures of statements within their body.
- 
+
 `?` (DO_WHEN) runs its guard; on guard success, the body runs; on guard failure, the body is skipped and the failure is consumed. Either way, control proceeds to the marker's next sibling. Statements within the body have their failures propagate per the surrounding context.
- 
+
 `?-` (DO_WHEN_FAIL) is the mirror: the body engages iff the guard fails, and the failure is consumed regardless of which branch ran. Critically, `?-` consumes the *fact* of failure, not the *value*: programs that need access to the propagating failure value should use `|`-with-spec instead.
- 
+
 `?:` (DO_WHEN_SELECT) is the chaining variant. Multiple `?:` siblings at the same indentation level form a coherent multi-branch construct: the first guard to succeed engages its body and skips the rest of the chain. When a `?:` body engages on guard success, control exits the surrounding indentation level &mdash; making `?:` chains the natural primitive for if/elseif/else cascades, with a final non-`?:` sibling serving as the default arm. The chain has no syntactic wrapper; it is recognized by adjacency.
- 
+
 For all three, only the guard's failure is consumed. A recovery handler placed as a sibling of a `?`, `?-`, or `?:` block does not engage on the guard's failure &mdash; that failure has already been consumed &mdash; and engages only on failures from non-guard operations elsewhere in the surrounding scope.
- 
+
 #### Full-body recovery: `^`
- 
+
 `^` (DO_REWIND) is a sibling whose body controls whether execution loops back to the preceding sibling. When control reaches `^`, the body runs; on body success, control jumps to the preceding sibling at the same indentation level (the loop continues); on body failure, the failure is consumed, the body terminates at the failed statement, and control falls through to the marker's next sibling (the loop terminates).
- 
+
 Unlike the guard-only markers, `^` recovers *every* failure within itself. Every failing statement consumes its failure into `^`. This makes the body a unified test-and-adjust region: comparisons compose freely with adjustments, with the first-failure determining loop termination.
- 
+
 The body is optional. A bodiless `^` is treated as if its body had succeeded, producing an unconditional rewind to the preceding sibling. The bodiless form is the cleanest expression of "loop until the guard fails" and pairs naturally with `?? ?` to form the canonical loop (&sect;4.5).
- 
+
 A `^` with no preceding sibling at the same indentation level is a static error: the rewind has no destination.
- 
+
 #### External-failure recovery: `|` and `|`-with-spec
- 
+
 `|` (DO_RECOVER) and its parametrized form are the only constructs that consume failures propagating from *preceding siblings*.
- 
+
 A bare `|` engages when a failure is propagating from any preceding sibling at the same indentation level. If no failure is propagating, the block is skipped. On engagement, the failure is consumed immediately and the body executes from no-active-failure. The body is not itself a recovery context; statements within it propagate failures normally. The bare form does not bind the failure value.
- 
+
 `|`-with-spec adds two refinements: filtering and binding. The spec acts as a predicate on the propagating failure's message; the block engages only if the message matches. Non-matching failures continue propagating *as if the block were not there*. When the block engages, the spec's identifier is bound to the payload value &mdash; not to the message and not to the whole failure &mdash; within the body's scope. The placeholder surface used in this section is:
- 
+
 ```
 | Name name -> body
 ```
- 
+
 Cascade chains of `|`-with-spec blocks (each filtering for a subset of messages, optionally followed by a bare `|` as catch-all) are the structural form for "handle this kind of failure here, that kind there, anything else uniformly." The first whose spec matches engages; later blocks in the cascade are also recovery destinations for *preceding* blocks' bodies, which is what makes the cascade compose. Programmers place more-specific specs first and broader specs last.
- 
+
 Matching is on **message identity** with subtype-inclusive semantics: a `| SomeRoot t -> body` block engages on any message at-or-below `SomeRoot` in `SomeRoot`'s hierarchy (&sect;4.9). Value-style matching against payloads &mdash; `| 0 -> handleZero`, `| "fish" -> handleFish` &mdash; is not part of the language; recovery is on message identity only.
- 
+
 #### Escape elevator: `??`
- 
+
 `??` (DO_WHEN_MULTI) is a meta-marker. It pairs with a `?`-family block (a `?` or a `?-`) as its first executable inner construct, and modifies *where* the inner block's guard-failure recovery resumes execution. Without `??`, the inner guard's failure is consumed by the inner block and execution resumes at the next sibling of the inner block. With `??`, the failure is still consumed (by `??` itself), but execution resumes at the next sibling of the `??`-block &mdash; one indentation level higher.
- 
+
 `??` operates at a fixed elevation of one level; there is no `???` or further-elevating construct. Bare `??` (with no inner `?` or `?-`) is a static error.
- 
+
 The crucial corollary: a `|` placed as the next sibling after a `??`-block does **not** engage on the inner guard's failure, because that failure has already been consumed by `??`. There is no propagating failure for `|` to catch. A `|` after `??` engages only on failures from non-guard operations within the `??`-block.
- 
+
 #### Branch: `-`
- 
+
 `-` (DO_ELSE) attaches only to a preceding `?` or `?-` at the same indentation level. With `?`, the body engages on guard success and `-` engages on guard failure (standard if/else); with `?-`, the body engages on guard failure and `-` engages on guard success (inverted if/else). The `-`-body is not a recovery context: failures within it propagate per the enclosing rules. The branch consumes nothing; it merely supplies the alternative path.
- 
+
 `-` does not chain; for n-ary branching, use `?:`.
- 
+
 #### Compound grouping: `%`
- 
+
 `%` (DO_BLOCK) on its own has no control-flow effect: its body executes as ordinary sequential statements, and any unrecovered failure inside propagates out. This makes `%` directly usable as the **guard** of a `?`, `?-`, or `?:` block &mdash; when a `%`-block stands in guard position, the entire `%`-body must succeed for the guard to succeed.
- 
+
 The `%`-body provides logical conjunction without a new construct. Within a `%`-guard, `|`-chains supply disjunction: a `|` engaging on the immediately preceding statement's failure consumes that failure on engagement, so a sequence like
- 
+
 ```
 % testA: ...
   | testB: ...
@@ -850,21 +850,21 @@ The `%`-body provides logical conjunction without a new construct. Within a `%`-
   | testD: ...
   | testE: ...
 ```
- 
+
 means `(testA OR testB) AND (testC OR (testD OR testE))`. Each `|`-chain locally resolves a disjunction; only the failure that ultimately escapes &mdash; from a conjunct whose disjunctive alternatives were exhausted &mdash; is what the enclosing `?`-family construct sees. The failure value surfaced is the failure of the last-tried alternative in whichever conjunct gave up.
- 
+
 `%` does not combine with `??` (no failure-escape to elevate) and does not pair with `-`. A `.scope` block (&sect;3.17) composes in failure flow exactly as `%` does, including in guard position; it adds only the scope-local declaration, storage-reclamation, and cleanup-boundary semantics of &sect;3.17.
- 
+
 #### Frame-exit hooks: `@` and `@!`
- 
+
 `@` (DO_ON_EXIT) registers a body that runs at scope exit, regardless of whether the scope exits via success or failure. `@!` (DO_ON_EXIT_FAIL) registers a body that runs only on failure exits. Neither construct sees nor consumes the propagating failure; the bodies execute as if no failure were active, even when the scope is exiting via failure.
- 
+
 The `@` and `@!` markers are **scope-lifetime-tied**. They register a body against the nearest enclosing scope &mdash; the command frame or an enclosing `.scope` block (&sect;3.17); the body executes at that scope's end, in reverse registration order. Value-lifetime-tied cleanup is the separate province of the obligation system (&sect;10); the `@`/`@!` hooks themselves have no class-level form &mdash; no class-level declaration causes implicit registration of a hook for slots of any particular type (&sect;3.13). The discipline that governs *when* these blocks fire under a propagating failure is in &sect;4.11.
- 
+
 ### 4.5 Block-Marker Composition
- 
+
 Block markers compose by adjacency at the same indentation level. The composition rules for the eleven markers are summarized below; the operational details of each marker individually are in &sect;4.4.
- 
+
 | Marker | Combines with `??`? | Combines with `-`? | Body recovers failures? |
 | --- | --- | --- | --- |
 | `?` | yes (elevates guard escape) | yes (if/else) | guard only |
@@ -878,87 +878,87 @@ Block markers compose by adjacency at the same indentation level. The compositio
 | `??` | (meta; inner is `?` or `?-`) | n/a | consumes only inner guard |
 | `@` | no | no | no (runs alongside, doesn't recover) |
 | `@!` | no | no | no (runs alongside, doesn't recover) |
- 
+
 The **canonical loop pattern** is `?? ?` paired with a sibling `^`, with `^` placed *inside* `??`'s body &mdash; not as a sibling of the `??`-block at the outer level:
- 
+
 ```
 ?? ? hasMore: queue
         process: (pop: queue)
     ^
 ```
- 
+
 When `hasMore: queue` fails, `??` elevates past its own block, exiting the loop. When the `^` body succeeds (or, for the bodiless form, unconditionally), control rewinds to the `?` line, re-running the guard. Both paths converge past `??`. Placing `^` at the outer level &mdash; as a sibling of the `??`-block &mdash; is wrong: `^`'s preceding sibling would be whatever came before `??`, not the loop body, so the rewind would not iterate the right things.
- 
+
 A failure propagating out of a sibling-block at the same indentation level **skips subsequent siblings**. This is the fundamental composition rule that makes recovery contexts adjacent-sibling-shaped: if a body containing `acquire / loop / release` produces a failure inside the loop, the failure skips `release`, which is why cleanup that must run on every exit path is expressed as `@` or `@!` rather than as a sibling. The skip behavior also explains why a `|`-with-spec cascade composes &mdash; each `|` is a destination only for failures from earlier siblings, so non-engaging blocks let the failure continue to the next.
- 
+
 ### 4.6 Typed Recovery
- 
+
 A `|`-with-spec block engages on failures whose message matches the spec, with subtype-inclusive matching against the relevant hierarchy. The surface is `| Name name -> body`. The spec engages on:
- 
+
 - A failure whose message is exactly `Name`.
 - A failure whose message is a child of `Name` in `Name`'s hierarchy (recursively, to any depth).
 Failures whose messages are not at-or-below `Name` continue propagating past the block. The bound name `name`, when present, is in scope throughout `body` and refers to the **payload only** &mdash; not the full failure, not the message identifier. The bound name's static type is the **spec's payload class** &mdash; the class declared on `Name` (the spec) at its `.msg` declaration &mdash; regardless of whether the engaged failure was `Name` itself or one of its descendants in the hierarchy. A descendant message's payload-class (a subclass of the spec's class per &sect;4.8) does not surface its more-specific operations to the handler; the handler is constrained to operate at the spec's class abstraction level. Programs needing access to a descendant's more-specific class operations catch at that descendant's message specifically, or apply class-narrowing (&sect;7.14) within the handler body.
- 
+
 The presence of the bound name in the spec is governed by an asymmetric rule against the message's declaration. A payload-bearing `Name` admits the bound name (binding the payload) or its omission (engaging without binding; the engaged failure's payload is consumed unobserved). A payload-less `Name` requires the bound name's omission &mdash; supplying one is a static error, since there is no payload to bind to. The asymmetry permits the pattern of catching a class of failures uniformly without inspecting their payloads, while excluding the malformed case of a binding with no value behind it.
- 
+
 Match-by-message-identity, not match-by-payload-value, is a design commitment: failures are dispatched on what they *are*, not on what they *carry*. Forms like `| 0 -> handleZero` or `| "error" -> handleError` are not part of the language. Programs that need to distinguish payload values do so by inspecting the bound payload within the recovery body.
- 
+
 When a `|`-with-spec block engages, the failure's status as in-flight ends at the moment of binding. The handler body runs from no-active-failure, with the bound payload available for inspection, consumption, or forwarding into a re-fail (&sect;4.10). The discipline governing the *value's* lifetime &mdash; distinct from the failure's status, and tracked through the holding-frame model &mdash; is in &sect;4.11.
- 
+
 ### 4.7 Class-Bound Payloads
- 
+
 A failure-message declaration may specify a **payload class** &mdash; a Haskell-style typeclass that any payload of that message must satisfy. The class is a *contract*: a set of operations the payload value supports, not a concrete type with a layout. The class itself has no `sizeof`, no allocation footprint, and no instances of its own; *types* satisfying the class are the things with layouts.
- 
+
 The corollary: different `.fail` sites for the same message may pass payload values of different concrete types, all satisfying the bound class. Refactoring the concrete type at one `.fail` site to a different type that also satisfies the class is non-breaking; refactoring the class itself &mdash; adding, removing, or changing operations &mdash; is breaking. The boundary is the class contract.
- 
+
 A class **witness** &mdash; a typeclass dictionary corresponding to the (concrete-payload-type, bound-class) pair &mdash; travels with the propagating failure as the third word of the failure slot (&sect;4.1). The witness is selected at the `.fail` site: at compile time, the typechecker has both the concrete type of the payload expression and the bound class from the message's declaration, and emits the corresponding dictionary as a witness pointer. No runtime witness construction is required.
- 
+
 A `|`-with-spec consumer that binds a payload uses the witness to dispatch class operations on the bound name. The witness's identity &mdash; which concrete type's dictionary it is &mdash; is **opaque** to the consumer, which sees only the class's operations. This is the core of the failure system's open-extensibility property: a recovery handler defined against a class can consume payload values of types it has never heard of, as long as those types satisfy the class. Under payload-class covariance (&sect;4.8) and the Liskov-covariance rule for payload classes (&sect;9.17), this property extends across hierarchy depths: a handler at a parent message's class binding a descendant message's payload receives the value at the parent's class, with class operations dispatched through the descendant's witness &mdash; the parent's operations are a structural subset of the descendant's, so the witness's dictionary supplies them by the same single-pointer mechanism that backs all class dispatch (&sect;9.7).
- 
+
 The full class system (typeclass declarations, instance declarations, dispatch mechanics, witness flow) is in &sect;9. Failure messages and their bound classes participate in that system on identical terms; the failure machinery is a refinement of class dispatch applied to propagating failure values, not a separate parallel mechanism.
- 
+
 ### 4.8 Messages Without Payloads
- 
+
 A failure message may be declared without a payload class. A `.fail` for such a message carries no value &mdash; the directive form is `.fail Name` with no following `:` or value &mdash; and a `|`-with-spec recovery for such a message has no bound identifier. The body of the recovery simply runs.
- 
+
 A payload-less message retains nominal identity, hierarchy position (&sect;4.9), and full participation in failure-set inclusion. Its composition with payload-bearing messages within a hierarchy is constrained by recovery soundness: a handler `| ParentMsg p -> body` that binds `p` and applies `ParentMsg`'s class operations to it must remain sound for every descendant message that could engage the handler. Two rules follow.
- 
+
 **A payload-bearing child of a payload-less parent is well-formed.** The child introduces a payload class at its level; payload-less ancestors impose no class constraint on it. A `|`-with-spec at a payload-less ancestor produces a payload-less handler (no binding identifier) whose body simply runs when engaged &mdash; the engaged descendant's payload, if any, is consumed unobserved.
- 
+
 **A payload-less child of a payload-bearing parent is ill-formed.** A handler `| ParentMsg p -> body` would attempt to bind `p` to the engaged message's payload and apply `ParentMsg`'s class operations to it; a payload-less descendant engaging that handler would leave `p` with no value to bind. Once a payload class is introduced at some level in a hierarchy, every message at-or-below that level must also declare a payload class.
- 
+
 The soundness argument extends across multi-level chains, requiring **payload-class covariance** along ancestor-descendant paths: every payload-bearing message's class must be a subclass of (or equal to) every payload-bearing ancestor's class along the path from the message toward the root. The covariance chain ensures that a handler bound at any payload-bearing ancestor can apply its class operations soundly to any descendant message's payload, regardless of which descendant engages. The class-system mechanism that supports this &mdash; Liskov-covariant subsumption at payload-class positions &mdash; is &sect;9.17.
- 
+
 The recovery's binding shape is thus determined entirely by the spec: a payload-less spec produces a handler with no binding identifier; a payload-bearing spec produces a handler binding the engaged message's payload as a value of the spec's class, with class operations on the bound name dispatching through the engaged failure's class witness (&sect;4.7).
- 
+
 ### 4.9 Failure Messages and Hierarchies
- 
+
 Failure messages are declared with the `.msg` directive. The surface is:
- 
+
 ```
 .msg Name[PayloadType] : ParentMessageType
 ```
- 
+
 Both the `[PayloadType]` brackets and the `: ParentMessageType` clause are optional. A message declared without a payload type is payload-less (&sect;4.8); a message declared without a parent is the root of a new hierarchy. Examples:
- 
+
 ```
 .msg Net                                       ; root, payload-less
 .msg Net::Disconnected[ConnectionInfo] : Net   ; child of Net, payload satisfies ConnectionInfo class
 .msg Parse[String] : Net                       ; sibling of Disconnected, payload satisfies String class
 ```
- 
+
 **Payload-class covariance across the hierarchy.** A child message's payload class must be a subclass of (or equal to) every payload-bearing ancestor's payload class along the path to the root (&sect;4.8). The rule rests on the Liskov-covariance discipline at payload-class positions (&sect;9.17): a value satisfying the child's payload class also satisfies the parent's payload class via standard class-system subsumption, so a parent-class handler engaging on a child-message failure binds the payload at the parent's payload class and operates on it through the parent's class operations. The bound value's static type is the spec's class &mdash; descendant payload classes' additional operations are not visible at parent-class handlers. The discipline keeps recovery handlers operating at the level of abstraction the handler declared, not at the engaged failure's potentially more-specific class.
- 
+
 Messages form a **forest** &mdash; a collection of independent hierarchies, each rooted at a user-declared root. There is no language-imposed Top message, no universal ancestor analogous to Java's `Exception`. This is a deliberate design commitment. A universal ancestor invites generic catch-and-bind-anything practice, the very pattern that makes failure handling sloppy in languages that have one. The forest structure forces programs that bind a payload to commit to which hierarchies they understand. Code that wants to catch anything without binding can use the bare `|` form &mdash; that idiom is preserved without admitting Top as a type.
- 
+
 A downstream module **may extend** the hierarchy of an imported message by declaring new children of a foreign root or of any imported descendant. The failure-message hierarchy participates in the same coherence machinery as class instances (&sect;9.15, &sect;9.17): intra-module uniqueness, cross-module specificity ranking, orphan permissibility, import-time competition warning. Payload-class covariance (&sect;4.8) keeps the extension safe &mdash; a parent-class handler observes any descendant's payload through the parent's class operations only, so new descendants cannot widen what a parent-class handler sees.
- 
+
 A **failure set** is a set of messages. A command's signature carries a failure-set component declaring which messages the command may emit, expressed either as an explicit list or as the closure-at-or-below of a higher-level message. By convention, a set listing `Net` denotes "any message at-or-below `Net`"; a set listing several messages denotes the union of their respective at-or-below closures.
- 
+
 A set `A` **subsumes** a set `B` (notation $B \subseteq A$) iff for every message $m$ in `B`, there exists a message $m'$ in `A` such that $m$ is at-or-below $m'$ in $m'$'s hierarchy. Messages from different hierarchies are mutually incomparable; nothing in one hierarchy subsumes anything in another. The relation is reflexive, transitive, and antisymmetric (modulo at-or-below equivalence within a single hierarchy, which is trivial).
- 
+
 A caller invoking a command with declared failure set `D` is responsible for ensuring its enclosing signature's set `E` satisfies $D \subseteq E$, modulo any sets consumed by recovery within the caller. A caller may *widen* (`E` a superset of `D`) at the cost of precision; a caller may *not* narrow at a call site. A `|` consumes failures of certain messages: bare `|` consumes the entire propagating set; `| Name -> ...` consumes failures whose message is at-or-below `Name`. The post-block propagating set is the original set minus the at-or-below closure of the matched message.
- 
+
 **Surface form for declaring a failure set.** A failure set is declared by attaching square brackets containing message names to the failure mark in a signature or command-type expression:
 
 ```
@@ -990,55 +990,55 @@ The bare additive form `?[+]` is well-formed: it admits whatever callees emit, w
 A class method's failure set must be uniform across all instances. At a class-dispatched call, the typechecker knows the class and the method but not the instance; the failure set must therefore be a property of the (class, method) pair, not of the instance. An instance's implementation may emit any subset of the class-declared set; emitting a message outside the set is a static error. A class method declared additive (e.g., `.decl ?[+ Net] traverse: ?<T> f`) propagates the callable parameter's set uniformly across instances, with the substitution happening per call site.
 
 ### 4.10 Re-Failing
- 
+
 A common pattern is recovering a failure, deriving from its payload, and propagating a fresh failure with new identity:
- 
+
 ```
 | LowLevel value ->
     .fail DomainSpecific: (translate: value)
 ```
- 
+
 This is an **ordinary `.fail`** originating from the handler's frame; no re-fail-specific machinery exists in the language. The handler binds a payload (`value`); the new `.fail` is fired from the handler's frame with a freshly-named message and a payload of the handler's choosing. The original failure's identity is consumed at binding and does not survive.
- 
+
 The bound name binds the **payload only**, not the original message. To propagate the same message-and-payload combination unchanged, supply the message explicitly:
- 
+
 ```
 | FatalFailure f ->
     .fail FatalFailure: f
 ```
- 
+
 Forms that elide the message &mdash; `.fail f` to "re-raise" &mdash; are not valid: `f` is the payload, not the message; the directive cannot infer which message to attach.
- 
+
 When the new `.fail`'s payload is the bound name from a preceding `|`-with-spec, the value **moves** from its current holding frame (the recovery frame) into the new `.fail`'s originating frame (the handler's frame). The value's identity is preserved; only its holding frame changes. The witness for the new failure's slot is selected at the re-fail site at compile time, against the new message's bound class &mdash; which may differ from the original message's bound class. The static check at re-fail compares the bound payload's static class (the engaging handler's spec class) to the new message's payload class: the bound class must be a subclass of (or equal to) the new message's class under the Liskov-covariance rule (&sect;9.17). If the bound class is not assignable to the new message's class under that rule, the re-fail is a static error. The check is on the static class only &mdash; the typechecker does not have the engaged failure's runtime concrete type at re-fail time, only the bound spec class. The discipline composes cleanly: a chain of recover-and-re-fail handlers each performs a move into the next holding frame, until a final handler consumes the value without re-failing.
- 
+
 The value's lifetime across a re-fail chain is governed by the holding-frame model in &sect;4.11. Each level of the chain performs a move of the value into the next holding frame; the value's identity is preserved across these moves.
- 
+
 ### 4.11 At-Stack Handlers Under Failure
- 
+
 The frame-exit hooks `@` and `@!` (&sect;4.4) compose with failure flow as follows.
- 
+
 `@`-bodies run on every scope exit. When a failure propagates out of a scope containing `@` blocks, the `@` bodies fire as part of that scope's exit, in reverse registration order, before the failure propagates past the scope. The bodies execute as if no failure were active: they neither see nor consume the propagating failure. A failure produced *within* an `@`-body propagates through the cleanup machinery's own rules, not back into the original failure's flow.
- 
+
 `@!`-bodies run only on failure exits. The composition with the propagating failure is identical to `@`'s, restricted to the failure-exit case.
 
 **Block hooks are frame-bound, not value-bound.** The `@` and `@!` registration list is a property of the registering scope, not of any value the block's body references. When a value referenced inside an `@`-block is moved out of the frame &mdash; for example, used as a payload in a `.fail` directive &mdash; the block's reference to that name continues to refer to the original frame slot, which after the move no longer holds the value. Under the surviving-view move (&sect;10.11), a relinquishing `<-` out of that slot instead leaves it holding a *view* on the success path &mdash; `uninit` only where the value was consumed &mdash; so on that path the block names a live view rather than an empty slot; that view dangles if read after its owner is finalized (Appendix I, A2), so the ordering responsibility below still stands. The user is responsible for ensuring that the order of operations within the frame body keeps the block's references valid until the block fires, or for registering cleanup at the destination frame instead. The language does not transport block-registered cleanup across move boundaries; the **holding frame** model below governs the *value's* location across the failure-flow path, while the `@` and `@!` registration list remains anchored to the scope in which the marker appeared.
 
 **The holding-frame model.** At any moment, a payload value lives in exactly one frame, its *holding frame*. Initially the holding frame is the originating frame of the `.fail` that produced the value. Propagation up the call stack copies the failure slot's three words (message, pointer, witness) without moving the value &mdash; the holding frame does not change during propagation. The holding frame *does* change at two events: at **binding**, when a `|`-with-spec engages and the value moves into the recovery frame; and at **re-fail**, when a fresh `.fail` in the handler's frame takes the bound value as its payload and the value moves into the new originating frame. Both events are moves: the value's identity is preserved; only its holding frame changes. The model describes the value's location, not any handler timing &mdash; cleanup of a value that has moved out of its originating frame is the recovery handler's responsibility, expressed through ordinary statements within the handler body or through `@` and `@!` registrations within that body. There is no class-level mechanism that auto-registers cleanup for values of a particular type.
- 
+
 ### 4.12 The Single-In-Flight Invariant
- 
+
 Basis maintains an invariant: **at most one in-flight failure exists per thread at any moment**. The invariant is preserved by the language's semantics: `.fail` is valid only when no failure is in flight at the firing point (a propagating failure would have failure-skipped past the `.fail` site already), and `|`-blocks consume the in-flight failure before any new one can be fired from the handler body. Multi-threaded programs may have one in-flight failure per thread; the invariant is thread-local.
- 
+
 A frame that has fired a failure does not retire on the normal "command returned" schedule. It enters a **deferred-retirement state**: the frame is still allocated, its payload-storage area still valid, but it is no longer executing. The deferred-retirement state ends at the moment of consumption &mdash; when a `|`-block somewhere up the stack engages and the value moves out &mdash; or at program termination. After consumption, the originating frame's payload-storage area is reclaimable (the value has moved); other resources held by the frame retire at the same moment, on the normal frame-retirement schedule. The single difference between deferred retirement and ordinary retirement is the timing: deferred retirement waits for consumption.
- 
+
 As a consequence of the single-in-flight invariant, at most one deferred-retirement frame exists per thread: the originating frame of the in-flight failure. The invariant is what permits the simple per-frame failure-slot representation (&sect;4.1) to suffice; if multiple in-flight failures could coexist, the slot would need to be replaced by a per-failure structure with its own discriminator.
- 
+
 The single-in-flight invariant is also what makes the holding-frame discipline (&sect;4.11) tractable: a payload value's holding-frame chain is a strict sequence &mdash; originate, propagate-and-bind, possibly re-fail-and-bind-again, eventually consume &mdash; with no interleaving of unrelated failures. The chain is a linear path through frames, never a tree.
- 
+
 ### 4.13 Failure-State Lattice
- 
+
 The typechecker performs a forward-flow analysis over each command body's control-flow graph. At each program point the analysis maintains a state from a six-element lattice:
- 
+
 | State | Meaning |
 | --- | --- |
 | `clear` | No failure is propagating at this program point. |
@@ -1047,301 +1047,301 @@ The typechecker performs a forward-flow analysis over each command body's contro
 | `mixed(?)` | Some incoming paths reach this point clear, others with `failing(?)` (possibly widened from `failing(!)`). |
 | `mixed(!)` | Some incoming paths reach this point clear, others with `failing(!)`. |
 | `unreachable` | No incoming path reaches this program point. |
- 
+
 The states are mutually exclusive: at any program point, the state is exactly one of the six. The lattice's bottom is `unreachable`, which is the identity for the join operation. Above it sit `clear`, `failing(!)`, and `failing(?)` as pairwise-incomparable peers. `mixed(!)` is the join of `clear` with `failing(!)`. `mixed(?)` is the supremum: every join involving a `?`-flavored failure produces `mixed(?)`. There is no element above `mixed(?)`.
- 
+
 Two reading rules summarize the join behavior. **Widening of `!` to `?`**: whenever a `!`-flavored state is joined with a `?`-flavored state, the result is `?`-flavored. The `?` mark is the supremum among the three failure modes. **`clear` plus failing produces `mixed`**: a node reached by both a clear path and a failing path is reachable on both, and downstream code must consider both possibilities.
- 
+
 A command body is **conformant** with its declared mark when every reachable exit edge in its CFG analysis satisfies the state rule for that mark; unreachable exits impose no constraint:
- 
+
 - A `:`-marked body requires every reachable exit edge to have state `clear`. Any reachable exit in `failing(M)` or `mixed(M)` fails conformance &mdash; a propagating failure has reached the body's exit, contradicting the `:` declaration.
 - A `?`-marked body imposes no constraint on the states of its reachable exits: they may be `clear`, `failing(?)`, `failing(!)`, `mixed(?)`, or `mixed(!)`.
 - A `!`-marked body requires every reachable exit edge to have state `failing(?)` or `failing(!)`. Any reachable exit in `clear` or `mixed(M)` fails conformance: `clear` because the path is purely successful; `mixed(M)` because some path is successful, even if other paths are failing.
 The duality between `:` and `!` is direct: `:` rejects every reachable-exit state with a propagating-failure contribution; `!` rejects every reachable-exit state with a successful-path contribution. The lattice was designed so these checks are simple state-membership tests.
- 
+
 Bodies whose every exit edge is unreachable &mdash; non-terminating commands, including the long-lived event loops typical of servers and other reactive systems &mdash; vacuously satisfy every conformance rule, since the universal quantification over reachable exits has an empty domain. Divergence is observationally consistent with all three marks: a caller of a `:`-marked diverging command never observes a failure, a caller of a `!`-marked diverging command never observes a successful return, and a caller of a `?`-marked diverging command observes neither &mdash; each consistent with what the corresponding mark promises.
- 
+
 Under typed failures (&sect;4.9), the lattice refines: each `failing(M)` and `mixed(M)` state carries a propagating-set component, and the conformance check verifies that every exit edge's set is a subset of the body's declared failure set. The full transfer-function table &mdash; covering each block marker's state transitions, each call site's two-edge or one-edge pattern, and the joining rules at convergent CFG points &mdash; is in Appendix E. The integration with the initialization analysis (&sect;6) is a parallel forward-flow analysis over the same CFG with the same join points; the two analyses are independent at transfer functions but share the walk.
- 
+
 A typechecker implementation may begin with the un-refined six-state lattice and add the failure-set component incrementally; dropping the failure-set component recovers the un-refined lattice exactly.
 
 When a recovery block engages, the propagating-set component is narrowed: a bare `|` consumes the entire set; a `|`-with-spec narrows per-root from the spec's at-or-below closure, with precise removal when the closure fully covers a root and conservative retention when it would only partially cover one (the set representation does not capture closures with holes). The formal per-root rule is in Appendix E.3 alongside the lattice's transfer functions.
- 
+
 ---
 
 ## 5. Types
- 
+
 This section defines the type forms of Basis. Every value the language admits inhabits exactly one of the forms enumerated here. The forms partition into two categories &mdash; buffer-backed (&sect;&sect;5.2&ndash;5.7) and non-buffer (&sect;&sect;5.10&ndash;5.15) &mdash; with three additional facilities (aliases &sect;5.8, enums &sect;5.9, and the cross-cutting subsumption rule &sect;5.5) that operate over both. Each form's surface declaration syntax is given here in sketch; the full grammar is in Appendix B. Each form's construction surface &mdash; how values of the form are introduced and assigned &mdash; is in &sect;7. Each form's interaction with parameter modes and class dispatch is in &sect;6 and &sect;9 respectively.
- 
+
 ### 5.1 The Two-Layer Split
- 
+
 Every type in Basis falls into exactly one of two categories. The split is structural: it determines what positions a type may inhabit, how it is initialized, how it composes with other types, and how the static analyses treat it.
- 
+
 **Buffer-backed types** are types whose representation reduces &mdash; transitively &mdash; to bytes. Buffer-backed values are byte-copyable, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. The category includes the buffer primitives `[N]` and `[]`, typed buffers `[N]T` and `[]T`, domains, records, and unions. Aliases that resolve to a buffer-backed type are buffer-backed; enums whose enumerated-type is buffer-backed are buffer-backed.
- 
+
 **Non-buffer types** are types whose representation includes references, identity, dispatch information, or other non-byte semantics. The category includes pointers, command-typed values (the `:<...>`, `?<...>`, `!<...>` family), fexpr-typed values (the `:<*>`, `?<*>`, `!<*>` family), objects, and variants.
- 
+
 The split is enforced by a **containment rule**: byte-aggregate containers &mdash; records, unions, typed buffers `[N]T`, and domain parents &mdash; admit only **fixed-size buffer-backed** contents. A record's fields must all be fixed-size buffer-backed; a union's candidates must all be fixed-size buffer-backed; a typed buffer `[N]T` requires `T` to be fixed-size buffer-backed; a domain's parent must be fixed-size buffer-backed. The runtime-length forms `[]` and `[]T`, while themselves buffer-backed, do not have a static byte-width and are therefore excluded from these positions. Non-buffer types may appear only at top-level positions &mdash; slots introduced via `#`, parameters, receivers &mdash; or as fields of objects or candidates of variants. Object fields and variant candidates are unrestricted as to category; they may hold fixed-size buffer-backed, runtime-length buffer-backed, or non-buffer types freely.
- 
+
 The grammar enforces the byte-aggregate-vs-other distinction by partitioning the type-expression non-terminal: record-field, union-candidate, `[N]T`-element, and domain-parent positions admit a `fixed-size-type-expr` (Appendix B), which excludes the runtime-length forms `[]` and `[]T` and all non-buffer forms. Object-field and variant-candidate positions admit the full `type-expr`. Named-type references in `fixed-size-type-expr` positions are checked by the typechecker against the resolved type's category.
- 
+
 The containment rule's load-bearing consequence is that mutation either succeeds fully or fails fully (principle 4, &sect;1.2). A record's bytes are unambiguously a byte-aggregate, copy-restored to the caller's slot atomically on success and not at all on failure. A record-with-pointers would punch a hole in this &mdash; the pointer copies, the pointee doesn't, and partial-failure semantics drift. The containment rule eliminates the concern at the type level rather than relying on convention or analysis.
- 
+
 The split also determines whole-slot initialization tracking (&sect;6.14): a buffer-backed slot is one byte-aggregate, not a graph, and tracking it as a unit is sound because no field can have non-byte semantics. The static analyses treat each form per its category, with the guarantees of one category not silently leaking into the other.
- 
+
 ### 5.2 Buffer Primitives
- 
+
 The bracket form `[N]` denotes an `N`-byte buffer with the length fixed in the type. The form `[]` denotes a runtime-length byte buffer: its length is carried alongside the bytes at runtime rather than in the type. The forms `[N]T` and `[]T` denote buffers laid out as a sequence of `T`-values, sized to `N` elements in the type (`[N]T`) or to a count carried in the value at runtime (`[]T`). Buffers are the substrate over which all value-like types are interpreted: a `[4]` is four bytes &mdash; what those bytes *mean* (a 32-bit integer, an RGBA pixel, a packed pair of 16-bit values, a Unicode code point) is determined by the domain layered on top of it (&sect;5.3). The fixed-size forms (`[N]`, `[N]T`) and the runtime-length forms (`[]`, `[]T`) are different representational categories; conversion between them is explicit (&sect;5.5). Duplicating the elements of a runtime-length buffer into fresh storage, rather than sharing its handle as an ordinary store does, is the copy operator `<<` (&sect;7.1) &mdash; a buffer-backed-only placement whose static role in preventing region escape is the subject of &sect;7.21.
- 
+
 **Indexing into a buffer-shaped value uses the suffix `[index]` syntax.** Indexing is failable: out-of-bounds is a first-class failure, not undefined behavior. Indexing on a domain works because domains are themselves buffer-backed, transitively reducing to a buffer; whether indexing is *meaningful* on a particular domain (versus syntactically permitted but not idiomatic) is a domain-specific concern that the standard library and user code resolve at the domain level.
- 
+
 **C-style pointer arithmetic is not supported.** Stepping through buffer contents requires `[i]`. The restriction reflects two design commitments: indexing is a first-class operation that produces a checked failure on out-of-range access, while pointer arithmetic admits no analogous check; and the language reserves implementation latitude on pointer representation (&sect;5.10), including handles that may relocate, which arithmetic against a stable address would alias incorrectly after relocation.
- 
+
 There are no privileged primitive types in Basis. The standard library defines `Int32`, `UInt32`, `Float32`, `Int8`, and similar names as domains over buffer-primitives of appropriate size, with associated intrinsics for arithmetic and comparison. User-defined domains use the same mechanism &mdash; there is no conceptual distinction between standard-library domains and user domains. The buffer primitives are the unifying substrate; everything else is a refinement.
- 
+
 ### 5.3 Domains
- 
+
 A **domain** is a new type declared in terms of a parent type, where the parent must reduce &mdash; transitively, through any aliases &mdash; to a fixed-size buffer-backed type. The declaration form is:
- 
+
     .domain Inches : Int32
     .domain Centimeters : Int32
     .domain RGBA8 : [4]
     .domain Tagged : [12]
- 
+
 Pointers, command-typed values, fexpr-typed values, objects, and variants cannot serve as domain parents because the purpose of a domain is to give a refined interpretation to a definite chunk of bytes &mdash; a non-buffer parent has no chunk of bytes to interpret. The constraint is structural and enforced at the grammar level.
- 
+
 **Domains form a parent&ndash;child hierarchy with one-directional implicit upcasting.** A value of a child domain is implicitly accepted wherever the parent domain is expected, but a value of the parent domain is *not* implicitly a value of any specific child. So an `Inches` value is implicitly an `Int32`; an `Int32` value is not implicitly an `Inches`. **Sibling domains do not implicitly convert.** `Inches` and `Centimeters`, both parented at `Int32`, are mutually incomparable for implicit conversion; an explicit constructor invocation is required to move between them.
- 
+
 The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Witnesses for class dispatch are constructed at the relevant slot boundary based on the slot's declared type at that point. This is the buffer-backed subsumption rule applied to domains; it is stated in full in &sect;5.5, and the conditions under which a child type's dispatch identity carries through or is lost in transit are &sect;9.18.
- 
+
 Domains are first-class types: they may be parameters, fields, receivers of class methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child $\to$ parent) and child declarations do not widen the upcast set for any existing type.
- 
+
 ### 5.4 Records
- 
+
 A **record** is a contiguous, byte-addressable buffer with named field offsets. Record values are value-like: copyable as bytes, with no identity beyond byte-content, and laid out at deterministic offsets within their containing storage. The declaration form is:
- 
+
     .record Point : Int32 x, Int32 y
     .record RGBA   : UInt8 red, UInt8 green, UInt8 blue, UInt8 alpha
     .record Header : UInt16 version, UInt32 length, [4] reserved
- 
+
 Record fields are constrained to fixed-size buffer-backed types (the containment rule of &sect;5.1), reflecting the requirement that every field have a definite byte width and offset. A record is **packed**: its total byte size is exactly the sum of its fields' sizes, with no implementation padding, and each field's offset is the sum of the preceding fields' sizes in declaration order. The packed rule is load-bearing for record-to-buffer subsumption (&sect;5.5) &mdash; a record whose fields total N bytes is `[N]` exactly. Object types (&sect;5.11) are not byte-aggregates and have no such constraint; object layout is implementation-determined and may include alignment padding.
- 
+
 Records are **nominally typed** (&sect;5.1's containment rule makes the structural matching well-defined; nominality is the choice on top): two `.record` declarations with identical field structure produce two distinct types. Values of one are not interchangeable with values of the other on the basis of structural similarity alone. The discipline is uniform across the type system; it is what gives module-exposed types their abstraction story.
- 
+
 Records compose: a record may have a field whose type is another record, and the inner record's bytes lay out within the outer record's bytes contiguously at the inner record's offset. This is the natural way to express compound buffer-backed structures.
- 
+
 The record/object split (&sect;5.11) is the surface manifestation of the buffer-backed/non-buffer division: records are byte-aggregates with no identity beyond their contents; objects are identity-bearing aggregates whose fields may include non-buffer types. The choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics &mdash; not a graded distinction, but a categorical one.
- 
+
 **Field access.** A record's fields are reached through the scope operator `::` (&sect;9.6). The named form `record :: fieldName` selects the field by name; the positional form `record :: N` selects the Nth field by 1-based positional index in declaration order. Out-of-range positional indices and unknown field names are static errors.
 
 A record-typed field may be declared with the `.splice` modifier (fully specified in &sect;A.7), promoting the inner record's structure into the outer's accessible surface: each inner field name becomes directly addressable on the outer, and the inner's positions splice into the outer's positional sequence at the `.splice` field's site. Both `::` surfaces account for this promotion uniformly. The `.splice` field's declared name remains a valid grouping reference &mdash; `outer :: inner` returns the inner-typed view of the inner's bytes &mdash; but does not correspond to a positional index.
- 
+
 Records also admit **inline definitions** &mdash; anonymous declarations within a field or candidate position. An inline record nested inside an outer record's field declaration produces a nominally distinct type per declaration site; the same field structure appearing in two separate outer records yields two distinct inline types. Named records are typically preferred for re-use; inline definitions are a convenience for one-off compound structure inside another declaration.
- 
+
 ### 5.5 Buffer-Backed Subsumption
- 
+
 Fixed-size buffer-backed types compose under a **uniform parent-chain subsumption** relation that operates across domains, records, unions, and the fixed-size primitive buffer forms together. A value of any fixed-size buffer-backed type subsumes upward through its parent chain &mdash; every ancestor along the chain accepts it implicitly &mdash; terminating at the relevant `[N]` primitive. **An `Inches` is implicitly an `Int32`; an `Int32` is implicitly a `[4]`.** A `Point` (record over an `[8]`-byte representation) is implicitly an `[8]`. The chain extends through every named refinement on the way; nothing is special about the named-domain step versus the record-to-primitive step.
- 
+
 The runtime-length forms `[]` and `[]T` are **leaves in the subsumption lattice**. They participate in the buffer-backed category but have no implicit parents and no implicit children: implicit subsumption never crosses the boundary between fixed-size types (which encode length in the type) and runtime-length types (which encode length in the value). Movement between a fixed-size type and a runtime-length type is an explicit operation &mdash; a constructor that wraps the fixed-size bytes with a length tag, or that reads bytes from the runtime-length value into a fixed-size slot under a runtime length check.
- 
+
 **Sibling buffer-backed types subsume to their common ancestor without peer-conversion.** Two domains parented at `Int32` &mdash; `Inches` and `Centimeters` &mdash; are mutually incomparable as types; they do not implicitly convert to each other. Each individually subsumes upward through the shared `Int32` ancestor: a context expecting `Int32` accepts either; a context expecting `[4]` accepts either. A context expecting `Inches` rejects a `Centimeters` value, and a context expecting `Centimeters` rejects an `Inches` value. The sibling-to-common-ancestor pattern is what makes domain hierarchies usable for unit-style refinements without admitting silent unit conversions.
- 
+
 The subsumption is **type-acceptance, not value-rewriting**. The bytes are unchanged at the upcast boundary; the static analysis accepts the value at the broader type. Methods and class witnesses are selected at each slot boundary based on the slot's declared type at that point &mdash; different types may interpret the same bytes differently, and a witness constructed at any class-typed slot boundary reflects that boundary's slot type rather than any earlier slot type the value passed through. The rule for when buffer-backed dispatch identity is captured at a class-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-class-typed buffer-backed parameters, is in &sect;9.18.
- 
+
 The subsumption rule is one-directional: child to parent, never the reverse. A value of a parent type does not implicitly become a child value. Constructing a child value from a parent value requires an explicit constructor invocation (&sect;3.9), which the typechecker recognizes as a deliberate cross-type movement.
- 
+
 A separate buffer-backed subsumption rule applies to unions: the **union $\to$ candidate-or-parent byte-reinterpretation** rule (&sect;5.7) admits a union value into any buffer-backed slot whose type is on the parent chain of *at least one* of the union's declared candidates. This rule is given its own subsection because it differs from the parent-chain subsumption rule in two important respects: it is existential across the candidate set, not universal; and it is **not Liskov-preserving**, since the bytes' meaning depends on which candidate is currently active in the union &mdash; a property the language does not track.
- 
+
 The narrowness of the implicit-conversion story across buffer-backed types is a deliberate design commitment. Implicit conversions are a routine source of reasoning errors in languages that admit them. The parent-chain rule is the minimum that makes refinement-style domain hierarchies usable; the union byte-reinterpretation rule is the buffer-backed-side answer to the discriminated-overlay question that variants answer differently (&sect;5.12). Every other type-crossing &mdash; record to record, sibling domain to sibling domain, anything to or from a non-buffer type &mdash; is explicit, requiring a constructor invocation, an interpretive cast against a union, or the dynamic-narrowing operator `-<` (&sect;7.14).
- 
+
 ### 5.6 Unions
- 
+
 A **union** is a byte-level overlay of declared candidate types. The union's storage is `max(candidate-sizes)` bytes; assigning a candidate value writes that candidate's bytes into the overlay. The declaration form is:
- 
+
     .union Number : Int32, Float32
     .union AnyFour : Int32, [4], RGBA8
- 
+
 Union candidates must be fixed-size buffer-backed (the containment rule of &sect;5.1). This is what makes the byte-overlay coherent: every candidate has a definite byte-width known at typecheck time, and the overlay is the maximum.
- 
+
 **The union carries no language-level discriminator.** A union slot is *just bytes*; the language tracks neither which candidate is currently active nor any tag identifying it. Discrimination is the user's responsibility &mdash; typically by storing an enumeration value alongside the union in a containing record, or by deriving the active candidate from contextual information already implicit in the program.
- 
+
 The choice not to attach a language-level discriminator to unions is structural. A discriminator on every union would force a discriminator-byte allocation cost on every union and would commit the language to a witness mechanism inside the buffer-backed side of the type system. Both costs are inappropriate for the lower-level coding role unions occupy: programs that want safe tagged sums use **variants** (&sect;5.12), which carry both a tag and a witness; programs that want byte-overlay efficiency at the cost of programmer-managed discrimination use unions. The two surfaces serve different needs, and the distinction is preserved by giving each its own discrimination model. The union/variant pair is the buffer-backed/non-buffer surface manifestation of the byte-overlay-versus-tagged-sum design choice.
- 
+
 Unions are nominally typed (&sect;5.4): two `.union` declarations with identical candidate sets produce two distinct types. Inline forms are admitted, with the per-declaration-site nominal-distinctness rule applying as for records.
- 
+
 Reading a candidate value out of a union is **interpretive casting** &mdash; a reinterpretation of the union's bytes at a candidate-typed slot view. The typechecker enforces only that the cast's target type is one of the union's declared candidates; it does not verify which candidate is actually active. The construction surface for interpretive casting is part of the broader byte-reinterpretation story (&sect;5.7) and is treated in &sect;7 alongside the rest of the construction surface.
- 
+
 ### 5.7 Union &rarr; Candidate-or-Parent Byte-Reinterpretation
- 
+
 A union value implicitly subsumes &mdash; by zero-cost byte reinterpretation &mdash; to any buffer-backed type `T` such that `T` appears on the standard buffer-backed subsumption chain (&sect;5.5) of *at least one* declared candidate of the union. The relation is the union's reading rule: a union value flows into any context expecting a candidate's type or any of that candidate's ancestors.
- 
+
 The relation is **existential** across the candidate set, not universal. A union with candidates `{A, B, C}` where `A`'s parent chain reaches `T`, regardless of whether `B`'s or `C`'s chain reaches `T`, admits the subsumption to `T`. The user's reading: if some candidate's bytes could plausibly be interpreted as `T`, the language admits the operation; the responsibility for ensuring the union's bytes *are* a valid `T`-value at the moment of reading rests with the user's discrimination machinery.
- 
+
 The relation is **one-way**: a union value flows into a `T`-typed slot. The reverse direction &mdash; a `T`-typed value into a union slot &mdash; is a construction operation handled by the standard surface (constructor invocation or aggregate literal targeting the union type); the implicit subsumption does not run backward.
- 
+
 The relation is **not Liskov-preserving**. The bytes are the same across the reinterpretation, but their *meaning* depends on which candidate is currently active in the union, which the language does not track. The user-side reading: the language admits the byte-reinterpretation, but the semantic validity &mdash; that the bytes the union currently holds *are*, in fact, a valid `T`-value &mdash; is the user's responsibility. The discipline is the C-style discipline: a union is a tool for byte-aliasing across known structurally-compatible representations; the user manages the discriminator and the validity. Under the standing lens of &sect;1.5, the reinterpretation is *byte-reinterpretation subsumption*, distinct from the Liskov-preserving parent-chain subsumption of &sect;5.5; the two are kept terminologically separate to avoid silently conflating them.
- 
+
 The dynamic-narrowing operator `-<` (&sect;7.14) **does** apply to union slots. The admissibility test is the same existential parent-chain rule as the implicit byte-reinterpretation subsumption above: `-<` from a union to a target type `T` succeeds when `T` appears on the parent chain of *at least one* declared candidate, and fails when `T` lies on no candidate's chain. A union with candidates `{Int32, Int64}` admits `-<` to `[4]` (on `Int32`'s parent chain) and to `[8]` (on `Int64`'s parent chain), but fails `-<` to `[3]` or `[5]` &mdash; neither candidate reduces to those types. Unlike `-<` on variants and object hierarchies &mdash; which carry language-tracked tags or runtime type information for the operator to test &mdash; `-<` on a union has no runtime discriminator to consult; the admissibility check is made entirely at typecheck against the union's declared candidate set. The user-asserted-byte-validity discipline above still applies: an admissible `-<` is a byte-reinterpretation at runtime, and the user's discrimination machinery remains responsible for ensuring the union's bytes in fact represent a valid target-typed value.
- 
+
 The same `-<` operator also extends to class-typed targets on unions, under a stricter admissibility rule. **`-<` from a union to a class `C` succeeds when *exactly one* of the union's declared candidates is an instance of `C`, and fails otherwise.** When admissible, the constructed class-typed value carries the witness for the pair (qualifying-candidate, `C`); selection is fully static. A union with candidates `{Int32, Float32}` where only `Int32` has a `Showable` instance admits `-<` to `Showable`, producing a `Showable`-typed value with the (`Int32`, `Showable`) witness. The same union where *both* candidates implement `Showable` rejects `-<` to `Showable` as ambiguous: the language has no runtime discriminator to pick between the candidate witnesses, and the user must instead narrow to a specific candidate type first (`-<` to `Int32`, for instance) and let the resulting candidate-typed value flow into the class-typed slot through ordinary subsumption. A union where no candidate is an instance of `C` also rejects.
- 
+
 The exactly-one rule differs from the existential rule for buffer-backed targets because the underlying mechanisms differ. A buffer-backed target is a byte-view; the result type determines byte interpretation directly, so existential admissibility suffices. A class target requires constructing a witness specific to a particular candidate, so the rule must determine that candidate uniquely. Existential admissibility cannot pick between competing candidate witnesses; universal admissibility cannot either, since unions carry no runtime tag for per-candidate selection at use time. Singularity is the unique rule that produces a determinate static witness selection.
- 
+
 The class-target case is **`-<`-only** &mdash; explicit, never implicit. A union value does not implicitly subsume to a class-typed slot via the candidate-level instance rule, even when exactly one candidate qualifies. The reason is interaction with a separate, orthogonal possibility: a union type may itself be declared as an instance of a class &mdash; `.instance MyUnion: Showable` is a well-formed declaration that gives the union type its own `Showable` methods, with the union's bytes interpreted at that level rather than at any candidate's. When such a declaration is in scope, implicit subsumption from a `MyUnion` value to a `Showable`-typed slot uses the union's own instance, with the witness (`MyUnion`, `Showable`). Were the candidate-level rule also admitted implicitly, the two mechanisms would compete at the same use site and the language would have to choose one over the other silently. Keeping the candidate-level case explicit at `-<` keeps the two paths distinct: a direct pass (implicit subsumption) uses the union's own class instance, when declared; `-<` to a class uses a candidate's class instance, under the exactly-one rule. A programmer who wants a particular candidate's class instance in the multi-match case narrows to that candidate type first and lets the resulting value flow into the class-typed slot through the standard subsumption story.
- 
+
 The user-asserted-byte-validity discipline carries over to the class-target case. The witness selected by `-<` is the candidate's witness, and methods dispatched through it read the union's bytes as that candidate's bytes. The user's discrimination machinery remains responsible for ensuring the union's bytes do in fact represent a valid value of that candidate at the moment of the `-<`.
- 
+
 ### 5.8 Aliases
- 
+
 An **alias** is a synonym &mdash; purely a human-ergonomics tool. The declaration form is:
- 
+
     .alias UserId = Int64
     .alias Cookie = [16]
- 
+
 The alias name and its right-hand side are interchangeable in both directions in all contexts; aliases erase entirely from the type system's perspective. They introduce no new type identity. A `UserId` is the same type as `Int64`; a `Cookie` is the same type as `[16]`.
- 
+
 Aliases are useful as **type-level abstraction barriers**: a module exposes `.alias UserId = Int64`, downstream code uses `UserId` everywhere, and a later implementation change to (say) `[16]` (a UUID) requires changing only the alias declaration, assuming the change is otherwise compatible. The downstream code reads the same; the type identity has not changed because the alias erases.
- 
+
 Aliases compose with domains: a domain's parent may be an alias, which transparently resolves to the underlying type. The combination is permitted but rarely needed.
- 
+
 The line between alias and domain is the line between *no new type identity* and *new type identity with implicit-upcast to the parent*. An alias erases; a domain with the same right-hand side does not. The choice between them is the choice between a renaming-only abstraction and a typing-distinct refinement. A program that wants `UserId` to *not* be substitutable with arbitrary `Int64` values uses a domain (`.domain UserId : Int64`); a program that wants a clearer name for `Int64` without distinguishing it from other `Int64`-typed values uses an alias.
- 
+
 ### 5.9 Enums
- 
+
 An **enumeration** is a compile-time-constant collection of named values of a single type. The declaration admits two surface forms:
- 
+
     .enum Severity : info = 0, warning = 1, error = 2
     .enum HttpCode Status : ok = 200, notFound = 404, serverError = 500
- 
+
 The **one-name form** (`.enum Severity : ...`) names the enum's type (here `Severity`); the values' representational type is inferred from the literal values. The **two-name form** (`.enum HttpCode Status : ...`) makes the representational type explicit (here `HttpCode`) and names the enum's type second (here `Status`). The two-name form is the form to use when the literal values must inhabit a non-default representational type &mdash; for example, a domain over `Int16` with associated invariants &mdash; and a constructor is available that is callable on each literal. The two names are not a "second-level grouping"; they are simply *type constraint* and *enum type*, with no nesting semantics.
- 
+
 The `= literal` on each entry is optional. An entry without an explicit literal is auto-assigned C-style &mdash; the previous entry's value plus one, with the first entry defaulting to the representational type's zero &mdash; and explicit and auto-assigned entries may be mixed. Every value, whether written or auto-assigned, must inhabit the enum's representational type; one that does not is a static error.
- 
+
 Enum values are compile-time constants. They are read-only at every use site, with values fixed at module compile time, and they participate in the type system as values of the enum's type &mdash; not as a special category. An enum's type is a buffer-backed type (it inherits the buffer-backed-ness of its representational type) and may serve as a record field, union candidate, parameter, receiver, and so on, on the same terms as any other buffer-backed type.
- 
+
 Enums are **the language's single principled exception to the no-non-local-state principle.** A reference to an enum value is, structurally, a reference to non-local state &mdash; the value lives at module scope, not in any frame. The language admits this exception because enums are *constants*: they cannot be mutated, they have no per-thread or per-frame state, and they exist solely for the convenience of naming a fixed set of distinguished values. Whether enum values are constructed up-front at module load or computed on-demand at first use is implementation-dependent and not visible to the language.
- 
+
 The principle behind the exception is precise: it admits *compile-time-constant non-local read*, nothing more. Mutable module-level state, ambient context, thread-local storage, and module-level singletons all remain forbidden. Enums are the carve-out, and the language does not extend the carve-out by analogy to other constructs.
- 
+
 ### 5.10 Pointers
- 
+
 A **pointer type** is written `^T`. The caret is a type-prefix and may stack: `^^T` is a pointer to a pointer to `T`. Pointers are non-buffer types &mdash; they reference other storage rather than carrying byte-content directly &mdash; and may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots (introduced via `#`), parameters, receivers, object fields, and variant candidates.
- 
+
 The expression-position operators on pointers are the suffix `^` (dereference) and the suffix `&` (address-of). A read through a pointer-typed slot uses `p^`; the address of a slot is `x&`. The full surface for these operators, including their interaction with the construction surface and the access-path discipline, is in &sect;7 and &sect;6.5 respectively. Construction of a pointer to fresh storage &mdash; as distinct from `&` taking the address of an existing slot &mdash; uses the value-construction surface of &sect;7.20, with the storage placement &mdash; the frame-bound region by default, or an allocator's source method for non-default storage (&sect;10) &mdash; determined there.
- 
+
 The language commits to **abstracted pointer semantics**. The user-visible meaning of `^T` is "pointer to `T`." Whether the runtime implementation is a thin pointer (carrying only the pointee's address), a fat pointer (carrying the address plus dispatch metadata), or a handle (a pointer to a pointer, supporting relocation by the allocator) is an implementation choice, made per type by the compiler, and not user-visible. The implementation latitude permits the compiler to choose, on a per-`T` basis, the representation that best serves `T`'s actual needs: a thin pointer for a small fixed-size buffer-backed `T`; a fat pointer for an object-typed `T`, supporting class dispatch; a handle for any `T` allocated in a relocation-supporting allocator.
- 
+
 User-visible operations on `^T` are uniform across these choices: dereference, address-of, indexing into a buffer-typed pointee via `p[i]`, member access for object pointees, dispatch via `::`. The user reasons about pointers in the abstract; the implementation chooses the concrete shape.
- 
+
 **No C-style pointer arithmetic.** Stepping through buffer contents requires `p[i]`. Incrementing a pointer to advance through an array is not supported. Indexing produces a first-class failure on out-of-range access; pointer arithmetic would not. The restriction is also necessary for the handle implementation to be valid &mdash; a handle's underlying address may move, and an arithmetic offset against it would alias the wrong target after relocation.
- 
+
 A `^Object` parameter is conceptually a double-indirection. Object-typed values are themselves indirections (objects are stack/heap-allocated with potentially non-contiguous fields, accessed via fat pointers); a `^Object` therefore points to a *slot* containing an object reference, and a writeable `^Object` parameter allows the callee to point that slot at a different object on success. The double-indirection structure is what lets writeable-`^Object` parameters serve as object-yielding result slots in the no-return-values world.
- 
+
 Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-local-state principle: the pointer is itself a parameter (or transitively reachable from one through the provision chain), and operations through the pointer touch storage that arrived by explicit provision. The transitive READ contract (&sect;6.5) refines this rule along access paths rooted at READ parameters: writes through a `^T` reached by such a path are forbidden, while writes through a `^T` reached by an UPDATE-rooted or CREATE-rooted path are permitted normally.
- 
+
 ### 5.11 Objects
- 
+
 An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, command-typed values, fexpr-typed values (subject to fexpr-specific restrictions; &sect;8), other objects, and variants. The declaration form is:
- 
+
     .object Logger : String name, ^File output, Severity threshold
     .object Cache  : [4096] storage, Int32 used, ^Cache next
- 
+
 Object-typed values are reference-semantics in the sense that they are normally manipulated through fat pointers to the object's storage rather than as bytes. The object's fields may be discontiguously laid out &mdash; the language does not commit to a particular field-layout strategy for objects, since the absence of a byte-aggregate constraint frees the implementation from offset-stability requirements that records carry.
- 
+
 The record/object split (&sect;5.4) is the core split of the buffer-backed/non-buffer division. Records *cannot* contain pointers, command-typed values, fexpr-typed values, objects, or variants; objects *can* contain anything. Records have no identity beyond byte-content; objects have identity that survives byte-content equivalence. The two are not a graded distinction &mdash; they are categorically separated, and the choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics.
- 
+
 Objects are nominally typed: two `.object` declarations with identical field structure produce two distinct types.
- 
+
 **Field access.** An object's fields are reached through the scope operator `::` (&sect;9.6). The named form `object :: fieldName` selects the field by name; the positional form `object :: N` selects the Nth field by 1-based **declaration order**. Because object layout is implementation-determined (the language does not commit to a particular field-layout strategy for objects, per the discussion above), positional access is by declared order rather than by byte offset; `obj :: 1` is always the first field as the type was declared, irrespective of how the implementation chose to lay out the storage. Out-of-range positional indices and unknown field names are static errors. (Objects have no `.splice` modifier, per the grammar in Appendix B, so the `.splice`-promotion rule from records does not apply.)
- 
+
 **Object lifetime ceiling.** The scope in which an object's storage is introduced &mdash; a command frame, or a `.scope` block within one (&sect;3.17) &mdash; is the object's lifetime ceiling: no mechanism in the language allows an object to outlive the scope that introduced it, except via transitive containment in another object whose ceiling is already higher. The type-side rule recorded here is that an object's *type* does not entail its lifetime &mdash; object types are first-class types &mdash; but every object *value* is bound to an introducing scope. The frame-ownership lens (&sect;1.5) makes the rule concrete: an object lives in its scope's storage; a `^Object` parameter passed downward gives a callee access to it, but the callee does not become the owner. A writeable `^Object` parameter lets the callee swap which object the caller-owned slot points at, but the new object is allocated into the *caller's* frame on successful copy-restore. At such a call boundary the lifetime ceiling is whichever frame ends up holding the slot at the binding moment. This same lifetime ceiling is the upper bound the region-escape ceiling error (&sect;7.21) compares against: a runtime-length buffer shared by `<-`/`<<-` into an object field may not outlive the buffer's region, and the field's object-lifetime ceiling is what the check tests it against.
- 
+
 **Frame-exit hooks via `@` and `@!` (&sect;3.13) are tied to the registering scope, not to the object's identity.** An `@` or `@!` block registered within a scope runs when *that scope* ends, regardless of the type of the value the block references; the hooks are scope-lifetime-tied, not object-lifetime-tied. Object-lifetime-tied cleanup is instead the province of the obligation system (&sect;10): an obligated value's discharge fires at the end of *its* lifetime, and an object's retirement fires its own obligation &mdash; never its owned fields', which its finalizer fires explicitly (&sect;10.16). The two mechanisms are distinct and do not compete &mdash; `@`/`@!` register scope-tied cleanup explicitly at a block marker, while an obligation rides with the value it was acquired against &mdash; so a resource may be managed by whichever fits its lifetime.
- 
+
 Object types may have class instances declared for them (&sect;9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's class membership is a property of the object's type, not of any particular object value, and is determined at the type-declaration site or at instance-declaration sites.
- 
+
 ### 5.12 Variants
- 
+
 A **variant** is a non-buffer tagged sum. Variant candidates may be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, objects, command-typed values, other variants, records, and domains. The declaration form is:
- 
+
     .variant Shape : Circle, Rectangle, Polygon
- 
+
 The Record&ndash;Object&ndash;Union&ndash;Variant parallel is exact at the buffer-backed/non-buffer axis (&sect;5.4 / &sect;5.6 / &sect;5.11): records and unions are buffer-backed; objects and variants are non-buffer. The variant-side surface answers the discriminated-overlay question that the union-side (&sect;5.6) answers with a user-tracked discriminator: a variant carries both a tag identifying the active candidate and a class-witness component participating in class-system dispatch &mdash; the witness's specific role and population are class-system territory and are detailed in &sect;9.
- 
+
 A variant value's runtime representation is a **3-word slot** &mdash; a triple of:
- 
+
 - **Tag identifier.** A small-integer identifier for the active candidate, slot-sized (32 bits comfortable, with spare bits available for occupancy or other small flags). The tag identifies which candidate the variant is currently storing or, distinctly, the absent state (&sect;5.13).
 - **Candidate pointer.** Pointer-sized; references the candidate value's storage. The storage is laid out per the candidate's type &mdash; a record candidate carries that record's bytes; an object candidate carries that object's identity-bearing storage; a pointer candidate carries a pointer-shaped value at the indirection's other end.
 - **Class witness.** Pointer-sized; carries class-dispatch information for the variant value. The witness's role and population conditions are class-system territory; see &sect;9 for the class-system mechanics that interact with the variant slot's witness component.
 The same 3-word slot pattern appears in three places in the language: failure values (&sect;4.1), variant slots (here), and Case-B class-typed parameter slots (&sect;9.7&ndash;&sect;9.9). The pattern is uniform across these uses; the witness component is what makes class dispatch on a slot's currently-active value coherent without the consumer knowing the concrete candidate type.
- 
+
 Variants are reference-semantics: variant values are normally manipulated through pointers to the variant's storage, parallel to objects. A variant value is non-buffer and may not appear in a buffer-backed position; it may appear in a top-level slot, in an object field, in a variant candidate (forming nested variants), or in any position the containment rule of &sect;5.1 admits non-buffer types.
- 
+
 Variants are nominally typed: two `.variant` declarations with identical candidate sets produce two distinct types. The variant declaration's full surface &mdash; including any candidate parameterization and any hierarchy structure &mdash; is given in Appendix B; the variant construction surface is in &sect;7.12.
- 
+
 ### 5.13 The Absent State
- 
+
 Every variant slot inherently admits an **absent state** in addition to its declared candidate states. A variant in the absent state has no active candidate: its tag identifies "no candidate here," its candidate pointer is null, and its witness is correspondingly null.
- 
+
 The absent state is **intrinsic to variants alone**. No other type in the language has a "may-be-absent" form. Pointers, objects, command-typed values, fexpr-typed values, records, unions, aliases, enums, and named domains all contain what their type declaration says they contain &mdash; there is no slot for the absence of a value. Variants are the language's null-pointer-inclusive data structures *without* admitting NULL into the type system: the absent state is a structural property of variants, surfaced through the normal type-system mechanisms, not a special case grafted onto every reference type.
- 
+
 A bare introduction of a variant slot &mdash; `# SomeVariant x` with no initializer &mdash; produces a variant slot in the absent state. The 3-word slot's all-zero pattern (zero tag, null candidate pointer, null witness) is the absent state, by construction. The bare-introduction form is admitted for variants and for no other non-buffer type: pointers, command-typed values, fexpr-typed values, and objects all reject bare introduction because they have no zero-default representation that the language admits. Variants alone admit a zero-default, and that zero-default *is* the absent state.
- 
+
 A variant declared with exactly one candidate is the language's idiomatic optional: a slot of that variant type is either absent or holds the single candidate's value. The absent state stands for "no value present"; the candidate state stands for "value present." The pattern composes with the rest of the variant machinery &mdash; testing for absent uses the `?- _ -< v` form, and engaging on the candidate uses a `?: 'narrow -< v` form (&sect;7.13) &mdash; without any dedicated optional-type machinery beyond the variant declaration itself.
- 
+
 The absent state is *always* a path through any variant. Code that operates on a variant's candidate must either explicitly handle the absent case or rely on a default arm in a `?:` chain catching it. The structural visibility of the absent path is what differentiates Basis variants from null-bearing reference types in languages where NULL is admitted everywhere a pointer is admitted: the absent state is acknowledged at the type level, surfaced syntactically through `_`, and addressed through standard composition rather than ignored until runtime.
- 
+
 **A candidate's lifetime is bounded by its slot.** A variant's active candidate occupies the slot from the write that installed it until that candidate is replaced, the variant is cleared to absent (`v -< _`, &sect;7.14), or the variant slot itself retires &mdash; whichever comes first. At each of those points the active candidate's lifetime ends; a candidate never outlives the slot holding it. This is the property the obligation system relies on for an obligated candidate (&sect;10.15): if the variant owns the candidate's obligation, its discharge has a determinate firing point at each lifetime-ending event.
- 
+
 The construction surface for variants &mdash; including the `${Candidate <- value}` form for non-absent introduction and the `_` markers in `-<` operations and aggregate literals &mdash; is treated in &sect;7.12 alongside the rest of the variant construction story. The dynamic-narrowing operator `-<` and its absent-state forms (`_ -< v` to test non-absence, `v -< _` to clear to absent) are in &sect;7.14.
- 
+
 ### 5.14 Command-Typed Values
- 
+
 A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits four constructional forms that produce command-typed values &mdash; command reference, command literal, lambda, and fexpr &mdash; enumerated in &sect;3.16 and detailed in &sect;8. The type system describes command-typed values uniformly through the same family of type expressions.
- 
+
 The type-expression forms for ordinary command-typed values are:
- 
+
     :<paramTypes>          ; never-fails command-typed value
     ?<paramTypes>          ; may-fail command-typed value
     !<paramTypes>          ; must-fail command-typed value
- 
+
 The angle-bracket list is a sequence of **parameter types only**, with no parameter names &mdash; at the type level there is nothing to refer to a name as. Mode markers in the list use the **suffix-on-type** placement of the nameless-context rule (&sect;3.3): `Type` (no marker, READ), `Type'` (CREATE), `Type&` (UPDATE). Pointer parameters carry the pointer-marker as prefix and the mode-marker as suffix on opposite sides &mdash; a pointer-to-`Int32` as an UPDATE parameter is `^Int32&`, with `^` and `&` visually distinct on opposite ends of the type.
- 
+
 Examples:
- 
+
     :<Int32, Int32>        ; never-fails command-typed value taking two Int32 (READ) parameters
     ?<Int32', String>      ; may-fail command-typed value with a CREATE Int32 and a READ String
     !<^Int32&>             ; must-fail command-typed value with an UPDATE parameter of type ^Int32
- 
+
 Command-typed values are non-buffer types &mdash; they carry dispatch metadata and (for capture-bearing forms) capture information that does not reduce to bytes. They may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots, parameters, receivers, object fields, and variant candidates (subject to the fexpr-specific restrictions of &sect;5.15 for fexpr-typed values).
- 
+
 Command-typed values support every operation a value supports: binding to slots, passing as parameters, storing in object fields and variant candidates, capture by lambdas and fexprs (within the rules of &sect;8), partial application (&sect;9.14), and direct invocation. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the class declared for `name` minus the receiver position. The full operational mechanics of dispatch are in &sect;9.
- 
+
 **The failure-mode marks on command-typed values follow the subsumption rule of &sect;4.2.** A `:`-marked value is acceptable wherever a `?`-marked value is expected; a `!`-marked value is similarly acceptable; a `?`-marked value is not interchangeable with `:` or `!`. Subsumption is on the failure mark axis only. **Parameter modes and parameter types are invariant** under mark subsumption: a `:<Int32'>` is not interchangeable with `:<Int32>` or `:<Int32&>`. Invariance is essential for soundness &mdash; the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
- 
+
 The interaction with class dispatch &mdash; when a class method's signature is a command-typed value with given marks and modes, and how instances supply their per-receiver implementations &mdash; is in &sect;9. The interaction with overloading (multiple commands sharing a name) is in &sect;9.16.
- 
+
 ### 5.15 Fexpr-Typed Values
- 
+
 **Fexpr-typed values** are nominally distinct from ordinary command-typed values at the type level. A fexpr is the user-defined-control-flow-combinator form: a body written with implicit access to the surrounding command's locals, bounded by its defining frame, and operating on the defining frame's state through implicit captures. The full fexpr mechanism is in &sect;8.5; this section gives the type-side surface only.
- 
+
 The type-expression forms for fexpr-typed values are:
- 
+
     :<*>                   ; never-fails fexpr-typed value
     ?<*>                   ; may-fail fexpr-typed value
     !<*>                   ; must-fail fexpr-typed value
- 
+
 The `*` inside the angle brackets denotes "this is a fexpr &mdash; opaque-to-invoker by design, ceiling-fixed to the defining frame." The `*` displaces the parameter-type list because fexprs have no invoker-side parameter surface beyond the failure mark: captures are lexical, drawn implicitly from the defining frame by free-name resolution, and the invoker's only commitment is to respect the failure-mark.
- 
+
 The typing rules for the fexpr family:
- 
+
 - **No subsumption between fexpr-typed and ordinary command-typed values.** A `:<*>` is not a `:<>`; a `?<*>` is not a `?<>`; a `!<*>` is not a `!<>`. The two families are nominally distinct, with no implicit conversion in either direction. The buffer-backed-hierarchy subsumption rules of &sect;5.5 do not apply across the boundary; the failure-mark subsumption of &sect;4.2 does not cross the boundary either. The two families have a **family boundary** that subsumption does not cross.
 - **The standard mark-subsumption rule applies symmetrically within the fexpr family.** A `:<*>` is acceptable in a `?<*>`-typed slot (per $\texttt{:} \sqsubseteq \texttt{?}$); a `!<*>` is acceptable in a `?<*>`-typed slot (per $\texttt{!} \sqsubseteq \texttt{?}$). Mark subsumption operates within each family identically; what does not cross is the family-distinguishing `*` marker.
 - **The typechecker enforces the defining-frame ceiling structurally.** Fexpr-typed values are recognized syntactically (by the `<*>` marker) and forbidden from assignment to anything that could outlive their defining frame: object fields holding fexpr-typed values are restricted; CREATE parameters of fexpr type are forbidden; pointers to fexpr-typed slots are forbidden; bare-identifier copy of fexpr values is forbidden; capture of fexpr values by lambdas is forbidden. The full enumeration of fexpr restrictions A&ndash;G is in &sect;8.13; the type-side commitment recorded here is that the family-distinguishing type marker `<*>` is what makes the structural enforcement possible.
 The motivating concern for the nominal distinction is ceiling-tracking. Under the defining-frame ceiling rule, the typechecker must distinguish fexpr-typed values from ordinary command-typed values syntactically &mdash; otherwise a fexpr would be assignable to any `:<>` slot and would escape its defining-frame ceiling. The `<*>` marker provides the required syntactic distinction at parameter declarations, in any other type-position where a fexpr-typed slot must be specifically declared, and at the assignment positions that the structural restrictions test.
- 
+
 The interaction of fexpr-typed parameters with class-method dispatch &mdash; including the `FexprFailure` standard message, the fexpr-relevance taint axis parallel to the READ contract, and the per-instance defaults-incompatibility &mdash; is in &sect;9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in &sect;8.5's Restriction C and &sect;8 generally.
- 
+
 The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language &mdash; buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values &mdash; together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (&sect;5.1), a clear construction surface (&sect;7), and a clear interaction with parameter modes (&sect;6) and class dispatch (&sect;9). The compositions among them are governed by the containment rule (&sect;5.1) and the subsumption rules (&sect;5.5, &sect;5.7, &sect;4.2, &sect;5.15); every other type-crossing is explicit.
 
 ---
