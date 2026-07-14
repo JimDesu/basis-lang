@@ -104,13 +104,13 @@ The principles relax at `.program` and `.test` directives, which are the languag
 
 ### 1.5 Standing Lenses
 
-Reasoning about Basis correctly requires a small set of mental lenses that are not always native to the reasoning patterns programmers carry from C++, Java, Rust, Go, ML, or Haskell. These lenses are stated here so that the rest of the specification can rely on them; sections that lean on a particular lens reference it where appropriate.
+Reasoning about Basis correctly requires a small set of mental lenses that are not always native to the reasoning patterns programmers carry from C++, Java, Rust, Go, ML, or Haskell. They are stated here as **orientation** — each lens's normative development lives in the section named with it, and where the two are read together, that section governs.
 
 **Frame-ownership.** Every slot is owned by some frame. "Return values" in the conventional C++/Java/Rust sense do not exist: output flows through writeable parameter slots that the caller owns, written to by copy-restore on success. When reasoning about value semantics, mode contracts, aliasing, or lifetime ceilings, the question is *which frame owns this slot* — not "what does this function return."
 
-**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals. There is no cross-frame propagation. A CREATE or UPDATE output of a downstream call appears in the caller's frame as a freshly-bound local; the access path is rooted at the caller's local, not at any of the caller's parameters. The discipline migrates to the frame that has the right context; the language does not propagate.
+**Each frame's static analysis is local.** Initialization tracking, failure-mode tracking, access-path taint, and obligation tracking are properties of a single command body's analysis on its own parameters and locals; nothing propagates across a call boundary. The discipline migrates to the frame that has the right context. Developed in §6.6.
 
-**Access paths, not storage.** The transitive READ contract operates on access paths — the named ways through which a value is reached — not on storage locations. The same storage may be reached at runtime through multiple access paths simultaneously, one of which is READ-rooted and another of which is UPDATE-rooted; writes through the UPDATE-rooted path are permitted while writes through the READ-rooted path are forbidden. The language does not detect aliasing; it tracks paths.
+**Access paths, not storage.** The transitive READ contract operates on access paths — the named ways through which a value is reached — not on storage locations. The language does not detect aliasing; it tracks paths. Developed in §6.5.
 
 **Buffer-backed containment.** Byte-aggregate containers — records, unions, `[N]T`, and domain parents — admit only fixed-size buffer-backed contents. The runtime-length forms `[]` and `[]T` are excluded from these positions, as are all non-buffer types (pointers, command-typed values, objects, variants). Objects and variants, being identity-bearing or tagged-sum constructs rather than byte aggregates, admit any type in their fields or candidates respectively. This rule eliminates whole categories of static-analysis questions: cases that presuppose a byte-aggregate structure containing non-fixed-size components are not Basis cases.
 
@@ -126,7 +126,7 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement — or, for a scope-local value, as early as the close of its enclosing `.scope` block (§3.17) — with nothing to track. Non-default storage — heap, pool, arena, etc. — is drawn from an allocator, whose acquire/release pair is governed by the obligation system (§10): acquisition is an ordinary source-method call producing an obligated value, and bringing an allocator into scope does nothing on its own until such a call is made. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
 
-These lenses recur throughout this specification. Sections that depend on a particular lens for their correctness call it out at the relevant point.
+These lenses recur throughout this specification. Sections that depend on a particular lens for their correctness call it out at the relevant point, and state the rule in full there.
 
 ---
 
@@ -352,26 +352,27 @@ The signature variations for constructors (§3.9), single-receiver methods (§3.
  
 Every parameter and every receiver carries one of four *modes*, which together determine the contract between caller and callee at that position:
  
-- **READ** (no marker, bare name) — the callee may read through any storage path reached from the parameter; it may not write through any such path. The transitive read-only contract (§6.5) makes this commitment trustworthy: the language does not allow the value to be smuggled into a writeable position downstream. The caller's slot is unchanged after the call regardless of outcome.
-- **CREATE** (`'` marker on the name, e.g., `'result`) — the callee is statically obligated to write the parameter's slot exactly once on every successful return path. The caller may pass either an initialized or an uninitialized slot; on success the produced value is copy-restored to the caller's slot, and on failure the caller's slot is bit-identical to its pre-call state (§6.4).
-- **UPDATE** (`&` marker on the name, e.g., `&counter`) — the callee may read the parameter, may write the parameter, may do neither — there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read. Copy-restore semantics apply on the writeability axis: on success any written value is committed to the caller's slot; on failure the caller's slot is bit-identical to its pre-call state.
-- **DISPOSE** (`~` marker on the name, e.g., `~socket`) — the callee consumes the parameter, ending the value's life: it discharges the value's finalizing duty (§10) and leaves the slot `uninit`. The caller must pass an owned value, since you cannot finalize what you do not own, and the caller's slot is `uninit` after the call on both the success and failure edges. The finalizer mode and the `~ x` operation are developed in §7.22.
+- **READ** (no marker, bare name) — the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (§6.5).
+- **CREATE** (`'` marker on the name, e.g., `'result`) — the callee is statically obligated to write the parameter's slot exactly once on every successful return path (§3.4).
+- **UPDATE** (`&` marker on the name, e.g., `&counter`) — the callee may read the parameter, may write it, may do both, may do neither.
+- **DISPOSE** (`~` marker on the name, e.g., `~socket`) — the callee consumes the parameter, ending the value's life and discharging its finalizing duty (§10). The mode and its `~ x` operation are developed in §7.22.
  
-The markers are part of the identifier itself, not separate tokens. The lexer recognizes `'name`, `&name`, `~name`, and `name` as four identifier shapes of the same name. Every read and every write inside the command body uses the marker that matches the parameter's mode — the body of a command with a CREATE parameter `'result` writes `'result <- value`, never `result <- value`. The marker is visible at every use site, not only at the declaration. The same-scope rule (§6.3) prevents the four shapes from coexisting in the same scope.
+The markers are part of the identifier itself, not separate tokens: `'name`, `&name`, `~name`, and `name` are four identifier shapes of the same name, and every use site inside the body carries the marker matching the parameter's mode — a body with a CREATE parameter `'result` writes `'result <- value`, never `result <- value`.
  
 The marker placement varies by syntactic context:
  
-- In **named contexts** — parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries — the marker travels with the name in identifier-shape: `Int 'result`, `Logger &counter`, `Showable s`.
+- In **named contexts** — parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries — the marker travels with the name in identifier-shape: `Int 'result`, `Logger &counter`, `Socket ~s`, `Showable s`.
 - In **nameless contexts** — command-type expressions `:<...>`, `?<...>`, `!<...>`, where parameter types are listed without names — the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`: `Int'`, `^String&`, `Socket~`, `Logger`.
-The two placements agree on what the markers mean; they differ only on placement to suit the surrounding syntax. The full mechanics — copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, the parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape — are in §6.
+ 
+This section is the surface. The full discipline — each mode's caller-side and callee-side contract, copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, the same-scope rule for the four identifier shapes, parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape — is §6.
  
 ### 3.4 Create Parameters
  
-A CREATE parameter (`'name`) discharges the *write-once-on-success* contract: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation — the failure-atomicity principle commits that CREATE slots are never partially written when a command fails.
+A CREATE parameter (`'name`) carries the *write-once-on-success* contract: the callee's body writes the slot exactly once on every path that reaches a successful exit, and paths that reach a failure exit leave it untouched — CREATE slots are never partially written when a command fails.
  
-Failure to write a CREATE parameter on some successful path is a static error; writing it more than once on the same path is also a static error. The discipline composes with the failure-state-lattice analysis (§4.13, Appendix E.3): the typechecker walks the body's CFG with both the failure-state lattice and the initialization lattice, confirming that every path to a `clear`-state exit has performed exactly one write to each CREATE parameter.
+The pattern most user code follows is *compute-then-commit*: the body computes its inputs into local slots, then performs a single CREATE `<-` write near its end. This pattern naturally satisfies the rule and supports the atomic-compound-construction guarantee (§7.11).
  
-The write-once rule is structural, not stylistic — there is no "you may write twice if you also clear in between" alternative, and there is no in-place-update form for CREATE parameters. The full rule is in §6.13. The pattern most user code follows is *compute-then-commit*: the body computes its inputs into local slots, then performs a single CREATE `<-` write near its end. This pattern naturally satisfies the rule and supports the atomic-compound-construction guarantee (§7.11).
+The full rule — the static errors for a missing or a repeated write, the exemption of failure paths, and the joint failure-state and initialization lattice walk that checks it — is §6.13.
  
 ### 3.5 Update Parameters
  
@@ -467,12 +468,7 @@ A *method* takes one or more receivers, then `::`, then the command name and any
 .cmd Buffer 'b :: clear = 'b <- ${}
 ```
  
-The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes — CREATE, UPDATE, READ, and DISPOSE — each with a distinctive idiomatic use:
- 
-- **READ receiver — externalized effect.** The method operates *through* the receiver without modifying its slot. Logging is the canonical case: `myLogger :: log: "ready"` writes a log entry; the logger's state is unchanged from its caller's vantage, while the world (the log file, the stream) is changed. The receiver mediates an effect external to itself.
-- **UPDATE receiver — in-place modification.** The method may read the receiver's current state and may write to it. State transitions on objects, in-place updates, the "modify if needed" idiom — all use UPDATE receivers.
-- **CREATE receiver — re-initialize the receiver.** The method commits to writing the receiver on every successful return path. Combined with the call-site initialization rule (every receiver is initialized at the call site, regardless of mode — the *R1* rule of §6.7), the receiver is overwritten on success — a "factory method" or "complete reset" operation that happens to dispatch on the receiver's existing type. Unusual but coherent.
-- **DISPOSE receiver — finalize the receiver.** The method consumes the receiver, ending its life — a `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (§7.22). More often, finalization marks the consumed *value* `~` on an ordinary-receiver method (`Heap h :: free: Storage ~s`), where only `~s` is finalized and `h` is an ordinary manager.
+The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes — READ, CREATE, UPDATE, and DISPOSE — each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, and finalization respectively (§6.9). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (§7.22).
  
 A method invocation uses the same `::` syntax, parenthesized only for multi-receiver methods (§3.11):
  
@@ -483,14 +479,7 @@ counter :: increment
  
 Methods dispatch on the runtime type of their receiver — a method named `log` is resolved against the receiver's type's class instance for the relevant class, with the dispatch site syntactically marked by `::`. The full dispatch mechanics — the witness-slot model, single-class dispatch, the dictionary structure, instance coherence — are in §9.
  
-The receiver-mode-by-signature-shape table summarizes the per-shape mode restrictions:
- 
-| Signature shape | Valid receiver modes | Forbidden modes |
-| --- | --- | --- |
-| Constructor | CREATE `'` only | READ, UPDATE, DISPOSE |
-| Method (single- or multi-receiver) | CREATE `'`, UPDATE `&`, READ, DISPOSE `~` | none |
- 
-The constructor case is §3.9 above. Receivers are always carried at the marker placement of the named-context rule (§3.3) — `Type 'name`, `Type &name`, `Type ~name`, or `Type name`. The full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules is in §6.7. The block markers `@` and `@!` (§3.13) are not signature shapes — they introduce bodies, not methods, and do not carry receivers at the signature level.
+Receivers are always carried at the marker placement of the named-context rule (§3.3) — `Type 'name`, `Type &name`, `Type ~name`, or `Type name`. The constructor case is §3.9 above: constructors admit a CREATE receiver only, where methods admit all four. The receiver-mode-by-signature-shape table, and the full receiver-mode discipline including the *R1* (call-site initialization) and *R2* (callee-body obligation) rules, are in §6.7 and §6.8. The block markers `@` and `@!` (§3.13) are not signature shapes — they introduce bodies, not methods, and do not carry receivers at the signature level.
  
 ### 3.11 Multi-Receiver Methods
  
@@ -1123,7 +1112,7 @@ Pointers, command-typed values, fexpr-typed values, objects, and variants cannot
  
 **Domains form a parent–child hierarchy with one-directional implicit upcasting.** A value of a child domain is implicitly accepted wherever the parent domain is expected, but a value of the parent domain is *not* implicitly a value of any specific child. So an `Inches` value is implicitly an `Int32`; an `Int32` value is not implicitly an `Inches`. **Sibling domains do not implicitly convert.** `Inches` and `Centimeters`, both parented at `Int32`, are mutually incomparable for implicit conversion; an explicit constructor invocation is required to move between them.
  
-The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Witnesses for class dispatch are constructed at the relevant slot boundary based on the slot's declared type at that point — a witness constructed for an upcast value uses the upcast slot's type, with no mechanism (and no reason) to look back to a value's earlier slot history. The full rule for when buffer-backed dispatch identity is captured at a class-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-class-typed buffer-backed parameters, is in §9.18.
+The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Witnesses for class dispatch are constructed at the relevant slot boundary based on the slot's declared type at that point. This is the buffer-backed subsumption rule applied to domains; it is stated in full in §5.5, and the conditions under which a child type's dispatch identity carries through or is lost in transit are §9.18.
  
 Domains are first-class types: they may be parameters, fields, receivers of class methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child $\to$ parent) and child declarations do not widen the upcast set for any existing type.
  
@@ -1182,7 +1171,7 @@ Unions are nominally typed (§5.4): two `.union` declarations with identical can
  
 Reading a candidate value out of a union is **interpretive casting** — a reinterpretation of the union's bytes at a candidate-typed slot view. The typechecker enforces only that the cast's target type is one of the union's declared candidates; it does not verify which candidate is actually active. The construction surface for interpretive casting is part of the broader byte-reinterpretation story (§5.7) and is treated in §7 alongside the rest of the construction surface.
  
-### 5.7 Union $\to$ Candidate-or-Parent Byte-Reinterpretation
+### 5.7 Union → Candidate-or-Parent Byte-Reinterpretation
  
 A union value implicitly subsumes — by zero-cost byte reinterpretation — to any buffer-backed type `T` such that `T` appears on the standard buffer-backed subsumption chain (§5.5) of *at least one* declared candidate of the union. The relation is the union's reading rule: a union value flows into any context expecting a candidate's type or any of that candidate's ancestors.
  
@@ -1361,7 +1350,7 @@ The fexpr-typed family rounds out the type forms of Basis. The type forms admitt
 
 This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes — READ, CREATE, UPDATE, or DISPOSE — that together determine the contract between caller and callee at that position. The mode markers are part of the identifier itself in named contexts and migrate to type-suffix position in nameless contexts. Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, §6.14) verifies that CREATE parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, §6.5; fexpr-relevance, §6.15) verify that read-only contracts and ceiling bounds are preserved across access paths.
 
-The §3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table introduced in §3.10 is restated here in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
+The §3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (§6.8), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
 ### 6.1 The Four Modes
 
@@ -1493,7 +1482,7 @@ A **finalizer** is not a separate signature shape. Where a constructor is its ow
 
 The block markers `@` and `@!` (§3.13) are not signature shapes — they introduce bodies, not methods, and do not appear in this table.
 
-The table is restated from §3.10 here in the context of the R1 and R2 rules of §6.7, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a CREATE receiver carries the write-once obligation, an UPDATE receiver carries no obligation, a READ receiver carries the transitive READ contract, and a DISPOSE receiver is consumed — initialized at the call site (R1) and left `uninit` on return (§7.22).
+This table is the single home for the per-shape receiver-mode restrictions; §3.10 introduces the surface and points here. It is stated in the context of the R1 and R2 rules of §6.7, which apply uniformly across the table. R1 holds for every row: every receiver, regardless of mode or shape, is initialized at the call site. R2 holds per-mode: a CREATE receiver carries the write-once obligation, an UPDATE receiver carries no obligation, a READ receiver carries the transitive READ contract, and a DISPOSE receiver is consumed — initialized at the call site (R1) and left `uninit` on return (§7.22).
 
 ### 6.9 Idiomatic Uses by Mode
 
@@ -2287,11 +2276,13 @@ Re-entry — the same fexpr being invoked multiple times during `D`'s lifetime �
 
 The umbrella rule: fexprs travel exclusively *down-stack* from `D` — passed as arguments to callees, captured implicitly by sub-fexprs, transitively reached from `D`'s state — and never up-stack. Every constructional surface that could let a fexpr escape `D` is structurally excluded by the seven fexpr restrictions of §8.13. Specifically:
 
-- **Lambdas cannot capture fexpr-typed slots** (Restriction E of §8.13). Lambdas may outlive their construction frame through ceiling-flattening of reference captures; admitting a fexpr capture would create a lambda value that could outlive its captured fexpr's `D`. The lambda capture mechanism does not currently propagate fexpr-relevance taint, so the exclusion is structural.
-- **Pointers to fexpr-typed slots are forbidden** (Restriction B). A `^F` (where `F` is a fexpr type) would be a value that could outlive the fexpr's `D`; the type form is rejected at the type-system level.
-- **Fexpr-typed values cannot be returned from constructors** (Restriction F). A constructor's CREATE output is the standard upward-migration channel; a fexpr-typed CREATE output would migrate the fexpr from the callee's frame to the caller's slot, violating the `D`-ceiling.
-- **Fexpr-typed values cannot be assigned to writeable parameters of `D`** (Restriction G). A CREATE or UPDATE parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, §1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling.
-- **Fexpr-typed values cannot be embedded in long-lived containers** (Restriction C). Object fields, record fields, and non-local-slot variant candidates of fexpr type are forbidden, since the container can outlive the fexpr's `D`.
+- **Lambdas cannot capture fexpr-typed slots** — Restriction E of §8.13.
+- **Pointers to fexpr-typed slots are forbidden** — Restriction B.
+- **Fexpr-typed values cannot be returned from constructors** — Restriction F.
+- **Fexpr-typed values cannot be assigned to writeable parameters of `D`** — Restriction G.
+- **Fexpr-typed values cannot be embedded in long-lived containers** — Restriction C.
+
+Each restriction names the channel it closes and why the closure is structural rather than analytic; the rationales are stated once, in §8.13.
 
 **One admitted combination — command references binding fexpr-typed arguments — under the fexpr-tainting discipline of §6.15.** A command reference of the form `{cmd: ..., my_fexpr, ...}` is well-formed when the fexpr-relevance taint of `my_fexpr` is propagated to the resulting command-typed value. The taint marks the command-typed value as carrying a `D`-ceiling constraint inherited from the bound fexpr; the value cannot be moved beyond `my_fexpr`'s `D`. The fexpr-tainting machinery makes this binding tractable: the ceiling constraint travels through the partial-application boundary on the command-reference value, and the typechecker enforces the constraint at every assignment, store, or move involving the resulting value.
 
@@ -2884,7 +2875,7 @@ Object retirement is not separate machinery; it is the obligation system applied
 
 **Retirement does not auto-fire owned fields.** An obligation parked in a field is the programmer's to manage: whoever tears the object down finalizes its obligated fields explicitly, in whatever order that teardown chooses. Nothing fires them implicitly, so there is no systemic retirement order to reason about and no automatic firing to arbitrate. The per-instance discharge entries of §10.13 record which sink an obligated field would fire, and are consulted when a field is finalized explicitly — they are not a schedule retirement walks.
 
-The consequence, named plainly: **an object or record that owns an obligated field must be finalized explicitly, or that field's duty leaks.** Retirement will not catch it, and there is no completeness check — by choice, rather than trade an explosion of bookkeeping for a safety the programmer can already read off the code. A *local* record is bitten exactly as a heap one: the moment a resource is stored into a field, managing it is the programmer's. This is an acknowledged footgun (Appendix I, B4), on the §10.3 shelf.
+The consequence, named plainly: **an object or record that owns an obligated field must be finalized explicitly, or that field's duty leaks.** Retirement will not catch it, and there is no completeness check — by choice, rather than trade an explosion of bookkeeping for a safety the programmer can already read off the code. This is an acknowledged footgun (Appendix I, B4), on the §10.3 shelf.
 
 **Construction and finalization are clean duals.** Because retirement does not automate the field half, the constructor establishes the object's wholeness by hand and the finalizer dismantles it by hand. A finalizer's responsibilities are the object's own resource plus its owned fields, fired explicitly in its chosen order, in the window where the fields are still valid — the field-teardown gate (§7.22) admits exactly the acts that need it, `~ self :: f` and extract-then-`~`, and admits them only under a `~` receiver. Order-sensitive disposal is therefore written where it belongs, in the finalizer, with every field valid and nothing implicit to get it wrong.
 
@@ -3901,6 +3892,7 @@ $$
 $$
 
 ### D.6 Call-Site Typing
+These are the formal typing judgments for the call forms whose prose homes are §3.14 (calling commands) and §6.7 (the receiver rules); the notation is defined in D.1.
 
 **Regular call:**
 
@@ -4441,7 +4433,7 @@ Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite h
 
 This appendix formalizes the operational semantics sketched in §1.3, elaborating each reduction rule with full transfer-function detail and integrating the structural rules introduced throughout the body.
 
-### F.1 The State Tuple $\langle V, \Phi, \Sigma \rangle$
+### F.1 The State Tuple ⟨V, Φ, Σ⟩
 
 Program state at any reduction step is a triple:
 
@@ -4766,7 +4758,7 @@ The class-name namespace is shared with the type-name namespace — a name like 
 
 ### G.7 Method-Name Resolution Under `::`
 
-The `::` operator is the scope operator (§1.5). Its role at name resolution depends on the LHS:
+The `::` operator is the scope operator; its four roles are catalogued in §9.6. This section covers only *name resolution* under `::` — how a name to the right is resolved, and how ambiguity is handled — which depends on the LHS:
 
 - **Object/class-typed receiver.** `obj :: methodName` resolves `methodName` in the namespace of the class(es) `obj`'s type is an instance of. If multiple classes contain a method of this name, the resolution is ambiguous; the user disambiguates with `{ClassName :: methodName}` (§9.10, the `{C::method}` form, B.15).
 
@@ -4774,7 +4766,7 @@ The `::` operator is the scope operator (§1.5). Its role at name resolution dep
 
 - **Module prefix.** `ModuleName :: TypeName` (or `ModuleName :: identifier`) resolves through the imported-module's namespace.
 
-- **Aggregate-shaped field access.** `value :: fieldName` or `value :: N` accesses a field of an aggregate-shaped value: an `Aggregate`-typed slot (§7.4), a record (§5.4), or an object (§5.11). For records, both forms account for `.splice` field promotion (§A.7). For objects, positional access is by declaration order.
+- **Aggregate-shaped field access.** `value :: fieldName` or `value :: N` selects a field rather than resolving a name; its rules (record/object/`Aggregate` shapes, `.splice` promotion, positional order) are §9.6's field-access role.
 
 The disambiguating context for `::` is the LHS's type and the namespace's contents.
 
