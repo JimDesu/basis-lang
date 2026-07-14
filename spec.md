@@ -3744,7 +3744,7 @@ $$
 \quad \text{(FexprType)}
 $$
 
-**Buffer-backed and fixed-size buffer-backed predicates.** $[N]\tau$ requires $\tau$ to be fixed-size buffer-backed; a record-field, union-candidate, or domain-parent declaration also requires fixed-size buffer-backed:
+**Buffer-backed and fixed-size buffer-backed predicates.** `[N]τ` requires `τ` to be fixed-size buffer-backed; a record-field, union-candidate, or domain-parent declaration also requires fixed-size buffer-backed:
 
 $$
 \frac{\begin{array}{c}
@@ -3760,7 +3760,7 @@ $$
 \end{array}}{\Gamma \vdash \tau\ \text{fixed-size buffer-backed}}
 $$
 
-The disjoint cases enumerate all the non-buffer types; the union of all named-type-as-buffer-backed plus the literal types covers the buffer-backed case (§5.1). The runtime-length forms `[]` and $[\,]\sigma$ (for any $\sigma$) are buffer-backed but not fixed-size; they participate in the buffer-backed category but are excluded from byte-aggregate containment positions (§5.1).
+The disjoint cases enumerate all the non-buffer types; the union of all named-type-as-buffer-backed plus the literal types covers the buffer-backed case (§5.1). The runtime-length forms `[]` and `[]σ` (for any `σ`) are buffer-backed but not fixed-size; they participate in the buffer-backed category but are excluded from byte-aggregate containment positions (§5.1).
 
 ### D.3 Subsumption Rules
 
@@ -4454,9 +4454,9 @@ A program executes by repeated application of reduction rules; the rules collect
 
 ### F.2 Reduction Rules
 
-The reduction rules are presented in the form $\langle V, \Phi, \Sigma \rangle \to \langle V', \Phi', \Sigma' \rangle$. The rules form a small-step semantics.
+The reduction rules are presented in the form &lang;V, &Phi;, &Sigma;&rang; &rarr; &lang;V&prime;, &Phi;&prime;, &Sigma;&prime;&rang;. The rules form a small-step semantics.
 
-**R1 — Sequential composition.** A verb $c_1; c_2$ (semicolon-separated, or block-marker-sibling-separated) reduces by running $c_1$ first; if $\Phi$ remains $\epsilon$, control proceeds to $c_2$; if $\Phi$ becomes non-$\epsilon$ (a failure fires), $c_2$ is skipped via the failure-skip rule.
+**R1 — Sequential composition.** A verb c<sub>1</sub>; c<sub>2</sub> (semicolon-separated, or block-marker-sibling-separated) reduces by running c<sub>1</sub> first; if &Phi; remains &epsilon;, control proceeds to c<sub>2</sub>; if &Phi; becomes non-&epsilon; (a failure fires), c<sub>2</sub> is skipped via the failure-skip rule.
 
 $$
 \begin{aligned}
@@ -4465,27 +4465,27 @@ $$
 \end{aligned}
 $$
 
-**R2 — Successful exit of a verb.** When $c_1$ reduces fully without producing a failure, the continuation runs:
+**R2 — Successful exit of a verb.** When c<sub>1</sub> reduces fully without producing a failure, the continuation runs:
 
 $$
-\langle c_1\, \vec{v},\ \epsilon,\ \Sigma \rangle \to \langle v,\ \epsilon,\ \Sigma \rangle \qquad \text{(when $c_1$ has fully reduced and $\Phi = \epsilon$)}
+\langle c_1\, \vec{v},\ \epsilon,\ \Sigma \rangle \to \langle v,\ \epsilon,\ \Sigma \rangle \qquad \text{(when } c_1 \text{ has fully reduced and } \Phi = \epsilon \text{)}
 $$
 
-**R3 — Failure firing (`.fail`).** The `.fail Name: payload` directive populates $\Phi$:
+**R3 — Failure firing (`.fail`).** The `.fail Name: payload` directive populates &Phi; (the failure register):
 
-$$
-\langle \texttt{.fail Name: payload},\ \epsilon,\ \Sigma \rangle \to \langle \epsilon,\ (\text{Name}, \&\text{payload}, W),\ \Sigma \rangle
-$$
+```
+<.fail Name: payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
+```
 
-where $W$ is the witness selected at the `.fail` site for the (concrete-payload-type, Name's payload class) pair, and $\&\text{payload}$ is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
+where W is the witness selected at the `.fail` site for the (concrete-payload-type, Name's payload class) pair, and `&payload` is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
 
-**R4 — Failure propagation through siblings.** With $\Phi$ non-$\epsilon$, the next ordinary statement at the same indentation level is skipped:
+**R4 — Failure propagation through siblings.** With &Phi; non-&epsilon;, the next ordinary statement at the same indentation level is skipped:
 
 $$
 \langle c,\ \phi,\ \Sigma \rangle \to \langle \epsilon,\ \phi,\ \Sigma \rangle \qquad \text{(the next statement is skipped; control still advances)}
 $$
 
-(The rule is implicit in R1: a non-$\epsilon$ $\Phi$ causes subsequent $c$'s to skip.)
+(The rule is implicit in R1: a non-&epsilon; &Phi; causes subsequent c's to skip.)
 
 **R5 — Scope boundary.** Entering a recovery context (a block-marker construct with a body) introduces a scope verb `scope(c)`; exiting it produces a scopefail or scoperestore based on whether the body's failure was consumed.
 
@@ -4496,17 +4496,15 @@ $$
 \end{aligned}
 $$
 
-A `.scope` block (§3.17) reuses this boundary machinery without being a recovery context. Entry pushes a scope whose exit verb `scopepop` fires the scope's cleanup; the body runs as in the $\epsilon$-branch. A `.scope` carries no recovery spec, so the $\phi$-branch's `recover(...)` engagement is absent: an in-flight failure reaching the boundary is neither matched nor consumed — `scopepop` fires the scope's cleanup and the failure then propagates past, exactly as past a `%` group (§4.4). The cleanup `scopepop` performs is the frame-exit cleanup of R10—R11 applied at an inner boundary: the scope's `@`/`@!` hooks and the discharges of obligations still owned by its scope-local bindings fire in one reverse-registration order (§3.17, §10.6), and the scope-local storage is reclaimed. `scopepop` is a boundary verb, not an ordinary sibling; it is reached on both the success and failure paths, so the cleanup is not subject to failure-skip (R4).
+A `.scope` block (§3.17) reuses this boundary machinery without being a recovery context. Entry pushes a scope whose exit verb `scopepop` fires the scope's cleanup; the body runs as in the &epsilon;-branch. A `.scope` carries no recovery spec, so the &phi;-branch's `recover(...)` engagement is absent: an in-flight failure reaching the boundary is neither matched nor consumed — `scopepop` fires the scope's cleanup and the failure then propagates past, exactly as past a `%` group (§4.4). The cleanup `scopepop` performs is the frame-exit cleanup of R10—R11 applied at an inner boundary: the scope's `@`/`@!` hooks and the discharges of obligations still owned by its scope-local bindings fire in one reverse-registration order (§3.17, §10.6), and the scope-local storage is reclaimed. `scopepop` is a boundary verb, not an ordinary sibling; it is reached on both the success and failure paths, so the cleanup is not subject to failure-skip (R4).
 
 **R6 — Recovery engagement.** A `|`-with-spec block engages on a propagating failure whose message matches the spec:
 
-$$
-\begin{aligned}
-\langle \texttt{recover}(\phi, \Sigma_{\text{pre}}, c),\ \epsilon,\ \Sigma \rangle &\to \langle c[\text{binding} := \phi\text{'s payload}],\ \epsilon,\ \Sigma \cup \{\text{binding}\} \rangle \\
-&\qquad \text{if } \phi.\text{message} \le \text{spec} \\
-&\text{otherwise} \to \langle \epsilon,\ \phi,\ \Sigma_{\text{pre}} \rangle \qquad \text{(propagate past)}
-\end{aligned}
-$$
+```
+<recover(phi, Sigma_pre, c), epsilon, Sigma>
+    ->  <c[binding := phi's payload], epsilon, Sigma union {binding}>   if phi.message <= spec
+    ->  <epsilon, phi, Sigma_pre>                                      otherwise (propagate past)
+```
 
 **R7 — Guard-bearing block engagement.** A `?`, `?-`, or `?:` block runs its guard; the body engages based on guard outcome:
 
@@ -4522,27 +4520,25 @@ Analogous rules for `?-` (engage on guard failure), `?:` (chain semantics: first
 
 **R8 — Rewind.** A `^` block re-enters the preceding sibling on body success:
 
-$$
-\begin{aligned}
-\langle \texttt{\textasciicircum body},\ \epsilon,\ \Sigma \rangle &\to \langle \text{body}\, \overrightarrow{\texttt{rewind\_to\_preceding}},\ \epsilon,\ \Sigma \rangle \\
-\langle \texttt{rewind\_to\_preceding},\ \epsilon,\ \Sigma \rangle &\to \langle \text{preceding\_sibling}\, \overrightarrow{\texttt{\textasciicircum body}},\ \epsilon,\ \Sigma \rangle \\
-\langle \texttt{\textasciicircum body's body},\ \phi,\ \Sigma \rangle &\to \langle \epsilon,\ \epsilon,\ \Sigma \rangle \qquad \text{(body failed; loop exits)}
-\end{aligned}
-$$
+```
+<^body, epsilon, Sigma>                ->  <body ; rewind_to_preceding, epsilon, Sigma>
+<rewind_to_preceding, epsilon, Sigma>  ->  <preceding_sibling ; ^body, epsilon, Sigma>
+<^body's body, phi, Sigma>             ->  <epsilon, epsilon, Sigma>   (body failed; loop exits)
+```
 
 **R9 — Frame entry.** A command call introduces a new frame. The callee's frame is allocated; arguments are copy-restored into the callee's slots per their modes (§6.4). The current frame's slots remain in scope but are not directly accessible to the callee.
 
 **R10 — Frame exit (success).** When a command body reaches a `clear` exit, the frame retires. `@`-blocks and `@!`-blocks registered against this frame fire in reverse registration order. After all blocks fire, the frame's storage is reclaimable.
 
-$$
-\langle \text{frame\_exit},\ \epsilon,\ \Sigma \rangle \to \text{fire @-blocks in reverse} \to \text{reclaim frame} \to \langle \ldots,\ \epsilon,\ \Sigma_{\text{caller}} \rangle
-$$
+```
+<frame_exit, epsilon, Sigma>  ->  fire @-blocks in reverse  ->  reclaim frame  ->  <..., epsilon, Sigma_caller>
+```
 
 **R11 — Frame exit (failure).** When a command body reaches a `failing` exit, the failure propagates. `@`-blocks fire (every-exit) and `@!`-blocks fire (failure-only) in reverse order, then the failure continues propagating to the caller's frame.
 
-$$
-\langle \text{frame\_exit},\ \phi,\ \Sigma \rangle \to \text{fire @-blocks and @!-blocks in reverse} \to \text{propagate}\ \phi \to \langle \ldots,\ \phi,\ \Sigma_{\text{caller}} \rangle
-$$
+```
+<frame_exit, phi, Sigma>  ->  fire @-blocks and @!-blocks in reverse  ->  propagate phi  ->  <..., phi, Sigma_caller>
+```
 
 The originating-frame deferred-retirement rule of §4.12 applies: the frame holding the payload value cannot retire until consumption, but the `@` and `@!` blocks fire at the failure-exit moment (before consumption).
 
