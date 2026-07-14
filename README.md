@@ -68,7 +68,7 @@ The rest of this document walks the language from the outside in. We begin with 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
 
-#### A note on syntax
+### A quick note on Basis syntax
 
 Basis has a large feature set that relies on expressing a significant amount of semantics in the code.  Basis has a head-normal, indentation-based syntax that is clear and relatively simple, but has significant semantic density.  In order to avoid death-by-verbosity, Basis employs a veritable soup of symbols where other languages would use keywords.  On a scale of Perl to APL, it's about Haskell'ish in symbolic density.  You can scan Basis code very rapidly once you get acclimated, but it does take some getting used to.
  
