@@ -3811,7 +3811,7 @@ The relation $\sqsubseteq$ applies to mark positions; assignment from a `:`-mark
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash M\ \text{child of}\ M'\ \text{in message hierarchy} \\
-\Gamma \vdash M\text{'s payload class}\ C\ \text{is a subclass of}\ M'\text{'s payload class}\ C'
+\Gamma \vdash \text{payload class}\ C\ \text{of}\ M\ \text{is a subclass of payload class}\ C'\ \text{of}\ M'
 \end{array}}{\Gamma \vdash \text{payload of}\ M\ \text{acceptable where}\ M'\text{-payload expected}}
 $$
 
@@ -3823,8 +3823,8 @@ $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{cmd} : \text{sig} \\
 \text{sig has}\ \texttt{-> param-name} \\
-\Gamma \vdash \text{args satisfy sig's argument positions (excluding param-name)} \\
-\text{sig's param-name has mode}\ m\ \text{and type}\ \tau
+\Gamma \vdash \text{args satisfy the sig argument positions (excluding param-name)} \\
+\text{the sig param-name has mode}\ m\ \text{and type}\ \tau
 \end{array}}{\Gamma \vdash (\text{cmd: args}) : \tau}
 \quad \text{(ExprCall, with reading-from-}m\text{ semantics)}
 $$
@@ -3858,7 +3858,7 @@ $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{lhs has type}\ \sigma \\
 \sigma\ \text{admits Aggregate-shape construction}\ (\S7.4) \\
-\text{Each entry's RHS satisfies the corresponding position}
+\text{each entry RHS satisfies the corresponding position}
 \end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{aggregate literal ok}}
 $$
 
@@ -3903,7 +3903,7 @@ These are the formal typing judgments for the call forms whose prose homes are ย
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{cmd} : (\tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
-\text{Each}\ \text{arg}_i\ \text{supplies the call's }i\text{-th position per its mode}\ m_i \\
+\text{Each}\ \text{arg}_i\ \text{supplies the }i\text{-th call position per its mode}\ m_i \\
 \text{Implicit context parameters resolve uniquely from}\ \Gamma\ \text{(D.7)}
 \end{array}}{\Gamma \vdash \text{cmd: args}\ \text{ok}}
 \quad \text{(with failure mark = mark)}
@@ -3942,7 +3942,7 @@ $$
 \frac{\begin{array}{c}
 \text{Implicit parameter declared with type}\ \tau_{\text{impl}}\ \text{and mode}\ m \\
 \Gamma\ \text{contains exactly one identifier}\ \texttt{x}\ \text{with type}\ \tau_{\text{impl}} \\
-\text{mode-compatibility: caller's}\ \texttt{x}\ \text{mode satisfies callee's}\ m
+\text{mode-compatibility: the caller}\ \texttt{x}\ \text{mode satisfies the callee}\ m
 \end{array}}{\Gamma \vdash \text{implicit position satisfied with}\ \texttt{x}\ \text{ok}}
 \quad \text{(ImplicitResolve)}
 $$
@@ -4065,7 +4065,7 @@ $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{at call site, }(T\!:\!C)\text{ parameter receives concrete type}\ \tau \\
 \Gamma \vdash \tau \in \text{class}\ C\ \text{in the module-import graph}\ M
-\end{array}}{\Gamma \vdash \text{method call dispatches through}\ \tau\text{'s}\ C\text{-instance dictionary}}
+\end{array}}{\Gamma \vdash \text{method call dispatches through the}\ C\text{-instance dictionary of}\ \tau}
 $$
 
 Witness is a hidden parameter; dispatch is at call-site type $\tau$.
@@ -4076,7 +4076,7 @@ $$
 \frac{\begin{array}{c}
 \Gamma \vdash \text{at call site, }C\text{-typed parameter receives a slot whose runtime type}\ \tau \in C \\
 \Gamma \vdash \text{slot is a 3-word triple (tag identifying}\ \tau\text{, payload pointer, witness)}
-\end{array}}{\Gamma \vdash \text{method call dispatches through the slot's stored witness}}
+\end{array}}{\Gamma \vdash \text{method call dispatches through the stored slot witness}}
 $$
 
 Tag is consulted at runtime; witness chosen at construction site.
@@ -4091,12 +4091,12 @@ Per ยง9.10, overload resolution proceeds in three layers:
 
 The judgment form:
 
-$$
-\frac{\begin{array}{c}
-\text{candidates\_after\_arg\_filter} = \{c_1, c_2, \ldots, c_k\} \\
-\text{most-specific candidate exists and is unique} \to c
-\end{array}}{\Gamma \vdash \text{call resolves to}\ c}
-$$
+```
+candidates_after_arg_filter = {c1, c2, ..., ck}
+most-specific candidate exists and is unique -> c
+-------------------------------------------------
+Gamma |- call resolves to c
+```
 
 ### D.12 Partial-Application Typing
 
@@ -4167,7 +4167,7 @@ $$
 $$
 \frac{\begin{array}{c}
 \text{subcommand body operates against parameters and module scope only} \\
-\text{no use of enclosing command's local identifiers}
+\text{no use of enclosing-command local identifiers}
 \end{array}}{\Gamma \vdash \text{subcommand body has no capture (well-formed)}}
 \quad \text{(SubCapture-Forbidden)}
 $$
