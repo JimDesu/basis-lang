@@ -29,6 +29,7 @@ There is no greater technical obscurity than creating a new programming language
 - Syntactic sugar is superior to semantic sugar
 - Syntactic whitespace improves legibility
 - Every feature should be load-bearing, orthogonal, and simple to reason about
+- Trust the programmer, but warn them about potential footguns
 
 ### Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
