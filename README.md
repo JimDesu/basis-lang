@@ -15,11 +15,11 @@ There is no greater technical obscurity than creating a new programming language
 
 ### Guiding Principles:
 - RAII should be orthogonal to the type-system
-- No non-local state access
+- No non-local state access or "spooky action at a distance"
 - The fundamental datatype is a buffer
 - Mutation succeeds fully or fails fully
 - Polymorphism isn't just for object types
-- Hierarchical statecharts shouldn't be hard 
+- Hierarchical statecharts should be easy 
 - Computational status is orthogonal to result state
 - Prefer small orthogonal concepts to rich overlapping ones
 - Special forms should be visually distinct from user-defined forms
