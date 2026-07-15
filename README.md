@@ -11,7 +11,7 @@ There is no greater technical obscurity than creating a new programming language
 
 - Direct semantic match to Hexagonal Architecture... you can reason about impacts with the ease of Haskell, but without having to learn category theory.
 - Bounded scope of side effects to simplify review of AI-generated code -- unlike most imperative languages, you get the bound of what can happen at each signature.
-- Basis supports two styles of programming: a low-level style for code that must own its byte-level representation, and a high-level style for code organized around objects and behavior. Either can be chosen, or the two mixed, as the situation calls for. Basis's safety features have some space and time cost compared to C or Zig; if you're writing an OS kernel, you may prefer Zig. &#9786;.
+- Basis supports two styles of programming: a low-level style for code that cannot have performance suprises and which must own its byte-level representation, and a high-level style for code organized around objects and behavior. Either or both may be used as each situation dictates. Basis's safety features do incur some space & time overhead compared to C or Zig, so if you're writing somethign like an OS kernel, give Zig a try. &#9786;.
 
 ### Guiding Principles:
 - RAII should be orthogonal to the type-system
