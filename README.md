@@ -48,7 +48,7 @@ Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * $\Sigma$ represents the current variable state
     * $\sigma/c$ is sigma bound within the scope of c  
 
-General excution is described by the following rules:
+General execution is described by the following rules:
 
 $$
 \begin{align}
@@ -68,7 +68,7 @@ $$
 
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Classes, instances, and dispatch are §9. 
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Concepts, witnesses, and dispatch are §9. 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
 
@@ -87,10 +87,10 @@ Hello, world:
 A regular command, with a parameter and a CREATE output:
  
 ```
-.cmd double: Int 'result, Int x = 'result <- x + x
+.cmd double: Int 'result, Int x = result <- x + x
 ```
  
-The signature reads "command `double` takes a CREATE `Int` named `result` and an `Int` named `x`; the body assigns `x + x` into the CREATE slot." CREATE parameters — the slots a command writes to on success — are marked by a `'` prefix on the parameter name; the lexer treats `'name` and `name` as distinct identifier shapes, so the body writes to `'result`, not `result`. There is no `return` statement: production is by writing to a named slot.
+The signature reads "command `double` takes a CREATE `Int` named `result` and an `Int` named `x`; the body assigns `x + x` into the CREATE slot." CREATE parameters — the slots a command writes to on success — are marked by a `'` prefix on the parameter name *in the signature only*: the `'` is a mode marker, not part of the name, and the body refers to every parameter by its bare name. There is no `return` statement: production is by writing to a named slot.
  
 A command that may fail, and a caller that handles the failure:
  
@@ -98,7 +98,7 @@ A command that may fail, and a caller that handles the failure:
 .cmd ?safeDivide: Int 'result, Int n, Int d =
     ? d = 0
         .fail DivByZero: n
-    'result <- n / d
+    result <- n / d
  
 .cmd useIt =
     #q <- safeDivide: 10, 0
@@ -110,27 +110,28 @@ The `?` prefix on `safeDivide`'s name in `.cmd ?safeDivide` declares "may fail."
  
 Three points distinguish this from mainstream-language exception handling. First, failure messages in Basis are not exceptions — there is no stack unwinding (§4 covers propagation in detail). Second, the pattern `| DivByZero e ->` is a typed match that selects `DivByZero` and any of its subtypes within the message hierarchy, so a recovery block written for a parent message catches all of its descendants. Third, `e` binds only to the message's payload (the `Int` numerator here), not to the message as a whole — the identity `DivByZero` is matched by the pattern, never bound.
  
-A small class with one declared method and one default-implementation method, plus an instance for some type:
+A small concept with one declared method and one default-implementation method, plus a witness for some type:
  
 ```
-.class Renderable:
+.concept Renderable:
     .decl render: String 'output
-    .cmd describe: String 'output = render: 'output
+    .cmd describe: String 'output = render: output
  
-.instance Widget: Renderable
+.witness WidgetArt[Widget] : Renderable
 ```
  
-`.decl` is signature-only (instances must supply); `.cmd` inside a class body is a default that instances may override. The line `.instance Widget: Renderable` says "the type `Widget` satisfies `Renderable`" — bodies for `Renderable`'s declared methods are supplied either elsewhere (via methods on `Widget` itself, with matching shapes) or by delegation, with delegation named explicitly via `(delegate fieldName)` if needed.
+`.decl` is signature-only (witnesses must supply); `.cmd` inside a concept body is a default that witnesses may override. The line `.witness WidgetArt[Widget] : Renderable` says "the type `Widget` satisfies `Renderable`" — and gives that satisfaction a name, `WidgetArt`. The name is what you say when a type satisfies a concept in more than one way and you need to pick (§9.7); when there's only one way, you never mention it again. Bodies for `Renderable`'s declared methods are supplied either elsewhere (via methods on `Widget` itself, with matching shapes) or by delegation to a field, spelled `-> fieldName`.
  
 Whitespace is significant. Indentation determines what belongs to what, in the spirit of Python or Haskell. A line indented under another line is part of the construct begun by that line.
  
 ## 2. Source Files
  
-A source file is a sequence of three optional sections:
+A source file is a sequence of four optional sections:
  
 - Optionally, a single `.module` declaration naming the file's module.
 - Zero or more `.import` declarations.
-- Zero or more top-level definitions: `.alias`, `.class`, `.cmd`, `.decl`, `.intrinsic`, `.domain`, `.enum`, `.instance`, `.object`, `.program`, `.record`, `.test`, `.union`, `.variant`.
+- Zero or more `.using` directives (standing witness selections, §9.7).
+- Zero or more top-level definitions: `.alias`, `.cmd`, `.concept`, `.decl`, `.domain`, `.enum`, `.implicit`, `.intrinsic`, `.msg`, `.object`, `.profile`, `.program`, `.promise`, `.record`, `.resource`, `.test`, `.union`, `.variant`, `.witness`.
 ```
 .module App::Models
 .import Std:Core
@@ -139,10 +140,11 @@ A source file is a sequence of three optional sections:
 .enum UserRole: admin = 0, user = 1, guest = 2
 .record User: UserId id, String name, String email, UserRole role
 .object UserManager: List[User] users
-.instance User: Serializable, Comparable
+.witness UserJson[User] : Serializable
+.witness UserOrd[User]  : Comparable
 ```
  
-Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). Imports use `Alias:Module` form when binding the imported module to a local alias, or `.import "filename"` for file imports. Type names begin with an uppercase letter; identifier names begin with lowercase. The lexer enforces this: `.instance widget: Interface` is a syntax error (lowercase type name).
+Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). Imports use `Alias:Module` form when binding the imported module to a local alias, or `.import "filename"` for file imports. Type names begin with an uppercase letter; identifier names begin with lowercase. The lexer enforces this: `.witness userJson[User] : Serializable` is a syntax error (lowercase witness name).
  
 `.program` defines the program's entry expression:
  
@@ -150,7 +152,7 @@ Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). Impor
 .program  runSimulation: (getCommandLine)
 ```
  
-The right of `=` is an expression that runs at program start; here, `runSimulation` is invoked with the result of `getCommandLine` as its argument.
+The rest of the line is an expression that runs at program start; here, `runSimulation` is invoked with the result of `getCommandLine` as its argument.
  
 `.test` defines a named test:
  
@@ -190,10 +192,10 @@ A failing-mark example:
 Parameters declare `Type name`. The `'` prefix on a parameter name marks the parameter as **CREATE**-mode — the body must write to it on every successful path:
  
 ```
-.cmd compute: Int x, Int 'result = 'result <- x * 2
+.cmd compute: Int x, Int 'result = result <- x * 2
 ```
  
-Without `'`, the parameter is read-only (READ-mode). Reference semantics — a parameter the body may both read and write — are expressed today by passing a pointer (`^Type`) and using the postfix `^` and `&` operators in the body to dereference and take addresses; the parameter-mode design space includes a dedicated reference mode that the references describe.
+Without a marker, the parameter is read-only (READ-mode). A parameter the body may both read and write is UPDATE-mode, marked `&name` in the signature, with copy-restore semantics (§6).
  
 A command's *expression-style result* — the value when the command is invoked inline as an expression like `#q <- compute: 7` — is determined by the writeable parameters in its signature. A writeable parameter is either CREATE (`'name`, write-once on success) or UPDATE (`&name`, read-and-write with copy-restore semantics):
  
@@ -204,11 +206,11 @@ For example, a command with two CREATE outputs needs the `->` clause to make one
  
 ```
 .cmd quotrem: Int 'q, Int 'r, Int n, Int d -> q =
-    'q <- n / d
-    'r <- n % d
+    q <- n / d
+    r <- n % d
 ```
  
-A caller may now write `#x <- quotrem: 'remainder, 10, 3` to bind the quotient to `x` while supplying `'remainder` as the slot for the remainder. The same rule applies to commands that mix CREATE and UPDATE parameters: any combination of two or more writeable slots requires `-> name` to designate which is the expression-style result.
+A caller may now write `#x <- quotrem: #remainder, 10, 3` to bind the quotient to `x` while introducing a fresh local `remainder` as the slot for the remainder. The same rule applies to commands that mix CREATE and UPDATE parameters: any combination of two or more writeable slots requires `-> name` to designate which is the expression-style result.
  
 Implicit context parameters appear after a `/` separator, taking precedence-by-uniqueness-of-type from the caller's lexical scope:
  
@@ -243,14 +245,14 @@ myLogger :: log: "ready"
 (myLogger, warning) :: format: "couldn't open file"
 ```
  
-Methods dispatch on the runtime types of all receivers in concert. The implementation composes single-class dispatches per receiver — there is no joint-instance dictionary — so methods work cleanly across module boundaries (see §9.4).
+Methods dispatch on the runtime types of all receivers in concert. The implementation composes single-concept dispatches per receiver — there is no joint dictionary — so methods work cleanly across module boundaries (see §9.4).
  
 ### 3.3 Frame-exit hooks: `@` and `@!`
  
-A class or module may declare methods that run at frame exit:
+A concept or module may declare methods that run at frame exit:
  
 ```
-.class Resource:
+.concept Resource:
     .decl Resource r: String name
     .decl @ Resource r           ; runs at frame exit (success or failure)
     .decl @! Resource r          ; runs at frame exit only on failure
@@ -380,9 +382,9 @@ A loop framed by setup and teardown:
  
 This example contains a latent bug: if `process: pop: queue` can fail, the failure propagates out through `??` and out of `%`'s body, skipping `release: lock` and leaking the lock. The proper mechanism for cleanup that must run on every exit path is the `@` frame-exit hook (§3.3).
  
-### 4.4 Typed recovery and class-bound payloads
+### 4.4 Typed recovery and concept-bound payloads
  
-A failure message may be **bound to a class** — meaning that the payload's runtime type is required to satisfy that class, and the recovery handler operates on the payload through the class's operations:
+A failure message may be **bound to a concept value** — the payload is a value whose runtime type is required to satisfy the named concept, and the recovery handler operates on it through that concept's operations:
  
 ```
 ; declaration of a payload-bearing message (forward syntax)
@@ -399,7 +401,7 @@ A failure message may be **bound to a class** — meaning that the payload's run
         renderDiagnostic: e
 ```
  
-The class binding makes failures *contractual*: a recovery handler does not need to know the concrete type of the payload, only the operations the bound class promises. Different `.fail` sites for the same message may pass values of different concrete types, all satisfying the same class, and consumers continue to work without change. This is Haskell-style typeclass dispatch sliced through the failure machinery.
+The concept binding makes failures *contractual*: a recovery handler does not need to know the concrete type of the payload, only the operations the bound concept promises. Different `.fail` sites for the same message may pass values of different concrete types, all satisfying the same concept, and consumers continue to work without change. This is Haskell-style typeclass dispatch sliced through the failure machinery.
  
 ### 4.5 Cleanup: at-stack handlers and obligations
  
@@ -430,7 +432,7 @@ Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with
 For every reachable point in a command body, the typechecker maintains a *failure-state lattice*: each path is in one of `clear`, `failing(?)`, `failing(!)`, or `mixed`. The body's exit-edge state must conform to the signature's mark:
  
 - A MUST-PASS body's exits must all be `clear`.
-- A MAY-FAIL body's exits may be any combination, with the propagating failures' messages constrained to the declared class of failure messages.
+- A MAY-FAIL body's exits may be any combination, with the propagating failures' messages constrained to the declared set of failure messages.
 - A MUST-FAIL body's exits must all be `failing(!)`.
 Block markers and recovery contexts manipulate the lattice precisely; the typechecker's job is to confirm the body's structure conforms.
  
@@ -472,7 +474,7 @@ A domain is a refinement of an existing buffer-backed type, declared with `.doma
 .domain Centimeters: Int
 ```
  
-`UserId`, `Inches`, and `Centimeters` are nominally distinct from each other and from `Int`. A child domain's value implicitly upcasts to its parent (so an `Inches` may be supplied where `Int` is expected). For buffer-backed domains, this upcast is structural and lossy with respect to dispatch: a value passed through a parent buffer-backed parameter (e.g., `Inches` flowing through an `Int`-typed parameter) loses its child-domain identity at that boundary, since buffer-backed parameter slots carry only bytes — no witness, no runtime tag. Subsequent class dispatch on the value sees only the parent type. Domain-specific dispatch is preserved when the value flows directly into a class-typed slot (where its identity is captured in the slot's witness) or through a chain of class-typed slots; intermediate upcast through a buffer-backed parent-type parameter discards the dispatch identity. (See §9.7 for the full mechanism.)
+`UserId`, `Inches`, and `Centimeters` are nominally distinct from each other and from `Int`. A child domain's value implicitly upcasts to its parent (so an `Inches` may be supplied where `Int` is expected). For buffer-backed domains, this upcast is lossy with respect to dispatch: buffer-backed slots carry only bytes, so an `Inches` that flows through an `Int`-typed parameter looks like an `Int` from then on. Keeping child-domain dispatch means reaching the concept-typed boundary directly (§9.7; the full mechanism is in the spec).
  
 Sibling domains do not implicitly convert. An explicit constructor invocation is required to move between siblings.
  
@@ -499,7 +501,7 @@ An object is a non-buffer type — a heap-residing structure with an identity th
 .object UserManager: List[User] users
 ```
  
-Object fields may be any type, buffer-backed or non-buffer. Objects participate in the class system as receivers; they have lifecycle methods (`@`, `@!`), and pointers to them carry runtime type information for safe downcasting through the `-<` operator (§7.5).
+Object fields may be any type, buffer-backed or non-buffer. Objects participate in the concept system as receivers; they have lifecycle methods (`@`, `@!`), and pointers to them carry runtime type information for safe downcasting through the `-<` operator (§7.5).
  
 ### 5.5 Unions
  
@@ -536,9 +538,9 @@ A variant may be examined and narrowed via the `-<` dynamic-narrowing operator (
 ```
 ?- _ -< shape
     handleAbsent
-?: Circle 'c -< shape
+?: # Circle c -< shape
     handleCircle: c
-?: Rectangle 'r -< shape
+?: # Rectangle r -< shape
     handleRectangle: r
 handleOtherShape
 ```
@@ -547,7 +549,7 @@ The `?-` engages first as the absent-state test; each `?:` then attempts a candi
  
 A variant may be reset to its absent state via `v -< _`. The form `_ -< v` tests whether `v` is non-absent.
  
-A variant may be an instance of a class: every candidate must satisfy that class, and the class's methods may be dispatched on the variant's active candidate without explicit narrowing.
+A variant may be a member of a concept (declared with a witness like any type): every candidate must satisfy that concept, and the concept's methods may be dispatched on the variant's active candidate without explicit narrowing.
  
 ### 5.7 Pointers
  
@@ -559,7 +561,7 @@ Pointers are the indirection mechanism for non-buffer types. A pointer to `T` is
  
 In expressions, postfix `^` dereferences a pointer (`p^` is the value the pointer points to); postfix `&` takes the address of a value (`x&` is a pointer to `x`). Pointer chains — pointers to pointers — are written `^^T`. There is no pointer arithmetic.
  
-For object types, pointers carry runtime type information at the implementation level. The `-<` operator (§7.5) uses this to perform safe downcasting through a class hierarchy.
+For object types, pointers carry runtime type information at the implementation level. The `-<` operator (§7.5) uses this to perform safe downcasting through an object hierarchy.
  
 ### 5.8 Command-typed values
  
@@ -609,14 +611,14 @@ A parameter name prefixed with `'` is **CREATE**-mode: the body must write to it
  
 ```
 .cmd compute: Int x, Int 'result =
-    'result <- x * x
+    result <- x * x
 ```
  
 A command with exactly one writeable parameter — CREATE (`'name`) or UPDATE (`&name`) — is automatically expression-callable: the single writeable slot becomes the expression-style result, with no further annotation required:
  
 ```
 .cmd square: Int x, Int 'result =
-    'result <- x * x
+    result <- x * x
  
 ; caller:
 #nine <- square: 3
@@ -632,7 +634,7 @@ A parameter without `'` is read-only. The body may inspect it but cannot modify 
  
 ### 6.3 The same-scope rule
  
-A name introduced as a writeable parameter (`'r` or, in the future, `&r`) cannot be shadowed by another binding of the same base name (`r`) in the same scope. The rule prevents the user from accidentally referring to "the same name" while operating at different mode contracts. The lexer treats `'r`, `&r`, and `r` as identifier-shape variants of the same name.
+A parameter's name cannot be shadowed by another binding of the same name in the same scope, whatever the parameter's mode. The `'`, `&`, and `~` markers are mode markers in the signature, not part of the name — the body refers to every parameter by its bare name — so shadowing a parameter would silently change which contract a bare name operates under; the rule forbids it.
  
 ### 6.4 The transitive READ contract
  
@@ -707,7 +709,7 @@ An aggregate literal builds a record, object, or variant value. The fence is `${
 A positional form is admitted where the lhs type is contextually explicit — for example, at typed parameter positions or on the rhs of a typed CREATE slot. Values are listed in the lhs type's declaration order, without field names:
  
 ```
-'origin <- ${3, 4}                                  ; positional; 'origin's declared type provides the field order
+origin <- ${3, 4}                                   ; positional; origin's declared type provides the field order
 ```
  
 Where the lhs type is not contextually explicit, the positional form is rejected and the named form is required. In positional form, every field — including variant-typed fields — must be supplied; `_` stands in for variants in the absent state. The named form is always well-formed.
@@ -721,7 +723,7 @@ Compound construction is *atomic*: a constructor whose body partially succeeds a
 `-<` is the runtime-checked sibling of `<-`. It narrows a wider value to a more-specific type at runtime, producing a propagating failure on type mismatch:
  
 ```
-?: Circle 'c -< shape         ; if shape's active candidate is Circle, bind to c
+?: # Circle c -< shape        ; if shape's active candidate is Circle, bind to c
     handleCircle: c
 fallback                      ; runs only if the guard failed
 ```
@@ -730,7 +732,7 @@ Forms:
  
 | Form | Meaning |
 |---|---|
-| `'narrow -< v` | Narrow `v` (variant or class-typed) to `narrow`'s declared type; failure on mismatch. |
+| `# T n -< v` | Narrow `v` (variant, object, or concept-typed) into a fresh local `n` of type `T`; failure on mismatch. |
 | `v -< _` | Reset variant `v` to its absent state. |
 | `_ -< v` | Test whether `v` is non-absent; succeeds iff some candidate is active. |
  
@@ -787,7 +789,7 @@ The `_` token marks deferred parameters. Receivers, when present, are always app
 A command literal has an explicit signature and body, no captures:
  
 ```
-:<Int x, Int 'r>{ 'r <- x * 2 }
+:<Int x, Int 'r>{ r <- x * 2 }
 ```
  
 This is an eagerly-evaluated, pure callback — no defining-frame state is captured; the body's only inputs are its declared parameters. Command literals have no ceiling beyond the ordinary object lifecycle.
@@ -823,50 +825,60 @@ All four forms participate in the standard failure-mark discipline:
 - A command reference inherits its mark from the underlying command.
 - Command literals, lambdas, and fexprs declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
 - Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all four forms.
-## 9. Classes, Instances, and Dispatch
+## 9. Concepts, Witnesses, and Dispatch
  
-A class is a single-parameter type contract — structurally a Haskell typeclass, a Java interface, or a Scala trait. Classes describe operations that types must provide; instances supply those operations for specific types. Dispatch is via Haskell-style dictionary passing.
+A concept is a single-parameter type contract — structurally a Haskell typeclass, a Java interface, or a Scala trait. Concepts describe operations that types must provide; witnesses supply those operations for specific types, each witness a named declaration that a type satisfies a concept. Dispatch is via Haskell-style dictionary passing.
  
-### 9.1 Classes
+### 9.1 Concepts
  
-A class declaration enumerates the methods that any instance must provide:
+A concept declaration enumerates the methods that any member type must provide:
  
 ```
-.class Showable:
+.concept Showable:
     .decl render: String 'output
- 
-.class Mergeable:
-    .decl merge: Mergeable 'result, Mergeable other
     .cmd describe: String 'output =
-        render: 'output                  ; default body, uses Showable.render
+        render: output                   ; default body, built on the declared method
 ```
  
-`.decl` is signature-only: the instance must supply the body. `.cmd` inside a class body is a *default* implementation that any instance may override; an instance that does not override the default uses the class's body.
+`.decl` is signature-only: the witness must supply the body. `.cmd` inside a concept body is a *default* implementation that any witness may override; a witness that does not override the default uses the concept's body.
  
-A class may carry additional type parameters beyond the implementing type. Type variables and class-bound constraints attach to the class's typename, not to individual method signatures:
+A concept may carry additional type parameters beyond the implementing type. Type variables and concept-bound constraints attach to the concept's typename, not to individual method signatures:
  
 ```
-.class Container[T:Itemable]:
+.concept Container[T:Itemable]:
     .decl insert: T item
 ```
  
-Methods reference `T` directly; the constraint `T:Itemable` applies across the class.
+Methods reference `T` directly; the constraint `T:Itemable` applies across the concept.
  
-### 9.2 Instances
+### 9.2 Witnesses
  
-An instance declaration says "this implementing type satisfies these classes":
+A witness declaration says "this type satisfies this concept," under a name:
  
 ```
-.instance Widget: Showable
-.instance User: Serializable, Comparable
-.instance Map[K, V]: Container (hashImpl), Iterable
+.witness ShowWidget[Widget] : Showable
+.witness UserJson[User]     : Serializable
+.witness UserOrd[User]      : Comparable
+.witness MapStore[Map[K, V]] : Container (insert = hashInsert)
+.witness ArrivalOrder[Envelope] : Ord -> stamp
 ```
  
-Multiple classes on the right of `:` are independent instances; there is no joint-instance dictionary. The optional `(name)` clause names a *delegate* — a field of the implementing type whose existing instance for the class supplies the methods. Delegation is always explicit; the language does not auto-pick a delegate by type-uniqueness.
+One declaration covers one concept; a type satisfying several concepts takes one line per concept. The parenthesized clause maps a concept method to one of the type's existing methods by name (`insert = hashInsert`). The `-> fieldName` clause names a *delegate* — a field of the type whose own witness for the concept supplies the methods; `ArrivalOrder` says "an `Envelope` is ordered by its `stamp` field." Delegation is always explicit; the language never auto-picks a delegate.
  
-When delegation is used, the *delegate itself* is the receiver in calls to the delegated class's methods — not the outer object that named it. This receiver-substitution is unusual; most languages' delegation patterns keep the wrapper as the conceptual receiver and treat the delegate as a private implementation provider. In Basis, calls dispatched through a delegate operate directly on the delegate's value. Among other uses, this lets a context object collect any number of services into a single context-variable binding, and supports rebinding of the delegate field during a call — useful for implementing statecharts.
+When delegation is used, the *delegate itself* is the receiver in calls to the delegated concept's methods — not the outer object that named it. So under `ArrivalOrder`, comparing two envelopes compares their stamps. This receiver-substitution is unusual; most languages' delegation patterns keep the wrapper as the conceptual receiver. Among other uses, it lets a context object collect any number of services into a single binding — and it makes statecharts nearly free. A delegate field may be *re-pointable*:
  
-For every `(class, type)` pair, an instance produces a *dictionary* — a record-like value whose fields hold command-typed values for each of the class's methods. Dispatch is an indirect call through the appropriate dictionary slot.
+```
+.object Machine : ^StateHandling active, IdleState idle, RunState run
+.witness MachineAsState[Machine] : StateHandling -> active
+ 
+.cmd Machine &m :: toRun =
+    m :: active <- m :: run &        ; the transition: one write swaps the
+                                     ; machine's behavior and state together
+```
+ 
+Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism (the spec's §9.4 has the details).
+ 
+For every witness, the compiler builds a *dictionary* — a record-like value whose fields hold command-typed values for each of the concept's methods. Dispatch is an indirect call through the appropriate dictionary slot.
  
 ### 9.3 Dispatch via `::`
  
@@ -877,7 +889,7 @@ The resolved value may be bound and reused — useful for hoisting dispatch out 
 ```
 #renderFn <- {myWidget :: render}
 ?? ? hasMore: queue
-        renderFn: 'localBuffer
+        renderFn: #localBuffer
     ^
 ```
  
@@ -889,7 +901,7 @@ A method invocation over multiple receivers takes a tuple of receivers that must
  
 ```
 .cmd (Logger logger, Severity severity) :: format: String 'result, String message =
-    ; body authored against Logger and Severity classes;
+    ; body authored against Logger and Severity concepts;
     ; (logger :: emit) and (severity :: prefix) dispatch independently
     ...
 ```
@@ -900,7 +912,7 @@ Calling:
 (consoleLogger, warning) :: format: "couldn't open file"
 ```
  
-The implementation composes per-receiver single-class dispatches — there is no tuple-keyed joint-instance table. The combined behavior is the product of the receivers' types, but each receiver's dispatch resolves through its own class's dictionary independently. Modules defining `Logger` and `Severity` need not coordinate; methods using both classes work cleanly across module boundaries.
+The implementation composes per-receiver single-concept dispatches — there is no tuple-keyed joint dictionary. The combined behavior is the product of the receivers' types, but each receiver's dispatch resolves through its own concept's dictionary independently. Modules defining `Logger` and `Severity` need not coordinate; methods using both concepts work cleanly across module boundaries.
  
 Method receivers carry mode markers:
  
@@ -924,28 +936,53 @@ Partial application generalizes the receiver-baked-in form to bind any subset of
  
 Receivers are always applied at the partial-application site — never deferred. This keeps dispatch resolved at compile time. Non-receiver parameters may be applied or deferred (`_`) freely. The resulting value's type covers only the deferred parameters in declaration order.
  
-### 9.6 Class-typed parameters: Cases A and B
+### 9.6 Concept-typed parameters: Cases A and B
  
-A parameter typed with a class has two structurally distinct forms:
+A parameter typed with a concept has two structurally distinct forms:
  
-**Case A — class as constraint on a type variable.** A type variable is introduced, constrained to a class, and parameters are typed as the variable:
+**Case A — concept as constraint on a type variable.** A type variable is introduced, constrained to a concept, and parameters are typed as the variable:
  
 ```
 .cmd doIt: (T:Showable) 'r, T x = ...
 ```
  
-Multiple `T`-typed slots in the signature share a single concrete type at the call site. The dictionary witness travels once as a hidden parameter; slots are in their natural representation.
+Multiple `T`-typed slots in the signature share a single concrete type at the call site. The dictionary travels once as a hidden parameter; slots are in their natural representation.
  
-**Case B — class as existential at parameter position.** A parameter is typed *as a class*, accepting any value satisfying the class:
+**Case B — concept as existential at parameter position.** A parameter is typed *as a concept*, accepting any value satisfying the concept:
  
 ```
 .cmd render: String 'output, Showable s = ...
 ```
  
-Each slot independently carries its dictionary witness in the slot itself (a 3-word slot pattern). Different `Showable`-typed parameters in the same signature may carry values of different concrete types.
+Each slot independently carries its value's dictionary alongside it. Different `Showable`-typed parameters in the same signature may carry values of different concrete types.
  
-### 9.7 Instance coherence
+### 9.7 Witness coherence: many ways, by name
  
-Multiple instances for the same `(class, type)` pair may exist across modules. Resolution at a use site follows Julia-style "more specialized module wins" pragmatics: the most-specialized in-scope instance wins; genuine ties are static errors. Intra-module duplicates (two `instance C: T` declarations in the same module) are always errors. Orphan instances — instances declared in a module that defined neither the class nor the type — are permitted; the language warns at import time when a new import competes with an already-visible instance for an already-used `(class, type)` pair, restoring local predictability without restricting what may be declared.
+A type may satisfy one concept in several ways — and that's a feature, not a conflict. Each way is a witness with a name:
  
-Class dispatch resolves through a witness captured at the value's first class-typed-slot boundary. For non-buffer types — objects, variants — runtime identity is carried by the value's representation directly (object headers, variant 3-word slots), and dispatch through any class-typed parameter consults that runtime identity. For buffer-backed values, dispatch identity is captured when the value enters a class-typed slot and is preserved through subsequent class-typed slots — but is **lost** if the value passes through an intermediate *non-class-typed* parent buffer-backed parameter, which carries only bytes. The next class-typed slot the value enters then captures the parent's instance, not the child's. To preserve domain-specific dispatch on a buffer-backed value, the dispatch must reach the class-typed slot directly, or through a chain of class-typed slots — without intermediate upcast through a parent buffer-backed parameter.
+```
+.witness ForwardOrd[NumberField] : Ord
+.witness ReverseOrd[NumberField] : Ord (before = afterOrEqual)
+```
+ 
+Resolution is simple: if only one witness could apply at a use site, it's used automatically, and you never think about it — the whole-program common case. If more than one could apply, the site is an error until you *say which one you mean*: name it at the site, or once per file with a `.using` directive:
+ 
+```
+.using ForwardOrd                     ; this file's standing choice
+```
+ 
+There is no cleverness in between — no ranking, no "most specific module wins," no import-order effects. Nothing you import can silently change which witness your code dispatches through; a new competitor arriving in your dependency graph can at worst turn a site into a loud error asking you to choose. (That's the no-spooky-action principle from the introduction, applied to dispatch.)
+ 
+One more ergonomic layer: a concept's author may bless a *canonical default* by declaring the witness family inside the concept itself —
+ 
+```
+.concept Ord:
+    .witness Ascending                ; the default ordering, unless you say otherwise
+    .decl ?before: ...
+```
+ 
+— so everyone declares how their type inhabits `Ord` and moves on, ambiguity resolving to `Ascending` unless a file `.using`s or names something else. Only the concept's own author can set this, so it can't be hijacked from a distance.
+ 
+Two spec-only teasers, for the curious: a parameterized type can carry its concept bound in its header (`SortedSet[T:Ord]`), which makes every constructed set *remember the ordering that built it* — probing code can't accidentally use the wrong one; and witness identity can be tracked statically in the type (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
+ 
+Dispatch identity for buffer-backed values still deserves one caution here: buffer-backed slots carry only bytes, so a value's concept-dispatch identity is captured when it enters a concept-typed slot and is preserved through chains of them — but an intermediate pass through a plain parent-typed buffer parameter reduces it to the parent. Reach the concept-typed boundary directly when child-domain dispatch matters (the spec's §9.18 has the full story).
