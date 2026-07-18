@@ -1,4 +1,4 @@
-## The Basis Programming Language.  
+# The Basis Programming Language.  
 
 *This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
 
@@ -68,7 +68,7 @@ $$
 
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, lambda, and fexpr — are §8. Concepts, witnesses, and dispatch are §9. 
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, and lambda — are §8. Concepts, witnesses, and dispatch are §9. 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
 
@@ -761,16 +761,15 @@ A `=` declaration binds a default value or default constructor for a slot:
  
 Defaults are evaluated lazily — at the moment the slot would otherwise be uninitialized.
  
-## 8. Lambda and Fexpr
+## 8. Command-typed values
  
-Four constructional forms produce command-typed values:
+Three constructional forms produce command-typed values:
  
 | Form | Surface | Captures? | Body? | Use |
 |---|---|---|---|---|
 | Command reference | `{name}` or `{cmd: x, _, y}` | No | No (refers to existing command) | Function-pointer-style dispatch capture; partial application |
 | Command literal | `:<args>{body}` (also `?<...>`, `!<...>`) | No | Yes | Eagerly-evaluated thunks; pure callbacks |
 | Lambda | `:<args / caps>{body}` | Yes (explicit slash list) | Yes | Closures over defining-frame state |
-| Fexpr | `:{body}` (also `?{body}`, `!{body}`) | Yes (implicit by free name) | Yes | User-defined control-flow combinators |
  
 ### 8.1 Command reference
  
@@ -804,26 +803,12 @@ A lambda is a command literal extended with an explicit capture list, separated 
  
 Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
  
-### 8.4 Fexpr
- 
-A fexpr captures defining-frame state implicitly, by free-name reference:
- 
-```
-:{ counter <- counter + 1 }
-```
- 
-The body references `counter` directly; the typechecker resolves the name against the defining frame's lexical scope and captures it implicitly. Fexprs are the user-defined-control-flow-combinator form: a fexpr body acts as if inlined at its invocation site, with access to the surrounding scope. The purpose of fexprs is to allow down-stack code — a callee receiving the fexpr as a parameter — to read and modify the contents of the originating stack frame, the mechanism by which user-defined control-flow constructs can access caller-frame state.
- 
-Fexpr-typed parameter slots are denoted `:<*>`, with `?<*>` and `!<*>` for the may-fail and must-fail marks. The `*` inside the angle brackets distinguishes fexpr-typed values from ordinary command-typed values (`:<>`, `?<>`, `!<>`) — a fexpr is not assignable to an ordinary command-typed slot, even when the failure mark matches.
- 
-A fexpr's ceiling is *uniformly its defining frame*. It cannot escape upward, cannot be stored in long-lived structures, cannot be passed to anything that could outlive its defining frame. The discipline is enforced through the language's parameter-mode and storage rules — a parameter typed as a fexpr can only be READ, fexpr-typed slots cannot appear in long-lived storage, and so on.
- 
-### 8.5 Failure marks across the four forms
+### 8.4 Failure marks across the three forms
  
 All four forms participate in the standard failure-mark discipline:
  
 - A command reference inherits its mark from the underlying command.
-- Command literals, lambdas, and fexprs declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
+- Command literals and lambdas declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
 - Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all four forms.
 ## 9. Concepts, Witnesses, and Dispatch
  
