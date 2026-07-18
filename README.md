@@ -382,7 +382,7 @@ A loop framed by setup and teardown:
  
 This example contains a latent bug: if `process: pop: queue` can fail, the failure propagates out through `??` and out of `%`'s body, skipping `release: lock` and leaking the lock. The proper mechanism for cleanup that must run on every exit path is the `@` frame-exit hook (§3.3).
  
-### 4.4 Typed recovery and concept-bound payloads
+### 4.4 Typed recovery and concept-valued payloads
  
 A failure message may be **bound to a concept value** — the payload is a value whose runtime type is required to satisfy the named concept, and the recovery handler operates on it through that concept's operations:
  
@@ -938,7 +938,7 @@ Receivers are always applied at the partial-application site — never deferred.
  
 ### 9.6 Concept-typed parameters: Cases A and B
  
-A parameter typed with a concept has two structurally distinct forms:
+A parameter whose type names a concept has two structurally distinct forms:
  
 **Case A — concept as constraint on a type variable.** A type variable is introduced, constrained to a concept, and parameters are typed as the variable:
  
@@ -948,7 +948,7 @@ A parameter typed with a concept has two structurally distinct forms:
  
 Multiple `T`-typed slots in the signature share a single concrete type at the call site. The dictionary travels once as a hidden parameter; slots are in their natural representation.
  
-**Case B — concept as existential at parameter position.** A parameter is typed *as a concept*, accepting any value satisfying the concept:
+**Case B — a concept value at parameter position.** A parameter may be typed by the concept directly; it then accepts any value satisfying the concept, and what it holds is a *concept value* — a value known and operated on through that concept:
  
 ```
 .cmd render: String 'output, Showable s = ...
@@ -983,6 +983,20 @@ One more ergonomic layer: a concept's author may bless a *canonical default* by 
  
 — so everyone declares how their type inhabits `Ord` and moves on, ambiguity resolving to `Ascending` unless a file `.using`s or names something else. Only the concept's own author can set this, so it can't be hijacked from a distance.
  
-Two spec-only teasers, for the curious: a parameterized type can carry its concept bound in its header (`SortedSet[T:Ord]`), which makes every constructed set *remember the ordering that built it* — probing code can't accidentally use the wrong one; and witness identity can be tracked statically in the type (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
+And a design pattern that falls out of the pieces above, worth knowing on its own: a type parameter's constraint can name a **witness family** instead of just a concept. Read it as "any type is welcome here — domains included — so long as `Ascending` knows how to order it":
+ 
+```
+.domain Score    : Int32                      ; cheap nominal types over plain integers
+.domain Priority : Int8
+ 
+.witness Core::Ascending[Score]    : Ord      ; joining the default family: one line each
+.witness Core::Ascending[Priority] : Ord
+ 
+.record Leaderboard[T:(Ord = Ascending)] : [64]T entries, Int32 count
+```
+ 
+`Leaderboard[Score]` and `Leaderboard[Priority]` are both fine — the instantiation check is simply "does `Ascending` cover this type?" — and `Leaderboard[Widget]` is a clear error naming exactly what's missing. Pinning the ordering in the header means every leaderboard sorts the same way *by construction*: there is no per-value ordering choice to get wrong. (A nice bonus for buffer-backed types like these domains: with the witness fixed in the type, dispatch is fully static — the compiled code is monomorphic per instantiation.) The workflow for a new type is exactly one line — declare how it inhabits `Ascending` — and every `Ascending`-pinned container in the program accepts it.
+ 
+Two spec-only teasers, for the curious: leaving the header bound *unpinned* (`SortedSet[T:Ord]`) makes every constructed set instead *remember the ordering that built it* — each value carries its own, and probing code can't accidentally use the wrong one; and witness identity can be tracked statically on individual values (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
  
 Dispatch identity for buffer-backed values still deserves one caution here: buffer-backed slots carry only bytes, so a value's concept-dispatch identity is captured when it enters a concept-typed slot and is preserved through chains of them — but an intermediate pass through a plain parent-typed buffer parameter reduces it to the parent. Reach the concept-typed boundary directly when child-domain dispatch matters (the spec's §9.18 has the full story).
