@@ -8,7 +8,7 @@
 
 Basis is a programming language designed for code that benefits from a direct semantic match to Hexagonal Architecture, that maintains tight bounded scope on side effects, and that supports both high-level polymorphic styles and low-level byte-faithful work in a single coherent surface. The language's specific design commitments are oriented toward making AI-generated and AI-reviewed code tractable: side-effect bounds on commands flow through their signatures, recovery contexts are structurally visible in the source, and the static analyses guarantee the runtime properties the signatures describe.
 
-This specification describes the language at the level needed to implement a parser, a typechecker, the core static analyses, and an interpreter or naive AST-walking executor. It does not describe an intermediate representation, a code generator, a runtime support library, or the standard library. Where the language depends on standard-library or runtime presence &mdash; as for the `Int64`-arithmetic intrinsics, the `FexprFailure` and `CoercionFailure` standard messages, or the platform-specific allocator &mdash; the specification names the dependency without specifying its provider.
+This specification describes the language at the level needed to implement a parser, a typechecker, the core static analyses, and an interpreter or naive AST-walking executor. It does not describe an intermediate representation, a code generator, a runtime support library, or the standard library. Where the language depends on standard-library or runtime presence &mdash; as for the `Int64`-arithmetic intrinsics, the `CoercionFailure` standard message, or the platform-specific allocator &mdash; the specification names the dependency without specifying its provider.
 
 ### 1.2 Guiding Principles
 
@@ -34,9 +34,7 @@ The language realizes a small set of guiding principles. Each principle has cons
 
 10. **Syntactic sugar is superior to semantic sugar.** Surface forms that desugar to other surface forms are admitted; surface forms that introduce new semantic primitives are admitted only when they cannot be expressed by composition. Expression-position calling conventions desugar into command calls with `#`-introduced argument-position locals; the `<-` choice form desugars into a chain of try-or-fall-through; the implicit `-> name` rule for single-writeable-parameter commands desugars into the explicit form. Each desugaring is one substitution; the underlying semantics has no hidden complexity.
 
-11. **Fexprs for user-defined control flow.** The language admits user-defined control-flow primitives via the fexpr mechanism (&sect;8.5), which captures defining-frame state implicitly and operates on it at invocation time.
-
-12. **Syntactic whitespace improves legibility.** Indentation determines block structure. The visual layout of a Basis source file reflects its operational structure; constructs at a single indentation level are siblings; constructs at deeper indentation are children. The composition rules for block markers (&sect;4.5) read off the indentation structure directly.
+11. **Syntactic whitespace improves legibility.** Indentation determines block structure. The visual layout of a Basis source file reflects its operational structure; constructs at a single indentation level are siblings; constructs at deeper indentation are children. The composition rules for block markers (&sect;4.5) read off the indentation structure directly.
 
 These principles are not separate features that the language assembles; they are the framing under which the rest of the language is written. The sections of this specification that realize each principle are noted in the relevant places.
 
@@ -94,7 +92,7 @@ The other intentional exception is the at-stack mechanism for frame-exit hooks (
 
 2. **Implicit context parameters.** The `/`-list in a command's signature names parameters that are filled automatically at the call site from the caller's lexical scope, by uniqueness-of-type. The provision is implicit at the syntactic level but not at the semantic level &mdash; the value must actually exist in the caller's lexical scope to be eligible. This is the language's Scala-implicit-style mechanism (&sect;3.6).
 
-3. **Captured-and-traveling state.** A value (such as a fexpr or a lambda) carries with it references to slots in some frame, established at the moment the value was constructed. When the value is later invoked, those references are part of the value's identity. The provision was made at construction time, not at invocation time. This is the language's closure mechanism (&sect;8).
+3. **Captured-and-traveling state.** A value (such as a lambda) carries with it references to slots in some frame, established at the moment the value was constructed. When the value is later invoked, those references are part of the value's identity. The provision was made at construction time, not at invocation time. This is the language's closure mechanism (&sect;8).
 
 Absence of any of these means absence of reach. A frame six levels above the current one is on the call stack, but if no explicit provision chain reaches up to it, its slots are not reached by the current command. There is no mechanism by which a command can opt into reaching state that was not provisioned for it.
 
@@ -301,7 +299,7 @@ Indentation is the language's primary block delimiter. A line indented under ano
 
 The `${...}` and `$[...]` literal-fence tokens introduce a single bracketed group each, matched by a single `}` or `]`. The `$` prefix is unambiguous &mdash; the `$` character has no other use in Basis source &mdash; so `${` and `$[` are recognized as single tokens at lex time.
 
-The full lexer specification &mdash; the token concepts, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.splice` modifier, the `<*>` typing surface for fexpr-typed slots, and the `(T:Concept)` constraint form at method receiver positions &mdash; is given in Appendix A.
+The full lexer specification &mdash; the token concepts, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.splice` modifier, and the `(T:Concept)` constraint form at method receiver positions &mdash; is given in Appendix A.
 
 
 ---
@@ -336,7 +334,7 @@ The `.using` directive establishes a **standing witness selection**: an explicit
 
 A *command* is the unit of execution in Basis. Every operation a program performs &mdash; every effect, every computation, every dispatch &mdash; is structurally a command invocation. Commands take parameters of declared types and modes, may produce values into writeable parameter slots, may fail with a message, and compose hierarchically through indentation, block markers, and recovery contexts. Commands are first-class values: they may be referenced, partially applied, captured in lambdas, stored in fields, and invoked indirectly through dispatch.
 
-This section describes the surface of commands &mdash; signatures, parameters, constructors, methods, subcommands, frame-exit hooks, and calling conventions. The full parameter-mode discipline (the static analyses, the transitive READ contract, taint propagation) is in &sect;6. The first-class command-typed value forms &mdash; command reference, command literal, lambda, fexpr &mdash; are in &sect;8. The concept-and-witness dispatch system that resolves method calls is in &sect;9.
+This section describes the surface of commands &mdash; signatures, parameters, constructors, methods, subcommands, frame-exit hooks, and calling conventions. The full parameter-mode discipline (the static analyses, the transitive READ contract, taint propagation) is in &sect;6. The first-class command-typed value forms &mdash; command reference, command literal, lambda &mdash; are in &sect;8. The concept-and-witness dispatch system that resolves method calls is in &sect;9.
 
 ### 3.1 The Unit of Execution
 
@@ -433,7 +431,7 @@ The mechanism resolves at compile time. The provision-chain reading of the no-no
 ;   static type IS `Loggable` &mdash; a 3-word slot; the slot's own dictionary dispatches
 
 .cmd audit: Payload p / SortedSet[NumberField:(Ord = ForwardOrd)] cache = ...
-;   annotated implicit: only a provably-annotated binding matches (&sect;9.23)
+;   annotated implicit: only a provably-annotated binding matches (&sect;9.21)
 
 .cmd top: =
     # Loggable log <- consoleLogger    ; the ONE line naming a concrete provider:
@@ -659,7 +657,7 @@ process: arg1,
 
 Arguments are always comma-separated. The grammar treats the colon as the start of the argument list and the indentation/dedent transitions as standard whitespace, so the argument list can extend across lines when indented under the call's first line.
 
-**Witness provision at the call.** Where a call must name a witness (the top precedence tier, &sect;9.15), the spelling depends on the call shape. A **regular call** takes an optional parenthesized provision clause between the command name and the argument-introducing colon; a **method call** uses the method-prefix form (&sect;9.16); a **constructor call** needs no clause &mdash; provision there is construction of the witness-annotated type (&sect;9.22):
+**Witness provision at the call.** Where a call must name a witness (the top precedence tier, &sect;9.15), the spelling depends on the call shape. A **regular call** takes an optional parenthesized provision clause between the command name and the argument-introducing colon; a **method call** uses the method-prefix form (&sect;9.16); a **constructor call** needs no clause &mdash; provision there is construction of the witness-annotated type (&sect;9.20):
 
 ```
 min (Ord = ForwardOrd): #m, x, y                     ; regular call: prefix clause
@@ -677,7 +675,7 @@ pairUp (Ord[K] = ChronoOrd): stamp, widget, #rep     ; partial provision: the (V
                                                       ; precedence chain (&sect;9.15)
 ```
 
-A qualification naming a variable the signature does not introduce, or one not bounded by the named concept, is a static error naming the mismatch. Bound witness variables (&sect;9.23) are admissible on an entry's right-hand side within a body where they are bound.
+A qualification naming a variable the signature does not introduce, or one not bounded by the named concept, is a static error naming the mismatch. Bound witness variables (&sect;9.21) are admissible on an entry's right-hand side within a body where they are bound.
 
 The `#` prefix on an argument introduces a fresh local in argument position. The form is the call-site dual of `#name <- expr` for local introduction (&sect;7.1):
 
@@ -737,22 +735,21 @@ The four uses are syntactically distinguishable by surrounding context. The lexe
 
 ### 3.16 First-Concept Commands
 
-Commands are values. A command-typed value may be stored in a field, passed as an argument, returned from a constructor, or invoked indirectly. The language admits four constructional forms that produce command-typed values:
+Commands are values. A command-typed value may be stored in a field, passed as an argument, returned from a constructor, or invoked indirectly. The language admits three constructional forms that produce command-typed values:
 
 | Form | Surface | Captures? | Body? |
 |---|---|---|---|
 | Command reference | `{name}` or `{cmd: x, _, y}` | No | No (refers to existing command) |
 | Command literal | `:<args>{body}` (also `?<...>`, `!<...>`) | No | Yes |
 | Lambda | `:<args / caps>{body}` | Yes (explicit slash list) | Yes |
-| Fexpr | `:{body}` (also `?{body}`, `!{body}`) | Yes (implicit by free name) | Yes |
 
 The four forms cover the design space &mdash; function-pointer-style references, eagerly-evaluated thunks, closures over defining-frame state, and user-defined control-flow primitives &mdash; through a uniform set of constructions that share the failure-mode discipline (the `:` / `?` / `!` mark) and the four-way taxonomy.
 
-Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (&sect;3.3): `:<Int, Int'>`, `?<String'>`, `!<>`. Fexpr-typed values are typed by the parallel family `:<*>`, `?<*>`, `!<*>` &mdash; the `*` distinguishes the fexpr family from ordinary command-typed values, and there is no subsumption across the family boundary. The full type-form tables and family rules are in &sect;5.14 and &sect;5.15.
+Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (&sect;3.3): `:<Int, Int'>`, `?<String'>`, `!<>`.
 
 Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application &mdash; including the mode-marker filter (CREATE deferred-only, UPDATE applied with ceiling-tracking, READ flexible) &mdash; are in &sect;9.14.
 
-The four constructional forms &mdash; their capture rules, their ceiling computations, their mark-conformance rules, and the seven fexpr-restrictions A&ndash;G &mdash; are detailed in &sect;8. The concept-system extension that admits fexpr-typed parameters under fexpr-relevance taint is in &sect;9.20.
+The three constructional forms &mdash; their capture rules, their ceiling computations, and their mark-conformance rules &mdash; are detailed in &sect;8.
 
 ### 3.17 Scope Blocks: `.scope`
 
@@ -837,9 +834,9 @@ Cleanup that mainstream languages express through `try`/`finally` is expressed i
 Every command-typed value in Basis carries one of three **failure-mode marks** as part of its visible signature:
 
 - The `:` mark &mdash; the **never-fails** mark &mdash; denotes a command whose body must reach exit on a non-failing path on every reachable execution. The `:` mark is the absence of any prefix on the command's name; a never-fails command is declared `.cmd name: ...`.
-- The `?` mark &mdash; the **may-fail** mark &mdash; denotes a command whose body may either succeed or produce a propagating failure. A may-fail command is declared `.cmd ?name: ...`. The mark applies to every signature position where a callable appears: command-type slots, concept-method declarations, lambda and fexpr signatures, and methods are all so marked.
+- The `?` mark &mdash; the **may-fail** mark &mdash; denotes a command whose body may either succeed or produce a propagating failure. A may-fail command is declared `.cmd ?name: ...`. The mark applies to every signature position where a callable appears: command-type slots, concept-method declarations, lambda signatures, and methods are all so marked.
 - The `!` mark &mdash; the **must-fail** mark &mdash; denotes a command whose body must reach exit on a propagating-failure path on every reachable execution; no successful return is possible. A must-fail command is declared `.cmd !name: ...`. The `.fail` directive itself (&sect;4.3) is the canonical `!`-call.
-The marks conceptify command-typed values uniformly across all of the language's command-bearing constructs: named `.cmd` declarations, command-typed slots (`:<...>`, `?<...>`, `!<...>`), concept methods, single- and multi-receiver methods, lambdas, and fexprs (&sect;&sect;3.10&ndash;3.11, 5.15&ndash;5.16, 8). The same conformance rules apply to all.
+The marks conceptify command-typed values uniformly across all of the language's command-bearing constructs: named `.cmd` declarations, command-typed slots (`:<...>`, `?<...>`, `!<...>`), concept methods, single- and multi-receiver methods, and lambdas (&sect;&sect;3.10&ndash;3.11, 5.15&ndash;5.16, 8). The same conformance rules apply to all.
 
 The marks form a partial order under subsumption: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful &mdash; its failure edge is statically dead &mdash; but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
 
@@ -1061,7 +1058,7 @@ A caller invoking a command with declared failure set `D` is responsible for ens
 .cmd ![Fatal] crash: Bar b = body                       ; must-fail with declared set
 ```
 
-The brackets sit immediately after the mark, in whatever position the mark appears: before the command name in a regular declaration, before the method name in a method or method-with-CREATE-receiver signature, before the type-expr in a default constructor, and before the angle-bracket group `<...>` or fexpr marker `<*>` in command-typed values and types. The `:` (never-fails) mark cannot take brackets &mdash; the empty set is implicit. An empty bracket list (`?[]`) is a static error: a `?` mark declares may-fail, which contradicts an empty set; use `:` (never-fails) instead.
+The brackets sit immediately after the mark, in whatever position the mark appears: before the command name in a regular declaration, before the method name in a method or method-with-CREATE-receiver signature, before the type-expr in a default constructor, and before the angle-bracket group `<...>` in command-typed values and types. The `:` (never-fails) mark cannot take brackets &mdash; the empty set is implicit. An empty bracket list (`?[]`) is a static error: a `?` mark declares may-fail, which contradicts an empty set; use `:` (never-fails) instead.
 
 **Annotation is opt-in; if declared, the set is enforced as a contract.** A signature may omit the brackets, in which case the failure set is **inferred** from the body &mdash; the union of messages produced by `.fail` directives in the body and by called commands' declared (or inferred) failure sets, minus any messages consumed by recovery handlers within the body. When the brackets are present, the typechecker enforces them as the upper bound on the body's emitted failures: every message the body can emit must be at-or-below some message listed in the brackets (by the subsumption relation above). An emission outside the declared set is a static error at the offending `.fail` or call site.
 
@@ -1173,7 +1170,7 @@ Every type in Basis falls into exactly one of two categories. The split is struc
 
 **Buffer-backed types** are types whose representation reduces &mdash; transitively &mdash; to bytes. Buffer-backed values are byte-copyable, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. The category includes the buffer primitives `[N]` and `[]`, typed buffers `[N]T` and `[]T`, domains, records, and unions. Aliases that resolve to a buffer-backed type are buffer-backed; enums whose enumerated-type is buffer-backed are buffer-backed.
 
-**Non-buffer types** are types whose representation includes references, identity, dispatch information, or other non-byte semantics. The category includes pointers, command-typed values (the `:<...>`, `?<...>`, `!<...>` family), fexpr-typed values (the `:<*>`, `?<*>`, `!<*>` family), objects, and variants.
+**Non-buffer types** are types whose representation includes references, identity, dispatch information, or other non-byte semantics. The category includes pointers, command-typed values (the `:<...>`, `?<...>`, `!<...>` family), objects, and variants.
 
 The split is enforced by a **containment rule**: byte-aggregate containers &mdash; records, unions, typed buffers `[N]T`, and domain parents &mdash; admit only **fixed-size buffer-backed** contents. A record's fields must all be fixed-size buffer-backed; a union's candidates must all be fixed-size buffer-backed; a typed buffer `[N]T` requires `T` to be fixed-size buffer-backed; a domain's parent must be fixed-size buffer-backed. The runtime-length forms `[]` and `[]T`, while themselves buffer-backed, do not have a static byte-width and are therefore excluded from these positions. Non-buffer types may appear only at top-level positions &mdash; slots introduced via `#`, parameters, receivers &mdash; or as fields of objects or candidates of variants. Object fields and variant candidates are unrestricted as to category; they may hold fixed-size buffer-backed, runtime-length buffer-backed, or non-buffer types freely.
 
@@ -1202,11 +1199,11 @@ A **domain** is a new type declared in terms of a parent type, where the parent 
     .domain RGBA8 : [4]
     .domain Tagged : [12]
 
-Pointers, command-typed values, fexpr-typed values, objects, and variants cannot serve as domain parents because the purpose of a domain is to give a refined interpretation to a definite chunk of bytes &mdash; a non-buffer parent has no chunk of bytes to interpret. The constraint is structural and enforced at the grammar level.
+Pointers, command-typed values, objects, and variants cannot serve as domain parents because the purpose of a domain is to give a refined interpretation to a definite chunk of bytes &mdash; a non-buffer parent has no chunk of bytes to interpret. The constraint is structural and enforced at the grammar level.
 
 **Domains form a parent&ndash;child hierarchy with one-directional implicit upcasting.** A value of a child domain is implicitly accepted wherever the parent domain is expected, but a value of the parent domain is *not* implicitly a value of any specific child. So an `Inches` value is implicitly an `Int32`; an `Int32` value is not implicitly an `Inches`. **Sibling domains do not implicitly convert.** `Inches` and `Centimeters`, both parented at `Int32`, are mutually incomparable for implicit conversion; an explicit constructor invocation is required to move between them.
 
-The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Dictionaries for concept dispatch are selected at the relevant slot boundary based on the slot's declared type at that point &mdash; with one carrying exception: a witness-annotated slot (&sect;9.23) demands the dictionary the value already carries or was proven to carry, so annotated slots "look back" *by carrying*, never by history-walking. This is the buffer-backed subsumption rule applied to domains; it is stated in full in &sect;5.5, and the conditions under which a child type's dispatch identity carries through or is lost in transit are &sect;9.18.
+The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Dictionaries for concept dispatch are selected at the relevant slot boundary based on the slot's declared type at that point &mdash; with one carrying exception: a witness-annotated slot (&sect;9.21) demands the dictionary the value already carries or was proven to carry, so annotated slots "look back" *by carrying*, never by history-walking. This is the buffer-backed subsumption rule applied to domains; it is stated in full in &sect;5.5, and the conditions under which a child type's dispatch identity carries through or is lost in transit are &sect;9.18.
 
 Domains are first-class types: they may be parameters, fields, receivers of concept methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child $\to$ parent) and child declarations do not widen the upcast set for any existing type.
 
@@ -1240,7 +1237,7 @@ The runtime-length forms `[]` and `[]T` are **leaves in the subsumption lattice*
 
 **Sibling buffer-backed types subsume to their common ancestor without peer-conversion.** Two domains parented at `Int32` &mdash; `Inches` and `Centimeters` &mdash; are mutually incomparable as types; they do not implicitly convert to each other. Each individually subsumes upward through the shared `Int32` ancestor: a context expecting `Int32` accepts either; a context expecting `[4]` accepts either. A context expecting `Inches` rejects a `Centimeters` value, and a context expecting `Centimeters` rejects an `Inches` value. The sibling-to-common-ancestor pattern is what makes domain hierarchies usable for unit-style refinements without admitting silent unit conversions.
 
-The subsumption is **type-acceptance, not value-rewriting**. The bytes are unchanged at the upcast boundary; the static analysis accepts the value at the broader type. Methods and concept dictionaries are selected at each slot boundary based on the slot's declared type at that point &mdash; different types may interpret the same bytes differently, and a dictionary constructed at any concept-typed slot boundary reflects that boundary's slot type rather than any earlier slot type the value passed through. (A witness-*annotated* slot, &sect;9.23, refines rather than breaks this rule: the annotation is part of the slot's declared type, and it demands proof that the arriving value's witness matches &mdash; carrying knowledge forward through declared types, never consulting history.) The rule for when buffer-backed dispatch identity is captured at a concept-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-concept-typed buffer-backed parameters, is in &sect;9.18.
+The subsumption is **type-acceptance, not value-rewriting**. The bytes are unchanged at the upcast boundary; the static analysis accepts the value at the broader type. Methods and concept dictionaries are selected at each slot boundary based on the slot's declared type at that point &mdash; different types may interpret the same bytes differently, and a dictionary constructed at any concept-typed slot boundary reflects that boundary's slot type rather than any earlier slot type the value passed through. (A witness-*annotated* slot, &sect;9.21, refines rather than breaks this rule: the annotation is part of the slot's declared type, and it demands proof that the arriving value's witness matches &mdash; carrying knowledge forward through declared types, never consulting history.) The rule for when buffer-backed dispatch identity is captured at a concept-typed slot, and the conditions under which a child type's identity carries through to dispatch versus is lost in transit through intermediate non-concept-typed buffer-backed parameters, is in &sect;9.18.
 
 The subsumption rule is one-directional: child to parent, never the reverse. A value of a parent type does not implicitly become a child value. Constructing a child value from a parent value requires an explicit constructor invocation (&sect;3.9), which the typechecker recognizes as a deliberate cross-type movement.
 
@@ -1335,14 +1332,14 @@ Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-
 
 ### 5.11 Objects
 
-An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, command-typed values, fexpr-typed values (subject to fexpr-specific restrictions; &sect;8), other objects, and variants. The declaration form is:
+An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, command-typed values, other objects, and variants. The declaration form is:
 
     .object Logger : String name, ^File output, Severity threshold
     .object Cache  : [4096] storage, Int32 used, ^Cache next
 
 Object-typed values are reference-semantics in the sense that they are normally manipulated through fat pointers to the object's storage rather than as bytes. The object's fields may be discontiguously laid out &mdash; the language does not commit to a particular field-layout strategy for objects, since the absence of a byte-aggregate constraint frees the implementation from offset-stability requirements that records carry.
 
-The record/object split (&sect;5.4) is the core split of the buffer-backed/non-buffer division. Records *cannot* contain pointers, command-typed values, fexpr-typed values, objects, or variants; objects *can* contain anything. Records have no identity beyond byte-content; objects have identity that survives byte-content equivalence. The two are not a graded distinction &mdash; they are categorically separated, and the choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics.
+The record/object split (&sect;5.4) is the core split of the buffer-backed/non-buffer division. Records *cannot* contain pointers, command-typed values, objects, or variants; objects *can* contain anything. Records have no identity beyond byte-content; objects have identity that survives byte-content equivalence. The two are not a graded distinction &mdash; they are categorically separated, and the choice between them is the choice between byte-aggregate semantics and identity-bearing-aggregate semantics.
 
 Objects are nominally typed: two `.object` declarations with identical field structure produce two distinct types.
 
@@ -1352,9 +1349,9 @@ Objects are nominally typed: two `.object` declarations with identical field str
 
 **Frame-exit hooks via `@` and `@!` (&sect;3.13) are tied to the registering scope, not to the object's identity.** An `@` or `@!` block registered within a scope runs when *that scope* ends, regardless of the type of the value the block references; the hooks are scope-lifetime-tied, not object-lifetime-tied. Object-lifetime-tied cleanup is instead the province of the obligation system (&sect;10): an obligated value's discharge fires at the end of *its* lifetime, and an object's retirement fires its own obligation &mdash; never its owned fields', which its finalizer fires explicitly (&sect;10.16). The two mechanisms are distinct and do not compete &mdash; `@`/`@!` register scope-tied cleanup explicitly at a block marker, while an obligation rides with the value it was acquired against &mdash; so a resource may be managed by whichever fits its lifetime.
 
-Object types may have witnesses declared for them (&sect;9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's concept *membership* is a property of the object's type, attested at witness-declaration sites &mdash; but under named coexistence (&sect;9.15) a `(type, concept)` pair may have several witnesses, so membership alone does not determine a dictionary. Where the dispatching dictionary is not fixed by the resolution context (a concept-referential position: a Case B slot, a `^Concept` pointee, a variant's active candidate), it is the one *carried with the value*, selected at the value's installation site and traveling with the reference (&sect;9.4's dynamic edge, &sect;9.9, Appendix F.13); the fat-pointer metadata identifies the type, and the carried dictionary identifies the witness.
+Object types may have witnesses declared for them (&sect;9). The scope operator `::` works on object-typed values and on `^Object` values via the object's fat-pointer dispatch metadata. An object's concept *membership* is a property of the object's type, attested at witness-declaration sites &mdash; but under named coexistence (&sect;9.15) a `(type, concept)` pair may have several witnesses, so membership alone does not determine a dictionary. Where the dispatching dictionary is not fixed by the resolution context (a concept-referential position: a Case B slot, a `^Concept` pointee, a variant's active candidate), it is the one *carried with the value*, selected at the value's installation site and traveling with the reference (&sect;9.4's dynamic edge, &sect;9.9, Appendix F.12); the fat-pointer metadata identifies the type, and the carried dictionary identifies the witness.
 
-A witness-bearing object type (`.object SortedSet[T:Ord] : ...`, &sect;9.22) additionally carries **one implementation-managed dictionary word per unpinned bounded header parameter**, stamped at construction; header-pinned bounds (&sect;9.23) stamp no word.
+A witness-bearing object type (`.object SortedSet[T:Ord] : ...`, &sect;9.20) additionally carries **one implementation-managed dictionary word per unpinned bounded header parameter**, stamped at construction; header-pinned bounds (&sect;9.21) stamp no word.
 
 ### 5.12 Variants
 
@@ -1379,9 +1376,9 @@ Variants are nominally typed: two `.variant` declarations with identical candida
 
 Every variant slot inherently admits an **absent state** in addition to its declared candidate states. A variant in the absent state has no active candidate: its tag identifies "no candidate here," its candidate pointer is null, and its dictionary is correspondingly null.
 
-The absent state is **intrinsic to variants alone**. No other type in the language has a "may-be-absent" form. Pointers, objects, command-typed values, fexpr-typed values, records, unions, aliases, enums, and named domains all contain what their type declaration says they contain &mdash; there is no slot for the absence of a value. Variants are the language's null-pointer-inclusive data structures *without* admitting NULL into the type system: the absent state is a structural property of variants, surfaced through the normal type-system mechanisms, not a special case grafted onto every reference type.
+The absent state is **intrinsic to variants alone**. No other type in the language has a "may-be-absent" form. Pointers, objects, command-typed values, records, unions, aliases, enums, and named domains all contain what their type declaration says they contain &mdash; there is no slot for the absence of a value. Variants are the language's null-pointer-inclusive data structures *without* admitting NULL into the type system: the absent state is a structural property of variants, surfaced through the normal type-system mechanisms, not a special case grafted onto every reference type.
 
-A bare introduction of a variant slot &mdash; `# SomeVariant x` with no initializer &mdash; produces a variant slot in the absent state. The 3-word slot's all-zero pattern (zero tag, null candidate pointer, null dictionary) is the absent state, by construction. The bare-introduction form is admitted for variants and for no other non-buffer type: pointers, command-typed values, fexpr-typed values, and objects all reject bare introduction because they have no zero-default representation that the language admits. Variants alone admit a zero-default, and that zero-default *is* the absent state.
+A bare introduction of a variant slot &mdash; `# SomeVariant x` with no initializer &mdash; produces a variant slot in the absent state. The 3-word slot's all-zero pattern (zero tag, null candidate pointer, null dictionary) is the absent state, by construction. The bare-introduction form is admitted for variants and for no other non-buffer type: pointers, command-typed values, and objects all reject bare introduction because they have no zero-default representation that the language admits. Variants alone admit a zero-default, and that zero-default *is* the absent state.
 
 A variant declared with exactly one candidate is the language's idiomatic optional: a slot of that variant type is either absent or holds the single candidate's value. The absent state stands for "no value present"; the candidate state stands for "value present." The pattern composes with the rest of the variant machinery &mdash; testing for absent uses the `?- _ -< v` form, and engaging on the candidate uses a `?: # T n -< v` form (&sect;7.13) &mdash; without any dedicated optional-type machinery beyond the variant declaration itself.
 
@@ -1393,7 +1390,7 @@ The construction surface for variants &mdash; including the `${Candidate <- valu
 
 ### 5.14 Command-Typed Values
 
-A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits four constructional forms that produce command-typed values &mdash; command reference, command literal, lambda, and fexpr &mdash; enumerated in &sect;3.16 and detailed in &sect;8. The type system describes command-typed values uniformly through the same family of type expressions.
+A **command-typed value** is a first-class value that wraps a command-shaped operation. The language admits three constructional forms that produce command-typed values &mdash; command reference, command literal, and lambda &mdash; enumerated in &sect;3.16 and detailed in &sect;8. The type system describes command-typed values uniformly through the same family of type expressions.
 
 The type-expression forms for ordinary command-typed values are:
 
@@ -1409,42 +1406,17 @@ Examples:
     ?<Int32', String>      ; may-fail command-typed value with a CREATE Int32 and a READ String
     !<^Int32&>             ; must-fail command-typed value with an UPDATE parameter of type ^Int32
 
-Command-typed values are non-buffer types &mdash; they carry dispatch metadata and (for capture-bearing forms) capture information that does not reduce to bytes. They may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots, parameters, receivers, object fields, and variant candidates (subject to the fexpr-specific restrictions of &sect;5.15 for fexpr-typed values).
+Command-typed values are non-buffer types &mdash; they carry dispatch metadata and (for capture-bearing forms) capture information that does not reduce to bytes. They may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots, parameters, receivers, object fields, and variant candidates.
 
-Command-typed values support every operation a value supports: binding to slots, passing as parameters, storing in object fields and variant candidates, capture by lambdas and fexprs (within the rules of &sect;8), partial application (&sect;9.14), and direct invocation. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the concept declared for `name` minus the receiver position. The full operational mechanics of dispatch are in &sect;9.
+Command-typed values support every operation a value supports: binding to slots, passing as parameters, storing in object fields and variant candidates, capture by lambdas (within the rules of &sect;8), partial application (&sect;9.14), and direct invocation. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the concept declared for `name` minus the receiver position. The full operational mechanics of dispatch are in &sect;9.
 
 **The failure-mode marks on command-typed values follow the subsumption rule of &sect;4.2.** A `:`-marked value is acceptable wherever a `?`-marked value is expected; a `!`-marked value is similarly acceptable; a `?`-marked value is not interchangeable with `:` or `!`. Subsumption is on the failure mark axis only. **Parameter modes and parameter types are invariant** under mark subsumption: a `:<Int32'>` is not interchangeable with `:<Int32>` or `:<Int32&>`. Invariance is essential for soundness &mdash; the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
 
 The interaction with concept dispatch &mdash; when a concept method's signature is a command-typed value with given marks and modes, and how witnesses supply their per-receiver implementations &mdash; is in &sect;9. The interaction with overloading (multiple commands sharing a name) is in &sect;9.16.
 
-### 5.15 Fexpr-Typed Values
-
-**Fexpr-typed values** are nominally distinct from ordinary command-typed values at the type level. A fexpr is the user-defined-control-flow-combinator form: a body written with implicit access to the surrounding command's locals, bounded by its defining frame, and operating on the defining frame's state through implicit captures. The full fexpr mechanism is in &sect;8.5; this section gives the type-side surface only.
-
-The type-expression forms for fexpr-typed values are:
-
-    :<*>                   ; never-fails fexpr-typed value
-    ?<*>                   ; may-fail fexpr-typed value
-    !<*>                   ; must-fail fexpr-typed value
-
-The `*` inside the angle brackets denotes "this is a fexpr &mdash; opaque-to-invoker by design, ceiling-fixed to the defining frame." The `*` displaces the parameter-type list because fexprs have no invoker-side parameter surface beyond the failure mark: captures are lexical, drawn implicitly from the defining frame by free-name resolution, and the invoker's only commitment is to respect the failure-mark.
-
-The typing rules for the fexpr family:
-
-- **No subsumption between fexpr-typed and ordinary command-typed values.** A `:<*>` is not a `:<>`; a `?<*>` is not a `?<>`; a `!<*>` is not a `!<>`. The two families are nominally distinct, with no implicit conversion in either direction. The buffer-backed-hierarchy subsumption rules of &sect;5.5 do not apply across the boundary; the failure-mark subsumption of &sect;4.2 does not cross the boundary either. The two families have a **family boundary** that subsumption does not cross.
-- **The standard mark-subsumption rule applies symmetrically within the fexpr family.** A `:<*>` is acceptable in a `?<*>`-typed slot (per $\texttt{:} \sqsubseteq \texttt{?}$); a `!<*>` is acceptable in a `?<*>`-typed slot (per $\texttt{!} \sqsubseteq \texttt{?}$). Mark subsumption operates within each family identically; what does not cross is the family-distinguishing `*` marker.
-- **The typechecker enforces the defining-frame ceiling structurally.** Fexpr-typed values are recognized syntactically (by the `<*>` marker) and forbidden from assignment to anything that could outlive their defining frame: object fields holding fexpr-typed values are restricted; CREATE parameters of fexpr type are forbidden; pointers to fexpr-typed slots are forbidden; bare-identifier copy of fexpr values is forbidden; capture of fexpr values by lambdas is forbidden. The full enumeration of fexpr restrictions A&ndash;G is in &sect;8.13; the type-side commitment recorded here is that the family-distinguishing type marker `<*>` is what makes the structural enforcement possible.
-The motivating concern for the nominal distinction is ceiling-tracking. Under the defining-frame ceiling rule, the typechecker must distinguish fexpr-typed values from ordinary command-typed values syntactically &mdash; otherwise a fexpr would be assignable to any `:<>` slot and would escape its defining-frame ceiling. The `<*>` marker provides the required syntactic distinction at parameter declarations, in any other type-position where a fexpr-typed slot must be specifically declared, and at the assignment positions that the structural restrictions test.
-
-The interaction of fexpr-typed parameters with concept-method dispatch &mdash; including the `FexprFailure` standard message, the fexpr-relevance taint axis parallel to the READ contract, and the per-witness defaults-incompatibility &mdash; is in &sect;9.20. Variants with fexpr candidates are admissible only under specific containment conditions; the rule is in &sect;8.5's Restriction C and &sect;8 generally.
-
-The fexpr-typed family rounds out the type forms of Basis. The type forms admitted by the language &mdash; buffer primitives, domains, records, unions, aliases, enums, pointers, objects, variants, command-typed values, and fexpr-typed values &mdash; together cover every value the language recognizes. Each form has a clear position in the buffer-backed/non-buffer split (&sect;5.1), a clear construction surface (&sect;7), and a clear interaction with parameter modes (&sect;6) and concept dispatch (&sect;9). The compositions among them are governed by the containment rule (&sect;5.1) and the subsumption rules (&sect;5.5, &sect;5.7, &sect;4.2, &sect;5.15); every other type-crossing is explicit.
-
----
-
 ## 6. Parameters and Mode Markers
 
-This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analyses (the transitive READ contract, &sect;6.4; fexpr-relevance, &sect;6.14) verify that read-only contracts and ceiling bounds are preserved across access paths.
+This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and ceiling bounds are preserved across access paths.
 
 The &sect;3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
@@ -1477,7 +1449,7 @@ The placement convention varies by syntactic context, depending on whether names
 
 The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, or `Type name`, with the type preceding the name and the marker, when present, standing between them as a prefix on the name. The form `name : Type` is not Basis syntax in any binding position. A local introduced with `#` carries no mode marker: it is not a parameter, so no parameter-mode contract applies to it, and it is governed by the ordinary lexical-scope rules (&sect;G.1).
 
-**Nameless contexts** are positions where parameter types are listed without names &mdash; command-type expressions (&sect;5.14, &sect;5.15) most prominently, and any other type-position where a parameter type appears unaccompanied by a binding name. In nameless contexts, the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`:
+**Nameless contexts** are positions where parameter types are listed without names &mdash; command-type expressions (&sect;5.14) most prominently, and any other type-position where a parameter type appears unaccompanied by a binding name. In nameless contexts, the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`:
 
     :<Int>                 ; READ parameter (no marker)
     :<Int'>                ; CREATE parameter (suffix `'`)
@@ -1527,7 +1499,7 @@ The conceptification of which operations propagate taint and which produce a fre
 
 A forbidden pointer-write pattern follows directly from the rule: a write through a `^T` reached from a READ parameter's binding is a static error. The `^T` is itself read-only-through-this-access for the duration of the call.
 
-The contract composes with the capture mechanisms (&sect;&sect;6.9, 8.4, 8.5). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. Fexprs propagate similarly. For partial application via the command-reference form `{...}` (&sect;3.16), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
+The contract composes with the capture mechanism (&sect;&sect;6.9, 8.4). A lambda that captures a free name binding a tainted slot, or a value derived from one, carries the taint into its body; the body sees the captured value at READ semantics. For partial application via the command-reference form `{...}` (&sect;3.16), if the captured value at the partial-application site is itself READ-tainted, the bake-in carries the taint into the resulting command-typed value.
 
 ### 6.5 The Frame-Ownership Reading
 
@@ -1592,11 +1564,10 @@ The four modes form a complete discipline: every parameter and receiver in the l
 
 Lambda forms (&sect;8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of &sect;6.2 &mdash; `'name`, `&name`, or bare `name` for CREATE, UPDATE, and READ respectively.
 
-**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` (the defining frame; see &sect;8.5 for the formal D/I/F three-frame model) through ceiling-flattening of reference captures (&sect;8.4), at which point the CREATE slot may no longer exist. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
+**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` (the defining frame) through ceiling-flattening of reference captures (&sect;8.4), at which point the CREATE slot may no longer exist. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
 
-Fexprs have no such restriction. A fexpr body accesses defining-frame state by free-name resolution at invocation time, with the mode of each access inherited from the binding's mode in the defining frame (&sect;8.5). A free name in a fexpr body that binds a CREATE parameter `'name` in the defining frame accesses the slot at CREATE mode; writes to it through the fexpr count toward the defining frame's write-once analysis exactly as if the fexpr's body were inlined at each invocation site. Two structural properties of fexprs make this sound where the analogous lambda case is not. The fexpr's lifetime is bounded by its defining frame (the ceiling discipline of &sect;5.15 / &sect;6.14), so the CREATE slot is guaranteed to still exist at every fexpr invocation. And the fexpr's invocations are tracked as inlining points in the defining frame's CFG analysis, so multi-invocation patterns that would violate write-once are caught by the same analysis that catches them in straight-line code in the defining frame.
 
-The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or UPDATE value &mdash; whether captured explicitly via a lambda's slash list or implicitly via a fexpr's free-name resolution &mdash; carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
+The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or UPDATE value &mdash; captured via a lambda's slash list &mdash; carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
 
 ### 6.10 Implicit Context Parameters Across Modes
 
@@ -1632,7 +1603,7 @@ The interaction with the `-> name` result designator (&sect;3.7) is direct: a CR
 
 ### 6.13 Whole-Slot Tracking
 
-The initialization analysis tracks each slot as a unit, not as a graph of fields. A buffer-backed compound &mdash; a record, a union, a typed buffer &mdash; is initialized when its bytes are written as a whole; partial-field initialization is not a state the analysis tracks. The discipline applies uniformly across all type forms: buffer-backed types (records, unions, typed buffers, domains) and non-buffer types (pointers, command-typed values, fexpr-typed values, objects, variants) are each tracked as one slot per declaration, not as graphs of constituents.
+The initialization analysis tracks each slot as a unit, not as a graph of fields. A buffer-backed compound &mdash; a record, a union, a typed buffer &mdash; is initialized when its bytes are written as a whole; partial-field initialization is not a state the analysis tracks. The discipline applies uniformly across all type forms: buffer-backed types (records, unions, typed buffers, domains) and non-buffer types (pointers, command-typed values, objects, variants) are each tracked as one slot per declaration, not as graphs of constituents.
 
 The whole-slot tracking is what makes "exactly one write" a coherent statement for compounds (&sect;6.12). A CREATE record parameter is written by a single aggregate-literal write that produces all its fields in one operation; the analysis records the slot as initialized after the write, with no intermediate state where some fields are written and others are not. The atomic compound construction guarantee (&sect;7.11) is the construction-side facet of the same rule: an aggregate literal constructs the whole compound at once, with no observable per-field intermediate state. A value placed by the copy operator `<<` (&sect;7.1) is likewise a single whole-slot write: the duplicated buffer-backed value initializes the destination as one unit, with no per-element intermediate state.
 
@@ -1640,32 +1611,9 @@ The discipline eliminates whole categories of static-analysis questions. A recor
 
 For variants (&sect;5.13), the absent state is a structural property of the type, not a partially-initialized state. A bare introduction `# SomeVariant x` produces a variant slot in the absent state; the slot is *initialized* in the analysis's sense &mdash; the absent state is a distinguishable, well-formed state of the variant &mdash; but holds no candidate. Variant operations that move the slot from absent to a non-absent candidate, or back to absent (via `v -< _`, &sect;7.14), are whole-slot writes per the same rule as record-aggregate writes.
 
-For non-buffer types other than variants &mdash; pointers, command-typed values, fexpr-typed values, objects &mdash; the slot has no zero-default state, and bare introduction is not admitted. A `# ^Int32 x` declaration is a static error; an initializing form (`#x <- ...` or `Type: #x, ...` in argument position) is required. The whole-slot tracking treats these slots as initialized only after a complete write; partial states are not modeled.
+For non-buffer types other than variants &mdash; pointers, command-typed values, objects &mdash; the slot has no zero-default state, and bare introduction is not admitted. A `# ^Int32 x` declaration is a static error; an initializing form (`#x <- ...` or `Type: #x, ...` in argument position) is required. The whole-slot tracking treats these slots as initialized only after a complete write; partial states are not modeled.
 
 The implementation of the analysis is a forward-flow walk over the body's CFG, joining initialization states at convergent nodes; the join of `init` and `init` is `init`, of `uninit` and `uninit` is `uninit`, and `init` joined with `uninit` is a contradiction at the join point that gates a use of the slot at that point. The full transfer-function table is in Appendix E. The analysis runs in parallel with the failure-state lattice (&sect;4.13) and the taint analyses (&sect;&sect;6.4, 6.14) over the same CFG with the same join points but with independent transfer functions per analysis.
-
-### 6.14 Fexpr-Relevance Taint
-
-A second taint axis operates parallel to the READ-taint discipline (&sect;6.4): the **fexpr-relevance** taint. The two axes are orthogonal &mdash; a slot may be untainted, READ-tainted, fexpr-relevance-tainted, or both &mdash; and propagate by independent transfer functions on the same CFG walk.
-
-The fexpr-relevance taint exists to enforce the **defining-frame ceiling** property of fexpr-typed values (&sect;5.15). A fexpr cannot escape upward, cannot be stored in a long-lived position, cannot be captured by a value that outlives its defining frame. The taint axis is what tracks "this slot or value is reached from a fexpr-typed slot whose ceiling is the fexpr's defining frame `D`," propagating that information through the per-frame analysis so that any assignment that would violate the ceiling is a static error.
-
-The sources of fexpr-relevance taint are fexpr-typed values &mdash; values of type `:<*>`, `?<*>`, or `!<*>` &mdash; and any slot that holds one. A parameter of fexpr type and a binding from a fexpr construction both produce fexpr-relevance-tainted slots. The taint propagates per the same rule pattern as READ-taint: operations that yield slot-views reached through a fexpr-relevance-tainted slot produce fexpr-relevance-tainted slot-views; assignments from a tainted source taint the destination; capture by a closure propagates the taint into the closure body, subject to the structural restrictions enumerated below.
-
-The enforcement points where fexpr-relevance taint blocks an operation are the structural restrictions enumerated in &sect;5.15 (and detailed in &sect;8.13 as restrictions A&ndash;G):
-
-- Object fields holding fexpr-typed values are restricted &mdash; an object's lifetime ceiling is the introducing frame, but a fexpr's ceiling is its defining frame `D`, which may be deeper; assignment is permitted only when the object's ceiling is at-or-below the fexpr's `D`.
-- Create parameters of fexpr type are forbidden &mdash; a fexpr cannot be the CREATE output of a call, since the produced value would escape the callee's frame upward.
-- Pointers to fexpr-typed slots are forbidden &mdash; a pointer would let the fexpr escape its ceiling via indirection.
-- Bare-identifier copy of a fexpr value into a non-fexpr-typed slot is forbidden &mdash; the copy would erase the fexpr type information and bypass the structural enforcement.
-- Capture of fexpr-typed values by lambdas is forbidden &mdash; a lambda's capture-list ceiling is the lambda's defining frame, not the fexpr's, and the two need not coincide.
-
-The propagation is **per-frame and ceiling-bound to the fexpr's `D`**. The taint flows through the local analysis until it reaches an enforcement point, where the typechecker either confirms the assignment respects the ceiling or rejects it. Fexpr-relevance taint, like READ-taint (&sect;6.5), does not propagate across frame boundaries: a fexpr-typed parameter passed to a callee enters the callee's frame as a fresh fexpr-typed slot, with the type-level discipline enforced afresh in the callee's analysis. The structural restrictions enumerated above are absolute &mdash; they apply at every assignment and storage point, to every value carrying fexpr-relevance taint (whether the value's type is itself fexpr or whether the taint was acquired by binding a fexpr-typed argument into a command-reference per &sect;8.12), regardless of which frame the operation occurs in &mdash; so each frame can enforce the ceiling discipline locally without needing to know specific identities of upstream frames.
-
-The interaction with method dispatch &mdash; admitting fexpr-typed parameters in methods, the `FexprFailure` standard message, and the per-witness defaults-incompatibility &mdash; is in &sect;9.20. The full transfer-function table for the fexpr-relevance analysis, parallel to the READ-taint table, is in Appendix E.
-
-The two taint axes operate on access paths in the same way (&sect;1.5 standing lens), with independent enforcement points. A value may carry both taints simultaneously &mdash; for example, a fexpr-typed value derived from a READ parameter &mdash; with each axis independently constraining the operations the value participates in. The READ-taint forbids writes through any access path reached from the value; the fexpr-relevance taint forbids assignments that would escape the fexpr's defining-frame ceiling. The two restrictions compose without conflict: a value that satisfies both constraints is admitted at any operation that respects both.
----
 
 ## 7. Construction and Initialization
 
@@ -1806,7 +1754,7 @@ The form is well-defined for three categories of types:
 
 - **Buffer-backed types** (records, plain domains, unions, buffer primitives `[N]` / `[]`, typed buffers `[N]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (&sect;5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling moves by invoking a conversion constructor or by routing through a shared ancestor.
 - **Pointers `^T`.** The pointer value is copied; both pointers reference the same target. The pointed-to storage is unaffected.
-- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values and slot references for fexpr values. Capture-ceiling and fexpr-relevance taint (&sect;6.14) apply to the copy as they do to the source.
+- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values. The capture ceiling applies to the copy as it does to the source.
 
 The form is **rejected at the typechecker** for two non-buffer types:
 
@@ -1835,7 +1783,7 @@ A bare literal at a typed slot is admitted in two distinct cases:
 - **LHS is a literal-typed slot.** A slot of the matching literal type holds the literal value directly, with no conversion. `# Decimal d <- 3.14` introduces a `Decimal`-typed slot holding the literal; `# String s <- "hello"` introduces a `String`-typed slot; `# Aggregate a <- ${...}` and `# Sequence s <- $[...]` are the parameterized-literal cases (&sect;7.9) for aggregate and sequence literals respectively.
 - **LHS is a non-literal typed slot, with `.implicit` conversion in scope.** An `.implicit` constructor (&sect;7.8) whose source-parameter type matches the literal's source type and whose CREATE output matches the slot's type bridges the literal into the LHS type. The typechecker inserts the call: writing `# Float32 x <- 3.14` reads to the typechecker as `# Float32 x <- (Float32: 3.14)` if a matching `.implicit Float32 'r: Decimal d` constructor is in scope.
 
-The six literal types are a category of types distinct from buffer-backed types (records, plain domains, unions, buffer primitives, typed buffers) and from non-buffer types (pointers, command-typed values, fexpr-typed values, objects, variants). Literals are neither buffer-backed nor non-buffer in the &sect;5 conceptification &mdash; they are *literal types*, a third category. Structurally, they are **raw data values** carrying neither behavioral information nor encoding assumptions: a `String` literal is a sequence of characters with no declared encoding, a `Decimal` literal is a numeric value with no declared precision or representation, and an `Aggregate` is a fielded grouping whose shape &mdash; the literal-kind tag at each position &mdash; is determined per-literal at the construction site rather than declared at the type level. Encoding and typed-representation choices are made at the constructor boundary, where a constructor consumes the literal and produces a value of the target type; constructors invoked via `.implicit` (&sect;7.8) elide this step at the bare-literal surface, but the conversion is the same constructor in either case.
+The six literal types are a category of types distinct from buffer-backed types (records, plain domains, unions, buffer primitives, typed buffers) and from non-buffer types (pointers, command-typed values, objects, variants). Literals are neither buffer-backed nor non-buffer in the &sect;5 conceptification &mdash; they are *literal types*, a third category. Structurally, they are **raw data values** carrying neither behavioral information nor encoding assumptions: a `String` literal is a sequence of characters with no declared encoding, a `Decimal` literal is a numeric value with no declared precision or representation, and an `Aggregate` is a fielded grouping whose shape &mdash; the literal-kind tag at each position &mdash; is determined per-literal at the construction site rather than declared at the type level. Encoding and typed-representation choices are made at the constructor boundary, where a constructor consumes the literal and produces a value of the target type; constructors invoked via `.implicit` (&sect;7.8) elide this step at the bare-literal surface, but the conversion is the same constructor in either case.
 
 **Literals do not participate in the general typesystem.** The "type information" tracked for literal values is the literal-kind tag (`String`, `Integer`, `Decimal`, `Hex`, `Aggregate`, `Sequence`) &mdash; nothing more. Literal types **cannot be members of any concept** (no behavior to dispatch on), **cannot appear as candidates of unions or variants** (no consistent representation for a discriminated container), and **cannot be the subject of polymorphic or generic type machinery**; they are passive data with a kind tag, useful for the construction surface and for anything-derivable-from-the-kind-tag, and not for anything else. The variant-typed-field explicit-`_` rule of &sect;7.16 **does not extend to `Aggregate`-typed slots** (the rule governs structured LHS types whose schemas pre-declare which fields are variant-typed; an `Aggregate`'s shape is determined per-literal at the construction site, so no pre-declared variant field exists for the rule to govern).
 
@@ -1919,7 +1867,7 @@ The `=` form is **not** an exception to the no-defaults discipline (&sect;5.1, &
 
 - **Buffer-backed types whose bytes have a meaningful zero** acquire a zero-default by composition. No `=` declaration is needed; `# T x` produces a zero-filled initialized slot.
 - **Buffer-backed types whose invariants forbid zero** declare an explicit default via `=`. Without the declaration, `# T x` is rejected; only `# T x <- value` works.
-- **Non-buffer types** (pointers, command-typed values, fexpr-typed values, objects, variants) cannot have `=` defaults. Their bare introduction is rejected at the type level; the only valid construction is via `<-` at every use site. Variants are the structural exception within the non-buffer category &mdash; their absent state is the inherent representation of an "empty" slot, and bare `# T x` produces an absent slot directly without any `=` mechanism.
+- **Non-buffer types** (pointers, command-typed values, objects, variants) cannot have `=` defaults. Their bare introduction is rejected at the type level; the only valid construction is via `<-` at every use site. Variants are the structural exception within the non-buffer category &mdash; their absent state is the inherent representation of an "empty" slot, and bare `# T x` produces an absent slot directly without any `=` mechanism.
 
 The `=` form's right-hand side is evaluated at declaration time, not at every use site. Implementations may treat this as a compile-time constant fold or as a per-use-site lazy initialization (the latter when the right-hand side has runtime-determined components). The semantic guarantee is that a `# T x` introduction acquires the declared-default value, irrespective of when the right-hand side is realized.
 
@@ -1936,7 +1884,7 @@ The constructor body's natural shape is two-phase:
 
 The Phase 2 right-hand side is, in practice, an aggregate literal (for records, objects, unions, variants), a sequence literal (for typed buffers), a parenthesized call (where another constructor produces the value), a bare identifier (for value-copy, when applicable), or a bare literal (when a matching constructor is in scope, &sect;7.8). Whatever the right-hand side shape, the single `<-` discharges the write-once obligation.
 
-**The Phase 2 commit is also the embed point for witness-bearing types** (&sect;9.22): for a type whose header carries an unpinned concept bound, the constructor call is an installation site &mdash; the witness for each bounded pair is selected at the *call site* (&sect;9.15's precedence) and flows in on the hidden-parameter channel &mdash; and the Phase 2 write stamps the selected dictionary into the value's implementation-managed word as part of the same atomic commit. No intermediate state exists in which the value is initialized but its dictionary is not. Header-*pinned* bounds (&sect;9.23) stamp nothing: the dictionary is a compile-time constant of the type, and no per-value word exists.
+**The Phase 2 commit is also the embed point for witness-bearing types** (&sect;9.20): for a type whose header carries an unpinned concept bound, the constructor call is an installation site &mdash; the witness for each bounded pair is selected at the *call site* (&sect;9.15's precedence) and flows in on the hidden-parameter channel &mdash; and the Phase 2 write stamps the selected dictionary into the value's implementation-managed word as part of the same atomic commit. No intermediate state exists in which the value is initialized but its dictionary is not. Header-*pinned* bounds (&sect;9.21) stamp nothing: the dictionary is a compile-time constant of the type, and no per-value word exists.
 
 The pattern is structurally aligned with the language's other commitments. A partially-built compound cannot exist; therefore, a failure during construction cannot leave a half-built thing behind. The constructor body reads top-to-bottom: compute values, then commit. No hidden reordering, no implicit zero-fill, no constructor-chain hidden in an initializer list.
 
@@ -1962,7 +1910,7 @@ Variant construction has three distinct surfaces, each fitting a different inten
       # Shape state                         ; bare introduction; absent
       # Shape state <- ${}                   ; equivalent: empty Aggregate Literal
 
-  Both forms produce the same result: a 3-word slot zero-filled (zero tag, null candidate-pointer, null dictionary) and in the absent state. The bare-introduction form is admitted only for variants among the non-buffer types; pointers, command-typed values, fexpr-typed values, and objects all reject bare introduction. The empty-aggregate form is the explicit-initializer counterpart and is available wherever a `${...}` RHS is admitted, including assignment to an existing variant slot (`state <- ${}` resets `state` to absent, parallel to `state -< _` of &sect;7.14).
+  Both forms produce the same result: a 3-word slot zero-filled (zero tag, null candidate-pointer, null dictionary) and in the absent state. The bare-introduction form is admitted only for variants among the non-buffer types; pointers, command-typed values, and objects all reject bare introduction. The empty-aggregate form is the explicit-initializer counterpart and is available wherever a `${...}` RHS is admitted, including assignment to an existing variant slot (`state <- ${}` resets `state` to absent, parallel to `state -< _` of &sect;7.14).
 
 - **Clearing an existing variant to absent.** The `-<` discard form `v -< _` (&sect;7.14) clears `v` to its absent state.
 
@@ -2008,13 +1956,13 @@ The operator's surface forms and their meanings:
 | `# T n -< p` | pointer `^P` admitting object-hierarchy narrowing | Same as object case applied to pointee type. | `TagMismatch` failure on type-mismatch. |
 | `# T n -< u` | union `u` (T buffer-backed) | Existential subsumption check at compile time: `T` must appear on at least one declared candidate's subsumption chain. On compile-pass, the narrowing always succeeds at runtime. | Compile-time error if `T` is on no candidate's chain; otherwise no runtime failure (&sect;7.15). |
 | `# C n -< u` | union `u` (C a concept) | Exactly-one-candidate admissibility: exactly one of `u`'s candidates must have a `C` witness. On compile-pass, the narrowing always succeeds at runtime, with the qualifying candidate's dictionary selected statically. | Compile-time error if no candidate or more than one candidate qualifies; otherwise no runtime failure (&sect;7.15). |
-| `# SortedSet[&tau;:(Ord = W)] n -< s` | witness-bearing value `s` (&sect;9.22) of type `SortedSet[&tau;]`, witness component existential | If `s`'s embedded dictionary is the named witness's canonical dictionary, bind `s` at the annotated type (&sect;9.23) to `n`. | `TagMismatch` failure on dictionary inequality. |
+| `# SortedSet[&tau;:(Ord = W)] n -< s` | witness-bearing value `s` (&sect;9.20) of type `SortedSet[&tau;]`, witness component existential | If `s`'s embedded dictionary is the named witness's canonical dictionary, bind `s` at the annotated type (&sect;9.21) to `n`. | `TagMismatch` failure on dictionary inequality. |
 | `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds; idempotent. |
 | `_ -< v` | variant `v` | Test whether `v` is non-absent. | `TagMismatch` failure if `v` is absent. |
 
 In the form `# T n -< value`, the binding is a **typed local introduction** (&sect;7.2): `T` is the introduced local `n`'s declared type, and `n` is bound to the narrowed value on success, scoped as any local from its introduction point. (Locals bear no parameter-mode markers; the `'` marker belongs to command signatures only. Narrowing into a signature's CREATE slot &mdash; unusual but well-formed &mdash; uses the slot's own name without `#`.) Success binds a fresh name rather than reinterpreting the operand: the operand's declared type is unchanged &mdash; slot types are declaration facts, and the narrowed view lives in the new binding. For reference-semantic operands (objects, pointers) the binding is the same reference at the narrower type; no copy occurs.
 
-**Witness narrowing** is the row for the witness component (&sect;9.23): the runtime check is **one pointer comparison** &mdash; the value's embedded dictionary against the named witness's canonical dictionary, decisive by per-declaration canonicity (&sect;9.5; for a combined-concept annotation, against the canonical composed dictionary, &sect;9.2 &mdash; still one pointer). The target names a declared witness or a bound witness variable (&sect;9.23) &mdash; narrowing against a variable checks agreement with whatever the variable bound to. Three cases are statically decided and **inadmissible at the operator**: an operand already annotated with the same witness (tautological &mdash; the failure arm is unreachable); one annotated with a different witness (the mismatch is already proven statically); and a buffer-backed operand (&sect;9.23 &mdash; its witness component is mandatory-static, no embedded word exists, and no runtime mismatch is possible). There are no discard forms for the witness component &mdash; a cell always holds a dictionary, so no "witness-absent" state exists to test or clear &mdash; and no widening operator: annotated-to-existential is ordinary subsumption. Composition with the other rows is free: narrowing a concept-typed slot to a concrete *annotated* type is the RTTI check then the dictionary check, one guard, one `TagMismatch`.
+**Witness narrowing** is the row for the witness component (&sect;9.21): the runtime check is **one pointer comparison** &mdash; the value's embedded dictionary against the named witness's canonical dictionary, decisive by per-declaration canonicity (&sect;9.5; for a combined-concept annotation, against the canonical composed dictionary, &sect;9.2 &mdash; still one pointer). The target names a declared witness or a bound witness variable (&sect;9.21) &mdash; narrowing against a variable checks agreement with whatever the variable bound to. Three cases are statically decided and **inadmissible at the operator**: an operand already annotated with the same witness (tautological &mdash; the failure arm is unreachable); one annotated with a different witness (the mismatch is already proven statically); and a buffer-backed operand (&sect;9.21 &mdash; its witness component is mandatory-static, no embedded word exists, and no runtime mismatch is possible). There are no discard forms for the witness component &mdash; a cell always holds a dictionary, so no "witness-absent" state exists to test or clear &mdash; and no widening operator: annotated-to-existential is ordinary subsumption. Composition with the other rows is free: narrowing a concept-typed slot to a concrete *annotated* type is the RTTI check then the dictionary check, one guard, one `TagMismatch`.
 
 **Clearing is idempotent.** `v -< _` clears `v` to absent regardless of `v`'s current state; clearing an already-absent variant is a defined no-op, not an error. When `v`'s active candidate is an obligated value the variant owns, the clear ends that candidate's lifetime and fires its discharge (&sect;10.15); on an already-absent variant there is nothing to discharge and the operation simply leaves `v` absent.
 
@@ -2022,7 +1970,7 @@ The operator's failure-set is `{TagMismatch}` &mdash; a single failure message t
 
 ### 7.15 The `-<` Operator Generalized
 
-The `-<` operator is the language's unified dynamic-narrowing surface across multiple type-pair scenarios: variant-to-candidate, object-to-subtype, pointer-to-subtype-of-pointee, union-to-candidate-or-parent, union-to-concept, and existential-witness-to-annotated (&sect;9.23). The unification follows principle 8 of &sect;1.2 &mdash; small orthogonal concepts over rich overlapping ones: existing language facilities compose to do the work; reaching for a per-case operator would violate the orthogonality preference.
+The `-<` operator is the language's unified dynamic-narrowing surface across multiple type-pair scenarios: variant-to-candidate, object-to-subtype, pointer-to-subtype-of-pointee, union-to-candidate-or-parent, union-to-concept, and existential-witness-to-annotated (&sect;9.21). The unification follows principle 8 of &sect;1.2 &mdash; small orthogonal concepts over rich overlapping ones: existing language facilities compose to do the work; reaching for a per-case operator would violate the orthogonality preference.
 
 The operator's run-time behavior varies by domain while its surface form does not. For variants and object hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a `TagMismatch` failure fires on inequality. For the witness component, the check is the dictionary-pointer comparison &mdash; the dictionary functioning as the witness-level tag. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the &sect;5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a concept target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` witness, with the language selecting that candidate's dictionary statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime &mdash; the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and concept cases.
 
@@ -2196,13 +2144,13 @@ Teardown factors freely around the gate, which sits only on the field-touching a
 
 ---
 
-## 8. Lambda and Fexpr
+## 8. Command-Typed Value Construction
 
-The four constructional forms producing command-typed values &mdash; command reference, command literal, lambda, and fexpr &mdash; share a common umbrella: each produces a value of a command type, may be invoked, and (subject to per-form restrictions) may be captured, passed as an argument, or stored in a slot. The forms differ along three axes: whether they have a body of their own (command literals, lambdas, and fexprs do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, fexprs capture implicitly by free name, command references bind partial-application arguments); and how their lifetimes relate to the construction site (lambdas and fexprs are ceiling-tracked; command literals have no construction-site ties; command references inherit ceiling from any reference-bound arguments).
+The three constructional forms producing command-typed values &mdash; command reference, command literal, and lambda &mdash; share a common umbrella: each produces a value of a command type, may be invoked, and (subject to per-form restrictions) may be captured, passed as an argument, or stored in a slot. The forms differ along three axes: whether they have a body of their own (command literals and lambdas do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, command references bind partial-application arguments); and how their lifetimes relate to the construction site (lambdas are ceiling-tracked; command literals have no construction-site ties; command references inherit ceiling from any reference-bound arguments).
 
-This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, the context-variables umbrella across the forms, the constraints on combining fexprs with the other forms, and the seven fexpr restrictions that ensure fexpr ceiling-tracking remains sound. The mode-and-taint mechanisms governing captures (&sect;6.9, &sect;6.14) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and UPDATE only, &sect;6.9), the fexpr free-name-access mode inheritance from the defining frame (&sect;6.9, &sect;6.14), and the fexpr-relevance taint discipline (&sect;6.14).
+This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, and the context-variables umbrella across the forms. The mode-and-taint mechanisms governing captures (&sect;6.9) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and UPDATE only, &sect;6.9).
 
-### 8.1 The Four Constructional Forms
+### 8.1 The Three Constructional Forms
 
 The four forms are summarized below.
 
@@ -2211,9 +2159,8 @@ The four forms are summarized below.
 | Command reference | `{cmd}`, `{cmd: x, _, y}`, `{receiver :: methodName}` | no (refers to an existing command's body) | partial-application bindings only | ordinary; ceiling-tracked iff any `&`-bound argument |
 | Command literal | `:<args>{body}` | yes | none | ordinary object lifecycle |
 | Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and UPDATE modes only (&sect;6.9) | ceiling computed from captures (&sect;8.4) |
-| Fexpr | `:{body}`, `?{body}`, `!{body}` | yes | implicit by free name; mode inherited from defining frame's binding | ceiling = `D` (the defining frame), uniformly (&sect;8.5) |
 
-The `:<args>{body}` and `:<args / captures>{body}` forms share the outer notation; the presence or absence of the slash discriminates command literal from lambda. The fexpr forms `:{body}`, `?{body}`, `!{body}` are distinct: they have no angle-bracketed parameter list, since fexprs take no arguments of their own &mdash; their effective parameters are the free names in the body, resolved against the defining frame at invocation. The leading mark on a fexpr (`:`, `?`, `!`) is the body's failure character (&sect;4) and appears in the fexpr's type signature `:<*>`, `?<*>`, `!<*>` correspondingly.
+The `:<args>{body}` and `:<args / captures>{body}` forms share the outer notation; the presence or absence of the slash discriminates command literal from lambda.
 
 The pure-thunk form `:<>{body}` is a command literal with an empty parameter list &mdash; a zero-argument body. It is a special case of the command literal form, useful for deferring the execution of a body without needing a parameterized signature.
 
@@ -2235,7 +2182,6 @@ A command reference has no body of its own; it refers to the underlying command'
 
 **Reference-chain flattening.** When a command reference binds a `&`-mode argument (e.g., `{cmd: &x}`), the binding flattens through any reference chain: if `&x` is itself an UPDATE parameter of the constructing command's frame, the binding chains through to the origin slot's frame. The command reference's effective ceiling is the origin slot's owning frame &mdash; the frame at which the slot lives, not the immediate constructing frame. A command reference with no `&`-bound arguments has no ceiling beyond the ordinary object lifecycle; it can be returned, stored, or moved freely.
 
-**Excluded combinations with fexprs.** Per &sect;8.12, command references can bind fexpr-typed arguments under the fexpr-tainting discipline of &sect;6.14: the resulting command-typed value carries the fexpr-relevance taint of any fexpr-typed bound argument, propagating the `D`-ceiling constraint of the bound fexpr to the command-reference value.
 
 ### 8.3 Command Literal
 
@@ -2249,7 +2195,7 @@ The angle-bracketed parameter list declares the command's parameters using the s
 
 **No captures, no upstack ties.** A command literal captures nothing from its construction site. The body may reference only its own parameters and any names in scope at the construction site that have language-defined visibility independent of capture &mdash; for example, top-level commands and constants. A command literal value may be stored, passed, or returned freely; it has no construction-site lifetime constraint.
 
-**The pure-thunk form.** The form `:<>{body}` is a zero-argument command literal &mdash; a body that takes no parameters. It is useful where a deferred-body value is needed without parameterization. The pure-thunk type is `:<>`, distinct from the fexpr types `:<*>`, `?<*>`, `!<*>`. There is no subsumption across the family boundary &mdash; a fexpr-typed slot is not assignable to a pure-thunk slot, even though both are never-fails.
+**The pure-thunk form.** The form `:<>{body}` is a zero-argument command literal &mdash; a body that takes no parameters. It is useful where a deferred-body value is needed without parameterization. The pure-thunk type is `:<>`.
 
 A command literal's body is subject to the **transitive READ contract** (&sect;6.4): if the body reads or modifies state reached through a parameter, the parameter's mode contract &mdash; including any taint propagated through the storage graph in the constructing frame's analysis &mdash; applies to the body's operations on that state. The contract is local to the construction frame's analysis; the command literal value, once constructed, carries the obligations as a property of the value but does not propagate further analysis state across the frame boundary.
 
@@ -2271,67 +2217,37 @@ The slash separates the parameter list from the capture list. The capture list e
 
 **Two phenotypes.** Lambdas have two implementation phenotypes: a **lightweight** phenotype, used when the lambda has no `&` captures and the body's analysis fits a specific size budget &mdash; the lambda value is a function-pointer-with-bound-IN-captures pair; and a **ceiling-tracked** phenotype, used when the lambda has `&` captures or otherwise requires ceiling tracking &mdash; the lambda value carries the ceiling annotation alongside the function-pointer-and-captures payload. The phenotype is determined at compile time based on the construction-site analysis; the user-side semantics are identical across phenotypes.
 
-**Visible-signature representation.** A lambda value's externally-visible type is its invoke-method signature &mdash; the parameter list and failure mark &mdash; without the capture list. The capture list is implementation detail; consumers of the lambda value see only what they invoke. This composes with the failure-mark conformance discipline (&sect;8.6): a lambda's signature carries its failure mark, and conformance applies symmetrically.
+**Visible-signature representation.** A lambda value's externally-visible type is its invoke-method signature &mdash; the parameter list and failure mark &mdash; without the capture list. The capture list is implementation detail; consumers of the lambda value see only what they invoke. This composes with the failure-mark conformance discipline (&sect;8.5): a lambda's signature carries its failure mark, and conformance applies symmetrically.
 
-### 8.5 Fexpr
-
-A fexpr is a command-typed value whose body executes in the *defining frame's* state, accessing names from that frame at invocation time by free-name resolution. Fexprs are the language's mechanism for user-defined control-flow primitives &mdash; patterns where a downstream callee needs to read or modify the originating frame's state. The surface forms are:
-
-    :{body}                    ; never-fails fexpr
-    ?{body}                    ; may-fail fexpr
-    !{body}                    ; must-fail fexpr
-
-The leading mark &mdash; `:`, `?`, `!` &mdash; is the body's failure character (&sect;4) and appears in the fexpr's type signature (`:<*>`, `?<*>`, `!<*>`). A fexpr has no parameter list of its own; its effective parameters are the free names referenced in the body, resolved against the defining frame at each invocation.
-
-**The three-frame model.** Fexpr semantics involve three distinct frames at invocation time:
-
-- **`D` &mdash; the defining frame.** The frame in which the fexpr was constructed (the `:{body}` was evaluated). The fexpr's body executes against `D`'s state at invocation; free names in the body resolve to bindings in `D`.
-- **`I` &mdash; the invoking frame.** The frame from which the fexpr was invoked. `I` is downstream of `D` in the call stack &mdash; fexprs travel only down-stack from `D`, never up &mdash; and `I` may equal `D` (a same-frame invocation) or be a deeper frame (the fexpr was passed down through one or more calls).
-- **`F` &mdash; the fexpr-execution frame.** A virtual frame within `D`'s scope where the fexpr's body executes. From `F`'s perspective, free-name accesses go to `D`; control-flow obligations (write-once for CREATE parameters of `D`, failure paths for `D`'s body, etc.) are tracked as if the body were inlined at the invocation site within `D`'s analysis.
-
-The model captures the structural property that a fexpr's body, when invoked, modifies `D`'s state as if the body were inlined at the call site &mdash; but the call site is at `I`, not at `D` (the inlining is logical, not lexical). The `D` ceiling discipline ensures the fexpr cannot escape `D`: the fexpr's lifetime is bounded by `D`'s frame retirement.
-
-**Implicit captures by free name.** A fexpr's body references names that are not its own parameters (it has no parameters); those references resolve at invocation time against the defining frame `D`. Each captured access carries the mode of the binding in `D` (&sect;6.9): a `&x` in `D` is reference-accessible from the fexpr body; a READ `x` is read-only; a CREATE `'x` is CREATE-accessible (writes to it through the fexpr count toward `D`'s write-once analysis as if the body were inlined). The fexpr cannot escalate access; it can only do what `D`'s mode-marking already permits.
-
-**Direct captured-slot access (not copy-restore).** Unlike lambda `&` captures, fexpr free-name accesses do not undergo per-invocation copy-restore. The body accesses `D`'s slots directly at each invocation; mutations are applied to `D`'s state in place. The structural justification is that fexprs cannot escape `D` (the ceiling discipline) and `D`'s analysis sees fexpr invocations as inlining points in its own CFG, so the standard frame-local discipline (&sect;6.3) governs without an additional copy-restore layer.
-
-**The `D` ceiling, uniformly.** Every fexpr's ceiling is `D` itself &mdash; the defining frame. A fexpr cannot be assigned upward (to a CREATE or UPDATE parameter of `D` &mdash; Restriction G of &sect;8.13), cannot be returned from a constructor (Restriction F), cannot be captured by a lambda (Restriction E), cannot be embedded in long-lived containers (Restriction C), and cannot be referenced by pointer (Restriction B). The ceiling discipline is uniform across all fexpr-typed slots and is structurally enforced by the seven restrictions (&sect;8.13).
-
-**Fexpr-relevance taint composes with the model.** Per &sect;6.14, a fexpr-relevance taint is computed at the fexpr's construction site against `D`'s state graph: any of `D`'s slots whose value may be observed or modified by the body's free-name accesses is fexpr-relevance-tainted in `D`'s analysis. The taint discipline is local to `D`; it does not propagate across frame boundaries (per the local-frame analysis principle of &sect;1.5). The taint flows into the fexpr value at construction time and travels with the value down-stack to invocation sites. At the invocation site (in `I`), no additional analysis state is added &mdash; the invocation is treated as inlining of the body into `D`'s analysis at the invocation point, with the body's free-name accesses operating on `D`'s slots through the taint discipline `D` already computed.
-
-### 8.6 Failure-Mark Conformance
+### 8.5 Failure-Mark Conformance
 
 Command-typed values carry a failure mark (`:`, `?`, or `!`) as part of their type. The failure-mark conformance discipline governs how command-typed values may be invoked, assigned, and composed.
 
 **Two-sided conformance.** The discipline operates on two sides:
 
-- **Definition-side body conformance.** The body of a command-typed value (whether a command literal, a lambda body, or a fexpr body) must conform to the value's declared failure mark, with conformance measured against the body's **exit paths** (where each reachable execution arrives at exit), not the body's internal operations:
+- **Definition-side body conformance.** The body of a command-typed value (whether a command literal or a lambda body) must conform to the value's declared failure mark, with conformance measured against the body's **exit paths** (where each reachable execution arrives at exit), not the body's internal operations:
   - A `:`-marked body must reach exit on a non-failing path on every reachable execution. May-fail or must-fail operations are permitted within the body provided every reachable execution path either avoids them or recovers from them before exit; what conformance requires is that no execution can leave the body with a propagating failure.
   - A `?`-marked body may reach exit on either a non-failing path or a propagating-failure path on any given reachable execution. May-fail and must-fail operations are permitted; some paths may recover, others may propagate.
   - A `!`-marked body must reach exit on a propagating-failure path on every reachable execution. Non-failing operations and recovery are permitted within the body provided no path can reach a non-failing exit; every execution must terminate the body with a propagating failure.
 - **Invocation-side mark guarantee.** When a command-typed value is invoked, the invocation site sees the value's declared mark and reasons about its own failure-mode conformance against that mark. A `:`-marked invocation is statically certain to succeed; a `?`-marked invocation may fail; a `!`-marked invocation is statically certain to fail.
 
-**Mark-subsumption within each family.** Within the command-typed-value family (command references, command literals, lambdas) and within the fexpr family (fexprs), the failure marks form a **partial order**: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable (&sect;4). A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected &mdash; `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it &mdash; but a `:`-marked value cannot fill a `!`-marked slot, nor a `!`-marked value a `:`-marked slot. The two definite-marks make incompatible guarantees; neither can substitute for the other. Subsumption permits the upward substitutions (toward `?`); it does not narrow the analysis at the use site.
+**Mark-subsumption.** Across the command-typed-value forms (command references, command literals, lambdas), the failure marks form a **partial order**: a `:`-marked value is acceptable in a `?`-typed slot, and a `!`-marked value likewise; no other subsumptions hold.
 
-**No subsumption across the fexpr / non-fexpr family boundary.** A `:<*>` (never-fails fexpr) is not assignable to a `:<args>` (never-fails command literal) slot, and vice versa, even though both are never-fails. The two families have distinct invocation semantics &mdash; fexprs execute in `D`'s state, command literals execute in their own frame &mdash; so the type identity is family-specific.
+**Per-form conformance rules.** Command references' failure marks come from the underlying command's signature; command literals' from the body's analysis; lambdas' from the body's analysis (with capture-list-derived constraints folded in).
 
-**Per-form conformance rules.** Command references' failure marks come from the underlying command's signature; command literals' from the body's analysis; lambdas' from the body's analysis (with capture-list-derived constraints folded in); fexprs' from the leading mark on the construction surface (`:`, `?`, `!`). Conformance at each construction site checks the body's analysis against the declared mark; mismatches are static errors at the construction site.
-
-### 8.7 Capture-Shadowing
+### 8.6 Capture-Shadowing
 
 **Lambda permits capture-shadowing.** A lambda body may declare a local of the same name as a captured name; the local shadows the captured name within the body's scope, per the ordinary lexical-scoping rules (Appendix G.1, shadowing at G.10). The captured name is unaffected outside the body; the lambda's invocation accesses the local where the body declares one and the captured slot where it does not.
 
-**Fexpr forbids capture-shadowing.** A fexpr body's free-name resolution is by name against `D`'s scope; introducing a local of the same name in the fexpr body would create ambiguity at invocation, since the fexpr's body could be re-resolved against `D` (resolving to `D`'s binding) or against the body's local (resolving to the local). The language declines to make this choice ad hoc and forbids the configuration: a fexpr body's local introduction with the same name as any free-name reference in the body is a static error. The user resolves by choosing distinct names.
 
-The asymmetry is structurally grounded: lambdas have explicit captures (the capture list enumerates the names), so the body's locals are clearly distinct from the named captures. Fexprs have implicit captures (any free name resolves against `D`), so the body's locals and the body's free names occupy the same identifier namespace, and shadowing introduces ambiguity the language cannot resolve cleanly.
+The rule is structurally grounded: lambdas have explicit captures (the capture list enumerates the names), so the body's locals are a disjoint namespace by construction and shadowing them is ordinary local shadowing.
 
-### 8.8 Context Variables Umbrella
+### 8.7 Context Variables Umbrella
 
 The language has three mechanisms by which a command body may reference state from outside its own parameter list, collectively the **context-variables umbrella**:
 
 - **Implicit context parameters at the call site (&sect;3.6).** A command's signature may declare implicit context parameters after the `/` separator; at the call site, the typechecker locates a value in the caller's lexical scope whose type matches the implicit parameter's type and supplies it as the argument with the implicit's declared mode contract.
 - **Lambda explicit captures (&sect;8.4).** A lambda's slash list enumerates names captured at construction; the body references the captured names and the captured access carries the construction-site slot's mode.
-- **Fexpr implicit captures by free name (&sect;8.5).** A fexpr's body's free names resolve at invocation against the defining frame `D`'s scope, with mode inherited from `D`'s binding.
 
 The three mechanisms differ in their resolution site:
 
@@ -2339,76 +2255,20 @@ The three mechanisms differ in their resolution site:
 | --- | --- | --- |
 | Implicit context parameters | Caller's lexical scope (per call) | Declared on the implicit parameter |
 | Lambda captures | Construction frame's scope (once) | Declared on the capture-list entry |
-| Fexpr captures | Defining frame's scope (per invocation) | Inherited from `D`'s binding |
 
-The mechanisms compose: a fexpr's body may reference names that are themselves implicit context parameters of `D`'s signature (&sect;8.9); a lambda's capture list may bind implicit context parameters of the construction frame at construction time (&sect;8.10).
 
-### 8.9 Fexpr Inheritance of `D`'s Implicit Context Parameters
-
-A fexpr's body may freely reference names that are implicit context parameters of `D`'s signature. The free-name resolution mechanism of &sect;8.5 looks up the name in `D`'s scope; since `D`'s implicit context parameters are bound in `D`'s scope (the typechecker resolved them at `D`'s call site), they are available to the fexpr body the same as any other binding in `D`.
-
-The implication: a fexpr can use `D`'s implicit context parameters without enumerating them, paralleling the way the rest of `D`'s body uses them. The mode of the access is the implicit's declared mode (READ, UPDATE, or CREATE), and the standard fexpr mode-inheritance rule applies.
-
-### 8.10 Lambda Non-Inheritance of `D`'s Implicit Context Parameters
+### 8.8 Lambda Non-Inheritance of `D`'s Implicit Context Parameters
 
 A lambda's body may *not* reference `D`'s implicit context parameters by free name. The lambda's body sees only its own parameters, its capture list, and language-visible names; `D`'s implicit context parameters are not in scope.
 
 The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site. If `D` declares `Logger logger` as an implicit context parameter, a lambda within `D` that wants to use `logger` writes `:<args / Logger logger>{body}` &mdash; capturing `logger` as a READ capture. The capture list is then explicit about which of `D`'s state the lambda uses, consistent with the lambda discipline of explicit captures only.
 
-The asymmetry across fexpr and lambda &mdash; fexpr inherits `D`'s implicit context parameters by free-name resolution, lambda does not &mdash; is structurally grounded: fexprs operate as if inlined into `D`, so `D`'s lexical scope is the fexpr's lexical scope; lambdas operate as their own bodies with a separately-tracked capture list, so what's in scope for the body is exactly what's in the capture list (plus parameters and language-visible names).
-
-### 8.11 Re-Entry, Nesting, and Sub-Fexpr Scoping
-
-A fexpr body may itself construct another fexpr (a sub-fexpr) whose `D` is the outer fexpr's body's frame `F`. The sub-fexpr's defining frame is the inner fexpr-execution frame, not the original `D`; sub-fexpr free-name resolution operates against `F`'s scope, which transitively reaches the outer `D` via the standard lexical-scoping chain.
-
-The ceiling discipline tracks correctly: the sub-fexpr's ceiling is the inner `F`, which is bounded by the outer fexpr's invocation, which is itself bounded by the outer `D`'s frame retirement. Sub-fexprs are no harder to track than top-level fexprs; the ceiling is just one level deeper in the call stack.
-
-Re-entry &mdash; the same fexpr being invoked multiple times during `D`'s lifetime &mdash; is governed by `D`'s static analysis. Each invocation is treated as an inlining point in `D`'s CFG; the analysis computes the cumulative effect across the inlining points and rejects patterns that violate per-path obligations (write-once for CREATE parameters of `D`, etc.). The discipline is uniform with how `D`'s body's straight-line code is analyzed.
-
-### 8.12 Excluded Combinations
-
-The umbrella rule: fexprs travel exclusively *down-stack* from `D` &mdash; passed as arguments to callees, captured implicitly by sub-fexprs, transitively reached from `D`'s state &mdash; and never up-stack. Every constructional surface that could let a fexpr escape `D` is structurally excluded by the seven fexpr restrictions of &sect;8.13. Specifically:
-
-- **Lambdas cannot capture fexpr-typed slots** &mdash; Restriction E of &sect;8.13.
-- **Pointers to fexpr-typed slots are forbidden** &mdash; Restriction B.
-- **Fexpr-typed values cannot be returned from constructors** &mdash; Restriction F.
-- **Fexpr-typed values cannot be assigned to writeable parameters of `D`** &mdash; Restriction G.
-- **Fexpr-typed values cannot be embedded in long-lived containers** &mdash; Restriction C.
-
-Each restriction names the channel it closes and why the closure is structural rather than analytic; the rationales are stated once, in &sect;8.13.
-
-**One admitted combination &mdash; command references binding fexpr-typed arguments &mdash; under the fexpr-tainting discipline of &sect;6.14.** A command reference of the form `{cmd: ..., my_fexpr, ...}` is well-formed when the fexpr-relevance taint of `my_fexpr` is propagated to the resulting command-typed value. The taint marks the command-typed value as carrying a `D`-ceiling constraint inherited from the bound fexpr; the value cannot be moved beyond `my_fexpr`'s `D`. The fexpr-tainting machinery makes this binding tractable: the ceiling constraint travels through the partial-application boundary on the command-reference value, and the typechecker enforces the constraint at every assignment, store, or move involving the resulting value.
-
-If the typechecker subsequently shows that the fexpr-tainting machinery is insufficient to admit other combinations, those combinations remain structurally excluded; the language admits exactly the combinations whose ceiling constraints can be carried by the existing tainting machinery, and no others.
-
-### 8.13 The Seven Fexpr Restrictions
-
-The seven restrictions govern fexpr-typed slots and fexpr-typed values throughout the language. Each restriction prevents a specific channel by which a fexpr could escape its defining frame `D`.
-
-- **Restriction A &mdash; No CREATE, reference, or consuming fexpr-typed parameters.** A parameter of fexpr type may carry only the READ mode marker (or no marker, equivalently). The CREATE `'`, reference `&`, and consuming `~` markers are all forbidden on fexpr-typed parameters. *Rationale:* a CREATE fexpr-typed parameter would be an upward-migration channel (the callee writes a fexpr the caller receives); a reference fexpr-typed parameter would alias a fexpr slot in the caller, a slot that may not even exist in the caller's frame layout; a consuming fexpr-typed parameter is writeable in the same sense, and the channels it would open are ones the other restrictions already close &mdash; a `~` argument moves the fexpr slot by name, which is the migration Restriction D forbids, and a `~` write to a writeable parameter of `D` is the up-stack exposure Restriction G forbids. The READ mode is the only mode that admits a fexpr &mdash; the parameter is a copy of the fexpr value at the call site, and copies of fexpr values track the same `D` as the source.
-
-- **Restriction B &mdash; No pointers to fexpr-typed slots.** The type `^F` where `F` is any fexpr type is forbidden. *Rationale:* pointers can outlive the slots they reference (subject to standard pointer-validity discipline), and a `^F` would be a value that could outlive the fexpr's `D`. The exclusion at the type-system level prevents the situation from arising.
-
-- **Restriction C &mdash; No fexpr fields or candidates in containers.** Object fields, record fields, and variant candidates may not have fexpr type. *Rationale:* objects and records can be moved across frames or stored in long-lived containers; a fexpr field would migrate with the container, escaping its `D`. Variants are subject to the same exclusion (&sect;9.21): a variant slot's lifetime can exceed the lifetimes of values stored at its candidates, making fexpr candidates incompatible with the variant's potentially-longer lifetime.
-
-- **Restriction D &mdash; No bare-identifier copy of fexpr values.** The bare-identifier `<-` form (`# f2 <- f1` where both have fexpr type) is forbidden. *Rationale:* the construction site (`# f <- :{...}`) is the only valid initialization for a fexpr-typed slot; subsequent migration via bare-identifier copy would create a second fexpr-typed slot whose `D` may differ from the source's, and the language does not currently track per-copy `D` provenance. The restriction confines fexpr-typed slots to direct construction.
-
-- **Restriction E &mdash; No fexpr captures by lambdas.** A lambda may not capture a fexpr-typed slot, whether by READ copy or by `&` reference. *Rationale:* lambdas may outlive their construction frame through ceiling-flattening; admitting a fexpr capture would create a lambda value that could outlive its captured fexpr's `D`. The lambda capture mechanism does not currently propagate fexpr-relevance taint, so the exclusion is structural.
-
-- **Restriction F &mdash; No fexpr from a constructor's CREATE output.** A constructor cannot produce a fexpr-typed value via its CREATE `'r` parameter. *Rationale:* a constructor's CREATE output is the standard upward-migration channel &mdash; the callee constructs a value, the caller receives it. A fexpr produced this way would migrate from the callee's defining frame to the caller's slot, violating the `D`-ceiling. Fexprs are exclusively created as literals in their defining frame and travel only downward.
-
-- **Restriction G &mdash; No fexpr written to defining-frame writeable parameters.** A fexpr cannot be assigned to any CREATE or UPDATE parameter of `D` itself. *Rationale:* a CREATE or UPDATE parameter of `D` is `D`'s caller's slot (per the frame-ownership lens, &sect;1.5); writing a fexpr to such a parameter would expose the fexpr to `D`'s caller, violating the `D`-ceiling. The fexpr is `D`-bounded &mdash; passed down-stack only, never assigned up-stack directly or transitively.
-
-**Transitive application to fexpr-relevance-tainted values.** The seven restrictions apply not only to values of fexpr type but also to **fexpr-relevance-tainted** values &mdash; values that have inherited a `D`-ceiling constraint via the fexpr-tainting discipline of &sect;6.14. The principal case is a command-reference value that binds a fexpr-typed argument (&sect;8.12): the resulting `:<...>` value is tainted and carries the bound fexpr's `D`-ceiling. Such a tainted command-reference is, for the purposes of the seven restrictions, treated as if it were a fexpr-typed value &mdash; it cannot be a CREATE, UPDATE, or consuming parameter (A), cannot be pointed to (B), cannot appear in an object field, record field, or variant candidate (C), cannot be bare-identifier-copied (D), cannot be captured by a lambda (E), cannot be a constructor's CREATE output (F), and cannot be written to a writeable parameter of its `D` (G). Any operation that would be illegal for a fexpr-typed value is equally illegal for a fexpr-relevance-tainted value of any underlying type.
-
-The seven restrictions are jointly necessary for fexpr ceiling-tracking to be sound under static analysis. Each restriction closes a channel by which a fexpr could escape `D`; absent any one of them, the soundness argument requires per-channel reasoning that the language declines to undertake. The collected restrictions are conservative &mdash; some channels closed by them might admit a more nuanced rule under additional analysis machinery (the &sect;6.14 fexpr-tainting axis is one such direction, applied selectively in &sect;8.12 to admit command-reference fexpr-typed bindings).
----
 
 ## 9. Concepts, Witnesses, and Dispatch
 
 Concepts are Basis's mechanism for declaring **type contracts** &mdash; named interfaces that a type may declare to satisfy, with each satisfaction providing concrete implementations of the contract's required commands. Concepts are not constructors and not OOP concepts; the language has no inheritance among them, no virtual methods on values, and no notion of "instance state" tied to a concept. A concept is a static declaration of "what a type must support to be a member"; a witness is a static declaration of "this type supports this concept, by way of these implementations."
 
-This section specifies the concept-and-witness declaration surfaces, the single-implementing-type discipline, the dispatch resolution sequence, the dictionary-slot model that backs dispatch at runtime, the coherence rules that govern multiple competing witness declarations across modules, and the interactions with overloading, partial application, buffer-backed-type identity, variants, and fexprs.
+This section specifies the concept-and-witness declaration surfaces, the single-implementing-type discipline, the dispatch resolution sequence, the dictionary-slot model that backs dispatch at runtime, the coherence rules that govern multiple competing witness declarations across modules, and the interactions with overloading, partial application, buffer-backed-type identity, and variants.
 
 ### 9.1 Concepts
 
@@ -2485,7 +2345,7 @@ The member variable is introduced exactly when the signature references the memb
     ;   the match is the CONTRACT's boundary obligation, not the body's
 ```
 
-Dictionary entries stay monomorphic (3-word-slot parameter types, representable in the command-type grammar); when a caller passes plain values, both are boxed at one boundary and receive one dictionary (Appendix F.13's same-site selection); witness divergence arises only from pre-boxed existentials, with witness narrowing (&sect;7.14) as the spelled remedy where an algorithm needs witness agreement.
+Dictionary entries stay monomorphic (3-word-slot parameter types, representable in the command-type grammar); when a caller passes plain values, both are boxed at one boundary and receive one dictionary (Appendix F.12's same-site selection); witness divergence arises only from pre-boxed existentials, with witness narrowing (&sect;7.14) as the spelled remedy where an algorithm needs witness agreement.
 
 **One introduction form, both levels.** `(V:C)` is the introduction spelling at top level *and* in concept bodies; position carries the remaining meaning &mdash; top level: witness-polymorphic Case A, one flowed dictionary; body, receiver: the member variable; body, non-receiver: a match group. The uniform reading: *positions sharing a variable share a type; the variable introduced at the receiver additionally names THE member type.* (The parens do deliberate work for the human parser in a colon-heavy syntax; and one level's machinery difference &mdash; flowed dictionary versus per-slot &mdash; is compiler-internal, invisible in the reading.)
 
@@ -2519,7 +2379,7 @@ A combined concept may carry type parameters of its own, like any concept: `.con
 
 The split is structurally clean: implicit inhabitation works when the combined concept's contract is fully determined by its parents &mdash; every method the combined concept requires has an implementation through one of the parents. When the combined concept adds its own signatures, those need bodies that cannot be derived from the parent-concept implementations alone, so an explicit witness is needed to provide them.
 
-**Dictionary construction: canonical per tuple.** A combined concept's dictionary reference is a **single pointer**, the same form as any concept dictionary reference (&sect;9.7). The dictionary is composed at compile time from parent dictionaries (and, in the with-signatures case, the combined concept's own method bodies), and its **identity is the tuple of parent dictionaries**: one deterministic synthesis per tuple, program-wide &mdash; the tuple-level analogue of &sect;9.5's per-declaration canonicity. Under coexistence a `(type, combined concept)` pair no longer determines a composition (different parent-witness choices yield different tuples); the per-tuple rule is what keeps pointer identity on dictionaries decisive for *composed* dictionaries exactly as for simple ones, which the annotation, unification, and narrowing machinery (&sect;9.22&ndash;&sect;9.23, &sect;7.14) requires. The spec does not prescribe the dictionary's internal layout, only that the reference is a single pointer regardless of layout.
+**Dictionary construction: canonical per tuple.** A combined concept's dictionary reference is a **single pointer**, the same form as any concept dictionary reference (&sect;9.7). The dictionary is composed at compile time from parent dictionaries (and, in the with-signatures case, the combined concept's own method bodies), and its **identity is the tuple of parent dictionaries**: one deterministic synthesis per tuple, program-wide &mdash; the tuple-level analogue of &sect;9.5's per-declaration canonicity. Under coexistence a `(type, combined concept)` pair does not by itself determine a composition (different parent-witness choices yield different tuples); the per-tuple rule is what keeps pointer identity on dictionaries decisive for *composed* dictionaries exactly as for simple ones, which the annotation, unification, and narrowing machinery (&sect;9.20&ndash;&sect;9.21, &sect;7.14) requires. The spec does not prescribe the dictionary's internal layout, only that the reference is a single pointer regardless of layout.
 
 The combined-concept form composes recursively: a concept composed of `C1, C2, C3` declares a member type must satisfy all three; combinations of combined concepts work the same way, with the conjunction flattening at the dictionary-composition step. The implicit-inhabitation rule applies at each level of composition: a pure-conjunction combined concept chains implicit inhabitation through its parents. A pure conjunction wishing to declare a canonical default family for its *composed* pair (&sect;9.1) may carry a minimal body containing only that `.witness` item; the conjunction remains "pure" for implicit-inhabitation purposes, since the item adds no signatures.
 
@@ -2537,14 +2397,14 @@ The brackets are part of the concept's identity. As &sect;9.1 stated, parameteri
 
 The bracket-form `[T:Bound]` for concept type parameters is **distinct** from the inline-form `(V:C)` variable introduction (&sect;9.9, &sect;9.1). The scope discipline:
 
-- Bracket form attaches to a *header* &mdash; a concept header (concept-wide scope: all signatures share the parameter) or a witness-bearing type's header (type-wide scope, &sect;9.22) &mdash; and at a &sect;9.22 method's receiver position the bracket *restates* the type header, introducing nothing.
+- Bracket form attaches to a *header* &mdash; a concept header (concept-wide scope: all signatures share the parameter) or a witness-bearing type's header (type-wide scope, &sect;9.20) &mdash; and at a &sect;9.20 method's receiver position the bracket *restates* the type header, introducing nothing.
 - Inline form introduces a variable **local to a single signature**, at top level (Case A) and, per &sect;9.1's member-surface rules, inside concept bodies (the member variable at the receiver; match groups elsewhere).
 
-Bracket form on a standalone command remains rejected with a static error: standalone signatures introduce variables inline only, keeping the bracket a reliable header-or-restatement signal (a bracket meaning "fresh signature-local variable" would be visually indistinguishable from a &sect;9.22 method's type-wide restatement). In concept bodies the inline form carries &sect;9.1's positional meanings (member variable at the receiver; match group elsewhere), under an unchanged scope discipline: a body-introduced variable is signature-local, never concept-wide; the header brackets remain the only concept-wide introduction.
+Bracket form on a standalone command remains rejected with a static error: standalone signatures introduce variables inline only, keeping the bracket a reliable header-or-restatement signal (a bracket meaning "fresh signature-local variable" would be visually indistinguishable from a &sect;9.20 method's type-wide restatement). In concept bodies the inline form carries &sect;9.1's positional meanings (member variable at the receiver; match group elsewhere), under an unchanged scope discipline: a body-introduced variable is signature-local, never concept-wide; the header brackets remain the only concept-wide introduction.
 
-**A type variable may be introduced only once in any given signature, with a single bound.** The form `(T:C1, T:C2)` is a static error; multi-concept constraints go through combined concepts (&sect;9.2): `.concept CombinedC : C1, C2`, then `(T:CombinedC)`. Beyond keeping the inline form minimal, the rule is load-bearing for dictionary identity: an inline conjunction would be an *anonymous* combined concept, and anonymous compositions have no declared identity for the canonical per-tuple dictionaries of &sect;9.2 to key on. The language's uniform answer to "I need a bundle" is *name the bundle* &mdash; combined concepts, combined witnesses, profiles &mdash; and the constraint level follows the same law. A variable's one constraint may be *compound* &mdash; a concept bound with a juxtaposed binding clause, `T:ShowOrd(Ord = W)` (&sect;9.23) &mdash; which is one constraint carrying components, not two constraints.
+**A type variable may be introduced only once in any given signature, with a single bound.** The form `(T:C1, T:C2)` is a static error; multi-concept constraints go through combined concepts (&sect;9.2): `.concept CombinedC : C1, C2`, then `(T:CombinedC)`. Beyond keeping the inline form minimal, the rule is load-bearing for dictionary identity: an inline conjunction would be an *anonymous* combined concept, and anonymous compositions have no declared identity for the canonical per-tuple dictionaries of &sect;9.2 to key on. The language's uniform answer to "I need a bundle" is *name the bundle* &mdash; combined concepts, combined witnesses, profiles &mdash; and the constraint level follows the same law. A variable's one constraint may be *compound* &mdash; a concept bound with a juxtaposed binding clause, `T:ShowOrd(Ord = W)` (&sect;9.21) &mdash; which is one constraint carrying components, not two constraints.
 
-**Variable lexics: single characters.** A single uppercase character at a type or clause position is a **variable** (a type variable, or a witness variable by position, &sect;9.23); a multi-character uppercase name must resolve to a declaration or is an immediate static error naming the unresolved identifier &mdash; a misspelled name can never silently become a fresh variable and weaken a contract. Declaring a single-character type, concept, or witness is legal with a declaration-site warning (that declaration intrudes on variable space); where such a name resolves, resolution wins over the variable reading.
+**Variable lexics: single characters.** A single uppercase character at a type or clause position is a **variable** (a type variable, or a witness variable by position, &sect;9.21); a multi-character uppercase name must resolve to a declaration or is an immediate static error naming the unresolved identifier &mdash; a misspelled name can never silently become a fresh variable and weaken a contract. Declaring a single-character type, concept, or witness is legal with a declaration-site warning (that declaration intrudes on variable space); where such a name resolves, resolution wins over the variable reading.
 
 ### 9.4 Witness Declarations
 
@@ -2592,7 +2452,7 @@ The delegate edge comes in two kinds, distinguished by the field's declared type
 
   Two coexisting orderings of one type through one field, each edge sealed in its own declaration; dispatch sites name only the outer witness, and nothing a dispatching module imports can repoint the inner edge.
 
-- **The dynamic edge** &mdash; a concept-referential field: a pointer-to-concept field (`^StateHandling`), a concept-typed (Case B) field, or a variant field. No declaration-site witness exists to resolve, because the field's member type varies at runtime by design. The delegated entries dispatch through **the dictionary carried with the field's current value**; witness selection happens at the value's *installation site* &mdash; its construction, or the statement that writes the field &mdash; unambiguous-or-selected-or-named there (&sect;9.15, Appendix F.13). The field's slot holds reference *and* dictionary and commits **as a unit** (the copied-as-a-unit discipline of &sect;9.9's 3-word slots), so a value and its governing dictionary are never observed torn:
+- **The dynamic edge** &mdash; a concept-referential field: a pointer-to-concept field (`^StateHandling`), a concept-typed (Case B) field, or a variant field. No declaration-site witness exists to resolve, because the field's member type varies at runtime by design. The delegated entries dispatch through **the dictionary carried with the field's current value**; witness selection happens at the value's *installation site* &mdash; its construction, or the statement that writes the field &mdash; unambiguous-or-selected-or-named there (&sect;9.15, Appendix F.12). The field's slot holds reference *and* dictionary and commits **as a unit** (the copied-as-a-unit discipline of &sect;9.9's 3-word slots), so a value and its governing dictionary are never observed torn:
 
   ```
   .concept StateHandling :
@@ -2607,13 +2467,13 @@ The delegate edge comes in two kinds, distinguished by the field's declared type
                                           ; selected at this installation site
   ```
 
-  The dynamic edge is the language's statechart mechanism: an object satisfies a state-handling concept by delegating to a re-pointable field, and a transition replaces value and behavior atomically. It is also, structurally, the same construction as the embedded dictionary of witness-bearing types (&sect;9.22) at field granularity &mdash; value and governing dictionary selected together, carried together, replaced together.
+  The dynamic edge is the language's statechart mechanism: an object satisfies a state-handling concept by delegating to a re-pointable field, and a transition replaces value and behavior atomically. It is also, structurally, the same construction as the embedded dictionary of witness-bearing types (&sect;9.20) at field granularity &mdash; value and governing dictionary selected together, carried together, replaced together.
 
 ### 9.5 The Co-Location Rule
 
 Every applied witness declaration must, at the point of declaration, produce a **complete dictionary** for its concept on its subject. The check depends on whether the declaration carries a delegation clause (`-> field`):
 
-- **With a delegation clause:** the delegate field's type must have a witness for the concept resolvable at the declaration site &mdash; *unambiguous-or-named* (&sect;9.15): if exactly one is visible it is selected; if several are, the declaration must name one via an uppercase-LHS binding entry (`Ord -> stamp (Ord = ChronoOrd)`); if none is, or the ambiguity is unnamed, compilation fails at this declaration with no fallback to other channels. The chosen edge is sealed into this witness's dictionary; chains resolve per-link, each link at its own declaration site. Concept-referential delegate fields (`^Concept`, concept-typed, or variant fields) have no declaration-site edge to resolve &mdash; their dispatch routes through the dictionary carried with the field's current value, selected at that value's installation site (&sect;7.11, Appendix F.13).
+- **With a delegation clause:** the delegate field's type must have a witness for the concept resolvable at the declaration site &mdash; *unambiguous-or-named* (&sect;9.15): if exactly one is visible it is selected; if several are, the declaration must name one via an uppercase-LHS binding entry (`Ord -> stamp (Ord = ChronoOrd)`); if none is, or the ambiguity is unnamed, compilation fails at this declaration with no fallback to other channels. The chosen edge is sealed into this witness's dictionary; chains resolve per-link, each link at its own declaration site. Concept-referential delegate fields (`^Concept`, concept-typed, or variant fields) have no declaration-site edge to resolve &mdash; their dispatch routes through the dictionary carried with the field's current value, selected at that value's installation site (&sect;7.11, Appendix F.12).
 
 - **Without a delegation clause:** each of the concept's required methods must be satisfied by one of three channels, consulted in order per method:
   - **An explicit method-mapping entry** in the declaration's parens clause (lowercase-LHS, `before = afterOrEqual`) naming the subject's implementing method.
@@ -2626,7 +2486,7 @@ In-scope visibility at the declaration site is what matters: a witness declarati
 
 Delegation may chain across witnesses: if the delegate field's type's witness for the concept is itself delegating, the resolution walks the chain at compile time, each link resolved at its own declaration site. A method is missing only if no provider exists anywhere along the chain. The "no fallback" rule applies to the outer declaration only &mdash; within a delegate's own witness, the standard rules apply.
 
-The co-location rule ensures that a witness, once declared, has a complete dictionary fixed at that point &mdash; the dictionary is not reconstructed at each use site and does not depend on the use site's import graph. Dictionaries are **canonical per declaration**: one witness declaration yields one dictionary, program-wide, and pointer identity on dictionaries is therefore decisive for witness identity &mdash; a property the annotation, unification, and narrowing machinery (&sect;9.22&ndash;&sect;9.23, &sect;7.14) relies on. Composed dictionaries for combined concepts are canonical per *tuple* of parent dictionaries (&sect;9.2).
+The co-location rule ensures that a witness, once declared, has a complete dictionary fixed at that point &mdash; the dictionary is not reconstructed at each use site and does not depend on the use site's import graph. Dictionaries are **canonical per declaration**: one witness declaration yields one dictionary, program-wide, and pointer identity on dictionaries is therefore decisive for witness identity &mdash; a property the annotation, unification, and narrowing machinery (&sect;9.20&ndash;&sect;9.21, &sect;7.14) relies on. Composed dictionaries for combined concepts are canonical per *tuple* of parent dictionaries (&sect;9.2).
 
 ### 9.6 The `::` Scope Operator
 
@@ -2638,7 +2498,7 @@ The `::` operator has four roles in Basis, distinguished by the kind of name to 
 
 - **Namespace and module resolution.** `ModuleName :: name` or `ConceptName :: methodName` selects a name from a namespace (a module, or a concept as a namespace for its declared methods). The namespace resolution is static; no dispatch is involved.
 
-- **Partial-application bake-in** at command-reference construction (&sect;8.2). `{receiver :: methodName}` produces a command reference that binds the receiver at construction time; subsequent invocations skip the per-call dispatch lookup. This is the canonical "tight-loop optimization" form. It composes with witness-bearing receivers (&sect;9.22) with nothing further: the baked receiver *is* the cell, so the cached reference carries the embedded dictionary with it, and per-call lookup is skipped with coherence preserved by the same dataflow that preserves it everywhere.
+- **Partial-application bake-in** at command-reference construction (&sect;8.2). `{receiver :: methodName}` produces a command reference that binds the receiver at construction time; subsequent invocations skip the per-call dispatch lookup. This is the canonical "tight-loop optimization" form. It composes with witness-bearing receivers (&sect;9.20) with nothing further: the baked receiver *is* the cell, so the cached reference carries the embedded dictionary with it, and per-call lookup is skipped with coherence preserved by the same dataflow that preserves it everywhere.
 
 The four roles share the `::` token but resolve to distinct operations at the typechecker. Disambiguation is by the syntactic context: at a value-position with a receiver to the left, role 1 (dispatch) or role 4 (partial-application bake-in, when inside a `{...}` reference); at a value-position with an aggregate-shaped value (record, object, or `Aggregate`-typed slot) to the left, role 2 (field access); at a name-position with a module or concept to the left, role 3 (namespace). The typechecker resolves each `::` occurrence per these rules without ambiguity.
 
@@ -2690,7 +2550,7 @@ The natural slot representation under Case A is an **ordinary value** of type `T
 
 The command takes a value of concept `Ord` &mdash; any type that satisfies `Ord` may be supplied. Different call sites may supply different types; the same call site may supply different types at different invocations. The dictionary for `Ord` cannot flow once per call (there is no single `T` for the call); instead, the dictionary travels with the value as part of the value's runtime representation.
 
-The natural slot representation under Case B is a **3-word slot**:
+A Case B slot holds a **concept value** &mdash; a value known and operated on through the concept, carried together with its dictionary. The natural slot representation is a **3-word slot**:
 
     word 1: tag identifying the runtime type of the held value
     word 2: pointer-to-value (the value's data)
@@ -2775,9 +2635,9 @@ The receiver of a method reference is always specified &mdash; receiver-binding 
 
 **Coexistence.** Multiple witnesses for one `(Subject, Concept)` pair may coexist, distinguished by name. Coexistence is the design center, not a conflict state: alternative satisfactions of one contract by one type (a forward and a reverse ordering; a binary and a JSON serialization) are all first-class, each a named declaration with its own canonical dictionary. Duplicate `(name, subject)` declarations within a module are static errors; same-head declarations with distinct subjects form a family (&sect;9.4); cross-module head collisions resolve by module qualification.
 
-**Resolution: unambiguous-or-selected-or-named.** Every resolution point &mdash; dispatch sites, delegation edges (&sect;9.5), combined-concept composition (&sect;9.2), and installation sites (&sect;7.11, Appendix F.13) &mdash; resolves its `(Subject, Concept)` pair through one precedence chain, most-local explicit choice first:
+**Resolution: unambiguous-or-selected-or-named.** Every resolution point &mdash; dispatch sites, delegation edges (&sect;9.5), combined-concept composition (&sect;9.2), and installation sites (&sect;7.11, Appendix F.12) &mdash; resolves its `(Subject, Concept)` pair through one precedence chain, most-local explicit choice first:
 
-1. **A per-site name.** The site names a witness directly: the method-prefix form at dispatch (`x :: (ChronoOrd :: before): y`, &sect;9.16), a witness annotation at a construction (`(SortedSet[NumberField:(Ord = ForwardOrd)])`, &sect;9.22), or a prefix clause at a plain call (`min (Ord = ForwardOrd): #m, x, y`, &sect;3.14).
+1. **A per-site name.** The site names a witness directly: the method-prefix form at dispatch (`x :: (ChronoOrd :: before): y`, &sect;9.16), a witness annotation at a construction (`(SortedSet[NumberField:(Ord = ForwardOrd)])`, &sect;9.20), or a prefix clause at a plain call (`min (Ord = ForwardOrd): #m, x, y`, &sect;3.14).
 2. **A declaration-level binding.** An uppercase-LHS entry in the governing declaration's clause (&sect;9.4): a delegation-edge or parent-concept binding.
 3. **The innermost `.using` selection** on the lexical chain (&sect;2): the file's &mdash; or enclosing scope's &mdash; standing explicit choice, covering every pair the selected witness or family covers.
 4. **Unique-visible auto-select.** Exactly one witness for the pair is visible (&sect;H.4): it is selected. This is the whole-program common case, and single-witness programs never consult anything below tier 1's absence.
@@ -2800,7 +2660,7 @@ Three layers of overloading apply to dispatched commands:
 
 The resolution rule is **most-specific-candidate-wins**: among all candidates matching the call's argument shape, the candidate whose declared signature most-specifically matches is selected. Ties &mdash; two candidates equally specific &mdash; are rejected at the call site with an "ambiguous call" error, resolvable by a type annotation or by the selection forms below.
 
-**Witness annotations create no overload distinctions.** Signatures differing only in witness annotations (&sect;9.22) are one overload; the annotation participates in type *checking*, never in overload *selection*. Admitting annotation-distinguished overloads would make the overload machinery a silent selection-by-witness channel, against the entire design of &sect;9.15.
+**Witness annotations create no overload distinctions.** Signatures differing only in witness annotations (&sect;9.20) are one overload; the annotation participates in type *checking*, never in overload *selection*. Admitting annotation-distinguished overloads would make the overload machinery a silent selection-by-witness channel, against the entire design of &sect;9.15.
 
 **Selection at a dispatch site: two prefix forms, one position.** The method-prefix parenthesized form disambiguates directly at the call, and its parenthesized name may be of either kind, resolved by the ordinary kind rules (Appendix G) &mdash; a name resolves to one declaration of one kind, so no preference rule between readings exists or is needed:
 
@@ -2838,7 +2698,7 @@ The capture point is the **first concept-typed slot the value occupies** along t
 
 **Identity is lost when the value passes through an intermediate non-concept-typed parent buffer-backed parameter.** If a `Point` (record over `[8]`) is passed to a parameter of type `[8]` (the parent of its layout), the parent parameter does not capture or carry the `Point` identity; the value is observed as `[8]`-typed by that parameter, and any later concept-typed slot the value enters captures whatever identity is available at that point &mdash; which is `[8]`, not `Point`.
 
-The motivating use case is concept dispatch on values that flow through generic code: a concept-typed receiver knows the value's specific identity (a `Point`, a `Date`, etc.), and the methods declared on that identity are dispatched correctly. Generic code that operates on `[8]` does not know &mdash; and cannot infer &mdash; the specific identity, and its dispatch is bound to the generic level. The same static/dynamic fault line reappears at witness-bearing types: non-buffer values carry dispatch identity in-band (an embedded dictionary, &sect;9.22), while buffer-backed values carry it in the *type* (the mandatory-static witness component, &sect;9.23) &mdash; the identity-capture discipline of this section and the witness-component discipline are one design split, applied at the type level and the witness level respectively.
+The motivating use case is concept dispatch on values that flow through generic code: a concept-typed receiver knows the value's specific identity (a `Point`, a `Date`, etc.), and the methods declared on that identity are dispatched correctly. Generic code that operates on `[8]` does not know &mdash; and cannot infer &mdash; the specific identity, and its dispatch is bound to the generic level. The same static/dynamic fault line reappears at witness-bearing types: non-buffer values carry dispatch identity in-band (an embedded dictionary, &sect;9.20), while buffer-backed values carry it in the *type* (the mandatory-static witness component, &sect;9.21) &mdash; the identity-capture discipline of this section and the witness-component discipline are one design split, applied at the type level and the witness level respectively.
 
 ### 9.19 Variant Concept-Dictionary Slot
 
@@ -2858,26 +2718,7 @@ The variant-concept-dictionary slot composes with both Case A and Case B (&sect;
 
 The reuse-vs-wrap disambiguation is **static and local**: the typechecker examines only the variant type `V`, the target concept `C`, and the visible witness declarations. No flow analysis of construction-time concept context is required.
 
-### 9.20 Concept-Method Fexpr-Typed Parameters
-
-A concept method's signature may declare a fexpr-typed parameter, subject to the fexpr-tainting discipline of &sect;6.14. The concept-method dispatch boundary is treated as a partial-application boundary for tainting purposes: any fexpr-typed argument flows into the dispatched method's frame as a READ-mode parameter, with the fexpr-relevance taint carried through as if the dispatch were a direct call.
-
-**The `FexprFailure` standard message.** When a fexpr-tainting violation is detected at a dispatch boundary &mdash; a fexpr-typed argument whose ceiling cannot be honored by the dispatched implementation &mdash; the language raises a `FexprFailure` failure with a payload identifying the violation. `FexprFailure` is a built-in failure message; its payload concept and hierarchy are part of the standard library.
-
-**Defaults are incompatible with fexpr-typed parameters.** A concept method with a fexpr-typed parameter cannot have a default body in the concept declaration: the default body would need to be analyzable at concept-declaration time, but the fexpr's defining frame `D` is not in scope at that point. The user resolves by either omitting the default (making the concept method `.decl`-form only) or by avoiding fexpr-typed parameters on commands that need defaults.
-
-**Partial application is compatible.** A command reference `{cmd: ..., my_fexpr, ...}` that binds a fexpr-typed argument at a concept method's parameter position is well-formed under the &sect;8.2 partial-application rules and &sect;6.14 fexpr-tainting: the resulting command-typed value carries the fexpr-relevance taint, and its ceiling tracks the bound fexpr's `D`.
-
-### 9.21 Variants with Fexpr Candidates
-
-A variant whose candidate type-list contains a fexpr-typed candidate is **disallowed**. The structural difficulty is that a variant slot's lifetime can exceed the lifetimes of values stored at its candidates &mdash; by the variant's transit through parameters, returns, or storage &mdash; and a fexpr candidate's `D`-ceiling is incompatible with the variant's potentially-longer lifetime.
-
-The exclusion does not extend to **fexpr-typed local slots themselves**: a local fexpr-typed slot is well-formed (&sect;6.14). The exclusion *does* extend, via the transitive application of &sect;8.13's restrictions, to **fexpr-relevance-tainted command-reference candidates** &mdash; a candidate that is a command-reference value binding a fexpr-typed argument per &sect;8.12 carries the bound fexpr's `D`-ceiling and is rejected at the variant candidate position by the same rule (Restriction C applied transitively). The forbidden combinations are direct fexpr-typed candidates and fexpr-tainted command-reference candidates; the fexpr-typing restrictions of &sect;8.13 enumerate the full set of forbidden positions.
-
-
----
-
-### 9.22 Witness-Bearing Parameterized Types
+### 9.20 Witness-Bearing Parameterized Types
 
 A parameterized **non-buffer** type may carry a concept bound on a header parameter:
 
@@ -2903,9 +2744,9 @@ s :: insert: x
     ...                               ;   correct by dataflow; M2 cannot get this wrong
 ```
 
-**Bound implies embed.** The bound and the embedding are one commitment &mdash; a header bound is usable in method bodies only because the receiver's cell is the dictionary source &mdash; and the cost (one pointer word per unpinned bounded parameter) is paid uniformly. Types not wanting per-value witness freedom pin the bound instead (&sect;9.23), which stamps no cell.
+**Bound implies embed.** The bound and the embedding are one commitment &mdash; a header bound is usable in method bodies only because the receiver's cell is the dictionary source &mdash; and the cost (one pointer word per unpinned bounded parameter) is paid uniformly. Types not wanting per-value witness freedom pin the bound instead (&sect;9.21), which stamps no cell.
 
-**Buffer-backed parameterized types** admit the bound as a construction-time constraint only &mdash; the containment rule (&sect;5.1) is absolute: no pointer inhabits a record, and byte-copyability with traversal-free reclamation is load-bearing. A buffer-backed witness-bearing type carries its witness *in the type*, not in the value: see &sect;9.23's mandatory-static component, under which the buffer-backed story is fully static end-to-end.
+**Buffer-backed parameterized types** admit the bound as a construction-time constraint only &mdash; the containment rule (&sect;5.1) is absolute: no pointer inhabits a record, and byte-copyability with traversal-free reclamation is load-bearing. A buffer-backed witness-bearing type carries its witness *in the type*, not in the value: see &sect;9.21's mandatory-static component, under which the buffer-backed story is fully static end-to-end.
 
 **Operations beyond the type's identity.** A method restates the header bound exactly &mdash; always; a method may not strengthen its receiver's constraints, which would make the type's effective interface a per-method patchwork. An operation needing more from `T` than the type's identity is a **standalone command bounded by an extending concept** (a combined concept, &sect;9.2), with subsumption by dictionary projection from the canonical tuple:
 
@@ -2917,15 +2758,15 @@ s :: insert: x
     s :: insert: sentinel                 ; receiver-routed: s's cell decides
 ```
 
-`T:ShowOrd` satisfies the header's `T:Ord` demand because the composed dictionary's identity *is* the tuple of parent dictionaries (&sect;9.2) &mdash; projecting the `Ord` component is canonical and yields the identical dictionary a direct bound would flow. Pay-per-use is preserved: constructing `SortedSet[Widget]` demands only the header pair; only `printAll:` call sites price `(Widget, ShowOrd)`, componentwise. Inside such a command, the flowed bound's `Ord` component and a parameter's cell are **two live channels for one pair**, and the channel rule of &sect;9.23 governs: a bare dispatch on a multi-channel pair is a static ambiguity error, escaped by unification, narrowing, or receiver-routing.
+`T:ShowOrd` satisfies the header's `T:Ord` demand because the composed dictionary's identity *is* the tuple of parent dictionaries (&sect;9.2) &mdash; projecting the `Ord` component is canonical and yields the identical dictionary a direct bound would flow. Pay-per-use is preserved: constructing `SortedSet[Widget]` demands only the header pair; only `printAll:` call sites price `(Widget, ShowOrd)`, componentwise. Inside such a command, the flowed bound's `Ord` component and a parameter's cell are **two live channels for one pair**, and the channel rule of &sect;9.21 governs: a bare dispatch on a multi-channel pair is a static ambiguity error, escaped by unification, narrowing, or receiver-routing.
 
-### 9.23 The Static Witness Component
+### 9.21 The Static Witness Component
 
-Every installation site selects its witness at compile time (&sect;9.15, Appendix F.13) &mdash; the witness of a freshly-constructed value is static knowledge, and the type system may carry it rather than discard it. The **witness component** is an opt-in static type component, spelled with the binding clause inside the type-application brackets, colon-attached per the constraint discipline:
+Every installation site selects its witness at compile time (&sect;9.15, Appendix F.12) &mdash; the witness of a freshly-constructed value is static knowledge, and the type system may carry it rather than discard it. The **witness component** is an opt-in static type component, spelled with the binding clause inside the type-application brackets, colon-attached per the constraint discipline:
 
     SortedSet[NumberField:(Ord = ForwardOrd)]     ; annotated: statically ForwardOrd
 
-**(a) Annotation.** Construction under a known selection yields the annotated type; bindings and returns propagate it as ordinary type knowledge; an annotated parameter or slot accepts only *provably* matching values &mdash; a mismatching annotation is a static error, and an unannotated (existential) value is *rejected statically*, never checked dynamically (the remedy is narrowing, (c)). Unannotated remains legal and means what &sect;9.22 says: the value carries its own witness, coherent with itself, statically unclaimed. The annotation is bookkeeping, not representation: the value is byte-identical annotated or not. Annotations create no overload distinctions (&sect;9.16).
+**(a) Annotation.** Construction under a known selection yields the annotated type; bindings and returns propagate it as ordinary type knowledge; an annotated parameter or slot accepts only *provably* matching values &mdash; a mismatching annotation is a static error, and an unannotated (existential) value is *rejected statically*, never checked dynamically (the remedy is narrowing, (c)). Unannotated remains legal and means what &sect;9.20 says: the value carries its own witness, coherent with itself, statically unclaimed. The annotation is bookkeeping, not representation: the value is byte-identical annotated or not. Annotations create no overload distinctions (&sect;9.16).
 
 **(b) Witness variables and unification.** In a signature, the clause may bind a **witness variable** &mdash; a single uppercase character, per the general variable lexics (&sect;9.3, Appendix G): a single character at a clause position is a variable; a multi-character name must resolve to a declared witness or is an immediate static error (a misspelled witness name can never silently become a variable). The same variable twice demands the same witness &mdash; the shared-type-variable discipline one level up:
 
@@ -2940,9 +2781,9 @@ First occurrence introduces; repetitions unify; scope is the signature; binding-
 
 **(c) Witness narrowing** takes an existential to an annotated demand through the visible `-<` guard (&sect;7.14): one dictionary-pointer comparison, `TagMismatch` on inequality, the bound name at the annotated type on success. The one dynamic point in the design, and it is programmer-written at a failure-idiomatic position; static by default, dynamic only where spelled.
 
-**(d) Buffer-backed types: mandatory-static.** For a buffer-backed witness-bearing type the component is not opt-in &mdash; it **is the dispatch source**, since no embedded word exists (&sect;9.22): concretely annotated, dispatch is monomorphic and fully static; variable-annotated, the dictionary flows on the ordinary hidden-parameter channel, supplied by the caller who statically knows the binding. The bytes stay pure &mdash; copyable, traversal-free, containment intact &mdash; and since the witness has no runtime existence on this side, **no runtime mismatch can occur**: narrowing is neither needed nor possible (&sect;7.14's inadmissibility). The bare spelling (`SortedVec[T] &dst, SortedVec[T] src`) means **one implicit witness variable shared across the signature**: agreement is the cheap spelling, and accepting disagreement must be spelled with distinct explicit variables.
+**(d) Buffer-backed types: mandatory-static.** For a buffer-backed witness-bearing type the component is not opt-in &mdash; it **is the dispatch source**, since no embedded word exists (&sect;9.20): concretely annotated, dispatch is monomorphic and fully static; variable-annotated, the dictionary flows on the ordinary hidden-parameter channel, supplied by the caller who statically knows the binding. The bytes stay pure &mdash; copyable, traversal-free, containment intact &mdash; and since the witness has no runtime existence on this side, **no runtime mismatch can occur**: narrowing is neither needed nor possible (&sect;7.14's inadmissibility). The bare spelling (`SortedVec[T] &dst, SortedVec[T] src`) means **one implicit witness variable shared across the signature**: agreement is the cheap spelling, and accepting disagreement must be spelled with distinct explicit variables.
 
-**(e) The channel rule.** A flowed binder is a channel; a value's cell is a channel. Within a body, a **bare** dispatch on a pair with more than one live channel is a static ambiguity error, with exactly three escapes &mdash; the three meaningful programs: *demand* agreement (unify, (b)); *check* agreement (narrow, (c)); or *route* the dispatch through a specific receiver, whose cell decides (&sect;9.22) &mdash; the last covering every algorithm that needs no agreement at all (`dst :: insert: elem` re-sorts into `dst`'s order under any disagreement, which is what insert means).
+**(e) The channel rule.** A flowed binder is a channel; a value's cell is a channel. Within a body, a **bare** dispatch on a pair with more than one live channel is a static ambiguity error, with exactly three escapes &mdash; the three meaningful programs: *demand* agreement (unify, (b)); *check* agreement (narrow, (c)); or *route* the dispatch through a specific receiver, whose cell decides (&sect;9.20) &mdash; the last covering every algorithm that needs no agreement at all (`dst :: insert: elem` re-sorts into `dst`'s order under any disagreement, which is what insert means).
 
 **(f) Header-pinned witnesses.** The binding clause at a *header bound* position pins the pair's witness for every instantiation &mdash; a binding, not a default, as the clause means everywhere:
 
@@ -3083,7 +2924,7 @@ The interaction with the concept-and-witness system (&sect;9) is fully determine
 
 Generic signatures and partial application are both admitted for source and sink methods. The semantics are settled; what they ask of the eventual implementation is recorded here, pending that work.
 
-**Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-scope discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument &mdash; a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization &mdash; so the single-argument default rule of &sect;10.10 is unaffected. Under the dictionary-based generics machinery of &sect;9 (hidden-parameter flow, embedded cells, and the static witness component of &sect;9.22&ndash;&sect;9.23), the carried parameterization is simply the dictionary the source call already held &mdash; flowed for Case A bounds, read from the value's cell for witness-bearing receivers &mdash; so obligations carry witness identity by the same channels as everything else.
+**Generic signatures.** A source or sink may be parameterized by type and by value. The parameterization is fixed at the source call, where it is in scope, and travels with the obligation: in-scope discharge has it statically, and a deferred default fires with it already resolved, reconstructing nothing at the firing site. The parameterization is not an argument &mdash; a generic default still takes only the single obligated value, its type and value parameters supplied by the carried parameterization &mdash; so the single-argument default rule of &sect;10.10 is unaffected. Under the dictionary-based generics machinery of &sect;9 (hidden-parameter flow, embedded cells, and the static witness component of &sect;9.20&ndash;&sect;9.21), the carried parameterization is simply the dictionary the source call already held &mdash; flowed for Case A bounds, read from the value's cell for witness-bearing receivers &mdash; so obligations carry witness identity by the same channels as everything else.
 
 **Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated CREATE output &mdash; the only shape the mode-marker filter (&sect;9.14) permits &mdash; so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type &mdash; that invoking a source reference yields an obligated value, that a sink reference discharges one &mdash; invariant in the manner of the parameter-mode markers (&sect;6.11), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
 
@@ -3371,17 +3212,6 @@ A small set of disambiguation rules govern lexical adjacencies that would otherw
 
 **`<<` distinct from `<<-`.** The copy operator `<<` (&sect;7.1) is a prefix of the view operator `<<-` (&sect;10.11). The lexer resolves the two by **longest match**: a `<` `<` `-` adjacency lexes as the single token `<<-`, and `<` `<` not followed by `-` lexes as the single token `<<`. Each is one token, not a pair of `<` tokens; the three placement operators `<-`, `<<-`, and `<<` are distinguished at lex time.
 
-**`<*>` distinct from `<>`.** The fexpr-typing surface uses `<*>` as the family-distinguishing marker:
-
-```
-:<>            ; never-fails ordinary command-typed value (empty parameter list)
-:<*>           ; never-fails fexpr-typed value
-?<*>           ; may-fail fexpr-typed value
-!<*>           ; must-fail fexpr-typed value
-```
-
-The lexer recognizes `<*>` as the three-token sequence `<`, `*`, `>` and the parser matches the production; the `*` inside angle brackets is the syntactic marker that distinguishes the fexpr family from the ordinary family (&sect;5.15). The lexer does not produce a `<*>` single-token; the parser's type-expression production handles the disambiguation.
-
 **`(T:Concept)` constraint form.** At parameter and receiver positions, the form `(T:Concept)` declares a type-variable-bound parameter where `T` is a type variable and `Concept` is the bound concept (&sect;9.9 Case A). The lexer produces `(`, identifier-or-typename `T`, `:`, identifier-or-typename `Concept`, `)`; the parser recognizes this token sequence at parameter-position productions as a single constrained-parameter form. Outside parameter and receiver positions, the form parses as an ordinary parenthesized expression.
 
 **`.splice` modifier.** The `.splice` modifier is applicable only to record-typed fields of a record declaration. Its semantic role is to promote the inner record's structure &mdash; both its named fields and its positional sequence &mdash; into the outer record's accessible surface:
@@ -3393,7 +3223,7 @@ The lexer recognizes `<*>` as the three-token sequence `<`, `*`, `>` and the par
 
 Applying `.splice` to a non-record-typed field (a domain, primitive, union, or buffer form) is a static error. The modifier appears before the field declaration in the form `.splice Field : Type`, as captured by the grammar in Appendix B.
 
-**Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (&sect;3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, `:<*>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
+**Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (&sect;3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
 
 **Negative-number adjacency.** A `-` token followed immediately by a digit could be either subtraction or unary negation. The disambiguation is parser-side and follows the standard rule: in expression position where a value is expected, `- N` is unary negation; in expression position where a binary operator is expected (after a value), `- N` is subtraction. The lexer produces the same `-` and `42` (Integer literal) tokens in both cases.
 
@@ -3503,15 +3333,15 @@ type-args         ::= [ type-arg-list ]
 type-arg-list     ::= type-arg ( , type-arg )*
 type-arg          ::= type-expr                         ; concrete type argument
                     | type-expr : constraint            ; constrained argument: annotation
-                                                        ;   (&sect;9.23) or bounded variable
-                                                        ;   introduction (&sect;9.22)
+                                                        ;   (&sect;9.21) or bounded variable
+                                                        ;   introduction (&sect;9.20)
 type-params       ::= [ type-param-list ]
 type-param-list   ::= type-param ( , type-param )*
 type-param        ::= TypeName                          ; bare type parameter
                     | TypeName : constraint             ; bounded / pinned type parameter
 
 constraint        ::= TypeName                          ; concept bound
-                    | TypeName binding-clause           ; compound: bound with bindings (&sect;9.23)
+                    | TypeName binding-clause           ; compound: bound with bindings (&sect;9.21)
                     | binding-clause                    ; pin / annotation: pairs named by LHS
 binding-clause    ::= ( binding-entry ( , binding-entry )* )
 binding-entry     ::= TypeName ( [ TypeName ] )? = witness-ref   ; uppercase LHS; optional
@@ -3522,9 +3352,9 @@ witness-ref       ::= TypeName                          ; family head or witness
                     | TypeName :: witness-ref           ; module-qualified
 ```
 
-The bracket forms `[N]` and `[]` are the buffer-backed root types (&sect;5.5). A `Type` with parameters is a parameterized type; the parameter list at declaration is `type-params`, and at use-site is `type-args`. The `constraint` non-terminal serves every constraint position with one grammar (&sect;9.3, &sect;9.23): a bare concept bound, a compound bound-with-bindings (`ShowOrd(Ord = W)`), or a clause-only pin/annotation (`(Ord = ForwardOrd)`); uses of a bound variable are bare. Kind checks (which names must resolve to concepts, witnesses, or variables) are semantic, per Appendix G.
+The bracket forms `[N]` and `[]` are the buffer-backed root types (&sect;5.5). A `Type` with parameters is a parameterized type; the parameter list at declaration is `type-params`, and at use-site is `type-args`. The `constraint` non-terminal serves every constraint position with one grammar (&sect;9.3, &sect;9.21): a bare concept bound, a compound bound-with-bindings (`ShowOrd(Ord = W)`), or a clause-only pin/annotation (`(Ord = ForwardOrd)`); uses of a bound variable are bare. Kind checks (which names must resolve to concepts, witnesses, or variables) are semantic, per Appendix G.
 
-The `fixed-size-type-expr` non-terminal is a syntactic subset of `type-expr` that excludes the runtime-length forms (`[]` and `[]T`), pointers, command-types, and fexpr-types. It is used in positions requiring fixed-size buffer-backed contents: record fields, union candidates, `[N]T` and `[]T` element types, and domain parents (&sect;5.1). The typechecker further verifies that any `TypeName` reference in a `fixed-size-type-expr` position resolves to a type satisfying the fixed-size buffer-backed predicate (Appendix D.2); a grammatically well-formed `fixed-size-type-expr` whose named-type reference resolves to a non-buffer type or a runtime-length type is rejected statically.
+The `fixed-size-type-expr` non-terminal is a syntactic subset of `type-expr` that excludes the runtime-length forms (`[]` and `[]T`), pointers, and command-types. It is used in positions requiring fixed-size buffer-backed contents: record fields, union candidates, `[N]T` and `[]T` element types, and domain parents (&sect;5.1). The typechecker further verifies that any `TypeName` reference in a `fixed-size-type-expr` position resolves to a type satisfying the fixed-size buffer-backed predicate (Appendix D.2); a grammatically well-formed `fixed-size-type-expr` whose named-type reference resolves to a non-buffer type or a runtime-length type is rejected statically.
 
 ### B.4 Command-Type Expressions
 
@@ -3532,9 +3362,6 @@ The `fixed-size-type-expr` non-terminal is a syntactic subset of `type-expr` tha
 command-type-expr ::= : < param-type-list > result-designator-cmd?    ; never-fails ordinary
                     | ? < param-type-list > result-designator-cmd?    ; may-fail ordinary
                     | ! < param-type-list > result-designator-cmd?    ; must-fail ordinary
-                    | : < * >                                          ; never-fails fexpr
-                    | ? < * >                                          ; may-fail fexpr
-                    | ! < * >                                          ; must-fail fexpr
 param-type-list   ::= ( param-type ( , param-type )* )?
 param-type        ::= type-expr mode-marker?
 mode-marker       ::= '                                ; CREATE
@@ -3544,7 +3371,7 @@ mode-marker       ::= '                                ; CREATE
 result-designator-cmd ::= -> identifier
 ```
 
-The mode marker on a parameter type in nameless context attaches as a *suffix* on the type per &sect;3.3's "nameless context" rule. The `<*>` family carries the fexpr distinction; the parameter list is replaced by the single `*` token in fexpr types per &sect;5.15.
+The mode marker on a parameter type in nameless context attaches as a *suffix* on the type per &sect;3.3's "nameless context" rule.
 
 ### B.5 Command Signatures
 
@@ -3706,7 +3533,7 @@ candidate-name    ::= identifier
 
 Aggregate literals admit positional, named, and mixed forms (&sect;7.4). Sequence literals are positional-only with implicit element-type uniformity (&sect;7.5). The `_` placeholder in named-field position carries the variant absent-state semantics (&sect;7.16).
 
-### B.10 Command-Reference, Command-Literal, Lambda, and Fexpr Forms
+### B.10 Command-Reference, Command-Literal, and Lambda Forms
 
 ```
 command-ref       ::= { cmd-ref-body }
@@ -3731,14 +3558,11 @@ capture-list      ::= capture-entry ( , capture-entry )*
 capture-entry     ::= identifier                                 ; READ capture
                     | & identifier                               ; UPDATE capture
 
-fexpr             ::= : { cmd-body }                             ; never-fails fexpr
-                    | ? { cmd-body }                             ; may-fail fexpr
-                    | ! { cmd-body }                             ; must-fail fexpr
 ```
 
-The four constructional forms producing command-typed values (&sect;8) share the brace-fenced body shape. The fexpr forms `:{...}`, `?{...}`, `!{...}` carry no parameter list &mdash; captures are implicit via free-name resolution against the defining frame (&sect;8.5).
+The three constructional forms producing command-typed values (&sect;8) share the brace-fenced body shape; the presence and content of the angle-bracket group discriminate them.
 
-### B.11 Concept Declarations and Instance Declarations
+### B.11 Concept and Witness Declarations
 
 ```
 concept-decl        ::= .concept TypeName type-params? : concept-body
@@ -3774,19 +3598,9 @@ var-intro-param   ::= ( TypeName : constraint ) identifier
                     | ( TypeName : constraint ) & identifier   ; UPDATE form
 ```
 
-One production serves variable introduction at every level (&sect;9.1, &sect;9.3): at standalone signatures it introduces a Case A bound variable (&sect;9.9); at a concept-body receiver position it introduces the member variable; at concept-body non-receiver positions it introduces a match group. The introduced name is a **single uppercase character** (Appendix A); the constraint is B.3's shared `constraint` non-terminal (compound constraints admitted, &sect;9.23). Repetitions of the variable are bare. Witness variables (single characters at `binding-entry` RHS positions) follow the same lexics with no separate production.
+One production serves variable introduction at every level (&sect;9.1, &sect;9.3): at standalone signatures it introduces a Case A bound variable (&sect;9.9); at a concept-body receiver position it introduces the member variable; at concept-body non-receiver positions it introduces a match group. The introduced name is a **single uppercase character** (Appendix A); the constraint is B.3's shared `constraint` non-terminal (compound constraints admitted, &sect;9.21). Repetitions of the variable are bare. Witness variables (single characters at `binding-entry` RHS positions) follow the same lexics with no separate production.
 
-### B.13 Fexpr Typing Surface `<*>`
-
-```
-fexpr-type        ::= : < * >                                    ; never-fails fexpr type
-                    | ? < * >                                    ; may-fail fexpr type
-                    | ! < * >                                    ; must-fail fexpr type
-```
-
-The `<*>` marker is the family-distinguishing surface for fexpr-typed values at type positions (&sect;5.15). The marker replaces the parameter-type list of ordinary command-typed values; fexprs have no invoker-side parameter surface.
-
-### B.14 The `(T:Concept)` Form at Multi-Receiver Method Positions
+### B.13 The `(T:Concept)` Form at Multi-Receiver Method Positions
 
 The same `(T:Concept)` form admitted at single-receiver positions is admitted at each position in a multi-receiver tuple:
 
@@ -3797,7 +3611,7 @@ multi-method-signature ::= ( receiver-list ) :: identifier : param-list? implici
 
 Each receiver in the tuple may independently use the bare receiver form, mode-marked form, or concept-bounded form. The bound names introduced by `(V:C)` receivers are local to the signature and may be referenced in parameter types; in concept-body multi-receiver signatures, a variable shared across same-concept receivers asserts the boundary match of &sect;9.13, and distinct-or-absent variables assert independence.
 
-### B.15 The `{C::method}` Disambiguation Form
+### B.13 The `{C::method}` Disambiguation Form
 
 ```
 concept-disambiguated-method ::= { TypeName :: identifier }
@@ -3854,9 +3668,7 @@ A note on `Expr`. Basis has no `expr` production: it has no expressions as such,
 | `TypedBufferType` | `size: Int?`, `element: TypeExpr` |
 | `BracketType` | `size: Int?` |
 | `CommandTypeExpr` | `mark: { ':', '?', '!' }`, `params: [ParamType]`, `resultDesignator: identifier?` |
-| `FexprTypeExpr` | `mark: { ':', '?', '!' }` |
 
-The distinction between `CommandTypeExpr` and `FexprTypeExpr` reflects the family-boundary rule of &sect;5.15: the two are nominally distinct type-expression nodes, mirroring the `<*>` vs. `<...>` syntactic distinction.
 
 `ParamType` is a record `{ type: TypeExpr, mode: Mode }` &mdash; all four modes, per `mode-marker`.
 
@@ -3955,14 +3767,13 @@ Two further statement nodes derive from the placement family:
 
 `Finalize` is the `~ x` finalization operation and its field-teardown form `~ x :: f` (&sect;7.22). The field form is admitted only under a DISPOSE receiver, a typechecker concern rather than a parser one; the AST records the syntactic form unmodified.
 
-### C.7 Lambda, Fexpr, Command-Literal, and Command-Reference Nodes
+### C.7 Lambda, Command-Literal, and Command-Reference Nodes
 
 | Node | Fields |
 | --- | --- |
 | `CommandRef` | `target: identifier \| QualifiedMethodName`, `receiver: Expr?`, `partialArgs: [PartialArg]?` |
 | `CommandLiteral` | `mark: { ':', '?', '!' }`, `params: [Param]`, `body: CmdBody` |
 | `Lambda` | `mark: { ':', '?', '!' }`, `params: [Param]`, `captures: [Capture]`, `body: CmdBody` |
-| `Fexpr` | `mark: { ':', '?', '!' }`, `body: CmdBody` |
 
 `PartialArg` is `{ kind: Applied \| Deferred, value: Expr? }`. The `_` token in partial-application positions produces `Deferred`.
 
@@ -4068,17 +3879,12 @@ $$
 \quad \text{(CmdType)}
 $$
 
-$$
-\frac{\text{mark} \in \{:, ?, !\}}{\Gamma \vdash \text{mark}\langle * \rangle\ \text{wf}}
-\quad \text{(FexprType)}
-$$
-
 **Buffer-backed and fixed-size buffer-backed predicates.** `[N]T` requires `T` to be fixed-size buffer-backed; a record-field, union-candidate, or domain-parent declaration also requires fixed-size buffer-backed:
 
 $$
 \frac{\begin{array}{c}
 \Gamma \vdash \tau\ \text{wf} \\
-\tau \notin \{\text{pointer}, \text{object}, \text{variant}, \text{command-typed}, \text{fexpr-typed}, \ldots\}
+\tau \notin \{\text{pointer}, \text{object}, \text{variant}, \text{command-typed}, \ldots\}
 \end{array}}{\Gamma \vdash \tau\ \text{buffer-backed}}
 $$
 
@@ -4132,8 +3938,6 @@ $$
 The relation $\sqsubseteq$ applies to mark positions; assignment from a `:`-marked or `!`-marked call to a `?`-marked slot is admitted, but neither `:` nor `!` is the other's subtype.
 
 **Concept-typed-family invariance (&sect;5.5):** Concept types do not subtype each other except through explicit concept hierarchies (&sect;9). A `Container[A]` is not a `Container[B]` unless $A = B$.
-
-**Family-boundary non-subsumption (&sect;5.15):** `:<*>` is not a `:<>`; `?<*>` is not a `?<>`; `!<*>` is not a `!<>`. The fexpr family and the ordinary command-typed family are nominally distinct.
 
 **Payload-concept covariance for failure messages (&sect;4.8, &sect;9.17):**
 
@@ -4345,7 +4149,7 @@ Gamma |- exactly one union-candidate type has a C-concept witness
 Gamma |- # C n -< u : C-dictionary-typed binding      (Concept-narrowing on union)
 ```
 
-### D.9 Lambda, Fexpr, Command-Literal, and Command-Reference Typing
+### D.9 Lambda, Command-Literal, and Command-Reference Typing
 
 **Command literal:**
 
@@ -4364,17 +4168,6 @@ ceiling = D   (lambda's defining frame, S8.4)
 -------------------------------------------------------------------
 Gamma |- mark<params / captures>{body} : mark<param-types>
 ```
-
-**Fexpr:**
-
-```
-Gamma |- body : mark ; F   under (Gamma at fexpr-relevance taint)
-no free names resolve to long-lived storage (Restrictions A--G of S8.13)
------------------------------------------------------------------------
-Gamma |- mark{body} : mark<*>
-```
-
-D = current frame; F = fexpr-relevance-tainted (passes through every taint check).
 
 **Command reference:**
 
@@ -4457,7 +4250,7 @@ For witnesses (&sect;9.15):
 
 **Laziness.** Competition produces no import-time diagnostics; only an actual resolution point that exhausts the chain errors (Appendix H.6).
 
-The witness-component judgments (&sect;9.22&ndash;&sect;9.23), schematically:
+The witness-component judgments (&sect;9.20&ndash;&sect;9.21), schematically:
 
 ```
 Gamma |- (Ctor: args) at T[tau] under selection W   ==>   value : T[tau:(C = W)]
@@ -4552,7 +4345,7 @@ At the block's close, every obligation still owned by a scope-local binding is d
 
 ## Appendix E. Static Analyses (Joint CFG-Walking Composition)
 
-This appendix specifies the five static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, fexpr-relevance taint, and obligation tracking. The first four are specified here (E.2&ndash;E.5); the obligation analysis is specified with the obligation system itself (&sect;10.5) and appears below only as it composes with the others. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
+This appendix specifies the four static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, and obligation tracking. The first three are specified here (E.2&ndash;E.5); the obligation analysis is specified with the obligation system itself (&sect;10.5) and appears below only as it composes with the others. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
 
 ### E.1 The Shared CFG Walk
 
@@ -4561,12 +4354,12 @@ Each command body is compiled to a control-flow graph (CFG) at parse time. Nodes
 The typechecker performs a single forward-flow walk over this CFG, maintaining a **state vector** at each program point:
 
 ```
-StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, fexprTaint: TaintLattice, obligations: ObligationSet)
+StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, obligations: ObligationSet)
 ```
 
 Each component is a separate lattice; the joint state-vector forms the product lattice. At convergent CFG points, the join is performed component-wise &mdash; each analysis joins per its own lattice rules.
 
-Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2&ndash;E.5, except the obligation component's, which are in &sect;10.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
+Transfer functions update the state vector at each statement; the per-component transfer functions are described in E.2&ndash;E.4, except the obligation component's, which are in &sect;10.5. Some statement types have transfer functions that touch multiple components (e.g., a `.fail` statement updates both `failure` and may affect taint propagation); these cross-component interactions are noted at each transfer function.
 
 A `.scope` block (&sect;3.17) appears in the CFG as a region with a single entry edge and a single exit edge. Scope entry introduces no new analysis context &mdash; the walk continues in the same per-command-body pass (&sect;10.5). At the exit edge the walk drops the block's scope-local slots from every component's tracked set, and the obligation component fires the discharge of any obligation still owned by a scope-local binding (&sect;10.5).
 
@@ -4691,42 +4484,7 @@ A slot is READ-tainted if its access path is rooted at a READ parameter. The tai
 - An UPDATE or CREATE write is attempted through a READ-tainted access path.
 - A READ-tainted slot is passed to a call's UPDATE or CREATE parameter position.
 
-### E.5 Fexpr-Relevance Taint Analysis
-
-**Lattice.** Per-slot:
-
-$$
-\text{FexprTaintLattice} = \{\,\text{untainted},\ \text{fexpr-tainted}\,\}\ \text{per slot}, \qquad \bot = \text{untainted},\ \top = \text{fexpr-tainted}
-$$
-
-A slot is **fexpr-tainted** if its value is, or may transitively reach, a fexpr-typed value (&sect;6.14, &sect;8.13).
-
-**Sources.**
-
-1. **Direct fexpr-typed slots.** A slot whose declared type is `:<*>`, `?<*>`, or `!<*>`.
-2. **Composite slots.** A slot whose type structurally contains a fexpr-typed component (forbidden at field level for buffer-backed types; admitted only in narrow circumstances per &sect;8.13).
-3. **Command-reference values.** A command reference `{cmd: ...}` whose underlying definition reaches a fexpr through its body or captures.
-4. **Lambda captures of fexpr-typed values.** Forbidden (Restriction E of &sect;8.13); the structural restriction prevents this case from arising.
-
-**Transfer functions.** Fexpr-relevance propagates parallel to READ-taint but along its own access paths:
-
-| Statement | Effect on fexpr-taint |
-| --- | --- |
-| `#x <- expr` where expr reaches a fexpr-typed value | `x` becomes fexpr-tainted |
-| field/pointer/index access of fexpr-tainted source | result inherits taint |
-| call site with fexpr-typed arg | argument's fexpr-taint flows into the callee's analysis |
-
-**Conformance.** Body fails to typecheck if any of the seven fexpr restrictions (&sect;8.13, A&ndash;G) are violated:
-
-- A &mdash; a CREATE or reference fexpr-typed parameter.
-- B &mdash; a pointer to a fexpr-typed slot.
-- C &mdash; a fexpr-typed value in an object field, record field, or variant candidate.
-- D &mdash; a bare-identifier copy of a fexpr-typed value.
-- E &mdash; a fexpr-typed value in a lambda's capture list.
-- F &mdash; a fexpr-typed value from a constructor's CREATE output.
-- G &mdash; a fexpr-typed value written to a CREATE or UPDATE parameter of the defining frame.
-
-### E.6 Joint Analysis Composition
+### E.5 Joint Analysis Composition
 
 The five analyses share the CFG walk and the join points, but their transfer functions are independent. The composed analysis runs as:
 
@@ -4736,14 +4494,13 @@ for each statement s in CFG order:
     state.init  <- init_transfer(s, state.init)
     state.failure <- failure_transfer(s, state.failure)
     state.readTaint <- read_taint_transfer(s, state.readTaint)
-    state.fexprTaint <- fexpr_taint_transfer(s, state.fexprTaint)
     state.obligations <- obligation_transfer(s, state.obligations)   ; S10.5
     
     on CFG branch (multiple successors):
         propagate state to each successor
 
 at each convergence point:
-    state <- (init join, failure join, read_taint join, fexpr_taint join, obligation join)
+    state <- (init join, failure join, read_taint join, obligation join)
             of all predecessor states (component-wise)
 ```
 
@@ -4752,7 +4509,7 @@ The components do not interact at transfer functions except at specific cross-co
 - The `.fail` statement updates `failure` and may propagate READ-taint (if the failure payload's value is READ-tainted, the failure is marked accordingly for downstream recovery analysis).
 - A CREATE write `'r <- expr` updates `init` and verifies READ-taint conformance simultaneously (a tainted RHS rejected if `'r` is a CREATE write through a READ-rooted path).
 
-### E.7 Worked Example
+### E.5 Worked Example
 
 Consider the factorial subcommand:
 
@@ -4779,11 +4536,10 @@ Conformance:
 - init: `'r` is `init` at every reachable exit &check; (write-once obligation satisfied).
 - failure: exit is `clear`; the body's mark is `:` (never-fails); the declared mark allows `clear` &check;.
 - READ-taint: no READ-tainted slots written &check;.
-- fexpr-relevance: no fexpr-typed slots in scope &check;.
 
 The body typechecks.
 
-### E.8 Composed-Analysis Performance
+### E.6 Composed-Analysis Performance
 
 The joint state-vector grows linearly with the number of named slots in scope; each component lattice contributes its per-slot dimension. For a typical command body with $O(10)$ slots, the state vector is small enough that the analysis terminates in $O(N \cdot V)$ time where $N$ is CFG node count and $V$ is the per-state-vector size &mdash; well within compile-time budgets for any practical body.
 
@@ -5007,19 +4763,9 @@ The same sequence runs at a `.scope` boundary (R5): steps 1&mdash;2 fire the hoo
 
 A failure during a block's body propagates per the standard rules &mdash; the block's body is itself a frame-bound context. The single-in-flight invariant (F.7) prevents a block-fired failure from coexisting with the outer failure: blocks fire from a no-active-failure state, and any failure they fire is consumed locally or propagates to the caller's frame after the outer failure has already advanced.
 
-### F.12 Per-Invocation Fexpr Frame (`F`)
+### F.12 Dictionary Selection at Installation Sites
 
-The D/I/F three-frame model of &sect;8.5 specifies a *virtual* per-invocation frame `F` for each fexpr invocation:
-
-- `D` &mdash; the defining frame (where the fexpr was constructed). Holds the slots the fexpr's body accesses by free-name resolution.
-- `I` &mdash; the invoking frame (where the fexpr is invoked). May be `D` itself or any deeper frame.
-- `F` &mdash; the fexpr-execution frame. A virtual sub-frame within `D`'s scope; the fexpr's body executes as if inlined at `D` at the invocation site `I`.
-
-The operational mechanism: at fexpr invocation, the fexpr's body runs against `D`'s state with its free names resolving to `D`'s slots. `F` is virtual &mdash; it does not allocate fresh slots; it shares `D`'s storage. The body's effects are mutations of `D`'s state at `I`'s execution point.
-
-### F.13 Dictionary Selection at Installation Sites
-
-At every **installation site** &mdash; a `.fail` site, a Case B concept-typed value construction or boxing, a witness-bearing type's constructor call (&sect;9.22, &sect;7.11), or a statement writing a concept-referential field (&sect;9.4's dynamic edge) &mdash; the governing dictionary is selected at *compile time* from that site's resolution context, per the precedence chain of &sect;9.15 (per-site name, innermost `.using`, unique-visible, canonical default). For the `.fail` case specifically:
+At every **installation site** &mdash; a `.fail` site, a Case B concept-typed value construction or boxing, a witness-bearing type's constructor call (&sect;9.20, &sect;7.11), or a statement writing a concept-referential field (&sect;9.4's dynamic edge) &mdash; the governing dictionary is selected at *compile time* from that site's resolution context, per the precedence chain of &sect;9.15 (per-site name, innermost `.using`, unique-visible, canonical default). For the `.fail` case specifically:
 
 1. The typechecker has the concrete payload type `T` (from the expression supplied at `.fail`).
 2. The typechecker has the message's payload concept `C` (from the message declaration's `[PayloadType]` clause).
@@ -5043,7 +4789,7 @@ This appendix specifies how names are resolved at use sites: which scope holds a
 Basis uses *lexical* scoping: a name's binding is determined by the source structure surrounding the use site, not by the call stack at runtime. Scopes are introduced by:
 
 - **Module scope.** Each module forms a top-level scope containing all its top-level declarations.
-- **Command body scope.** Each command body (including subcommand bodies, concept-method bodies, lambda bodies, fexpr bodies) forms a scope that contains the command's parameters, implicit context parameters, and any locals introduced via `#name` placement.
+- **Command body scope.** Each command body (including subcommand bodies, concept-method bodies, lambda bodies) forms a scope that contains the command's parameters, implicit context parameters, and any locals introduced via `#name` placement.
 - **Block-marker body scope.** Each block-marker construct (`?` body, `?:` body, `|` body, `@` body, etc.) introduces a sub-scope inheriting from its enclosing scope. Names introduced inside a block-marker body are visible only within that body.
 - **Scope-block scope.** A `.scope` block (&sect;3.17) introduces a sub-scope inheriting from its enclosing scope, exactly like a block-marker body: names introduced inside it via `#` are visible only within the block and gone at the dedent, and may shadow enclosing bindings (G.10).
 - **Subcommand body scope.** A subcommand's body has its own lexical scope per &sect;3.12; the subcommand does *not* capture from the enclosing command's scope.
@@ -5126,7 +4872,7 @@ The disambiguating context for `::` is the LHS's type and the namespace's conten
 
 ### G.8 The `{C::method}` Command-Reference Form
 
-The `{ConceptName :: methodName}` form (B.15) names a concept's method **as a command-typed value**:
+The `{ConceptName :: methodName}` form (B.14) names a concept's method **as a command-typed value**:
 
 ```
 {Showable :: show}             ; Showable's show method, reified as a value
@@ -5314,7 +5060,7 @@ Payload-concept covariance (&sect;4.8, &sect;9.17) keeps the extension safe: a `
 
 This appendix catalogs the sharp edges Basis deliberately leaves exposed. Each entry names the guarantee that *does* hold, the one that does *not*, and the discipline that closes the gap. The intent is to name the hazards plainly up front rather than let each be rediscovered painfully. Most are unpoliced by design: the analyses that would catch them &mdash; general aliasing, pointer lifetime &mdash; are ones Basis declined (&sect;10.3, &sect;10.14) in exchange for a simpler, signature-bounded reasoning model.
 
-A deliberate absence worth recording: the witness-coherence machinery (&sect;9.15, &sect;9.22&ndash;&sect;9.23) introduces **no new runtime failure messages and no new footgun entries**. Its violations are compile-time errors throughout; the single runtime check in the design &mdash; witness narrowing &mdash; is programmer-written and reuses `TagMismatch` (&sect;7.14), the dictionary pointer serving as the witness-level tag.
+A deliberate absence worth recording: the witness-coherence machinery (&sect;9.15, &sect;9.20&ndash;&sect;9.21) introduces **no new runtime failure messages and no new footgun entries**. Its violations are compile-time errors throughout; the single runtime check in the design &mdash; witness narrowing &mdash; is programmer-written and reuses `TagMismatch` (&sect;7.14), the dictionary pointer serving as the witness-level tag.
 
 **How to read an entry.** Each names what the language *does* guarantee, what it *does not*, and the discipline that closes the gap &mdash; the recurring shape is *the system guarantees X; it does not guarantee Y; you secure Y by Z.*
 
@@ -5328,7 +5074,7 @@ Under the **surviving-view move** (&sect;10.11) a moved-from `<-` source is itse
 
 *Discipline.* `<<-` is the "I accept responsibility for this lifetime" marker &mdash; reserve it for genuine views (a parent pointer, a `prev` link), and ensure the owner's lifetime encloses the view's. For a moved-from `<-` source, treat it as live only while its new owner is.
 
-**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14, and Restriction B of &sect;8.13, which forbids `^F` for exactly this reason) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.resource`, `.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility.
+**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.resource`, `.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility.
 
 **A4 &mdash; Stale cleanup-block reference after a move.** `@` and `@!` blocks bind to the *slot*, not to the value (&sect;3.13, &sect;4.11); if the value is moved out of the frame &mdash; as a `.fail` payload, say &mdash; the block's reference names a slot that no longer holds what the block meant to clean up. Under the surviving-view move (&sect;10.11) that slot holds a *view* on the success path, and is `uninit` only where the value was consumed, so the block names a live view rather than an empty slot &mdash; which is a hazard of a different shape, not an absence of one. *Discipline:* order operations so the slot still holds the value when the block fires, or register the cleanup at the destination frame.
 
