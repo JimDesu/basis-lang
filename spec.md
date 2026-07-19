@@ -815,6 +815,44 @@ The acknowledgment encloses the single read that follows. Placed before a `.scop
 
 ---
 
+### 3.19 Expressions and Operators
+
+Basis admits infix operator expressions over a **closed, fixed operator apparatus**. The specification owns the token inventory, each token's arity and precedence tier, each token's associativity, the desugaring shape, and operand evaluation order. A concept may declare that one of its methods answers to a token (the `.operator` body item, &sect;9.1); nothing else about operators is definable &mdash; no new tokens, no precedence or associativity control, no evaluation-order control, no unary forms. There is no surface on which such control could be expressed.
+
+**Inventory and precedence.** Four tiers, binding tightest first; every operator token is binary and left-associative:
+
+| Tier | Content |
+| --- | --- |
+| primary | names, literals, access chains (`x :: size`), parenthesized expressions and calls, constructor expressions |
+| multiplicative | `*` `/` `%` |
+| additive | `+` `-` |
+| comparative | `<` `<=` `>` `>=` `==` `<>` `=` `!=` &mdash; one flat tier; chains thread per-link |
+
+**Operands are visually atomic.** An operand is an atom &mdash; a name, a literal, or an access chain without an argument list &mdash; or a parenthesized expression, including parenthesized calls-with-arguments and constructor expressions: `(a + b) * scale`, `(x :: sizeAfter: n) < limit`. Argument positions obey the same rule (&sect;3.14, B.6): an expression-form argument &mdash; an operator application or a call &mdash; is parenthesized, and the parenthesization desugars to the corresponding command invocations.
+
+**Arithmetic desugaring.** An arithmetic expression `a &oplus; b` resolves (&sect;9.16) to a sanctioned concept method and desugars to that method's call, with the receiver drawn from whichever operand the winning mapping's shape marks as the member position and the other operand bound to the method's one READ operand parameter. The expression's value and static type are the method's single CREATE output after substitution (member &mapsto; the receiver's type; concept parameters &mapsto; the resolved witness's bindings). **Operand evaluation is textual left-to-right, always** &mdash; a reversed mapping chooses the receiver, never the evaluation order.
+
+**Comparative desugaring.** A comparative token maps to a **may-fail predicate**: receiver, one READ operand, zero CREATE outputs, and a mandatory `->` result designation (&sect;3.7) naming the operand or the receiver. The desugared call is an ordinary expression-position invocation; &sect;3.7's READ-designation rule supplies the success value &mdash; the designated parameter's passed value &mdash; and the method's failure propagates as expression failure. With the standard concepts designating the textually-right operand, left associativity yields Icon-style chaining:
+
+```
+? lo <= x < hi              ; ((lo <= x) < hi): lo &le; x succeeds WITH x, then x < hi
+    process: x              ;   &mdash; the range test; each link dispatches on its own left value
+```
+
+Chain consequences, none of them additional rules: **short-circuiting is failure propagation** (a failed link's failure exits the whole expression before later operands evaluate); **negation is the `?-` guard**; comparative results are ordinary may-fail expression values (`#m <- x < y` binds `y` on success); heterogeneous chains compose per-link, each link dispatching on its left value's static type. A method mapped to a comparative token must declare a **single-message failure set** &mdash; a comparative is a pure test, and a predicate that can fail for reasons other than "no" is not operator material; a failing link propagates that method's one message.
+
+**The equality quadrant.** Two equalities, two negations, split by what they measure:
+
+- **`=` is language-fixed identity, not mappable.** Both operands must share a static type. Buffer-backed values: byte equality &mdash; for domains, identity and value equality degenerate to the same relation, as a theorem. Objects: same object. Pointers: same pointee. Command-typed operands: rejected statically. Variant operands: rejected statically &mdash; narrow first (&sect;7.14). A concept cannot redefine `=`, because a mappable identity would let a concept lie about identity.
+- **`!=` is the language-fixed negation of `=`**, equally non-mappable, succeeding with its textual right operand.
+- **`==` is concept-mapped value equality** &mdash; an ordinary comparative mapping under the rules above.
+- **`<>` is implicitly codefined as `==`'s dual**: sanctioning `==` sanctions `<>`, resolving through `==`'s method and witness, succeeding where `==` fails and threading `==`'s designated parameter; the pair cannot diverge. A concept **may** additionally map `<>` explicitly &mdash; a full comparative method of its own &mdash; enabling multi-valued equality logics in which `x == u` and `x <> u` both fail; the declaration draws a warning ("independent `<>` admits `==`/`<>` incoherence"), acknowledged with `.ack` (&sect;3.18) where deliberate. Identity stays classical even for such types: `u = u` succeeds &mdash; the fixed `=` is the structural escape hatch multi-valued equality systems otherwise must invent. Where a codefined `<>` collides cross-concept with another concept's explicit `<>`, the ambiguity error's method-form remedy is asymmetric &mdash; the codefined side respells as `?-` over `==`'s method &mdash; and the diagnostic says so.
+
+**Numeric intrinsics.** The built-in numeric types satisfy the standard arithmetic and comparison concepts through intrinsic witnesses (&sect;2.2); arithmetic exemplars throughout this specification (`n / d`, `x * 2`, `n % d`) are ordinary operator expressions under those witnesses.
+
+**Absent by design: logical tokens.** There are no and/or/not operators. The failure system is the native boolean algebra &mdash; conjunction is guard sequencing and comparative chaining, disjunction is the choice operator and `?:` chains, negation is `?-` &mdash; and a second boolean vocabulary beside it would be redundant by construction.
+
+
 ## 4. Failure and Recovery
 
 A *failure* in Basis is a propagating signal that some path of execution did not reach its intended outcome. Failures are first-class control flow, not an out-of-band channel: they are produced by the `.fail` directive, propagate up the call stack by skipping subsequent siblings at each indentation level, and are consumed by recovery contexts at well-defined source positions. Every command's signature declares what failures it admits and how it composes with callers; the typechecker's failure-state lattice (&sect;4.13) verifies the declarations.
@@ -2289,6 +2327,18 @@ where `C` is the concept name (uppercase-initial), the optional bracket form dec
 
 The item is head-only with the concept implied by enclosure (restating the concept is disallowed &mdash; one spelling). It declares the family (&sect;9.4) when no other declaration of that head exists in the module, and otherwise references it, with concept agreement checked. Its effect is one tier of the resolution precedence (&sect;9.15): where a `(Subject, Concept)` resolution would otherwise be ambiguous, the canonical family &mdash; if it has a *visible* member covering the pair &mdash; is selected. The default is **selection data only**: it never confers visibility, and an invisible member cannot act at a distance. Ownership is what makes the tier safe: only the concept's own declaration may bless a default, no second default is grammatical anywhere, and third parties cannot inject or alter it &mdash; changes to the default are content changes of the concept's own module. Everyone else inhabits or overrides it by the ordinary means: qualified-head extension members (`.witness Core::Ascending[MyType] : Ord`), and `.using` or per-site naming, which outrank the default.
 
+**The `.operator` body item** declares that one of the concept's methods answers to an operator token (&sect;3.19):
+
+```
+.operator (+) = add                     ; homogeneous sugar: &equiv; (Additive + Additive)
+.operator (ScaledBy * K) = scaleBy      ; operand shape: member position spelled by the
+.operator (K * ScaledBy) = scaleBy      ;   concept's bare head; reversal maps the same
+                                        ;   method with the receiver drawn from the
+                                        ;   member position wherever it sits
+```
+
+The parenthesized form is a bare token (homogeneous sugar) or an **operand shape** of two positions around the token. A position is the enclosing concept's bare head (the member &mdash; the &sect;9.1 receiver convention at a second surface; at least one position must be the member, the dispatch anchor), a header type parameter (single character, &sect;9.3), a concrete type name, or **another concept's name** &mdash; an existentially-qualified operand position. The shape governs operand *matching arity and anchor position only*; **the mapped method's declaration is authoritative for matching semantics** at the non-member position &mdash; type-equality for a member-typed operand (`S b`), binding-equality for a parameter (`K b`), identity for a concrete type, satisfaction for a concept-typed (Case B) operand &mdash; and for the result type, which is the method's single CREATE output, freely member-, parameter-, or concretely-typed. Shape conformance is checked at the item: arithmetic tokens demand receiver + one READ operand + one CREATE output; comparative tokens demand the may-fail predicate shape with `->` designation and a single-message failure set (&sect;3.19). `=` and `!=` are not mappable. Duplicate shapes for one token in one concept are errors; distinct shapes for one token (reversals, distinct operand types) are ordinary coexisting sanctions. An own-concept-both-sides shape (`(Sink - Sink)`) anchors left and admits no reversed spelling &mdash; none is needed, since a use-site operand whose static type *is* the concept dispatches through its carried dictionary as any Case B receiver does.
+
 Examples:
 
     .concept Eq : ...                              ; no type parameters
@@ -2316,10 +2366,14 @@ These mean different things. (a) admits `a` and `b` of any two types that each s
                                             ;   case costs nothing
 
 .concept Ord :
-    .decl (S:Ord) a :: ?before: S b         ; BINARY member contract: the signature
+    .decl (S:Ord) a :: ?before: S b -> b    ; BINARY member contract: the signature
                                             ;   references the member type beyond the
                                             ;   receiver, so a MEMBER VARIABLE is
                                             ;   introduced at the receiver; b repeats it
+
+    .decl (S:Ord) a :: ?beforeOrEqual: S b -> b
+    .operator (<)  = before                 ; operator sanctions (&sect;3.19): Ord members
+    .operator (<=) = beforeOrEqual          ;   license < and <=, threading rightward
 
     .decl (S:Ord) src :: successor: S 'out  ; member-typed CREATE output: expressible &mdash;
                                             ;   the receiver anchors dispatch (it is
@@ -2382,6 +2436,8 @@ The split is structurally clean: implicit inhabitation works when the combined c
 **Dictionary construction: canonical per tuple.** A combined concept's dictionary reference is a **single pointer**, the same form as any concept dictionary reference (&sect;9.7). The dictionary is composed at compile time from parent dictionaries (and, in the with-signatures case, the combined concept's own method bodies), and its **identity is the tuple of parent dictionaries**: one deterministic synthesis per tuple, program-wide &mdash; the tuple-level analogue of &sect;9.5's per-declaration canonicity. Under coexistence a `(type, combined concept)` pair does not by itself determine a composition (different parent-witness choices yield different tuples); the per-tuple rule is what keeps pointer identity on dictionaries decisive for *composed* dictionaries exactly as for simple ones, which the annotation, unification, and narrowing machinery (&sect;9.20&ndash;&sect;9.21, &sect;7.14) requires. The spec does not prescribe the dictionary's internal layout, only that the reference is a single pointer regardless of layout.
 
 The combined-concept form composes recursively: a concept composed of `C1, C2, C3` declares a member type must satisfy all three; combinations of combined concepts work the same way, with the conjunction flattening at the dictionary-composition step. The implicit-inhabitation rule applies at each level of composition: a pure-conjunction combined concept chains implicit inhabitation through its parents. A pure conjunction wishing to declare a canonical default family for its *composed* pair (&sect;9.1) may carry a minimal body containing only that `.witness` item; the conjunction remains "pure" for implicit-inhabitation purposes, since the item adds no signatures.
+
+**Token settlement at combined concepts.** When parents of a combined concept independently map one operator token (&sect;3.19) &mdash; `Additive.(+) = add` and `Concatenable.(+) = append`, both visible for one member &mdash; use sites are ambiguous, loudly, with the desugared method form as the remedy. The combined concept's author holds a settlement instrument: an `.operator` item for the colliding token whose right-hand side **must** select a method *inherited from a parent that maps that token*, and **cannot** name an own method (a mapping to an own method when any parent maps the token is a static error at the item &mdash; a third meaning for a colliding token belongs in a fresh concept, where it competes honestly). Settling is elective: an unsettled join is legal, leaving use sites to the method-form remedy. A settlement is *selection data consulted at ambiguity* &mdash; the overload-stage analogue of the canonical-default tier: it selects where the token would otherwise be ambiguous among the settled parents' sanctions for a member of the combined concept, two applicable settlements are an error, and a settlement never repoints a working site, because it is consulted only where no site could compile.
 
 ### 9.3 Concept Type Parameters
 
@@ -2679,6 +2735,8 @@ nf :: show                         ; ambiguous when NumericField inhabits both S
 ```
 
 A concept prefix spends the top precedence tier (&sect;9.15) on the *concept*; the witness falls through the remaining chain. A witness prefix selects both at once &mdash; and this is why no composed both-at-once form exists or is needed: with the concept explicit and the witness floating, write the concept prefix; with both explicit, the witness prefix alone suffices, since no witness of `Show` can reach `GuiElement`; a witness-explicit-concept-different reading is incoherent. One name always suffices.
+
+**Operator resolution is two-stage** (&sect;3.19). At `a &oplus; b` with operand static types `(Ta, Tb)`: *first the overload stage* &mdash; collect the visible sanctions two-sidedly (shapes anchored at `Ta` whose other position matches `Tb`, and shapes anchored at `Tb` whose other position matches `Ta`, matching per the mapped declarations); candidates reconverging through multiple visibility paths deduplicate by declaring `(concept, method)` identity; specificity orders **concrete match &gt; {uniform-member, header-parameter} match &gt; existential-satisfaction match**, extending this section's concrete-over-variable rule; a combined concept's settlement (&sect;9.2) selects among its parents' otherwise-tied sanctions; remaining ties error, naming candidates, with the desugared method form as the remedy. *Then the witness stage*: the winning `(type, concept)` pair resolves per &sect;9.15's chain verbatim; where a witness must be named, the naming happens on the desugared form (`x :: (ChronoOrd :: before): y`) &mdash; the operator surface deliberately carries no naming position. Existential operands box at the call boundary as at any call &mdash; an installation site under Appendix F.12 &mdash; and annotated operands and witness variables (&sect;9.21) participate through the desugared call unchanged: the sugar adds no resolution surface.
 
 **The `{C::method}` command-reference form** (&sect;8.2) is a *different tool for a different job*: it names a concept-method as a **command-typed value** &mdash; for storage, partial application, and the quasi-quote surface generally &mdash; with `{Ord::compare}` producing the `compare` method from `Ord` as a value. It is not the dispatch-site disambiguation surface; a direct call disambiguates with the prefix forms above, and reaching for the command-reference machinery to resolve a dispatch conflates the two facilities. The two surfaces are deliberately presented side-by-side here: prefix forms select *at a dispatch*; the brace form *reifies a method as a value*.
 
@@ -3223,6 +3281,8 @@ A small set of disambiguation rules govern lexical adjacencies that would otherw
 
 Applying `.splice` to a non-record-typed field (a domain, primitive, union, or buffer form) is a static error. The modifier appears before the field declaration in the form `.splice Field : Type`, as captured by the grammar in Appendix B.
 
+**Operator tokens and their neighbors** (&sect;3.19). The infix inventory is `+ - * / %` and `< <= > >= == <> = !=`, all binary, all expression-position. Disambiguation is positional plus maximal munch: `-` followed immediately by digits with no intervening space lexes as a negative literal, while spaced `-` is the infix token; `=` in expression position is the identity comparative, distinct from the fixed-definition `=` of `.cmd`/`.profile`/mapping-and-binding entries by position; `==` munches over two `=`; `!=` is unambiguous against the `!` failure mark, which never appears infix; `<>` joins the `<` family (`<-`, `<<`, `<<-`, `-<`, `<=`, and the pure-thunk `:<>`), resolved by maximal munch and position &mdash; `<>` is infix-only, `:<>` is a type/construction prefix form, and the assignment-family tokens are statement/argument forms that never appear in expression position (&sect;3.19). `%` is the modulus token in expression position.
+
 **Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (&sect;3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
 
 **Negative-number adjacency.** A `-` token followed immediately by a digit could be either subtraction or unary negation. The disambiguation is parser-side and follows the standard rule: in expression position where a value is expected, `- N` is unary negation; in expression position where a binary operator is expected (after a value), `- N` is subtraction. The lexer produces the same `-` and `42` (Integer literal) tokens in both cases.
@@ -3272,7 +3332,7 @@ Each is introduced by its corresponding dot-prefixed keyword (&sect;2.2). The `.
 alias-decl        ::= .alias TypeName = type-expr
 concept-decl        ::= .concept TypeName type-params? : concept-body
 concept-body        ::= concept-body-entry+
-concept-body-entry  ::= decl-decl | cmd-decl
+concept-body-entry  ::= decl-decl | cmd-decl | operator-item
                     | .witness TypeName              ; canonical default family (&sect;9.1)
 cmd-decl          ::= .cmd cmd-signature = cmd-body
 decl-decl         ::= .decl cmd-signature
@@ -3449,8 +3509,19 @@ choice-stmt       ::= choice-lhs <- expr ( | expr )+             ; first-success
 choice-lhs        ::= # type-expr? identifier                    ; typed or untyped intro
                     | identifier                                ; rewrite existing local
 
-field-access      ::= expr :: identifier                         ; named field access
-                    | expr :: integer-literal                    ; positional field access (1-based)
+expr              ::= comparative-expr                           ; SB.6a, S3.19
+comparative-expr  ::= additive-expr ( cmp-op additive-expr )*    ; flat tier; left-assoc chaining
+cmp-op            ::= < | <= | > | >= | == | <> | = | !=
+additive-expr     ::= mult-expr ( ( + | - ) mult-expr )*
+mult-expr         ::= operand ( ( * | / | % ) operand )*
+operand           ::= atom ( :: identifier | :: integer-literal )*   ; access chains bind tightest
+atom              ::= identifier | literal | # identifier
+                    | ( expr )                                   ; parenthesized expression
+                    | ( call )                                   ; parenthesized call-with-arguments
+                    | ( TypeName : arg-list )                    ; constructor expression (S7.10)
+
+field-access      ::= operand :: identifier                      ; named field access
+                    | operand :: integer-literal                 ; positional field access (1-based)
 
 call              ::= regular-call | method-call | multi-method-call | constructor-call
 regular-call      ::= identifier ( : arg-list )?
@@ -3463,7 +3534,8 @@ receiver-expr     ::= expr                                       ; same expressi
 receiver-expr-list ::= receiver-expr ( , receiver-expr )*
 
 arg-list          ::= arg ( , arg )*
-arg               ::= expr | # identifier | _
+arg               ::= operand | # identifier | _                 ; expression-form arguments are
+                    |                                            ;   parenthesized: an atom admits ( expr )
                     | identifier <- expr                         ; by-name binding, ownership in (S10.11)
                     | identifier <<- expr                        ; by-name binding, non-owning view (S10.11)
                     | identifier << expr                         ; by-name binding, copy (S7.1)
@@ -3570,6 +3642,16 @@ concept-body        ::= concept-body-entry+
 concept-body-entry  ::= decl-decl                                  ; signature-only requirement
                     | cmd-decl                                   ; default-implementation body
                     | .witness TypeName                          ; canonical default family (&sect;9.1)
+                    | operator-item                              ; token sanction (&sect;3.19, &sect;9.1)
+
+operator-item     ::= .operator ( op-shape ) = identifier
+op-shape          ::= op-token                                   ; homogeneous sugar
+                    | shape-pos op-token shape-pos               ; operand shape; &ge;1 position
+                    ;                                              is the enclosing concept's head
+shape-pos         ::= TypeName                                   ; concept head / header parameter /
+                    ;                                              concrete type / other concept
+op-token          ::= + | - | * | / | % | < | <= | > | >= | == | <>
+                    ;                                            ; = and != are not mappable (&sect;3.19)
 
 witness-decl      ::= .witness witness-head : concept-entry            ; head-only (family)
                     | .witness witness-head [ type-expr ] : concept-entry   ; member
@@ -3793,6 +3875,8 @@ Two further statement nodes derive from the placement family:
 | `UsingDirective` | `entries: WitnessRef*`, `scope: FileScope \| BodyScope` |
 | `ProfileDecl` | `name: TypeName`, `entries: WitnessRef*` |
 | `ConceptBodyEntry` | `kind: DeclEntry \| CmdEntry`, `body: DeclDecl \| CmdDecl` |
+| `OperatorItem` | `token: OpToken`, `shape: (left: ShapePos, right: ShapePos)?` (absent = homogeneous sugar), `method: identifier` &mdash; a `ShapePos` is `Member \| Param(TypeName) \| Concrete(TypeName) \| Existential(TypeName)` |
+| `BinaryOpExpr` | `token: OpToken`, `left: Expr`, `right: Expr` &mdash; produced by the parser for every infix application; the typechecker resolves it to the desugared method call (&sect;3.19, &sect;9.16) |
 | `Constraint` | `bound: ConceptUse?`, `clause: WitnessEntry*` &mdash; B.3's shared constraint at every constraint position (bound-only, clause-only pin/annotation, or compound) |
 
 The concept-system AST distinguishes `.concept` (which has a body listing required and default methods, plus the optional canonical-default item) from `.witness` (which has no body &mdash; implementations come from mapping entries, top-level commands on the subject, concept defaults, or delegation, &sect;9.4). The `ConceptBodyEntry` `kind` discriminator routes the analyzer to signature-only or default-implementation checking.
@@ -4202,6 +4286,26 @@ $$
 $$
 
 Tag is consulted at runtime; dictionary chosen at construction site.
+
+Operator expressions (&sect;3.19), schematically:
+
+```
+Gamma |- a : Ta    Gamma |- b : Tb
+sanction (C, shape, m) selected by two-stage resolution (S9.16: overload stage,
+        then S9.15 witness chain on the winning (anchor-type, C) pair)
+==>  a (+) b  desugars to  recv :: m: opnd        recv/opnd per shape's member position
+     : type of m's CREATE output [member := anchor type; params := witness bindings]
+
+Comparative m (may-fail, zero outputs, designation -> d, single-message failure set F):
+==>  a (<) b  desugars to the expression-form call; value = d's passed value (S3.7 READ
+     designation); may-fail: F.  Chains associate left; a failed link's propagation
+     precedes later operand evaluation (no dedicated short-circuit rule).
+
+Fixed identity:  a = b  requires Ta == Tb; command-typed and variant operands rejected
+     statically; buffer-backed compares bytes, objects compare identity, pointers
+     compare pointees.  a != b is its fixed negation.  <> resolves through =='s
+     sanction unless independently mapped (S3.19).
+```
 
 ### D.11 Overload Resolution
 
@@ -4845,7 +4949,7 @@ Module-qualified type names `Module::TypeName` route through the imported-module
 
 **Witness names and families.** Witness heads and applied members inhabit the type-name space with declaration kind *witness* (declaration kinds already distinguish concepts from layout-bearing types; witnesses add one kind, resolved by the same machinery). A family is keyed by its head within its owning module; members are keyed `(head, subject)`; the applied form `Head[Subject]` is itself resolvable, the one construct where an applied form is a declared inhabitant alongside its head (&sect;9.4). Duplicate enforcement is per that keying: duplicate heads (head-only) or duplicate `(head, subject)` pairs in one module are G.3 errors; distinct subjects under one head accrete the family. Cross-module coverage collisions between qualified-head extensions are *not* name-resolution errors &mdash; they surface lazily at contested resolution (Appendix H.5).
 
-**Kind expectations by position.** Each accepting position demands specific kinds, with a kind-specific diagnostic otherwise ("`ChronoOrd` names a record, not a witness"): the `.witness` concept slot, binding-clause LHS, concept bounds, and `.concept` parent lists demand *concept*; binding-clause RHS, type-bracket clause RHS, and `-<` witness targets demand *witness* (family, member, or single-character variable); `.using`/`.profile` entries demand *witness or profile* &mdash; never concept (cross-concept method-name resolution is &sect;9.16's domain, not selection's); the concept-body bare-head item demands *witness family*; and the method-prefix parenthesized position (&sect;9.16) admits *concept or witness*, disambiguated purely by what the name resolves to &mdash; one name, one declaration, one kind, so no preference rule exists or is needed.
+**Kind expectations by position.** Each accepting position demands specific kinds, with a kind-specific diagnostic otherwise ("`ChronoOrd` names a record, not a witness"): the `.witness` concept slot, binding-clause LHS, concept bounds, and `.concept` parent lists demand *concept*; binding-clause RHS, type-bracket clause RHS, and `-<` witness targets demand *witness* (family, member, or single-character variable); `.using`/`.profile` entries demand *witness or profile* &mdash; never concept (cross-concept method-name resolution is &sect;9.16's domain, not selection's); the concept-body bare-head item demands *witness family*; and the method-prefix parenthesized position (&sect;9.16) admits *concept or witness*, disambiguated purely by what the name resolves to &mdash; one name, one declaration, one kind, so no preference rule exists or is needed. An `.operator` item's shape positions (&sect;9.1) demand the enclosing concept's head, a header parameter, a concrete type, or a concept (an existential operand position); its right-hand side demands a method of the enclosing concept &mdash; or, at a combined concept settling a parents' token collision (&sect;9.2), a method inherited from a same-token-mapping parent, with own-method mappings rejected there.
 
 ### G.6 Concept-Name Resolution
 
