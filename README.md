@@ -984,4 +984,35 @@ And a design pattern that falls out of the pieces above, worth knowing on its ow
  
 Two spec-only teasers, for the curious: leaving the header bound *unpinned* (`SortedSet[T:Ord]`) makes every constructed set instead *remember the ordering that built it* — each value carries its own, and probing code can't accidentally use the wrong one; and witness identity can be tracked statically on individual values (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
  
+### 9.8 Operators: concepts license them
+
+Basis has ordinary infix operators — `+ - * / %`, and the comparatives — but no type gets them for free and no programmer can redefine how they work. Precedence, associativity, and evaluation order are fixed by the language; a *concept* declares which of its methods answers to a token, and a type licenses the token by satisfying the concept:
+
+```
+.concept Additive :
+    .decl (S:Additive) a :: add: S b, S 'r
+    .decl (S:Additive) a :: sub: S b, S 'r
+    .operator (+) = add
+    .operator (-) = sub
+
+.domain Scaled : Int64
+.witness ScaledArith[Scaled] : Additive
+
+#total <- price + tax          ; ✓ licensed — sugar for a concept-method call
+#oops  <- price * tax          ; ✗ compile error: nothing sanctions * for Scaled
+```
+
+That's the whole model: `Scaled` gets exactly the operators its concepts sanction, a set type can map `-` to set-difference, and a matrix library can map `*` for both `matrix * vector` and `vector * matrix` orders within one concept.
+
+Comparatives follow Icon rather than C: a comparison is a *may-fail test* that, on success, produces its right-hand value — so comparisons chain:
+
+```
+? lo <= x < hi                 ; the range test: lo ≤ x succeeds *with* x, then x < hi
+    process: x
+```
+
+Failure short-circuits the chain (that's just the failure system doing its job), `?-` negates, and there are no boolean operators because there are no booleans — success and failure *are* the logic.
+
+Equality comes in two flavors on purpose: `=` is built-in **identity** (bytes for buffer-backed values, same-object for objects — no concept can redefine it), while `==` is concept-defined **value equality**, with `!=` and `<>` as their negations. For domains the two coincide; for structured types they can differ, and picking the right one is part of saying what you mean.
+
 Dispatch identity for buffer-backed values still deserves one caution here: buffer-backed slots carry only bytes, so a value's concept-dispatch identity is captured when it enters a concept-typed slot and is preserved through chains of them — but an intermediate pass through a plain parent-typed buffer parameter reduces it to the parent. Reach the concept-typed boundary directly when child-domain dispatch matters (the spec's §9.18 has the full story).
