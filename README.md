@@ -131,7 +131,7 @@ A source file is a sequence of four optional sections:
 - Optionally, a single `.module` declaration naming the file's module.
 - Zero or more `.import` declarations.
 - Zero or more `.using` directives (standing witness selections, §9.7).
-- Zero or more top-level definitions: `.alias`, `.cmd`, `.concept`, `.decl`, `.domain`, `.enum`, `.implicit`, `.intrinsic`, `.msg`, `.object`, `.profile`, `.program`, `.promise`, `.record`, `.resource`, `.test`, `.union`, `.variant`, `.witness`.
+- Zero or more top-level definitions: `.alias`, `.cmd`, `.concept`, `.decl`, `.domain`, `.enum`, `.implicit`, `.intrinsic`, `.msg`, `.object`, `.profile`, `.program`, `.promise`, `.record`, `.test`, `.union`, `.variant`, `.witness`.
 ```
 .module App::Models
 .import Std:Core
@@ -417,15 +417,30 @@ The concept binding makes failures *contractual*: a recovery handler does not ne
  
 If `process: handle` fails, both `closeHandle` and `logIncomplete` fire as the frame retires (in reverse order of registration). On success, only `closeHandle` fires. The handlers cannot themselves create new in-flight failures during exit-cleanup processing; they may, however, invoke commands that fail internally and recover internally.
 
-Frame-exit hooks are one half of Basis's cleanup story. The other is the **obligation system**: a value can carry a *duty* — close this handle, free this buffer, join this thread — that the compiler tracks and requires to be discharged exactly once, never silently dropped. A value acquired from a **resource** (an ordinary acquire) or a **promise** (a value that becomes available later) carries such a duty; the duty is settled either explicitly or by finalizing the value with the **DISPOSE** mode (`~`), the destruction-dual of construction. When the owner of an obligated value goes out of scope, its duty fires — so a promise standing for a spawned thread can auto-join that thread at scope end, with no explicit join call:
+Frame-exit hooks are one half of Basis's cleanup story. The other is the **obligation system**: a value can carry a *duty* — close this handle, free this buffer, join this thread — that the compiler tracks and guarantees fires exactly once, never silently dropped.
+
+Setting one up is a single top-level `.promise` declaration binding a **source** (the operation that incurs the duty) to one or more **sinks** (the operations that can settle it):
 
 ```
-#worker <- spawn: task        ; worker carries a join-obligation
-; ... use worker ...
-; at scope end, worker's obligation fires — the thread is joined automatically
+.promise Runtime: spawn -> join                  ; spawning incurs a duty to join
+.promise LocalTxn: begin[transaction] -> rollback | commit
+                                                 ; several sinks: the FIRST is the default
+.promise Connection -> close                     ; source-less: constructing a Connection
+                                                 ;   is itself the obligating act
 ```
 
-Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value* — it can be moved to a new owner, handed to a callee, or stored, and the duty follows. The full system — resources, promises, ownership transfer, and object retirement — is in the spec.
+Reading the first line: `Runtime` is a **receiver type**, and `spawn` and `join` are ordinary **methods on it** — `rt :: spawn: task` starts a thread, `rt :: join: worker` awaits one. The declaration adds nothing to those methods; it *pairs* them, saying "whatever `spawn` produces, `join` must eventually consume." In the second line, `begin` is a method of `LocalTxn` and the bracket `[transaction]` names *which of `begin`'s parameters* carries the duty (useful when the obligated value is handed in rather than produced). The third line has no method at all: the source is `Connection`'s own constructor, so every construction is obligated. That's the entire setup — the methods themselves are unchanged and unannotated. From then on, every successful `spawn` yields a value carrying a join-duty, and the compiler takes it from there:
+
+```
+.scope
+    #worker <- (rt :: spawn: task)    ; worker carries the join-duty
+    coordinate: worker, ...           ; use it freely
+    ; scope end: worker's duty fires — the thread is joined automatically
+```
+
+The **default sink** (the first listed) fires automatically when the obligated value reaches the end of the scope that owns it — which is why the transaction declaration puts `rollback` first: forget everything, and the safe thing happens. Discharging *explicitly* — calling `commit`, or finalizing the value with the **DISPOSE** mode (`~`), construction's destruction-dual — settles the duty early and the default stays quiet.
+
+Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by an owning binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, views versus moves, and object retirement — is in the spec's §10.
  
 ### 4.6 What the static analysis tracks
  
