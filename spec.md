@@ -145,7 +145,7 @@ A file with no `.module` declaration, no imports, and no definitions is a well-f
 
 ### 2.2 Top-Level Definition Forms
 
-A Basis source file may contain any of nineteen top-level definition forms, each introduced by a `.`-prefixed keyword. The dot-prefix marks special forms so they are visually distinct from user-defined identifiers; the keyword itself names the kind of definition. The forms, alphabetically:
+A Basis source file may contain any of eighteen top-level definition forms, each introduced by a `.`-prefixed keyword. The dot-prefix marks special forms so they are visually distinct from user-defined identifiers; the keyword itself names the kind of definition. The forms, alphabetically:
 
 - **`.alias` *Name*` = `*TypeExpression*** &mdash; Declares *Name* as a synonym for *TypeExpression*. Aliases erase entirely from the type system; the alias name and its right-hand side are interchangeable in both directions in all contexts. They introduce no new type identity.
 
@@ -176,8 +176,6 @@ A Basis source file may contain any of nineteen top-level definition forms, each
 - **`.promise` *ReceiverType*` : `*source*` -> `*sinks*** &mdash; Declares an obligation, borne by a source method's product or a constructor's product, that may escape its acquiring frame, its discharge deferred to the eventual owner's lifetime end and met by one of the named sink methods (the first listed is the default). The obligation system (&sect;10).
 
 - **`.record` *Name*` : `*field declarations*** &mdash; Declares a buffer-backed record type &mdash; a named, contiguous, byte-addressable buffer with named field offsets. Field types must be fixed-size buffer-backed.
-
-- **`.resource` *ReceiverType*` : `*source*` -> `*sinks*** &mdash; Declares an obligation, borne by a source method's product or a constructor's product, that must be discharged within the acquiring frame by one of the named sink methods (the first listed is the default). The obligation system (&sect;10).
 
 - **`.test`** &mdash; Declares a test, a speculative test, or a test-aggregation suite. Three forms: `.test "`*name*`" : ` *body* declares a regular test; `.test "`*name*`" ? ` *body* declares a speculative test whose failure does not trigger overall test-run failure; `.test "`*name*`" = ` *string-list* declares a test-aggregation suite, the RHS being a comma-separated list of `.test` names that compose a logical group. See &sect;2.6.
 
@@ -615,7 +613,7 @@ The handlers fire in **reverse order of registration** &mdash; the most-recently
 
 `@` and `@!` blocks are not destructors. They are RAII-equivalent in functional role; they are not RAII in mechanism.
 
-**Block markers only; no concept-level form.** Frame-exit hooks are admitted *only* as block markers within command bodies. There is no `.cmd @ Type ::` or similar concept-method form that would auto-register a *hook* against every frame slot holding a value of a particular type; the block-marker form is the entire surface for `@`/`@!`. Type-associated cleanup that fires automatically &mdash; the role a destructor plays elsewhere &mdash; is provided instead by the obligation system (&sect;10), where a `.resource` or `.promise` declared on a concept receiver binds every member's values (&sect;10.8). The block-marker form provides deferred firing of its own: cleanup colocated with acquisition at the registration site, fired at frame retirement.
+**Block markers only; no concept-level form.** Frame-exit hooks are admitted *only* as block markers within command bodies. There is no `.cmd @ Type ::` or similar concept-method form that would auto-register a *hook* against every frame slot holding a value of a particular type; the block-marker form is the entire surface for `@`/`@!`. Type-associated cleanup that fires automatically &mdash; the role a destructor plays elsewhere &mdash; is provided instead by the obligation system (&sect;10), where a `.promise` declared on a concept receiver binds every member's values (&sect;10.8). The block-marker form provides deferred firing of its own: cleanup colocated with acquisition at the registration site, fired at frame retirement.
 
 The receiver-mode rules of the parent command's body apply to the `@` and `@!` block's body the same way as to any other sub-block: variables in scope at the block's registration point are accessible inside the block, with their mode markers preserved. The block runs in the parent command's frame context at retirement; it has no parameter list of its own.
 
@@ -2084,11 +2082,11 @@ Value construction in Basis involves two distinct allocation activities, separat
 
 The default is the **frame-bound region**: variable-size storage is drawn from a region tied to the current frame and freed at frame retirement, with nothing to track. Storage for a value local to a `.scope` block (&sect;3.17) may be reclaimed earlier, at that scope's end &mdash; a `.scope` carves a nested sub-region of the frame's region. It requires no syntax &mdash; `# []Int32 x <- $[1, 2, 3]` constructs a runtime-length buffer whose three-element data area lives in the current frame's region and is reclaimed when its scope ends, exactly as a slot is. This is the common case.
 
-Non-default storage &mdash; heap allocation for data that outlives the frame, an arena scoped to a logical phase, a pool with a recycling discipline &mdash; is drawn from an **allocator**: a first-class value whose acquire/release pair is declared as a `.resource` or `.promise` (&sect;10). Acquisition is an ordinary source-method call on the allocator, and the value it yields carries an obligation that the allocator's sink discharges. There is no allocation-site qualifier and no ambient allocation context: bringing an allocator into scope does nothing on its own, and storage is drawn only where the source method is called, visibly, at that call.
+Non-default storage &mdash; heap allocation for data that outlives the frame, an arena scoped to a logical phase, a pool with a recycling discipline &mdash; is drawn from an **allocator**: a first-class value whose acquire/release pair is declared as a `.promise` (&sect;10). Acquisition is an ordinary source-method call on the allocator, and the value it yields carries an obligation that the allocator's sink discharges. There is no allocation-site qualifier and no ambient allocation context: bringing an allocator into scope does nothing on its own, and storage is drawn only where the source method is called, visibly, at that call.
 
     #storage <- arena :: allocate: size      ; obligated storage from an allocator's source (&sect;10)
 
-Whether such storage may outlive the acquiring frame is set by which form the allocator's source is declared under: a `.resource` source confines the storage to the acquiring frame, a `.promise` source permits it to escape, its release deferred to the eventual owner's lifetime end (&sect;10.10&ndash;&sect;10.13). The obligation guarantees the release fires. Where the value may be *named* is a separate question the language answers only partly: an object's lifetime ceiling (&sect;5.11) bounds object and `^Object` reachability, and the parameter-mode rules (&sect;6) bound where a borrowed value travels, but a default-region or `.scope`-local runtime-length buffer (`[]` / `[]T`) &mdash; which carries no obligation and is neither object nor pointer &mdash; is governed instead by the region-escape ceiling rule (&sect;7.21), which rejects sharing it by `<-`/`<<-` into a position outliving its region and names `<<` (copy) as the remedy. Beyond what those rules reach &mdash; a value aliased through a raw `^T`, or placed into region storage of unproven extent &mdash; the language provides no static guarantee; such an escape may dangle, and avoiding it is the programmer's responsibility, exactly as for the pointer-aliasing gap of &sect;10.14.
+Such storage may outlive the acquiring frame by ownership transfer (&sect;10.10&ndash;&sect;10.13), its release deferred to the eventual owner's lifetime end; storage whose obligation is not transferred is released at the acquiring frame's end. The obligation guarantees the release fires. Where the value may be *named* is a separate question the language answers only partly: an object's lifetime ceiling (&sect;5.11) bounds object and `^Object` reachability, and the parameter-mode rules (&sect;6) bound where a borrowed value travels, but a default-region or `.scope`-local runtime-length buffer (`[]` / `[]T`) &mdash; which carries no obligation and is neither object nor pointer &mdash; is governed instead by the region-escape ceiling rule (&sect;7.21), which rejects sharing it by `<-`/`<<-` into a position outliving its region and names `<<` (copy) as the remedy. Beyond what those rules reach &mdash; a value aliased through a raw `^T`, or placed into region storage of unproven extent &mdash; the language provides no static guarantee; such an escape may dangle, and avoiding it is the programmer's responsibility, exactly as for the pointer-aliasing gap of &sect;10.14.
 
 The exact `Allocator` concept shape &mdash; its source and sink signatures and the semantics of cross-allocator transfer &mdash; is part of the standard library and is not pinned down in this specification; the language commits only to the obligation discipline that pairs each acquisition with its release (&sect;10).
 
@@ -2096,7 +2094,7 @@ The exact `Allocator` concept shape &mdash; its source and sink signatures and t
 
 A default-region or `.scope`-local **runtime-length buffer** (`[]` or `[]T`, &sect;5.2) carries its element data in the storage of the frame or scope that constructed it (&sect;7.20), and both `<-` (move) and `<<-` (view) bring such a value to rest by copying its *handle* &mdash; they share the element region rather than duplicating it (&sect;5.1, &sect;7.1). Resting that shared handle in a position whose lifetime ceiling exceeds the buffer's region would leave the handle pointing into storage already reclaimed when the region ends. Such a placement is a **static error**. The remedy the error names is `<<` (copy), which duplicates the elements into the destination's own storage so nothing escapes.
 
-**Scope.** The rule governs *unobligated* region-backed runtime-length buffers only. Allocator-backed buffers are handled by the obligation system instead &mdash; a `.resource` source confines the value to its acquiring scope, where an escape is the &sect;10.5 error, and a `.promise` source permits escape with the obligation riding along (&sect;10.10). Fixed-size buffer-backed values are byte-aggregates that copy wholesale on every store and raise no escape. The error is thus the static backstop for precisely the default-region runtime-length case that neither the object-lifetime ceiling (&sect;5.11) nor the pointer discipline (&sect;10.14) reaches.
+**Scope.** The rule governs *unobligated* region-backed runtime-length buffers only. Allocator-backed buffers are handled by the obligation system instead &mdash; the value's duty discharges in its acquiring scope unless ownership transfers, in which case the obligation rides along to the eventual owner (&sect;10.10). Fixed-size buffer-backed values are byte-aggregates that copy wholesale on every store and raise no escape. The error is thus the static backstop for precisely the default-region runtime-length case that neither the object-lifetime ceiling (&sect;5.11) nor the pointer discipline (&sect;10.14) reaches.
 
 **Decidability.** The check reuses tracking the language already maintains: the buffer's region is its construction frame or `.scope` (&sect;7.20), and the destination's lifetime ceiling is the object-lifetime ceiling already computed for object positions (&sect;5.11) &mdash; a field of an object borrowed from above carries a ceiling above the current frame by construction. The store is rejected when the destination's ceiling is not shown to lie within the buffer's region; where the relation is not statically known the conservative answer is to reject, forcing the copy. *A literal right-hand side raises no such escape: it is placed element-wise directly into the destination's storage and constructs no frame-local temporary to escape.*
 
@@ -2861,7 +2859,7 @@ The constraint grammar thus unifies: a constraint is `(bindings)` (pin/annotatio
 
 ## 10. The Obligation System
 
-Basis provides two related top-level declaration forms that govern resource-obligation tracking. A **`.resource`** governs an obligation that must be discharged within the scope that acquired it &mdash; a strictly local duty. A **`.promise`** governs an obligation that may travel beyond its acquiring scope and be discharged in the future. The two share a single underlying model; `.promise` is `.resource` extended with escape. This section develops them in that order: &sect;10.1&ndash;&sect;10.9 develop `.resource` in full, and &sect;10.10&ndash;&sect;10.16 add only what escape requires.
+Basis provides one top-level declaration form governing obligation tracking: the **`.promise`**, which binds a duty to a value at its acquisition and guarantees the duty is discharged &mdash; within the acquiring scope by default, or deferred by ownership transfer to the eventual owner's lifetime end. &sect;10.1&ndash;&sect;10.9 develop the declaration, the analysis, and in-scope discharge; &sect;10.10&ndash;&sect;10.16 develop escape and deferral.
 
 ### 10.1 Motivation
 
@@ -2871,31 +2869,31 @@ The system governs only what needs it. A slot introduced with `#` over a buffer-
 
 The system confers a **linear obligation**: a duty discharged exactly once and never silently dropped. It is a property of a value's *acquisition*, not of its type. The same `^Node` is obligated when it comes from a malloc-style allocator and unobligated when it comes from an arena &mdash; where the arena itself, not its individual items, carries the obligation. Linearity attaches to the duty, not to the value: an obligated value may be read, moved, and copied as its type otherwise permits, and a copy is unobligated. The system does not police aliasing.
 
-A `.resource` is the **local** form: its obligation must be discharged within the scope that acquired it, and cannot be deferred, transferred, or otherwise made to outlive that scope &mdash; for an obligation that may travel, use a `.promise` (&sect;10.10). What is pinned to the scope is the *obligation*, not necessarily the value. A **finalizing** duty consumes its value on discharge, welding the value's lifetime to the obligation's, so the value too is confined to the scope. A **non-finalizing** duty discharges without consuming &mdash; a secrets buffer overwritten in place &mdash; so the obligation is met within the scope while the value itself, unconsumed, is not pinned by the duty and may outlive the scope as its storage allows. This is the right form for an obligation whose deferral is meaningless or dangerous &mdash; a secrets buffer that must be overwritten before its storage can be introspected, or storage drawn and released within a single operation. Because the obligation lives and dies in one scope, a `.resource` is the simpler case in every respect.
+An obligation discharges at the end of the scope that holds it: the acquiring scope, unless ownership of the duty is transferred (&sect;10.11), which re-homes the discharge to the new owner's lifetime end. A **finalizing** duty consumes its value on discharge, welding the value's lifetime to the obligation's. A **non-finalizing** duty discharges without consuming &mdash; a secrets buffer overwritten in place &mdash; leaving the value live, its duty met, free to outlive the scope as its storage allows. For a duty whose deferral is meaningless or dangerous &mdash; the secrets buffer that must be overwritten before its storage can be introspected, or storage drawn and released within a single operation &mdash; the discipline is simply not transferring ownership: the obligation then lives and dies in one scope, statically, for free (&sect;10.6).
 
-### 10.2 The `.resource` Declaration
+### 10.2 The `.promise` Declaration
 
-A `.resource` is a top-level form binding a source to one or more sink methods on a named receiver type. The source is either a named method of that type or &mdash; in the **source-less** form &mdash; the type's own constructor. It is the sole declaration surface; no annotations on individual `.cmd` declarations are required or admitted.
+A `.promise` is a top-level form binding a source to one or more sink methods on a named receiver type. The source is either a named method of that type or &mdash; in the **source-less** form &mdash; the type's own constructor. It is the sole declaration surface; no annotations on individual `.cmd` declarations are required or admitted.
 
 ```
-.resource ReceiverType: sourceMethod[param] -> defaultSink
-.resource ReceiverType: sourceMethod[param] -> defaultSink | altSink | altSink2
-.resource ReceiverType -> defaultSink                ; source-less (constructor-borne)
-.resource ReceiverType -> defaultSink | altSink
+.promise ReceiverType: sourceMethod[param] -> defaultSink
+.promise ReceiverType: sourceMethod[param] -> defaultSink | altSink | altSink2
+.promise ReceiverType -> defaultSink                 ; source-less (constructor-borne)
+.promise ReceiverType -> defaultSink | altSink
 ```
 
-The bracket notation `sourceMethod[param]` designates which parameter of the source method carries the obligation; the parameter may be in any mode. When the source *produces* the obligated value through a CREATE parameter (an allocator returning fresh storage, a constructor returning a handle), the designation is optional if that is the source's only CREATE parameter and required if it has more than one. When the source instead *receives* the obligated value &mdash; a value handed in through an UPDATE or READ parameter, on which the declaration registers a duty (a buffer owing `zero`, a lock owing `unlock`) &mdash; the bracket names that parameter explicitly. When the `: sourceMethod[param]` segment is omitted &mdash; the **source-less** form `.resource ReceiverType -> sinks` &mdash; the source is the receiver type's own constructor and the obligated value is its CREATE output: every construction of the type yields an obligated value, discharged by a sink acting on that value as its receiver (&sect;7.22). The `->` separator marks the source-to-sink transition. Sinks are separated by `|`, and **the first sink listed is the default**.
+The bracket notation `sourceMethod[param]` designates which parameter of the source method carries the obligation; the parameter may be in any mode. When the source *produces* the obligated value through a CREATE parameter (an allocator returning fresh storage, a constructor returning a handle), the designation is optional if that is the source's only CREATE parameter and required if it has more than one. When the source instead *receives* the obligated value &mdash; a value handed in through an UPDATE or READ parameter, on which the declaration registers a duty (a buffer owing `zero`, a lock owing `unlock`) &mdash; the bracket names that parameter explicitly. When the `: sourceMethod[param]` segment is omitted &mdash; the **source-less** form `.promise ReceiverType -> sinks` &mdash; the source is the receiver type's own constructor and the obligated value is its CREATE output: every construction of the type yields an obligated value, discharged by a sink acting on that value as its receiver (&sect;7.22). The `->` separator marks the source-to-sink transition. Sinks are separated by `|`, and **the first sink listed is the default**.
 
 Allocation, single sink (the lone sink is necessarily the default):
 
 ```
-.resource ScratchArena: allocate -> deallocate
+.promise ScratchArena: allocate -> deallocate
 ```
 
 Transaction, multiple sinks (the default is the safe abort; commit is an explicit choice):
 
 ```
-.resource LocalTxn: begin[transaction] -> rollback | commit
+.promise LocalTxn: begin[transaction] -> rollback | commit
 ```
 
 **Obligation registers against the owner, at the call site.** When a source call succeeds, the duty is registered in the *caller's* analysis (&sect;10.5), and it attaches to the value through the call-site binding that *owns* it &mdash; never through a view. Ownership here is provenance, not mode (&sect;10.3): UPDATE versus READ says only whether the callee may write the value, not whether the caller owns it, so this is orthogonal to the mode axis. Calling an obligating source is always valid regardless of how the argument is passed; what the ownership check decides is merely *whether a duty arises*. An argument that is a view registers nothing &mdash; the borrowed binding is non-owning, so there is no owner here for the duty to attach to. (Nor could one slip in unnoticed: in single-threaded evaluation a value passed onward as a view is handed over before its own source call reaches the success edge, so during that borrow it carries no duty yet.) A duty therefore arises only where the call-site argument is an owner.
@@ -2956,23 +2954,23 @@ The analysis is a forward-flow analysis run alongside the four existing analyses
 | `@` / `@!` block naming a sink against the obligated slot | Mark the covered paths `discharge-pending`: the named sink is scheduled to fire at scope exit, suppressing the default. The duty is not yet discharged &mdash; if the slot is evicted first (re-obligation or overwrite), the scheduled sink fires then as cleanup |
 | `source_slot` transitions to `uninit`, or appears in CREATE position (re-initialization), with obligations sourced from it still open | Fire those obligations' pending discharges as cleanup against the still-live source &mdash; single-argument defaults or scheduled sinks, reverse-registration order (&sect;4.4) &mdash; on the edge where the source leaves the slot. A CREATE re-initialization is atomic (&sect;1.2): the source leaves only on the **success edge**, where the cleanup fires; on failure the slot is preserved and the dependents stay open. A `~` consume is eager (&sect;7.22) and empties the slot on **both edges**, so the cleanup is sequenced before the consume and precedes either |
 | A further sink call against a slot whose record is already `discharged` | After a finalizing discharge the slot is `uninit`, so initialization tracking rejects the call; after a non-finalizing one the slot is `init` and the value live, so the call is an ordinary operation that discharges nothing |
-| Escape of a value carrying an open **finalizing** duty &mdash; CREATE return, store into a longer-lived owner, transfer to an enclosing scope, consuming-marked argument, escaping variant candidate | Static error: a finalizing discharge consumes the value within the acquiring scope, so it cannot also leave (it would be freed under the new owner); use a `.promise` (&sect;10.10) for a duty that may travel |
+| Ownership-transferring operation on a value carrying an open duty &mdash; CREATE return, `<-` store into a longer-lived owner, by-name `<-` argument, transfer to an enclosing scope, owning variant install | The obligation **re-homes** (&sect;10.11&ndash;&sect;10.13): the record closes in this frame with the duty deferred to the new owner's lifetime end; a `<<-` store or positional borrow transfers nothing and the record stays open here |
 
 **Registration homes against the owner.** A record's `obligated_slot` is the owning caller-frame binding supplied as the obligated argument, opened on the source call's success edge (&sect;10.2). A source call whose obligated argument is a view opens no record &mdash; no owner is present to carry the duty.
 
 **Finalization fires outstanding self-sufficient defaults first.** A finalizing discharge on a slot that still holds other open obligations first fires their *self-sufficient* (default-callable) defaults as cleanup discharges &mdash; in reverse-registration order, under the &sect;4.4 cleanup regime, so a cleanup default's failure does not edge the finalizing call &mdash; and then consumes. This is the same cleanup ordering scope-end firing performs for a slot (&sect;10.12), brought to an explicit mid-body finalizing discharge: an explicit `free` of a `^File` fires `close`'s default first, because the storage was allocated before the file was opened, so `close`'s duty registered later and fires earlier under reverse-registration order.
 
-**Scope-locality binds the obligation, not the value.** A `.resource` confines the *obligation* to its acquiring scope, where it discharges. A **finalizing** duty consumes its value on discharge, welding the value's lifetime to the obligation's: the value is confined too, and the escape row rejects any attempt to carry it out &mdash; a complete static check, since a finalizing duty is born at a CREATE and rides only its owning slot, never a view (&sect;10.2), so every exit is a visible ownership transfer. A **non-finalizing** duty discharges without consuming: it fires at the acquiring scope's end (or earlier on eviction, &sect;10.12), and the value &mdash; unconsumed &mdash; may go on to outlive the scope, its duty already met.
+**Transfer tracking is complete.** A duty rides only its owning binding, never a view (&sect;10.2), and a finalizing duty is born at a CREATE &mdash; so every route by which an obligated value leaves its acquiring scope is a visible ownership-transferring operation, and the re-homing row above misses nothing: an obligation either discharges in this scope or provably re-homes, statically, per path. A **non-finalizing** duty that is not transferred fires at the acquiring scope's end (or earlier on eviction, &sect;10.12), the value &mdash; unconsumed &mdash; free to outlive the scope, its duty already met.
 
 **Failure paths.** Discharge state is tracked independently per path. A direct call discharges only its own path; a bare `@` block schedules discharge on all exit paths; an `@!` block schedules on failure exits only. An `obligated` obligation reaching any exit fires its default there; a `discharge-pending` one fires its scheduled sink.
 
 ### 10.6 Cost
 
-A local obligation needs no runtime representation. The analysis tracks it statically per binding, and the discharge &mdash; direct call, frame-exit block, or default at finalization &mdash; is resolved at compile time and emitted into the enclosing scope's exit code, exactly as `@`/`@!` blocks compile today. This is type-agnostic: obligation-ness being per-acquisition, the malloc node and the arena node of identical type are two bindings the analysis treats differently, with no type-level machinery and no per-value tag. A `.resource` is therefore always free.
+An obligation discharged within its acquiring scope needs no runtime representation. The analysis tracks it statically per binding, and the discharge &mdash; direct call, frame-exit block, or default at finalization &mdash; is resolved at compile time and emitted into the enclosing scope's exit code, exactly as `@`/`@!` blocks compile today. This is type-agnostic: obligation-ness being per-acquisition, the malloc node and the arena node of identical type are two bindings the analysis treats differently, with no type-level machinery and no per-value tag. In-scope discharge is therefore always free; only a value whose obligation actually re-homes out of its acquiring scope pays the deferral representation of &sect;10.13.
 
 ### 10.7 No Competing Obligations
 
-A method may appear as a source in at most one declaration, and as a sink in at most one declaration, within the set visible at any use site &mdash; whether those declarations are `.resource` or `.promise`. Ambiguity is a static error at the declaration that introduces the conflict. Instance implementations are bound by their concept's declarations; a type-local declaration naming the same implementing method is a conflict. The coherence machinery of &sect;9.15 applies, except that resource and promise conflicts are always errors &mdash; there is no most-specific interpretation of two competing obligation families for one method.
+A method may appear as a source in at most one declaration, and as a sink in at most one declaration, within the set of `.promise` declarations visible at any use site. Ambiguity is a static error at the declaration that introduces the conflict. Instance implementations are bound by their concept's declarations; a type-local declaration naming the same implementing method is a conflict. The coherence machinery of &sect;9.15 applies, except that obligation conflicts are always errors &mdash; there is no most-specific interpretation of two competing obligation families for one method.
 
 ### 10.8 Concept Dispatch
 
@@ -2986,13 +2984,13 @@ Generic signatures and partial application are both admitted for source and sink
 
 **Partial application.** A source or sink method may be partially applied. A partially-applied source bakes its receiver and defers its obligated CREATE output &mdash; the only shape the mode-marker filter (&sect;9.14) permits &mdash; so invoking the resulting reference generates the obligation exactly as a direct source call would, taking the source receiver and default sink from the baked-in reference. A partially-applied sink, invoked against an obligated value, discharges it as a direct sink call would. For either to be tracked when the reference is invoked in a frame other than the one that built it, the command-typed value carries the obligation property in its type &mdash; that invoking a source reference yields an obligated value, that a sink reference discharges one &mdash; invariant in the manner of the parameter-mode markers (&sect;6.11), so that an obligation-generating command is not interchangeable with one that generates none. No new per-value runtime data is needed beyond what the reference and the anchor already carry.
 
-### 10.10 What `.promise` Adds
+### 10.10 Escape and Deferral
 
-A `.promise` is declared exactly as a `.resource` &mdash; same source/sink syntax, same default, same multi-sink form &mdash; and everything in &sect;10.1&ndash;&sect;10.9 holds. The single difference is that a `.promise`'s obligated value **may escape its acquiring scope**: it may be returned through CREATE output, stored into a longer-lived owner, handed down-stack by a consuming-marked argument, transferred to an enclosing scope, or installed as a candidate of a variant that outlives the scope. Its discharge is then deferred to the moment that value's eventual owner reaches the end of its lifetime &mdash; possibly a scope far removed from the acquisition site.
+An obligated value **may escape its acquiring scope**: it may be returned through CREATE output, stored into a longer-lived owner, handed down-stack by an owning by-name argument, transferred to an enclosing scope, or installed as a candidate of a variant that outlives the scope. Each of these is an ownership transfer (&sect;10.11), and the discharge is deferred to the moment the value's eventual owner reaches the end of its lifetime &mdash; possibly a scope far removed from the acquisition site.
 
-A `.promise` that happens not to escape on a given path behaves and costs exactly as a `.resource`: it is discharged within its acquiring scope and needs no runtime representation. The keyword grants the *permission* to escape; the cost (&sect;10.13) is incurred only by values that actually do.
+An obligation that does not escape on a given path is discharged within its acquiring scope and needs no runtime representation (&sect;10.6); the deferral cost (&sect;10.13) is incurred only by values that actually escape.
 
-**The single-argument default, revisited.** Every default sink already takes exactly one non-receiver argument &mdash; the obligated value (&sect;10.2) &mdash; so a `.promise` adds no restriction of its own here. That universal rule exists for exactly this case: a `.promise`'s deferred firing occurs where none of the originating scope's bindings survive, so it can supply no context beyond the obligated value, and a self-sufficient default is precisely what can still fire there. What for a `.resource` lets the auto-fired default run at scope end, for an escaped `.promise` lets it run with no surviving scope at all. Non-default sinks remain unrestricted, reached only by a direct call or an `@`/`@!` block in the acquiring scope where their extra arguments are still live.
+**The single-argument default, revisited.** Every default sink takes exactly one non-receiver argument &mdash; the obligated value (&sect;10.2). That universal rule exists for exactly this case: a deferred firing occurs where none of the originating scope's bindings survive, so it can supply no context beyond the obligated value, and a self-sufficient default is precisely what can still fire there. What at scope end lets the auto-fired default run, on escape lets it run with no surviving scope at all. Non-default sinks remain unrestricted, reached only by a direct call or an `@`/`@!` block in the acquiring scope where their extra arguments are still live.
 
 ### 10.11 Ownership and Transfer
 
@@ -3035,7 +3033,7 @@ This safety net is also what fires on the **failure edge** of a non-`~` by-name 
 
 ### 10.13 Representation and Cost
 
-Cost is set by escape, not by representation concept. A `.promise` that does not escape costs nothing, exactly as a `.resource` (&sect;10.6).
+Cost is set by escape, not by declaration. An obligation that does not escape costs nothing (&sect;10.6).
 
 **A single escaping obligation: one anchored discharge.** When the value escapes, a discharge travels to wherever its lifetime ends, anchored to the holding location &mdash; a slot's frame-exit-hook entry, or an object value's per-field discharge entry &mdash; never embedded in the value's bytes. It carries the default sink's identity and the source receiver to invoke it against. Because the anchor lives on the binding and not the bytes, the value's representation is never widened, a buffer-backed value still copies as bytes, and a copy is automatically unobligated &mdash; there is nothing to strip and nothing to forbid. The static analysis stays local; the runtime anchor handles the cross-frame firing.
 
@@ -3100,7 +3098,7 @@ The lexer recognizes the following token concepts:
 ```
 .ack      .alias    .concept    .cmd      .decl     .domain   .enum     .fail
 .implicit .import   .witness .intrinsic .module   .msg      .object
-.program  .promise  .record   .resource .scope    .splice   .sub      .test
+.program  .promise  .record   .scope    .splice   .sub      .test
 .union    .variant
 ```
 
@@ -3291,7 +3289,7 @@ Applying `.splice` to a non-record-typed field (a domain, primitive, union, or b
 
 **Underscore disambiguation.** The `_` placeholder serves four roles (&sect;3.15). The lexer produces a single `_` token uniformly; the parser routes to the appropriate role based on grammatical position (CREATE-discard at argument position; partial-application deferral inside `{...}`; variant absent state in aggregate-literal positions; variant absent test in `-<` operations).
 
-**Obligation-declaration brackets.** Inside a `.resource` or `.promise` declaration, `methodName[param]` designates a method's obligated parameter or discharge argument (&sect;10.2). The bracketed group here always follows a lowercase *identifier* (a method name) and contains a lowercase *identifier* (a parameter name), within the obligation-clause of the declaration. This is disjoint from every other bracket use: indexing `value[index]` (&sect;5.2) is an expression-position operation, not a top-level declaration; type parameters `Type[T]` (&sect;9.1), message payloads `Name[PayloadType]` (&sect;4.9), and failure sets `?[Name]` (&sect;4.9) bracket *type names* or follow a type name or failure mark, never a lowercase method-name identifier. The parser recognizes the form by grammatical position &mdash; it is the only place an `identifier[identifier]` group appears in a declaration &mdash; and the capitalization rule (A.3) reinforces the distinction at the token level.
+**Obligation-declaration brackets.** Inside a `.promise` declaration, `methodName[param]` designates a method's obligated parameter or discharge argument (&sect;10.2). The bracketed group here always follows a lowercase *identifier* (a method name) and contains a lowercase *identifier* (a parameter name), within the obligation-clause of the declaration. This is disjoint from every other bracket use: indexing `value[index]` (&sect;5.2) is an expression-position operation, not a top-level declaration; type parameters `Type[T]` (&sect;9.1), message payloads `Name[PayloadType]` (&sect;4.9), and failure sets `?[Name]` (&sect;4.9) bracket *type names* or follow a type name or failure mark, never a lowercase method-name identifier. The parser recognizes the form by grammatical position &mdash; it is the only place an `identifier[identifier]` group appears in a declaration &mdash; and the capitalization rule (A.3) reinforces the distinction at the token level.
 
 ---
 
@@ -3321,8 +3319,8 @@ top-level-decl    ::= alias-decl    | concept-decl    | cmd-decl
                     | implicit-decl | witness-decl  | intrinsic-decl
                     | msg-decl      | object-decl   | profile-decl
                     | program-decl  | promise-decl  | record-decl
-                    | resource-decl | test-decl     | union-decl
-                    | variant-decl  | ack-decl      | using-directive
+                    | test-decl     | union-decl    | variant-decl
+                    | ack-decl      | using-directive
 ack-decl          ::= .ack string-literal                       ; acknowledge a warning over the following top-level item (S3.18)
 ```
 
@@ -3364,7 +3362,6 @@ union-candidate   ::= identifier : fixed-size-type-expr
 variant-decl      ::= .variant TypeName : variant-candidates
 variant-candidates ::= variant-candidate+
 variant-candidate ::= identifier : type-expr
-resource-decl     ::= .resource type-expr obligation-clause
 promise-decl      ::= .promise  type-expr obligation-clause
 obligation-clause ::= : method-designator -> sink-list      ; source-method-borne
                     | -> sink-list                          ; source-less (constructor-borne)
@@ -3731,14 +3728,13 @@ A note on `Expr`. Basis has no `expr` production: it has no expressions as such,
 | `ProgramDecl` | `body: Expr` | *program-decl* |
 | `PromiseDecl` | `receiver: TypeExpr`, `source: MethodDesignator?`, `sinks: [MethodDesignator]` | *promise-decl* |
 | `RecordDecl` | `name: TypeName`, `fields: [RecordField]` | *record-decl* |
-| `ResourceDecl` | `receiver: TypeExpr`, `source: MethodDesignator?`, `sinks: [MethodDesignator]` | *resource-decl* |
 | `TestDecl` | `name: String`, `body: Expr` | *test-decl* |
 | `UnionDecl` | `name: TypeName`, `candidates: [UnionCandidate]` | *union-decl* |
 | `VariantDecl` | `name: TypeName`, `candidates: [VariantCandidate]` | *variant-decl* |
 | `ImportDecl` | `target: QualifiedName \| String`, `alias: QualifiedName?` | *import-decl* |
 | `ModuleDecl` | `name: QualifiedName` | *module-decl* |
 
-`ConceptEntry` is a disjoint union of `DeclDecl` and `CmdDecl` for concept members (&sect;9.3). `WitnessDecl` carries the head (optionally qualified), an optional subject, the concept reference, an optional `delegate: identifier` for the `-> field` suffix, and an entry list for the parens clause, each entry either a method mapping (lowercase LHS) or a witness binding (uppercase LHS) (&sect;9.4). `MethodDesignator` is `{ method: identifier, designatedParam: identifier? }`; in `ResourceDecl` and `PromiseDecl` the `sinks` list is non-empty and its first element is the default sink (&sect;10.2). The `source` field is null for the **source-less (constructor-borne)** obligation form (`obligation-clause` alternative 2): the obligated value is then the constructor's CREATE output, and the sinks act on it as receiver rather than through a designated parameter (&sect;10.2).
+`ConceptEntry` is a disjoint union of `DeclDecl` and `CmdDecl` for concept members (&sect;9.3). `WitnessDecl` carries the head (optionally qualified), an optional subject, the concept reference, an optional `delegate: identifier` for the `-> field` suffix, and an entry list for the parens clause, each entry either a method mapping (lowercase LHS) or a witness binding (uppercase LHS) (&sect;9.4). `MethodDesignator` is `{ method: identifier, designatedParam: identifier? }`; in `PromiseDecl` the `sinks` list is non-empty and its first element is the default sink (&sect;10.2). The `source` field is null for the **source-less (constructor-borne)** obligation form (`obligation-clause` alternative 2): the obligated value is then the constructor's CREATE output, and the sinks act on it as receiver rather than through a designated parameter (&sect;10.2).
 
 ### C.2 Type-Expression Nodes
 
@@ -5178,7 +5174,7 @@ Under the **surviving-view move** (&sect;10.11) a moved-from `<-` source is itse
 
 *Discipline.* `<<-` is the "I accept responsibility for this lifetime" marker &mdash; reserve it for genuine views (a parent pointer, a `prev` link), and ensure the owner's lifetime encloses the view's. For a moved-from `<-` source, treat it as live only while its new owner is.
 
-**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.resource`, `.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility.
+**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility.
 
 **A4 &mdash; Stale cleanup-block reference after a move.** `@` and `@!` blocks bind to the *slot*, not to the value (&sect;3.13, &sect;4.11); if the value is moved out of the frame &mdash; as a `.fail` payload, say &mdash; the block's reference names a slot that no longer holds what the block meant to clean up. Under the surviving-view move (&sect;10.11) that slot holds a *view* on the success path, and is `uninit` only where the value was consumed, so the block names a live view rather than an empty slot &mdash; which is a hazard of a different shape, not an absence of one. *Discipline:* order operations so the slot still holds the value when the block fires, or register the cleanup at the destination frame.
 
@@ -5197,3 +5193,4 @@ Under the **surviving-view move** (&sect;10.11) a moved-from `<-` source is itse
 **C1 &mdash; Union read at the wrong candidate.** A union carries no discriminator. Reading it as a candidate it does not currently hold reinterprets its bytes as a type they are not, and the relation is not Liskov-preserving (&sect;5.6, &sect;5.7). The language guarantees the bytes; it guarantees nothing about which candidate they mean. *Discipline:* if you want safety, use a **variant** &mdash; tagged, dictionary-bearing. Choose a union only when you will manage the discriminator and the validity yourself, in the C-style discipline.
 
 **C2 &mdash; Dispatch-identity loss in transit (the slicing analog).** This is Basis's counterpart to C++ object slicing, with an important difference: the buffer-backed upcast is *value-preserving* &mdash; the bytes are unchanged and the upcast preserves Liskov substitution (&sect;5.5), so **no data is lost**. What can be lost is *dispatch identity*: a buffer-backed value passed through a bare parent-typed, non-concept-typed slot is interpreted per the parent and may not carry its child identity through to a later dispatch (&sect;5.3, &sect;9.18). *Discipline:* where dispatch must resolve on the child type, route the value through a concept-typed slot, which captures its identity; a plain parent-typed parameter interprets per the parent.
+
