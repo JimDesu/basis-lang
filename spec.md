@@ -377,19 +377,20 @@ The signature variations for constructors (&sect;3.9), single-receiver methods (
 
 ### 3.3 Parameter Modes
 
-Every parameter and every receiver carries one of four *modes*, which together determine the contract between caller and callee at that position:
+Every parameter and every receiver carries one of five *modes*, which together determine the contract between caller and callee at that position:
 
 - **READ** (no marker, bare name) &mdash; the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (&sect;6.4).
 - **CREATE** (`'` marker on the name, e.g., `'result`) &mdash; the callee is statically obligated to write the parameter's slot exactly once on every successful return path (&sect;3.4).
 - **UPDATE** (`&` marker on the name, e.g., `&counter`) &mdash; the callee may read the parameter, may write it, may do both, may do neither.
 - **DISPOSE** (`~` marker on the name, e.g., `~socket`) &mdash; the callee consumes the parameter, ending the value's life and discharging its finalizing duty (&sect;10). The mode and its `~ x` operation are developed in &sect;7.22.
+- **DIRECT** (`*` marker on the name, e.g., `*fs`) &mdash; the callee receives direct access to the caller's storage: read, write, or ignore, with no copy, no restore, and no write obligation. Admitted only for boxed slots of domain-family types, and never on receivers (&sect;6.14).
 
 The markers are separate tokens, not part of the identifier, and they appear only in a parameter declaration. Inside a command body every name is bare: a body with a CREATE parameter `'result` writes `result <- value`, and a name's mode is the mode of its declaration (&sect;6.2).
 
 The marker placement varies by syntactic context:
 
 - In **named contexts** &mdash; parameter declarations, receiver declarations, lambda invoke-method parameters, capture-list entries &mdash; the marker travels with the name in identifier-shape: `Int 'result`, `Logger &counter`, `Socket ~s`, `Showable s`.
-- In **nameless contexts** &mdash; command-type expressions `:<...>`, `?<...>`, `!<...>`, where parameter types are listed without names &mdash; the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`: `Int'`, `^String&`, `Socket~`, `Logger`.
+- In **nameless contexts** &mdash; command-type expressions `:<...>`, `?<...>`, `!<...>`, where parameter types are listed without names &mdash; the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`: `Int'`, `^String&`, `Socket~`, `FrameState*`, `Logger`.
 
 This section is the surface. The full discipline &mdash; each mode's caller-side and callee-side contract, copy-restore at the call boundary, the transitive READ contract's access-path taint algorithm, parameter-mode invariance under failure-mark subsumption, and the receiver-mode tables by signature shape &mdash; is &sect;6.
 
@@ -516,7 +517,7 @@ A *method* takes one or more receivers, then `::`, then the command name and any
 .cmd Buffer 'b :: clear = b <- ${}
 ```
 
-The receiver carries an explicit mode marker (`'`, `&`, `~`, or no marker for READ); there are no implicit defaults. Method receivers admit all four modes &mdash; READ, CREATE, UPDATE, and DISPOSE &mdash; each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, and finalization respectively (&sect;6.8). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (&sect;7.22).
+The receiver carries an explicit mode marker (`'`, `&`, `~`, `*`, or no marker for READ); there are no implicit defaults. Method receivers admit all five modes &mdash; READ, CREATE, UPDATE, DISPOSE, and DIRECT &mdash; each with a distinctive idiomatic use: externalized effect, re-initialization, in-place modification, finalization, and direct in-place mutation of a boxed receiver respectively (&sect;6.8, &sect;6.14). A `~`-receiver method is a *finalizer*, the destruction-dual of the constructor, leaving the receiver `uninit` on return (&sect;7.22).
 
 A method invocation uses the same `::` syntax, parenthesized only for multi-receiver methods (&sect;3.11):
 
@@ -1485,7 +1486,7 @@ The type-expression forms for ordinary command-typed values are:
     ?<paramTypes>          ; may-fail command-typed value
     !<paramTypes>          ; must-fail command-typed value
 
-The angle-bracket list is a sequence of **parameter types only**, with no parameter names &mdash; at the type level there is nothing to refer to a name as. Mode markers in the list use the **suffix-on-type** placement of the nameless-context rule (&sect;3.3): `Type` (no marker, READ), `Type'` (CREATE), `Type&` (UPDATE). Pointer parameters carry the pointer-marker as prefix and the mode-marker as suffix on opposite sides &mdash; a pointer-to-`Int32` as an UPDATE parameter is `^Int32&`, with `^` and `&` visually distinct on opposite ends of the type.
+The angle-bracket list is a sequence of **parameter types only**, with no parameter names &mdash; at the type level there is nothing to refer to a name as. Mode markers in the list use the **suffix-on-type** placement of the nameless-context rule (&sect;3.3): `Type` (no marker, READ), `Type'` (CREATE), `Type&` (UPDATE), `Type~` (DISPOSE), `Type*` (DIRECT). Pointer parameters carry the pointer-marker as prefix and the mode-marker as suffix on opposite sides &mdash; a pointer-to-`Int32` as an UPDATE parameter is `^Int32&`, with `^` and `&` visually distinct on opposite ends of the type.
 
 Examples:
 
@@ -1505,7 +1506,7 @@ The interaction with concept dispatch &mdash; when a concept method's signature 
 
 This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of five modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and ceiling bounds are preserved across access paths.
 
-The &sect;3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
+The &sect;3 surface for declaring parameters and receivers introduced the five modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
 ### 6.1 The Five Modes
 
@@ -1521,11 +1522,11 @@ A parameter or receiver in Basis carries one of five **modes** &mdash; **READ**,
 
 **DIRECT** &mdash; marked with `*` on the name (e.g., `*fs`). The callee receives direct access to the caller's storage &mdash; read, write, or ignore; no write obligation, no copy, no restore. Admissible only for boxed slots of domain-family types (&sect;6.14); outside principle 4 by declaration: the programmer knows what they are doing here.
 
-The four modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.6 (the R1 and R2 rules) and &sect;6.7 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.11) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
+The five modes apply to receivers identically; a DIRECT receiver additionally demands a boxed argument per &sect;6.14's binding rules, and constructors and at-stack methods exclude it (&sect;6.7). A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.6 (the R1 and R2 rules) and &sect;6.7 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.11) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
 
 ### 6.2 Marker Placement
 
-The mode markers `'`, `&`, and `~` are separate syntactic elements, not part of any identifier. A marker appears only in a parameter declaration &mdash; the position that establishes a parameter's mode. Identifiers everywhere else, including every use of a parameter inside a command body, are bare: a body with a CREATE parameter `result` writes `result <- value`. A mode marker on a name outside a parameter declaration is a syntax error. Because a use site carries no marker, the mode of a name is the mode of the binding it resolves to (&sect;6.1), read from the declaration, not restated at each use.
+The mode markers `'`, `&`, `~`, and `*` are separate syntactic elements, not part of any identifier. A marker appears only in a parameter declaration &mdash; the position that establishes a parameter's mode. Identifiers everywhere else, including every use of a parameter inside a command body, are bare: a body with a CREATE parameter `result` writes `result <- value`. A mode marker on a name outside a parameter declaration is a syntax error. Because a use site carries no marker, the mode of a name is the mode of the binding it resolves to (&sect;6.1), read from the declaration, not restated at each use.
 
 The placement convention varies by syntactic context, depending on whether names are available to carry the marker.
 
@@ -1536,13 +1537,15 @@ The placement convention varies by syntactic context, depending on whether names
     Showable s             ; READ parameter
     Socket ~s              ; DISPOSE parameter
 
-The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, or `Type name`, with the type preceding the name and the marker, when present, standing between them as a prefix on the name. The form `name : Type` is not Basis syntax in any binding position. A local introduced with `#` carries no mode marker: it is not a parameter, so no parameter-mode contract applies to it, and it is governed by the ordinary lexical-scope rules (&sect;G.1).
+The full type-bearing form is `Type 'name`, `Type &name`, `Type ~name`, `Type *name`, or `Type name`, with the type preceding the name and the marker, when present, standing between them as a prefix on the name. The form `name : Type` is not Basis syntax in any binding position. A local introduced with `#` carries no mode marker: it is not a parameter, so no parameter-mode contract applies to it, and it is governed by the ordinary lexical-scope rules (&sect;G.1).
 
 **Nameless contexts** are positions where parameter types are listed without names &mdash; command-type expressions (&sect;5.14) most prominently, and any other type-position where a parameter type appears unaccompanied by a binding name. In nameless contexts, the marker attaches to the type as a suffix, leaving the type-prefix position free for the pointer marker `^`:
 
     :<Int>                 ; READ parameter (no marker)
     :<Int'>                ; CREATE parameter (suffix `'`)
     :<Int&>                ; UPDATE parameter (suffix `&`)
+    :<FrameState*>         ; DIRECT parameter (suffix `*`; &sect;6.14's binding rules
+                           ;   apply at every invocation, however the value is reached)
     :<Int~>                ; DISPOSE parameter (suffix `~`)
     :<^Int>                ; READ parameter of pointer-to-Int type
     :<^Int'>               ; CREATE parameter of pointer-to-Int type
@@ -1606,9 +1609,9 @@ The aliasing question &mdash; whether a fresh local in the caller's frame might 
 
 Receivers participate in the same four-mode discipline as parameters, but the receiver-mode rules carry an additional structural constraint that parameters do not. The receiver in a method dispatch must exist as a real value at runtime, regardless of the receiver's declared mode, because dispatch resolves a method-bearing value from the receiver's type and invokes it on the receiver's value. Dispatching on an uninitialized slot is meaningless. Two rules govern receiver-mode mechanics uniformly across signature shapes:
 
-**R1 &mdash; call-site initialization.** At any method call site, every receiver must be initialized at the call boundary, regardless of the receiver's declared mode. This is uniform across CREATE, UPDATE, READ, and DISPOSE receivers. The R1 rule is the structural commitment that makes dispatch well-defined: the receiver's runtime type identifies the witness's dictionary (&sect;9), and that identification requires a real value. CREATE receivers are initialized at the call site even though the callee will write them on success &mdash; initialization-then-overwrite is the rule, not initialization-on-success. A DISPOSE receiver is likewise initialized at the call site and then consumed by the callee &mdash; initialization-then-consume &mdash; leaving the slot `uninit` on return (&sect;7.22).
+**R1 &mdash; call-site initialization.** At any method call site, every receiver must be initialized at the call boundary, regardless of the receiver's declared mode. This is uniform across all five receiver modes; for a DIRECT receiver the requirement is met by construction, since only a boxed &mdash; hence initialized (&sect;6.14) &mdash; slot may bind it. The R1 rule is the structural commitment that makes dispatch well-defined: the receiver's runtime type identifies the witness's dictionary (&sect;9), and that identification requires a real value. CREATE receivers are initialized at the call site even though the callee will write them on success &mdash; initialization-then-overwrite is the rule, not initialization-on-success. A DISPOSE receiver is likewise initialized at the call site and then consumed by the callee &mdash; initialization-then-consume &mdash; leaving the slot `uninit` on return (&sect;7.22).
 
-**R2 &mdash; callee-body obligation.** The body of a method, with respect to a receiver of mode `M`, has the same callee-side obligations as a parameter of mode `M` would have. CREATE receivers must be written exactly once on every successful return path. UPDATE receivers carry no write obligation; the body may read, write, or do neither. READ receivers may read through any access path reached from the receiver but may not write through any such path (the transitive READ contract of &sect;6.4). A DISPOSE receiver is consumed: the callee ends the receiver's life, leaving the slot `uninit` on return (&sect;7.22). The R2 rule preserves the per-mode discipline at the callee body, identical to non-receiver parameters.
+**R2 &mdash; callee-body obligation.** The body of a method, with respect to a receiver of mode `M`, has the same callee-side obligations as a parameter of mode `M` would have. CREATE receivers must be written exactly once on every successful return path. UPDATE receivers carry no write obligation; the body may read, write, or do neither. READ receivers may read through any access path reached from the receiver but may not write through any such path (the transitive READ contract of &sect;6.4). A DISPOSE receiver is consumed: the callee ends the receiver's life, leaving the slot `uninit` on return (&sect;7.22). A DIRECT receiver carries no obligation: the body may read, write, or ignore the caller's storage directly (&sect;6.14). The R2 rule preserves the per-mode discipline at the callee body, identical to non-receiver parameters.
 
 R1 lifts the caller-side obligation uniformly across all receiver modes &mdash; always initialized at the call site. R2 keeps the callee-side variation that the writeability marker is for. The two rules together say: dispatch always operates on a real receiver, and the mode marker tells the callee what it commits to doing with that receiver.
 
@@ -1620,14 +1623,14 @@ Each signature shape restricts the set of valid receiver modes to those that are
 
 | Signature shape | Valid receiver modes | Forbidden modes |
 | --- | --- | --- |
-| Constructor | CREATE only | READ, UPDATE, DISPOSE |
-| Method (single- or multi-receiver) | CREATE, UPDATE, READ, DISPOSE | none |
+| Constructor | CREATE only | READ, UPDATE, DISPOSE, DIRECT |
+| Method (single- or multi-receiver) | CREATE, UPDATE, READ, DISPOSE, DIRECT | none |
 
 The reasoning behind the per-shape restrictions:
 
 **Constructor receivers must be CREATE.** A constructor's job is to fill the receiver slot. An UPDATE constructor receiver would mean "construct drawing on the receiver's existing state" &mdash; which is in-place modification, not construction; the method-with-UPDATE-receiver case (&sect;3.10) covers that idiom. A READ constructor receiver would mean "construct a thing the caller cannot observe" &mdash; forcibly producing an inaccessible object, which has no purpose. The CREATE-only rule preserves the constructor's defining feature: at a successful return, the receiver slot holds the constructed value. A DISPOSE constructor receiver would mean consuming the receiver as the constructor runs &mdash; finalizing what it is meant to create, the exact inverse of construction; receiver-finalization is the dual act, expressed as an ordinary method with a DISPOSE receiver (&sect;7.22).
 
-**Method receivers admit all four modes.** The mode is declared per method; READ, UPDATE, CREATE, and DISPOSE give externalized-effect, in-place-mutation, re-initialize, and consume semantics respectively (&sect;6.8). A DISPOSE receiver finalizes the receiver itself &mdash; the destruction-dual of the constructor's CREATE receiver &mdash; but, using ordinary `::` dispatch rather than the constructor's special call-site form, it needs no separate signature shape; its full treatment is in &sect;7.22. More often, finalization marks the *consumed argument* `~` on a method whose receiver is ordinary &mdash; `Heap h :: free: Storage ~s` finalizes `~s` while `h` stays an ordinary manager &mdash; which is simply a DISPOSE parameter, no special shape at all.
+**Method receivers admit all five modes.** The mode is declared per method; READ, UPDATE, CREATE, DISPOSE, and DIRECT give externalized-effect, in-place-mutation, re-initialize, consume, and direct-mutation-of-boxed semantics respectively (&sect;6.8). A DISPOSE receiver finalizes the receiver itself &mdash; the destruction-dual of the constructor's CREATE receiver &mdash; but, using ordinary `::` dispatch rather than the constructor's special call-site form, it needs no separate signature shape; its full treatment is in &sect;7.22. More often, finalization marks the *consumed argument* `~` on a method whose receiver is ordinary &mdash; `Heap h :: free: Storage ~s` finalizes `~s` while `h` stays an ordinary manager &mdash; which is simply a DISPOSE parameter, no special shape at all.
 
 A **finalizer** is not a separate signature shape. Where a constructor is its own shape &mdash; a distinct grammar production with a CREATE-only receiver &mdash; a finalizer is simply a method whose receiver carries the DISPOSE mode, and it occupies the method row above. The two are duals in semantics (one fills the receiver slot, the other consumes it) without being duals in grammar: no `~`-specific signature form exists, and none is needed.
 
@@ -1645,9 +1648,11 @@ Each parameter or receiver mode has a distinctive idiomatic use; the choice of m
 
 **CREATE &mdash; re-initialize the slot.** The callee commits to writing the slot on every successful return path. For non-receiver parameters, this is the natural shape of "output through a writeable parameter slot": the caller introduces a fresh slot via `#`, the callee fills it, and the caller binds the resulting value. For receivers, CREATE describes a "factory method" or "complete reset" operation that happens to dispatch on the receiver's existing type: the receiver is initialized at the call site (per R1), the callee dispatches based on its current type, and the callee overwrites it on success. Unusual but coherent.
 
+**DIRECT &mdash; the hot path.** The callee mutates the caller's boxed storage in place: no copy in, no restore out, writes surviving failure (&sect;6.14). `signedInt :: negate` under a `*` receiver is the canonical shape &mdash; the operation a value was boxed *for*. Admitted only where the argument is boxed; while a value is boxed, **mutation is direct or nothing**: reads flow through READ, writes through `*`, and copy-restore mutation waits for unbox.
+
 **DISPOSE &mdash; finalize/consume.** The callee ends the value's life: it discharges the finalizing duty and leaves the slot `uninit`. As a parameter, `~` marks a consumed argument &mdash; the common finalizing shape, where an ordinary-receiver method finalizes the value at the `~` position (`Heap h :: free: Storage ~s`). As a receiver, a `~` receiver names a finalizer, the destruction-dual of a CREATE constructor receiver. Only the items actually finalized carry `~`; the surrounding receiver and parameters keep their ordinary modes. The `~ x` operation and the field-teardown gate are in &sect;7.22.
 
-The four modes form a complete discipline: every parameter and receiver in the language belongs to exactly one of them, and the choice is structural &mdash; the language has no "default" mode, no mode that emerges from absence of declaration. The READ mode appears as the bare-name form (no marker); it is the no-marker case in the syntax, but it is no less a deliberate declaration than the other three.
+The five modes form a complete discipline: every parameter and receiver in the language belongs to exactly one of them, and the choice is structural &mdash; the language has no "default" mode, no mode that emerges from absence of declaration. The READ mode appears as the bare-name form (no marker); it is the no-marker case in the syntax, but it is no less a deliberate declaration than the other three.
 
 ### 6.9 Capture-List Mode Constraints
 
@@ -1720,9 +1725,9 @@ Copy-restore stays; boxing is the explicit, slot-scoped bypass for the hot path.
 **Within the frame, boxed status changes nothing**: reads, writes, field access, operator application, and method dispatch on the slot are exactly as unboxed.
 
 **At call boundaries**, a boxed slot may bind:
-- a **DIRECT (`*`) parameter** &mdash; passed by direct reference; the callee's reads and writes act on the caller's storage as they execute, and are **not restored on failure**: the storage holds the bytes as written. Writes through `*` are the declared exception to principle 4 (&sect;1.2), chosen at the `.box` statement.
+- a **DIRECT (`*`) parameter or receiver** &mdash; passed by direct reference; the callee's reads and writes act on the caller's storage as they execute, and are **not restored on failure**: the storage holds the bytes as written. Writes through `*` are the declared exception to principle 4 (&sect;1.2), chosen at the `.box` statement. A `*` receiver (admitted on methods; not on constructors or at-stack methods, &sect;6.7) is the method-syntax spelling of the same binding &mdash; `signedInt :: negate` under a `*` receiver mutates the boxed storage in place &mdash; and counts as the call's one `*` binding of its slot under the exclusivity rule below. Witness conformance demands `*`-receiver implementations where a concept method declares one, per mode invariance (&sect;6.10).
 - a **READ parameter or receiver** &mdash; ordinary READ, observationally indistinguishable from a copy (no write path exists and the caller's frame is suspended for the call's duration); implementations pass directly. This keeps the slot's whole read-only method surface alive with no DIRECT-mode duplicates.
-- CREATE and UPDATE bindings are static errors: their restore step is a write outside the discipline, and UPDATE would break the loan's uniqueness.
+- CREATE and UPDATE bindings are static errors. The ground is not aliasing &mdash; an UPDATE callee holds a copy and the storage is unreachable during the call &mdash; but coherence: copy-restore mutation would silently reintroduce the very copies the programmer boxed to avoid, and would give one slot two mutation channels with different failure semantics (restore-skipped-on-failure beside writes-survive-failure). While a value is boxed, **mutation is direct or nothing**: reads flow through READ, writes through `*`, and copy-restore mutation waits for unbox.
 
 **Exclusivity.** Within a single call, a slot bound to a `*` parameter binds nothing else &mdash; not a second `*` (`f: *a, *a`), and not a simultaneous READ binding (`f: a, *a`), whose "stable value" illusion the `*` alias's mid-call writes would break. This is a same-call condition, not a repeal of the READ admission above: in calls without a `*` binding of the slot, READ bindings remain legal in any number. Combined with sequential execution, exclusivity closes the aliasing surface: inside the callee, a `*` parameter carries a full no-alias guarantee.
 
@@ -2194,7 +2199,7 @@ The rejection is guaranteed rather than best-effort: `tmp`'s region is this fram
 
 ### 7.22 Finalization
 
-**The finalizer mode `~`.** Three of the four parameter modes (&sect;6) describe how a call reads or writes a value; the fourth describes how a value *ends*. The finalizer mode **DISPOSE**, marked `~`, marks a position that consumes the value bound there: it discharges the value's finalizing duty (&sect;10) and leaves the slot `uninit`. It is the mirror of CREATE &mdash; where `'` fills an empty slot exactly once, `~` empties a full one &mdash; and completes the mode set:
+**The finalizer mode `~`.** The other parameter modes (&sect;6) describe how a call reads or writes a value; DISPOSE describes how a value *ends*. The finalizer mode **DISPOSE**, marked `~`, marks a position that consumes the value bound there: it discharges the value's finalizing duty (&sect;10) and leaves the slot `uninit`. It is the mirror of CREATE &mdash; where `'` fills an empty slot exactly once, `~` empties a full one &mdash; and completes the mode set:
 
 | Mode | Marker | Slot transition | Role |
 |---|---|---|---|
@@ -2202,6 +2207,7 @@ The rejection is guaranteed rather than best-effort: `tmp`'s region is this fram
 | CREATE | `'name` / `Type'` | `uninit -> init` | write once, on success |
 | UPDATE | `&name` / `Type&` | stays `init` | read and/or write, copy-restore |
 | DISPOSE | `~name` / `Type~` | `init -> uninit` | finalize / consume |
+| DIRECT | `*name` / `Type*` | stays `init` (boxed) | direct access, no restore (&sect;6.14) |
 
 The marker appears in a parameter or receiver declaration (&sect;6.2), written as a prefix on the name (`Socket ~s`) or as a type-suffix in a nameless command-type position (`Socket~`, `^Storage~`), exactly as `'` and `&` are. A `~` *receiver* names a **finalizer** &mdash; a method that consumes its receiver:
 
@@ -3209,6 +3215,7 @@ The `.sub` and `.scope` keywords introduce body-internal constructs &mdash; subc
 | `^` | Pointer prefix; rewind block marker |
 | `&` | UPDATE mode marker (identifier-shape); pointer-of operator |
 | `'` | Create mode marker (identifier-shape) |
+| `*` | Multiplication operator (expression position); DIRECT mode marker (signature position, &sect;6.14) |
 | `_` | Placeholder token (&sect;3.15) |
 | `(` `)` | Argument-list and grouping brackets |
 | `[` `]` | Type-parameter brackets, indexing brackets |
@@ -3233,7 +3240,7 @@ The `$` character is reserved for the literal-fence prefixes (`${`, `$[`); it ha
 
 ### A.2 Mode Markers and Identifiers
 
-Identifiers are always bare names. The mode markers `'` (CREATE), `&` (UPDATE), and `~` (DISPOSE) are separate lexical tokens, not part of any identifier, and they are grammatical only in a parameter declaration &mdash; as a prefix on the name in a named context (`Int 'result`), or as a suffix on the type in a nameless context (`Int'`, `Socket~`). A mode marker anywhere else, including any use of a name inside a command body, is a syntax error. (Locals bear no mode markers; typed local introduction uses the `#` form, including at the `-<` operator's binding position, `# T n -< v`, &sect;7.14.)
+Identifiers are always bare names. The mode markers `'` (CREATE), `&` (UPDATE), `~` (DISPOSE), and `*` (DIRECT) are separate lexical tokens, not part of any identifier, and they are grammatical only in a parameter declaration &mdash; as a prefix on the name in a named context (`Int 'result`), or as a suffix on the type in a nameless context (`Int'`, `Socket~`). A mode marker anywhere else, including any use of a name inside a command body, is a syntax error. (Locals bear no mode markers; typed local introduction uses the `#` form, including at the `-<` operator's binding position, `# T n -< v`, &sect;7.14.)
 
 A type expression `Int 'result` lexes as three tokens &mdash; `Int`, the marker `'`, and the identifier `result` &mdash; with the marker standing between the type and the name. The marker `'` is thus a distinct token; it is not fused into the identifier.
 
@@ -3798,7 +3805,7 @@ This appendix enumerates the AST node types the parser produces and the typechec
 
 A note on `Expr`. Basis has no `expr` production: it has no expressions as such, and its expression-like surface syntax is sugar over statements and calls (Appendix B references `expr` without defining it, by design). The `Expr` type used throughout this appendix therefore denotes the AST's *value-form* node category &mdash; the nodes of C.5 &mdash; and not a grammar nonterminal. The AST is an internal artifact of the design process; where a node here conflicts with Appendix B or the prose, those are authoritative.
 
-**Mode.** `Mode` is `{ READ, CREATE, UPDATE, DISPOSE }` throughout, corresponding to the bare, `'`, `&`, and `~` markers (&sect;6.1).
+**Mode.** `Mode` is `{ READ, CREATE, UPDATE, DISPOSE, DIRECT }` throughout, corresponding to the bare, `'`, `&`, `~`, and `*` markers (&sect;6.1).
 
 ### C.1 Top-Level Definition Nodes
 
@@ -3839,7 +3846,7 @@ A note on `Expr`. Basis has no `expr` production: it has no expressions as such,
 | `CommandTypeExpr` | `mark: { ':', '?', '!' }`, `params: [ParamType]`, `resultDesignator: identifier?` |
 
 
-`ParamType` is a record `{ type: TypeExpr, mode: Mode }` &mdash; all four modes, per `mode-marker`.
+`ParamType` is a record `{ type: TypeExpr, mode: Mode }` &mdash; all five modes, per `mode-marker`.
 
 ### C.3 Command-Signature Nodes
 
@@ -4009,7 +4016,7 @@ The judgments use the following metavariables and forms:
 - **$\tau, \sigma$** &mdash; types (well-formed type expressions).
 - **$e$** &mdash; expressions.
 - **$s$** &mdash; statements.
-- **$m$** &mdash; mode marks (READ, CREATE, UPDATE).
+- **$m$** &mdash; mode marks (READ, CREATE, UPDATE, DISPOSE, DIRECT).
 - **$\phi$** &mdash; failure marks (`:`, `?`, `!`).
 - **$F$** &mdash; failure sets (sets of message names).
 - **$M$** &mdash; module-import graph context (for instance-resolution).
@@ -5008,7 +5015,7 @@ A scope holds a set of `(name, type, mode)` triples. Multiple bindings of the sa
 
 ### G.2 Mode of a Resolved Name
 
-A binding in a scope carries a mode &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; fixed by its declaration. A use site is a bare name with no marker (A.2), so resolution proceeds by name alone: the name resolves to a binding (G.4), and the mode governing that use is the mode recorded on the binding found.
+A binding in a scope carries a mode &mdash; READ, CREATE, UPDATE, DISPOSE, or DIRECT &mdash; fixed by its declaration. A use site is a bare name with no marker (A.2), so resolution proceeds by name alone: the name resolves to a binding (G.4), and the mode governing that use is the mode recorded on the binding found.
 
 There is thus no matching of marker shapes at a use site, and no way for one name to denote different-moded bindings in a single scope: a name is bound at most once per scope (G.3), and its one binding fixes its mode. A nested scope may rebind the name at a different mode (shadowing, G.10); resolution still returns a single binding, the innermost one in scope.
 
