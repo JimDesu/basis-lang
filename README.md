@@ -68,7 +68,7 @@ $$
 
 ## Overview
  
-The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The four forms of first-class command-typed values — command reference, command literal, and lambda — are §8. Concepts, witnesses, and dispatch are §9. 
+The rest of this document walks the language from the outside in. We begin with a few small examples to ground the visual texture (§1), then describe the shape of a source file (§2), then commands (§3) — the unit of execution. Failure and recovery (§4) come early because the language's failure semantics are everywhere in normal code. The type system (§5) and the parameter-mode discipline (§6) follow. Construction (§7) covers how values come into being. The three forms of first-class command-typed values — command reference, command literal, and lambda — are §8. Concepts, witnesses, and dispatch are §9. 
  
 Some of what follows is settled and parsing today; some is design that the compiler does not yet enforce. I have one or two things in mind that I haven't included yet, so please expect further changes.
 
@@ -440,9 +440,36 @@ Reading the first line: `Runtime` is a **receiver type**, and `spawn` and `join`
 
 The **default sink** (the first listed) fires automatically when the obligated value reaches the end of the scope that owns it — which is why the transaction declaration puts `rollback` first: forget everything, and the safe thing happens. Discharging *explicitly* — calling `commit`, or finalizing the value with the **DISPOSE** mode (`~`), construction's destruction-dual — settles the duty early and the default stays quiet.
 
-Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by an owning binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, views versus moves, and object retirement — is in the spec's §10.
+Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by an owning binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, views versus owning placements, and object retirement — is in the spec's §10.
  
-### 4.6 What the static analysis tracks
+### 4.6 All-or-nothing updates: `.atomic`
+
+Updates in Basis become observable at **statement boundaries**: a statement commits nothing until it succeeds. So how you split a pipeline across statements is also a choice about *when its effects land*:
+
+```
+; ONE statement — one observability boundary:
+#ok <- validate: (normalize: batch, limits)
+;   normalize updates batch and yields its stats; if validate then
+;   fails, the WHOLE statement discards — batch is untouched
+
+; TWO statements — two boundaries:
+#stats <- normalize: batch, limits     ; batch's new state commits here
+#ok <- validate: stats                 ; if this fails, the normalize above stays
+```
+
+Both shapes are legitimate — sometimes you *want* the intermediate state to survive. When you want the several-statement shape with the single-boundary guarantee, `.atomic` groups statements under one join point:
+
+```
+.atomic
+    parseHeader: ctx, raw            ; ctx is UPDATE-mode in parseHeader's signature
+    validateSchema: ctx, policy      ; sees the parsed ctx
+    applyMigrations: ctx             ; if THIS fails, ctx is bit-identical
+                                     ;   to what it was before the .atomic
+```
+
+Inside the group, everything reads and writes normally and in order; the difference is entirely on the failure path, where every slot the group was updating snaps back untouched. Two honest limits, both by design: the group is *not* a scope (names you introduce inside live on after it, and resources you open belong to the surrounding scope, as they should — they're part of what you're committing), and the guarantee covers *slot state*, not effects — a file written inside a failed group stays written. It's your updates that are all-or-nothing, which is usually exactly the promise you wanted.
+
+### 4.7 What the static analysis tracks
  
 For every reachable point in a command body, the typechecker maintains a *failure-state lattice*: each path is in one of `clear`, `failing(?)`, `failing(!)`, or `mixed`. The body's exit-edge state must conform to the signature's mark:
  
@@ -491,7 +518,7 @@ A domain is a refinement of an existing buffer-backed type, declared with `.doma
  
 `UserId`, `Inches`, and `Centimeters` are nominally distinct from each other and from `Int`. A child domain's value implicitly upcasts to its parent (so an `Inches` may be supplied where `Int` is expected). For buffer-backed domains, this upcast is lossy with respect to dispatch: buffer-backed slots carry only bytes, so an `Inches` that flows through an `Int`-typed parameter looks like an `Int` from then on. Keeping child-domain dispatch means reaching the concept-typed boundary directly (§9.7; the full mechanism is in the spec).
  
-Sibling domains do not implicitly convert. An explicit constructor invocation is required to move between siblings.
+Sibling domains do not implicitly convert. An explicit constructor invocation is required to convert between siblings.
  
 ### 5.3 Records
  
@@ -588,7 +615,7 @@ Commands are first-class. A command-typed value is described by a command-type e
 !<>                         ; pure must-fail command, no parameters
 ```
  
-The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, subject to the language's standard mode and ceiling rules. The four constructional forms that produce them are §8.
+The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, subject to the language's standard mode and ceiling rules. The three constructional forms that produce them are §8.
  
 ### 5.9 Aliases
  
@@ -685,7 +712,7 @@ Copy-restore is the default because it makes mutation transactional — but on a
     ...
     .box state                        ; from here, state passes directly — no copies
     step: state, (next: src)          ; tight loop: zero copy-in, zero restore
-    ^ moreSamples: src              ;   rewind while more samples remain
+    ^ moreSamples: src                ;   rewind while more samples remain
     .unbox state                      ; back to ordinary semantics (or at scope end)
     commit: state
 ```
@@ -721,7 +748,7 @@ The choice form gives concise fallback behavior:
 #config <- readFile: "user.cfg" | readFile: "default.cfg" | (Config: emptyDefaults)
 ```
  
-`<-` is the *move* placement: it commits a value into the slot, and if the value carries an obligation, the obligation moves with it. Two siblings adjust that behavior: `<<-` places a **view** (a non-owning alias — the obligation stays with the original owner), and `<<` places a **copy** (an independent duplicate). The distinction is invisible for ordinary values and matters most for obligation-bearing ones, where it decides who owes the duty; the spec covers the three in full.
+`<-` is the *owning* placement: it commits the value into the slot, and ownership of any obligation the value carries commits with it — the source name is not invalidated; it survives as a non-owning view of the value.
 
 `#` is not restricted to the LHS of `<-`; it may also appear in argument position at a call site, introducing a fresh local that the called command may write into. See §6 for the parameter-mode discipline that governs such locals.
  
@@ -843,11 +870,11 @@ Captures are explicit: any defining-frame name the body uses must appear in the 
  
 ### 8.4 Failure marks across the three forms
  
-All four forms participate in the standard failure-mark discipline:
+All three forms participate in the standard failure-mark discipline:
  
 - A command reference inherits its mark from the underlying command.
 - Command literals and lambdas declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
-- Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all four forms.
+- Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all three forms.
 ## 9. Concepts, Witnesses, and Dispatch
  
 A concept is a single-parameter type contract — structurally a Haskell typeclass, a Java interface, or a Scala trait. Concepts describe operations that types must provide; witnesses supply those operations for specific types, each witness a named declaration that a type satisfies a concept. Dispatch is via Haskell-style dictionary passing.
