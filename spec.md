@@ -20,7 +20,7 @@ The language realizes a small set of guiding principles. Each principle has cons
 
 3. **The fundamental datatype is a buffer.** Buffer-backed types &mdash; buffers, ranges, domains, records, unions &mdash; reduce transitively to bytes. They copy as bytes, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. Non-buffer types (pointers, command-typed values, objects, variants) are confined to top-level slots and object fields.
 
-4. **Mutation either succeeds fully or fails fully.** Every writeable parameter passing uses copy-by-value or copy-restore semantics: on success the callee's value is committed to the caller's slot atomically; on failure no write occurs and the caller's slot is bit-identical to its pre-call state. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs.
+4. **Mutation either succeeds fully or fails fully.** Every writeable parameter passing uses copy-by-value or copy-restore semantics: on success the callee's value is committed to the caller's slot atomically; on failure no write occurs and the caller's slot is bit-identical to its pre-call state. The sole declared exception is storage a programmer has explicitly placed under direct access (&sect;6.14): writes through a DIRECT (`*`) binding are immediate and are not restored. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs.
 
 5. **Resource cleanup is a linear obligation, orthogonal to type.** A value that should be released, closed, or otherwise discharged can carry a linear obligation (&sect;10): a duty met exactly once and never silently dropped, settled either by an explicit operation or, failing that, automatically at the end of the value's lifetime. The obligation follows from how the value was acquired, not from its type &mdash; the same type may carry one or not. Control flow is otherwise structural: failures propagate only along visible paths, dispatch is explicit at the `::` call site, and there is no exception-with-stack-unwinding mechanism.
 
@@ -789,9 +789,19 @@ The connection is released at the end of the guard scope &mdash; on either outco
 
 **Relationship to subcommands.** A `.scope` block and a subcommand (&sect;3.12) can both bound cleanup to a region smaller than the enclosing command's body &mdash; a subcommand's frame retirement fires the `@`/`@!` blocks registered in it &mdash; but a `.scope` provides that boundary directly, without a separate signature, parameter threading, or call. A subcommand earns its weight here only when the bounded region also needs its own parameters or recursion; for pure scoping, a `.scope` is the form to reach for. The distinction is that a subcommand is a *call* (a fresh frame entered by invocation, with its own parameters), while a `.scope` is an *inline region* (no call, sharing the enclosing frame's parameters and visible locals).
 
-### 3.18 Warning Acknowledgment: `.ack`
+### 3.18 Diagnostics, Caveats, and Acknowledgment: `.ack`
 
-An **acknowledgment**, written `.ack "code"`, prefixes the item that follows it and suppresses the compiler warning identified by `code` over that item's full extent. The item may be any statement, block, or declaration: a `.ack` before a `.scope` block covers the whole block body, a `.ack` before a method covers the whole method, and a `.ack` before a single statement covers that statement. Because it prefixes an item, `.ack` is valid anywhere a statement is valid and also at top level, where it prefixes the next declaration (&sect;2.2).
+Basis diagnostics come in three tiers:
+
+| Tier | Compilation | The programmer's instrument |
+| --- | --- | --- |
+| **error** | never proceeds | fix the code |
+| **caveat** | proceeds only when acknowledged | `.ack` at the site: seen, chosen, on the record |
+| **warning** | proceeds | advisory; may be heeded or not |
+
+A **caveat** marks a legal-but-dangerous authorial choice at the declaration or statement that makes it &mdash; an unacknowledged caveat fails the compile; a **warning** marks circumstances, often at sites the programmer does not own (an import-competition notice is a warning). The distinction is normative: constructs this specification designates as caveats cannot be waved through by compiler flag or ignored by an unwise reader &mdash; the acknowledgment is part of the program text. (The full enumeration of caveats and their identifier strings is deferred to a dedicated pass.)
+
+An **acknowledgment**, written `.ack "code"`, prefixes the item that follows it and answers the caveat &mdash; or suppresses the warning &mdash; identified by `code` over that item's full extent. The item may be any statement, block, or declaration: a `.ack` before a `.scope` block covers the whole block body, a `.ack` before a method covers the whole method, and a `.ack` before a single statement covers that statement. Because it prefixes an item, `.ack` is valid anywhere a statement is valid and also at top level, where it prefixes the next declaration (&sect;2.2).
 
 The string is an implementation-defined warning identifier. Basis specifies no format for it and enumerates no codes; the compiler interprets it. The language's requirements are structural:
 
@@ -844,7 +854,7 @@ Chain consequences, none of them additional rules: **short-circuiting is failure
 - **`=` is language-fixed identity, not mappable.** Both operands must share a static type. Buffer-backed values: byte equality &mdash; for domains, identity and value equality degenerate to the same relation, as a theorem. Objects: same object. Pointers: same pointee. Command-typed operands: rejected statically. Variant operands: rejected statically &mdash; narrow first (&sect;7.14). A concept cannot redefine `=`, because a mappable identity would let a concept lie about identity.
 - **`!=` is the language-fixed negation of `=`**, equally non-mappable, succeeding with its textual right operand.
 - **`==` is concept-mapped value equality** &mdash; an ordinary comparative mapping under the rules above.
-- **`<>` is implicitly codefined as `==`'s dual**: sanctioning `==` sanctions `<>`, resolving through `==`'s method and witness, succeeding where `==` fails and threading `==`'s designated parameter; the pair cannot diverge. A concept **may** additionally map `<>` explicitly &mdash; a full comparative method of its own &mdash; enabling multi-valued equality logics in which `x == u` and `x <> u` both fail; the declaration draws a warning ("independent `<>` admits `==`/`<>` incoherence"), acknowledged with `.ack` (&sect;3.18) where deliberate. Identity stays classical even for such types: `u = u` succeeds &mdash; the fixed `=` is the structural escape hatch multi-valued equality systems otherwise must invent. Where a codefined `<>` collides cross-concept with another concept's explicit `<>`, the ambiguity error's method-form remedy is asymmetric &mdash; the codefined side respells as `?-` over `==`'s method &mdash; and the diagnostic says so.
+- **`<>` is implicitly codefined as `==`'s dual**: sanctioning `==` sanctions `<>`, resolving through `==`'s method and witness, succeeding where `==` fails and threading `==`'s designated parameter; the pair cannot diverge. A concept **may** additionally map `<>` explicitly &mdash; a full comparative method of its own &mdash; enabling multi-valued equality logics in which `x == u` and `x <> u` both fail; the declaration draws a **caveat** ("independent `<>` admits `==`/`<>` incoherence", &sect;3.18), answered with `.ack` where deliberate. Identity stays classical even for such types: `u = u` succeeds &mdash; the fixed `=` is the structural escape hatch multi-valued equality systems otherwise must invent. Where a codefined `<>` collides cross-concept with another concept's explicit `<>`, the ambiguity error's method-form remedy is asymmetric &mdash; the codefined side respells as `?-` over `==`'s method &mdash; and the diagnostic says so.
 
 **Numeric intrinsics.** The built-in numeric types satisfy the standard arithmetic and comparison concepts through intrinsic witnesses (&sect;2.2); arithmetic exemplars throughout this specification (`n / d`, `x * 2`, `n % d`) are ordinary operator expressions under those witnesses.
 
@@ -1452,13 +1462,13 @@ The interaction with concept dispatch &mdash; when a concept method's signature 
 
 ## 6. Parameters and Mode Markers
 
-This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of four modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and ceiling bounds are preserved across access paths.
+This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of five modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and ceiling bounds are preserved across access paths.
 
 The &sect;3 surface for declaring parameters and receivers introduced the four modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
-### 6.1 The Four Modes
+### 6.1 The Five Modes
 
-A parameter or receiver in Basis carries one of four **modes** &mdash; **READ**, **CREATE**, **UPDATE**, or **DISPOSE** &mdash; that determine the contract between caller and callee at that position. The modes are roles, not directions: each describes what the callee is permitted or obligated to do; the caller's side of the contract is derivable from the callee's.
+A parameter or receiver in Basis carries one of five **modes** &mdash; **READ**, **CREATE**, **UPDATE**, **DISPOSE**, or **DIRECT** &mdash; that determine the contract between caller and callee at that position. The modes are roles, not directions: each describes what the callee is permitted or obligated to do; the caller's side of the contract is derivable from the callee's.
 
 **READ** &mdash; the bare-name form, no marker. The callee may read through any access path reached from the parameter; it may not write through any such path. The transitive read-only contract (&sect;6.4) makes this commitment trustworthy: the language statically prevents the value from being smuggled into a writeable position downstream. The caller's slot is bit-identical to its pre-call state after the call regardless of outcome.
 
@@ -1467,6 +1477,8 @@ A parameter or receiver in Basis carries one of four **modes** &mdash; **READ**,
 **UPDATE** &mdash; marked with `&` on the name (e.g., `&counter`). The callee may read the parameter, may write the parameter, may do neither &mdash; there is no obligation in either direction. The caller must pass an already-initialized slot, since the callee is permitted to read and reading uninitialized is forbidden by the whole-slot tracking discipline (&sect;6.13). Copy-restore semantics apply on the writeability axis: on success, any write the callee performs is committed back to the caller's slot; on failure, no write-back occurs.
 
 **DISPOSE** &mdash; marked with `~` on the name (e.g., `~socket`). The callee consumes the parameter, ending the value's lifetime: it discharges the value's finalizing duty and leaves the slot `uninit`. The caller must supply an owned value &mdash; finalizing through a borrow would end a value another binding still owns &mdash; and the caller's slot is `uninit` after the call on both edges, a deliberate relaxation of failure atomicity. A `~` receiver names a *finalizer*. The mode, its `~ x` body-level operation, and the field-teardown gate are developed in &sect;7.22.
+
+**DIRECT** &mdash; marked with `*` on the name (e.g., `*fs`). The callee receives direct access to the caller's storage &mdash; read, write, or ignore; no write obligation, no copy, no restore. Admissible only for boxed slots of domain-family types (&sect;6.14); outside principle 4 by declaration: the programmer knows what they are doing here.
 
 The four modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.6 (the R1 and R2 rules) and &sect;6.7 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.11) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
 
@@ -1508,7 +1520,7 @@ A single caller slot may be supplied to more than one parameter in one call. Bin
 
 **READ parameters** are passed by value at the observable level. The callee receives a copy of the caller's slot. The caller's slot is bit-identical to its pre-call state after the call, regardless of whether the call succeeds or fails. Implementation latitude: the implementation may pass READ parameters by reference under the hood, since the transitive READ contract (&sect;6.4) precludes the writes that would make by-reference observable; the language commits to by-value at the *observable* level only.
 
-**CREATE and UPDATE parameters** are passed by **call-by-copy-restore**. The callee receives a copy of the caller's slot value, operates on the copy, and on *successful* return the (possibly-modified) copy is written back to the caller's slot. On *failure*, no write-back occurs; the caller's slot is bit-identical to its pre-call state.
+**CREATE and UPDATE parameters** are passed by **call-by-copy-restore**; DIRECT parameters (&sect;6.14) are the declared exception, passed by direct reference. The callee receives a copy of the caller's slot value, operates on the copy, and on *successful* return the (possibly-modified) copy is written back to the caller's slot. On *failure*, no write-back occurs; the caller's slot is bit-identical to its pre-call state.
 
 The copy-restore mechanism is the operational realization of the language's "mutation either succeeds fully or fails fully" principle. Failure-atomicity falls out of the calling convention with no transactional machinery and no rollback code in user programs. The pre-call state of the caller's slot is preserved by the structure of the convention rather than by explicit restoration logic. The deep element-copy this performs for a runtime-length buffer flowing out through a writeable parameter &mdash; landing its elements in the caller's storage rather than sharing a handle that would dangle once the callee's region is reclaimed &mdash; is the same act the lateral copy operator `<<` (&sect;7.1) surfaces and names for a store into a resting place.
 
@@ -1650,6 +1662,35 @@ For variants (&sect;5.13), the absent state is a structural property of the type
 For non-buffer types other than variants &mdash; pointers, command-typed values, objects &mdash; the slot has no zero-default state, and bare introduction is not admitted. A `# ^Int32 x` declaration is a static error; an initializing form (`#x <- ...` or `Type: #x, ...` in argument position) is required. The whole-slot tracking treats these slots as initialized only after a complete write; partial states are not modeled.
 
 The implementation of the analysis is a forward-flow walk over the body's CFG, joining initialization states at convergent nodes; the join of `init` and `init` is `init`, of `uninit` and `uninit` is `uninit`, and `init` joined with `uninit` is a contradiction at the join point that gates a use of the slot at that point. The full transfer-function table is in Appendix E. The analysis runs in parallel with the failure-state lattice (&sect;4.13) and the taint analyses (&sect;&sect;6.4, 6.14) over the same CFG with the same join points but with independent transfer functions per analysis.
+
+### 6.14 Slot Boxing and DIRECT Passing
+
+Copy-restore stays; boxing is the explicit, slot-scoped bypass for the hot path. Two statement keywords alter a frame-owned local slot's **status** &mdash; nothing about its type, name, or in-frame mechanics:
+
+```
+.box name          ; begin boxed status
+.unbox name        ; end it early (optional)
+```
+
+**The box region.** Boxed status runs from the `.box` statement to the earliest of an explicit `.unbox` or the end of the innermost enclosing block containing the `.box`. Status evaporates on every exit edge &mdash; success and failure alike &mdash; *before* exit-cleanup processing, so `@`/`@!` handlers, obligation default sinks, and reclamation always operate on ordinary slots. Regions for one slot are sequential, non-overlapping, and LIFO with blocks; re-boxing after `.unbox` is legal. `~` consumption of a slot while boxed is a static error.
+
+**Eligibility.** The slot's declared type must belong to the **domain family** &mdash; `.domain`, `.record`, `.union`, `.enum` and their compositions: fixed-size, defined-by-their-bytes values. Buffers are not admitted (their descriptor-over-region representation entangles region lifetime; `^T` serves those cases). The same eligibility applies at every DIRECT parameter declaration.
+
+**Within the frame, boxed status changes nothing**: reads, writes, field access, operator application, and method dispatch on the slot are exactly as unboxed.
+
+**At call boundaries**, a boxed slot may bind:
+- a **DIRECT (`*`) parameter** &mdash; passed by direct reference; the callee's reads and writes act on the caller's storage as they execute, and are **not restored on failure**: the storage holds the bytes as written. Writes through `*` are the declared exception to principle 4 (&sect;1.2), chosen at the `.box` statement.
+- a **READ parameter or receiver** &mdash; ordinary READ, observationally indistinguishable from a copy (no write path exists and the caller's frame is suspended for the call's duration); implementations pass directly. This keeps the slot's whole read-only method surface alive with no DIRECT-mode duplicates.
+- CREATE and UPDATE bindings are static errors: their restore step is a write outside the discipline, and UPDATE would break the loan's uniqueness.
+
+**Exclusivity.** Within a single call, a slot bound to a `*` parameter binds nothing else &mdash; not a second `*` (`f: *a, *a`), and not a simultaneous READ binding (`f: a, *a`), whose "stable value" illusion the `*` alias's mid-call writes would break. This is a same-call condition, not a repeal of the READ admission above: in calls without a `*` binding of the slot, READ bindings remain legal in any number. Combined with sequential execution, exclusivity closes the aliasing surface: inside the callee, a `*` parameter carries a full no-alias guarantee.
+
+**DIRECT never converts to copy-restore.** A `*` parameter arrives boxed and remains boxed: it may be passed onward to `*` parameters and to READ parameters and receivers, never to CREATE or UPDATE. `.box`/`.unbox` apply only to frame-owned locals; a callee cannot unbox borrowed storage.
+
+**Captures and addresses.** A boxed slot may not appear in a lambda capture list, and invoking &mdash; or passing onward &mdash; a command-typed value carrying an `&` capture of the slot is a static error for the region's duration (per-invocation capture copy-restore, &sect;8.4, would be a mid-region write outside the discipline). Taking the address of a boxed slot in-region raises a **caveat** (&sect;3.18); an acknowledged address withdraws the no-alias guarantee for the affected `*` bindings, which the compiler then treats as potentially-aliased storage &mdash; correctness is preserved unconditionally, and the acknowledgment purchases responsibility for the deoptimization. Pointers created before the region compose under the pointer honesty of Appendix I (A3): un-analyzed, the programmer's stated responsibility.
+
+**Status is analyzed, not represented.** Boxed/unboxed is a per-slot component of the static analysis state (Appendix E): transitions at `.box`, `.unbox`, and block exit (forced unboxed); joins must agree, with disagreement diagnosed at the merge; `.box` requires an initialized slot and does not alter initialization state. DIRECT passing is not an ownership transfer &mdash; obligations riding the slot's value stay home &mdash; and failure marks are unaffected: boxing changes storage access, never the failure discipline.
+
 
 ## 7. Construction and Initialization
 
@@ -3096,10 +3137,10 @@ The lexer recognizes the following token concepts:
 **Dot-prefixed keywords.** Top-level definition keywords begin with `.` to distinguish them from user-defined identifiers:
 
 ```
-.ack      .alias    .concept    .cmd      .decl     .domain   .enum     .fail
-.implicit .import   .witness .intrinsic .module   .msg      .object
-.program  .promise  .record   .scope    .splice   .sub      .test
-.union    .variant
+.ack      .alias    .box      .cmd      .concept  .decl     .domain   .enum
+.fail     .implicit .import   .intrinsic .module  .msg      .object   .operator
+.profile  .program  .promise  .record   .scope    .splice   .sub      .test
+.unbox    .union    .using    .variant  .witness
 ```
 
 The `.sub` and `.scope` keywords introduce body-internal constructs &mdash; subcommands (&sect;3.12) and scope blocks (&sect;3.17) respectively; `.ack` is a directive that prefixes an item at either level (&sect;3.18); the rest are top-level forms (&sect;2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
@@ -3279,7 +3320,7 @@ A small set of disambiguation rules govern lexical adjacencies that would otherw
 
 Applying `.splice` to a non-record-typed field (a domain, primitive, union, or buffer form) is a static error. The modifier appears before the field declaration in the form `.splice Field : Type`, as captured by the grammar in Appendix B.
 
-**Operator tokens and their neighbors** (&sect;3.19). The infix inventory is `+ - * / %` and `< <= > >= == <> = !=`, all binary, all expression-position. Disambiguation is positional plus maximal munch: `-` followed immediately by digits with no intervening space lexes as a negative literal, while spaced `-` is the infix token; `=` in expression position is the identity comparative, distinct from the fixed-definition `=` of `.cmd`/`.profile`/mapping-and-binding entries by position; `==` munches over two `=`; `!=` is unambiguous against the `!` failure mark, which never appears infix; `<>` joins the `<` family (`<-`, `<<`, `<<-`, `-<`, `<=`, and the pure-thunk `:<>`), resolved by maximal munch and position &mdash; `<>` is infix-only, `:<>` is a type/construction prefix form, and the assignment-family tokens are statement/argument forms that never appear in expression position (&sect;3.19). `%` is the modulus token in expression position.
+**Operator tokens and their neighbors** (&sect;3.19). The infix inventory is `+ - * / %` and `< <= > >= == <> = !=`, all binary, all expression-position. Disambiguation is positional plus maximal munch: `-` followed immediately by digits with no intervening space lexes as a negative literal, while spaced `-` is the infix token; `=` in expression position is the identity comparative, distinct from the fixed-definition `=` of `.cmd`/`.profile`/mapping-and-binding entries by position; `==` munches over two `=`; `!=` is unambiguous against the `!` failure mark, which never appears infix; `<>` joins the `<` family (`<-`, `<<`, `<<-`, `-<`, `<=`, and the pure-thunk `:<>`), resolved by maximal munch and position &mdash; `<>` is infix-only, `:<>` is a type/construction prefix form, and the assignment-family tokens are statement/argument forms that never appear in expression position (&sect;3.19). `%` is the modulus token in expression position. `*` additionally serves as the DIRECT mode marker (&sect;6.14) in signature position (`FrameState *fs`) &mdash; signature versus expression position disambiguates, the same split that serves `-`.
 
 **Method-reference braces and angle-bracket-marked types.** The command-reference fence `{...}` (&sect;3.15) and the command-literal fence `:<>{...}` (and parallel `?<>{...}`, `!<>{...}`, etc.) introduce command-typed values. The lexer treats `{` and `}` as brace-stack tokens; the parser matches `:<>{...}` by recognizing the type-expression `:<>` followed by a brace-fenced body. There is no `:<>{` single-token; the disambiguation is parser-side.
 
@@ -3456,6 +3497,7 @@ mode-name         ::= identifier                                ; READ (bare)
                     | ' identifier                              ; CREATE
                     | & identifier                              ; UPDATE
                     | ~ identifier                              ; DISPOSE
+                    | * identifier                              ; DIRECT (S6.14)
 
 implicit-list     ::= / param-list
 result-designator ::= -> identifier
@@ -3480,7 +3522,9 @@ body-content      ::= subcommand-decl* statement+
 
 subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (S3.12)
 
-statement         ::= assignment | call | block-marker-construct | scope-block | local-intro | choice-stmt | finalize-stmt | ack-stmt
+statement         ::= assignment | call | block-marker-construct | scope-block | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt | unbox-stmt
+box-stmt          ::= .box identifier
+unbox-stmt        ::= .unbox identifier
 
 finalize-stmt     ::= ~ identifier                               ; finalize the slot now (S7.22)
                     | ~ field-access                             ; field teardown, `~`-receiver only (S7.22)
@@ -3840,6 +3884,8 @@ Two further statement nodes derive from the placement family:
 | `Choice` | `lhs: ChoiceLhs`, `op: PlacementOp`, `alternatives: [Expr]` | *choice-stmt* |
 | `Finalize` | `target: Identifier \| FieldAccess` | *finalize-stmt* |
 | `Ack` | `code: String` | *ack-stmt* / *ack-decl* (&sect;3.18); prefixes the following node, which it encloses |
+| `BoxStmt` | `slot: identifier` | *box-stmt* (&sect;6.14) |
+| `UnboxStmt` | `slot: identifier` | *unbox-stmt* (&sect;6.14) |
 
 `Choice` is the first-success choice form `lhs <- a | b | c` and its `<<-` and `<<` variants (&sect;7.17). The operator is uniform across the form &mdash; it parametrizes only how the winning alternative commits &mdash; so it is recorded once on the node rather than per alternative. `ChoiceLhs` is `{ LocalIntro, Identifier }`. The choice form is a *statement*, not an expression; it has no node in C.5.
 
@@ -4303,6 +4349,22 @@ Fixed identity:  a = b  requires Ta == Tb; command-typed and variant operands re
      sanction unless independently mapped (S3.19).
 ```
 
+Slot boxing (&sect;6.14), schematically:
+
+```
+.box x   requires  x frame-owned local, init(x), type(x) in domain family
+                   (.domain / .record / .union / .enum compositions)
+.unbox x requires  boxed(x) at this point and x frame-owned
+region: boxed(x) from .box to earliest(.unbox, innermost enclosing block end);
+        joins must agree on boxed(x); block exit forces unboxed.
+
+Call binding of boxed x:   *param OK (exclusive: x binds nothing else in the call)
+                           READ param / receiver OK (many allowed if no * binding)
+                           CREATE / UPDATE: static error
+DIRECT param p in callee:  boxed(p) throughout; onward to * or READ only;
+                           .unbox p rejected (not frame-owned).
+```
+
 ### D.11 Overload Resolution
 
 Per &sect;9.10, overload resolution proceeds in three layers:
@@ -4445,7 +4507,7 @@ At the block's close, every obligation still owned by a scope-local binding is d
 
 ## Appendix E. Static Analyses (Joint CFG-Walking Composition)
 
-This appendix specifies the four static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, and obligation tracking. The first three are specified here (E.2&ndash;E.5); the obligation analysis is specified with the obligation system itself (&sect;10.5) and appears below only as it composes with the others. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
+This appendix specifies the five static analyses the Basis typechecker performs over each command body's control-flow graph: initialization tracking, failure-state lattice, READ-taint, box-status tracking (&sect;6.14: per-slot {unboxed, boxed}, transitions at `.box`/`.unbox`/block exit, must-agree joins), and obligation tracking. The first four are specified here (E.2&ndash;E.5); the obligation analysis is specified with the obligation system itself (&sect;10.5) and appears below only as it composes with the others. The analyses share a single forward-flow walk over the CFG and produce a *joint state vector* at each program point; their join points and transfer functions interact only at the boundaries enumerated below.
 
 ### E.1 The Shared CFG Walk
 
@@ -4454,7 +4516,7 @@ Each command body is compiled to a control-flow graph (CFG) at parse time. Nodes
 The typechecker performs a single forward-flow walk over this CFG, maintaining a **state vector** at each program point:
 
 ```
-StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, obligations: ObligationSet)
+StateVector = (init: InitLattice, failure: FailLattice, readTaint: TaintLattice, boxStatus: BoxLattice, obligations: ObligationSet)
 ```
 
 Each component is a separate lattice; the joint state-vector forms the product lattice. At convergent CFG points, the join is performed component-wise &mdash; each analysis joins per its own lattice rules.
@@ -4600,7 +4662,7 @@ for each statement s in CFG order:
         propagate state to each successor
 
 at each convergence point:
-    state <- (init join, failure join, read_taint join, obligation join)
+    state <- (init join, failure join, read_taint join, box_status join, obligation join)
             of all predecessor states (component-wise)
 ```
 
@@ -5174,7 +5236,7 @@ Under the **surviving-view move** (&sect;10.11) a moved-from `<-` source is itse
 
 *Discipline.* `<<-` is the "I accept responsibility for this lifetime" marker &mdash; reserve it for genuine views (a parent pointer, a `prev` link), and ensure the owner's lifetime encloses the view's. For a moved-from `<-` source, treat it as live only while its new owner is.
 
-**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility.
+**A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility. A pointer created *before* a box region (&sect;6.14) that reaches the boxed slot's storage is the same class of edge: writes through it during the region are un-analyzed and are the programmer's stated responsibility.
 
 **A4 &mdash; Stale cleanup-block reference after a move.** `@` and `@!` blocks bind to the *slot*, not to the value (&sect;3.13, &sect;4.11); if the value is moved out of the frame &mdash; as a `.fail` payload, say &mdash; the block's reference names a slot that no longer holds what the block meant to clean up. Under the surviving-view move (&sect;10.11) that slot holds a *view* on the success path, and is `uninit` only where the value was consumed, so the block names a live view rather than an empty slot &mdash; which is a hazard of a different shape, not an absence of one. *Discipline:* order operations so the slot still holds the value when the block fires, or register the cleanup at the destination frame.
 
@@ -5193,4 +5255,3 @@ Under the **surviving-view move** (&sect;10.11) a moved-from `<-` source is itse
 **C1 &mdash; Union read at the wrong candidate.** A union carries no discriminator. Reading it as a candidate it does not currently hold reinterprets its bytes as a type they are not, and the relation is not Liskov-preserving (&sect;5.6, &sect;5.7). The language guarantees the bytes; it guarantees nothing about which candidate they mean. *Discipline:* if you want safety, use a **variant** &mdash; tagged, dictionary-bearing. Choose a union only when you will manage the discriminator and the validity yourself, in the C-style discipline.
 
 **C2 &mdash; Dispatch-identity loss in transit (the slicing analog).** This is Basis's counterpart to C++ object slicing, with an important difference: the buffer-backed upcast is *value-preserving* &mdash; the bytes are unchanged and the upcast preserves Liskov substitution (&sect;5.5), so **no data is lost**. What can be lost is *dispatch identity*: a buffer-backed value passed through a bare parent-typed, non-concept-typed slot is interpreted per the parent and may not carry its child identity through to a later dispatch (&sect;5.3, &sect;9.18). *Discipline:* where dispatch must resolve on the child type, route the value through a concept-typed slot, which captures its identity; a plain parent-typed parameter interprets per the parent.
-
