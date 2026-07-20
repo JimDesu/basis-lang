@@ -685,7 +685,7 @@ Copy-restore is the default because it makes mutation transactional — but on a
     ...
     .box state                        ; from here, state passes directly — no copies
     step: state, (next: src)          ; tight loop: zero copy-in, zero restore
-    ^ ? moreSamples: src              ;   rewind while more samples remain
+    ^ moreSamples: src              ;   rewind while more samples remain
     .unbox state                      ; back to ordinary semantics (or at scope end)
     commit: state
 ```
