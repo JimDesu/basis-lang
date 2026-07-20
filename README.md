@@ -31,7 +31,7 @@ There is no greater technical obscurity than creating a new programming language
 - Every feature should be load-bearing, orthogonal, and simple to reason about
 - Trust the programmer, but warn them about potential footguns
 
-### Core Semantics
+### TL;DR for Nerds: Core Semantics
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
@@ -58,7 +58,7 @@ $$
 \text{skips from failure}\quad & v \in \{exec(c),rewind(w),fail(\gamma)\} \quad \langle v, \phi, \Sigma \rangle & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
 \text{generic recovery}\quad & v=recover \quad \langle v, \phi, \Sigma \rangle & \implies & \langle \vec{v}, \epsilon, \Sigma \rangle \\
 \text{specific recovery}\quad & v=recover(\phi,\sigma,c) \quad \langle v, \phi, \Sigma \rangle & \implies & \langle c, \epsilon, \Sigma+\sigma/c \rangle \quad \vec{c} \leftarrow \vec{v} \\
-\text{recovery failure}\quad & v=recover(\alpha,\sigma,c) \quad \langle v, \phi, \Sigma \rangle \quad \phi \neq \sigma & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
+\text{recovery failure}\quad & v=recover(\alpha,\sigma,c) \quad \langle v, \phi, \Sigma \rangle \quad \phi \neq \alpha & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
 \text{scope boundary}\quad & v=scope(c) \quad \kappa\in\Phi \quad \langle v, \kappa, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle \quad \vec{c} \leftarrow \langle \vec{v},\kappa,\Sigma' \rangle \\
 \text{scope boundary under failure}\quad & v=scopefail(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle \vec{v},\epsilon,\Sigma \rangle \\
 \text{} & v=scopefail(c) \quad \langle v, \phi, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle \quad \vec{c} \leftarrow \langle \vec{v},\phi,\Sigma' \rangle \\
@@ -972,6 +972,9 @@ Method receivers carry mode markers:
 | UPDATE `&` | `&r` | In-place modification |
 | DISPOSE `~` | `~r` | Finalize/consume the receiver (§4.5) |
 | READ (no marker) | `r` | Externalized-effect operations (logging, sending, emitting) — the receiver mediates an effect on the world |
+| DIRECT `*` | `*r` | Direct in-place mutation of a **boxed** receiver (§6.6) — `signedInt :: negate` on the hot path |
+ 
+A DIRECT receiver requires a boxed argument, and while a value is boxed, *mutation is direct or nothing*: reads flow through ordinary READ receivers, writes through `*`, and copy-restore mutation waits for the unbox. Constructors and at-stack methods don't admit `*`.
  
 Constructors take CREATE receivers only: `.cmd Widget 'w: Int x, Int y = ...`. At-stack methods (`@`, `@!`) take READ or UPDATE receivers, not CREATE.
  
