@@ -669,6 +669,29 @@ Parameters listed after a `/` separator are *implicit context parameters* — Sc
  
 Ambiguity (two `Logger` values in scope) is a compile error; absence (no `Logger` value in scope) is also a compile error. Both are resolvable by passing the value explicitly with the full positional form.
  
+### 6.6 When a section of code must perform: `.box`
+
+Copy-restore is the default because it makes mutation transactional — but on a hot path, copying a large record in and out of every call is a price you may refuse. Boxing is the refusal, made explicit:
+
+```
+.record FrameState : [64]Int64 lanes, Int64 cursor     ; a big, byte-defined value
+
+.cmd step: FrameState *fs, Sample s =                  ; * marks a DIRECT parameter
+    fs :: cursor <- (fs :: cursor) + 1                 ; writes hit the caller's storage
+    ...
+
+.cmd render: Frame f =
+    # FrameState state
+    ...
+    .box state                        ; from here, state passes directly — no copies
+    step: state, (next: src)          ; tight loop: zero copy-in, zero restore
+    ^ ? moreSamples: src              ;   rewind while more samples remain
+    .unbox state                      ; back to ordinary semantics (or at scope end)
+    commit: state
+```
+
+The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a boxed value passes to `*` parameters (full access, no restore — even if the callee fails, whatever it wrote stays written) and to ordinary read-only parameters and methods, which don't care; and the box lasts until you `.unbox` or the enclosing scope ends, whichever comes first — so cleanup machinery always sees a normal slot. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
+
 ## 7. Construction and Initialization
  
 Construction is the act of bringing values into being. The `<-` polymorphic-RHS operator is the one mechanism for committing values into slots.
