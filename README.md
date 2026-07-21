@@ -97,7 +97,7 @@ A command that may fail, and a caller that handles the failure:
 ```
 .cmd ?safeDivide: Int 'result, Int n, Int d =
     ? d = 0
-        .fail DivByZero: n
+        .fail DivByZero <- n
     result <- n / d
  
 .cmd useIt =
@@ -186,7 +186,7 @@ A failing-mark example:
  
 ```
 .cmd ?parse: ParsedValue 'result, String s = ...
-.cmd !explode: String reason = .fail Explosion: reason
+.cmd !explode: String reason = .fail Explosion <- reason
 ```
  
 Parameters declare `Type name`. The `'` prefix on a parameter name marks the parameter as **CREATE**-mode — the body must write to it on every successful path:
@@ -315,10 +315,10 @@ Failures in Basis are neither exceptions nor error codes. A failure is a *messag
 ```
 .fail                              ; no message
 .fail DivByZero                    ; message, no payload
-.fail BoundError: (Widget: x, y)   ; message with constructed payload
+.fail BoundError <- (Widget: x, y) ; message with constructed (owned) payload
 ```
  
-`.fail` takes a message — either a message identifier alone (no payload), or a message identifier followed by `:` and a payload expression — or may be used alone with no message at all. The message identifier is always required when a payload is supplied: a raw value cannot be passed to `.fail` without a message identifier preceding it. When a payload expression's evaluation itself fails, *that* failure propagates rather than the intended one.
+`.fail` takes a message — either a message identifier alone (no payload), or a message identifier followed by a placement operator and a payload expression: `<-` for a payload the failure *owns*, `<<-` for one it merely *views* (§4.8) — or may be used alone with no message at all. The message identifier is always required when a payload is supplied: a raw value cannot be passed to `.fail` without a message identifier governing it. When a payload expression's evaluation itself fails, *that* failure propagates rather than the intended one.
  
 ### 4.2 Failure marks on commands
  
@@ -327,7 +327,7 @@ Every command's signature declares its failure profile via the prefix on its nam
 ```
 .cmd safeWrite: String text = ...                       ; never fails
 .cmd ?openFile: Handle 'handle, String path = ...       ; may fail
-.cmd !abort: String reason = .fail Abort: reason        ; must fail
+.cmd !abort: String reason = .fail Abort <- reason      ; must fail
 ```
  
 The mark is enforced. A never-fails body whose internal `?`-call could fail without recovery is a static error. A must-fail body whose path could succeed-and-return is a static error. Subsumption applies on the mark: never-fails values may stand in for may-fail expectations; must-fail values may also stand in for may-fail expectations; never-fails and must-fail are mutually incomparable.
