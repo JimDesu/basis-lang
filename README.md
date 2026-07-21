@@ -615,7 +615,7 @@ Commands are first-class. A command-typed value is described by a command-type e
 !<>                         ; pure must-fail command, no parameters
 ```
  
-The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, subject to the language's standard mode and ceiling rules. The three constructional forms that produce them are §8.
+The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, with one bright line: they live on the stack (§8.5). The three constructional forms that produce them are §8.
  
 ### 5.9 Aliases
  
@@ -856,7 +856,7 @@ A command literal has an explicit signature and body, no captures:
 :<Int x, Int 'r>{ r <- x * 2 }
 ```
  
-This is an eagerly-evaluated, pure callback — no defining-frame state is captured; the body's only inputs are its declared parameters. Command literals have no ceiling beyond the ordinary object lifecycle.
+This is an eagerly-evaluated, pure callback — no defining-frame state is captured; the body's only inputs are its declared parameters. Command literals reference no frame state, so nothing pins them: like every command value they live in slots (§8.5), passing and returning freely.
  
 ### 8.3 Lambda
  
@@ -866,7 +866,7 @@ A lambda is a command literal extended with an explicit capture list, separated 
 :<Int x / Int counter>{ counter <- counter + x }
 ```
  
-Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). A lambda's *ceiling* — the highest frame to which the lambda value may travel — is computed from its captures: a lambda with only READ captures can travel anywhere; a lambda with reference captures cannot escape the frames where its captured slots live.
+Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). The lifetime rule is §8.5's bright line: a lambda with only READ captures (snapshots) travels freely between slots; a lambda with reference captures cannot leave a frame it references — concretely, it can't be CREATE-returned out of the frame whose slots it captured.
  
 ### 8.4 Failure marks across the three forms
  
@@ -875,6 +875,28 @@ All three forms participate in the standard failure-mark discipline:
 - A command reference inherits its mark from the underlying command.
 - Command literals and lambdas declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
 - Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all three forms.
+### 8.5 Where command values live
+
+One rule covers the entire lifetime story for command values, and you can hold it in a sentence: **they live on the stack.** A command value sits in a local slot, passes down into calls, and comes back up through CREATE outputs — and that's the whole map. It is never stored in an object field or a variant. The single consequence to remember: a value can't leave a frame it references —
+
+```
+.cmd makeCounter: :<Int'> 'out =
+    #n <- 0
+    out <- :<Int 'r / &n>{ r <- n + 1 }   ; ✗ rejected: the lambda references n,
+                                          ;   and n dies with this frame
+```
+
+That's the textbook closure-counter, and Basis turns it down on purpose. The language's spelling for long-lived state-plus-behavior is the category built for it:
+
+```
+.object Counter : Int64 n
+.cmd Counter &c :: bump: Int64 'r = ...   ; ✓ visible state, tracked lifetime,
+                                          ;   dispatched through a concept like
+                                          ;   everything else
+```
+
+Want to *store* behavior — a callback registry, a strategy in a config? Store an object satisfying a concept (a concept value), and you get everything a stored closure would have given you, plus a name, inspectable state, and a lifetime the compiler tracks. Meanwhile the lambdas you pass downward — comparators, loop bodies, visitors — need no annotations, no lifetime thought, nothing: everything below you on the stack is alive by construction.
+
 ## 9. Concepts, Witnesses, and Dispatch
  
 A concept is a single-parameter type contract — structurally a Haskell typeclass, a Java interface, or a Scala trait. Concepts describe operations that types must provide; witnesses supply those operations for specific types, each witness a named declaration that a type satisfies a concept. Dispatch is via Haskell-style dictionary passing.
