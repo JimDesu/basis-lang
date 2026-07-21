@@ -937,22 +937,21 @@ A failure is produced by the `.fail` directive, which has three surface forms:
 ```
 .fail
 .fail Name
-.fail Name: payload
+.fail Name <- payload             ; owning: the payload transfers into the envelope
+.fail Name <<- payload            ; viewing: the envelope views a frame-owned payload
 ```
 
-A bare `.fail` produces a payload-less, message-less failure. `.fail Name` produces a failure carrying message `Name` with no payload. `.fail Name: payload` produces a failure carrying message `Name` with the value of `payload` as its payload; the typechecker requires that `payload`'s type satisfy the concept bound to `Name` (&sect;4.7).
+A bare `.fail` produces a payload-less, message-less failure. `.fail Name` produces a failure carrying message `Name` with no payload &mdash; the same bare-name construction that produces a payload-less envelope in value position (&sect;4.15). `.fail Name <- payload` produces a failure **owning** its payload; `.fail Name <<- payload` produces a failure **viewing** a frame-owned payload, admissible only under the static rule of &sect;4.14; the typechecker requires that `payload`'s type satisfy the concept bound to `Name` (&sect;4.7).
 
 The `.fail` directive is itself a `!`-call: its post-call lattice state is `failing(!)` carrying the propagating set `{Name}` (or empty, for bare `.fail`). The next ordinary statement in the surrounding block is reachable only along the failure-skip path, which means: not at all, unless caught by a recovery context.
 
-Payload expressions whose surface contains `:` must be parenthesized to disambiguate them from a continuation of the `.fail` directive's syntax:
+Payload expressions that are themselves calls or larger expressions are parenthesized, per the standing expression-argument discipline:
 
 ```
-.fail Net::Disconnected: (lastError: u)
+.fail Net::Disconnected <- (lastError: u)
 ```
 
-Without the parentheses, the parser cannot determine where the payload expression ends and a continuation of the directive begins.
-
-Two forms are explicitly disallowed: a `.fail` whose right-hand side is a raw value with no message (`.fail (a + b)` &mdash; a value cannot carry the role of a failure message), and a `.fail` that uses a payload type's name in message position (`.fail Widget: x, y` &mdash; `Widget` is a type, not a message identifier; the constructor call `(Widget: x, y)` produces a payload value, but a separate message identifier is needed). Both are message-required-when-payload-present violations.
+Two forms are explicitly disallowed: a `.fail` whose operand is a raw value with no message (`.fail (a + b)` &mdash; a value cannot carry the role of a failure message), and a `.fail` that uses a payload type's name in message position (`.fail Widget <- x` where `Widget` is a payload type, not a message identifier; the constructor call `(Widget: x, y)` produces a payload value, but a message identifier must govern the directive). Both are message-required-when-payload-present violations.
 
 Re-failing a recovered value &mdash; passing a `|`-with-spec-bound payload forward as the payload of a fresh failure &mdash; is an ordinary `.fail` invocation in the handler's frame; it requires an explicit message because the recovery binding captures only the payload, not the original message. The full mechanics are in &sect;4.10.
 
@@ -960,7 +959,7 @@ Signature-level failure-set declarations &mdash; how a command's signature names
 
 ### 4.4 Block Markers
 
-Eleven block markers govern failure flow. They are enumerated as a syntactic list in &sect;3.1, with `|` and its parametrized `|`-with-spec form treated as a single marker for the enumeration; this section enumerates all eleven by their **failure-mode role** &mdash; what each one consumes, what it permits to propagate, and where it places execution after consumption.
+Eleven block markers govern failure flow. They are enumerated as a syntactic list in &sect;3.1, with `|`, its parametrized `|`-with-spec form, and the discharge arm `|!` (&sect;4.16) treated as a single marker family for the enumeration; this section enumerates all eleven by their **failure-mode role** &mdash; what each one consumes, what it permits to propagate, and where it places execution after consumption.
 
 #### Guard-only recovery: `?`, `?-`, `?:`
 
@@ -997,6 +996,8 @@ A bare `|` engages when a failure is propagating from any preceding sibling at t
 ```
 | Name name -> body
 ```
+
+The family's third member is the **discharge arm** `|! Spec` (or bare `|!`): where a recovery arm *handles* a failure, the discharge arm *proves it cannot arrive* &mdash; the compiler verifies the claim, consumes the proven set from failure inference exactly as a handler would, and erases the arm entirely; an unprovable claim is a static error. It is the arm family's answer to `| ; can't happen`: the impossible is proved, never trusted. Full semantics, the judgment catalog, and fault mechanics are &sect;4.16.
 
 Cascade chains of `|`-with-spec blocks (each filtering for a subset of messages, optionally followed by a bare `|` as catch-all) are the structural form for "handle this kind of failure here, that kind there, anything else uniformly." The first whose spec matches engages; later blocks in the cascade are also recovery destinations for *preceding* blocks' bodies, which is what makes the cascade compose. Programmers place more-specific specs first and broader specs last.
 
@@ -1150,7 +1151,7 @@ The brackets sit immediately after the mark, in whatever position the mark appea
 
 **Annotation is opt-in; if declared, the set is enforced as a contract.** A signature may omit the brackets, in which case the failure set is **inferred** from the body &mdash; the union of messages produced by `.fail` directives in the body and by called commands' declared (or inferred) failure sets, minus any messages consumed by recovery handlers within the body. When the brackets are present, the typechecker enforces them as the upper bound on the body's emitted failures: every message the body can emit must be at-or-below some message listed in the brackets (by the subsumption relation above). An emission outside the declared set is a static error at the offending `.fail` or call site.
 
-The typechecker tracks the failure set of every command, annotated or not, for use at call sites. The inference algorithm &mdash; fixed-point analysis over the call graph, joined with the failure-state lattice (&sect;4.13) &mdash; is implementation-defined beyond this characterization.
+The typechecker tracks the failure set of every command, annotated or not, for use at call sites. A discharge arm (`|!`, &sect;4.16) consumes its proven set from the inference exactly as a recovery arm does; the envelope owner/viewer state is a runtime bit outside the static vector, consulted only by the checks of &sect;4.15 and &sect;7.13a and by discharge proofs through the construction-provenance judgment. The inference algorithm &mdash; fixed-point analysis over the call graph, joined with the failure-state lattice (&sect;4.13) &mdash; is implementation-defined beyond this characterization.
 
 **Additive form for callee-propagated failures.** A failure-set annotation may opt into an **additive** mode by placing a leading `+` inside the brackets: `?[+ Net]` denotes "whatever propagates from callees, plus the closure-at-or-below of `Net`." The list following the `+` is the set of messages the command adds *directly*; the implicit component is the union of the failure sets of all callees reachable from the body &mdash; statically resolved for direct calls, polymorphically resolved through callable parameters at each call site of this command. The typechecker assembles the full set per call site.
 
@@ -1174,7 +1175,7 @@ A common pattern is recovering a failure, deriving from its payload, and propaga
 
 ```
 | LowLevel value ->
-    .fail DomainSpecific: (translate: value)
+    .fail DomainSpecific <- (translate: value)
 ```
 
 This is an **ordinary `.fail`** originating from the handler's frame; no re-fail-specific machinery exists in the language. The handler binds a payload (`value`); the new `.fail` is fired from the handler's frame with a freshly-named message and a payload of the handler's choosing. The original failure's identity is consumed at binding and does not survive.
@@ -1183,7 +1184,7 @@ The bound name binds the **payload only**, not the original message. To propagat
 
 ```
 | FatalFailure f ->
-    .fail FatalFailure: f
+    .fail FatalFailure <- f
 ```
 
 Forms that elide the message &mdash; `.fail f` to "re-raise" &mdash; are not valid: `f` is the payload, not the message; the directive cannot infer which message to attach.
@@ -1247,6 +1248,86 @@ A typechecker implementation may begin with the un-refined six-state lattice and
 When a recovery block engages, the propagating-set component is narrowed: a bare `|` consumes the entire set; a `|`-with-spec narrows per-root from the spec's at-or-below closure, with precise removal when the closure fully covers a root and conservative retention when it would only partially cover one (the set representation does not capture closures with holes). The formal per-root rule is in Appendix E.3 alongside the lattice's transfer functions.
 
 ---
+
+### 4.14 Message Values, Slots, and Disposition Construction
+
+Messages are first-class values, not artifacts of the failure transport. `# Net m` declares an ordinary slot whose static type is a hierarchy node and whose dynamic type is at-or-below it; message values are admissible in object fields and variant candidates (a mailbox is an object; the envelope &mdash; a tag plus a concept-valued payload cell &mdash; is field-legal in both parts). The failure system is one *transport* for this currency; &sect;4.3's directive constructs and launches in a single form.
+
+**Construction is by disposition**, with the placement operators declaring how the envelope holds its payload:
+
+```
+#m <- (Ctl::Throttle <- rate)      ; OWNING envelope: the payload transfers in,
+                                   ;   any duty riding it re-homes to the envelope
+#n <- (Ctl::Throttle <<- rate)     ; VIEWING envelope: it views a payload owned
+                                   ;   elsewhere; it owns nothing, carries no duty
+#q <- Ctl::Shutdown                ; payload-less: the bare message-type name in
+                                   ;   value position constructs the empty envelope
+```
+
+Nested construction is parenthesized per the expression-argument discipline. The bare-name form is scoped to payload-less message types: a payload-bearing type bare in value position is a static error naming what is missing. The bare-name rule is a deliberate, message-only grant &mdash; bare domain and object type names in value position remain meaningless. Messages sit outside every concept hierarchy by design: the envelope is plain structure, participates in no witness dispatch, and carries no duties of its own &mdash; only its owned payload's.
+
+**The owner/viewer state is dynamic.** An envelope constructed with `<-` owns its payload; constructed with `<<-`, or demoted by an vesting extraction (&sect;4.15), it views. One runtime bit records which; the checks that consult it (&sect;4.15, &sect;7.13) surface violations through the failure system as catalog identities (&sect;4.17), never as traps.
+
+**The viewing-construction lifetime rule.** `M <<- x` &mdash; in value position or in a `.fail` directive &mdash; statically requires (1) `x` frame-owned, and (2) for the failure transport, `M` recovered in-frame on every path; violation is a static error at the construction. The rule's consequence for &sect;4.11 is total: a *propagating* failure's payload is always **owned**, so the holding-frame model needs no viewing branch &mdash; viewing envelopes are frame-scoped citizens, serving local dispatch and failures the frame itself recovers. Whatever outlives frames owns what it carries.
+
+### 4.15 Extraction: `->>` and `->`
+
+Extraction crosses the envelope; narrowing does not. The division of labor with `-<` (&sect;7.14) is exact, one test discipline in three shapes:
+
+```
+# Ctl::Throttle t -< m             ; NARROW-AND-KEEP: t is a more-specific MESSAGE,
+                                   ;   envelope intact, payload untouched
+m ->> Ctl::Throttle rate           ; CONFIRM-AND-EXTRACT (lending): same at-or-below
+                                   ;   test; rate views the payload, typed at the
+                                   ;   spec's payload concept
+m -> Ctl::Throttle rate            ; CONFIRM-AND-EXTRACT (vesting): payload ownership
+                                   ;   transfers to rate (duties re-home, S10.11);
+                                   ;   the envelope survives, demoted to viewing
+m ->> Ctl::Shutdown                ; CONFIRM-ONLY: type test, no binding
+```
+
+On mismatch the operation **fails** &mdash; mismatch is failure, not falsehood &mdash; firing `Basis::Lang::Failure::Match::NarrowMismatch` (&sect;4.17), so every receive idiom composes from existing control flow: `?` guards, `|` chains, `^` rewind. Matching is against the type hierarchy only; payload destructuring is ordinary code after binding. The glyphs mirror placement per disposition &mdash; `<-`/`->` owning, `<<-`/`->>` viewing &mdash; and the mirror carries the mode discipline: **lending extraction mutates nothing and is READ-legal; vesting extraction mutates the envelope** (the owner&rarr;viewer demotion is a write), requiring writeable access &mdash; so a READ-received message can be inspected, narrowed, and viewed, never stripped: `step: Msg m` is a machine-checked inspect-only promise, `step: Msg &m` announces extraction rights. Vesting extraction of an envelope that only views its payload is a **runtime failure** (`Failure::Ownership::NonOwningExtract`), handled by `?`/`|` like any failure; a failed extraction of either kind consumes nothing. A viewing envelope can outlive its payload's owner &mdash; the A2 discipline, with the envelope as a newly named carrier (Appendix I).
+
+```
+.cmd ?[Shutdown] step: Inbox &in =
+    #m <- (in :: next)
+    ? m ->> Ctl::Throttle rate
+        applyRate: rate
+    ? m ->> Sensor r
+        ingest: r
+    ? m ->> Ctl::Shutdown
+        .fail Shutdown                 ; the same currency, re-emitted on the
+                                       ;   failure transport
+```
+
+### 4.16 The Discharge Arm: `|!`
+
+The recovery-arm family gains its fourth member: `|! Spec` (scoped) and `|!` (total) claim the named failures **impossible by construction at this site** &mdash; and the claim is a **proof obligation, not an assertion**. Proven, the set is consumed from failure inference exactly as a recovery arm consumes it &mdash; the enclosing command's signature reflects the discharge &mdash; and the arm **erases**: a proved impossibility needs no runtime check. Unprovable, the arm is a **static error** whose diagnostic names the missing fact and the remedies (establish it, or handle the failure). No trust-me spelling exists in the language: "can't happen" is either proved or handled.
+
+The arm's power source is asymmetric knowledge: a callee's failure set is conservative over all callers, but the caller holds frame-local facts the signature discarded &mdash; an envelope's ownership known from its `<-` birth two lines up, a dominating guard, an established narrowing. `|!` is the conduit for caller-side static knowledge to discharge callee-side conservatism.
+
+**The discharge-judgment catalog is spec-canonical.** Implementations discharge *exactly* the enumerated fact classes &mdash; no fewer (conformance) and no more (a program must not compile under one conforming implementation and error under another). The initial catalog: frame-local construction provenance (owner/viewer state known from construction in-frame); dominating success of a guard on the same subject along all paths to the arm; narrowing establishment; initialization and ownership state per the static-analysis vector (Appendix E). The catalog grows only by specification revision, under the governance of Appendix J.
+
+**Faults.** With assertions gone, faults are reserved for **integrity violations beneath the language** &mdash; conditions no program text can code against. A fault terminates execution immediately, without unwinding, with a diagnostic naming the site; the obligation guarantee (&sect;10) acquires its one honest exception, process death.
+
+### 4.17 The Standard Failure Catalog and the Prelude
+
+The module **`Basis`** is the root namespace of the language's deliverables; **`Basis::Lang`** is the language-level prelude &mdash; the sole implicit import in Basis, present in every module, its contents enumerated by this specification and not extensible by implementations. Language-fired failures form a message hierarchy rooted at **`Basis::Lang::Failure`**; every failure a conforming implementation fires is declared at-or-below that root, name-only:
+
+```
+.msg Failure                               ; in module Basis::Lang
+.msg Failure::Ownership
+.msg Failure::Ownership::NonOwningMove     ; `>>` of a non-owning reference (S7.13)
+.msg Failure::Ownership::NonOwningExtract  ; `->` on a viewing envelope (S4.15)
+.msg Failure::Match
+.msg Failure::Match::NarrowMismatch        ; `-<` and extraction type-test mismatch
+.msg Failure::Bounds
+.msg Failure::Bounds::IndexOutOfBounds     ; buffer indexing (S5)
+.msg Failure::Math                         ; reserved; populated by the intrinsics pass
+```
+
+The governance is closed on the machine's side and open on the world's. A conforming implementation fires **only** these identities. User code **may** fire any of them wherever the named condition genuinely holds &mdash; a software division firing `Failure::Math`'s eventual `DivisionByZero` is reporting the same condition the intrinsic would, and unit tests may trigger any catalog failure deliberately &mdash; and user modules **may extend** the tree, declaring children beneath any node, so that `| Basis::Lang::Failure::Math m` catches intrinsic and library failures uniformly. Discharge (&sect;4.16) remains sound under open firing and extension: user-fired instances are covered by ordinary failure-set inference. Unqualified references resolve through the implicit import's ordinary visibility; ambiguity against user names arbitrates through the existing machinery. Catalog identities are payload-less; payload-bearing children may be added beneath them by future revision without disturbing the tree (&sect;4.8's rule runs the other direction).
+
 
 ## 5. Types
 
@@ -1758,9 +1839,27 @@ In all three positions, the typechecker enforces failure-atomicity (&sect;7.18):
 
 **The `<<-` operator.** A second placement operator, `<<-`, stores a value into a resting place as a *non-owning view*. It is admitted in the resting-place store positions &mdash; local introduction, plain-slot rewrite, and field write &mdash; and at by-name argument positions (&sect;3.14). For an unobligated value `<<-` is an ordinary store, identical in effect to `<-`. The two diverge only when the stored value carries an obligation (&sect;10): `<-` moves ownership of the obligation into the destination, which discharges it at the destination's lifetime end &mdash; the source is not consumed, but survives as a non-owning view of the value (&sect;10.11) &mdash; while `<<-` installs a deliberate alias and leaves ownership with the source. `<<-` is the surface for back-edges &mdash; a parent pointer, a `prev` link &mdash; where the destination must reference an obligated value without owning its discharge (&sect;10.11).
 
-**The `<<` operator.** A third placement operator, `<<`, stores an *independent copy* of the right-hand value into a resting place &mdash; local introduction, plain-slot rewrite, field write, or a by-name argument position (&sect;3.14) &mdash; duplicating the value's backing storage so the result shares nothing with the source. It is admitted on **buffer-backed values only**: the containment rule (&sect;5.1) forbids embedded pointers, so structural duplication is total, with nothing to decide shallow-versus-deep &mdash; copying an object, pointer, or variant remains the explicit job of a constructor. For a fixed-size buffer-backed value `<<` coincides with an ordinary `<-` store &mdash; a record is already pure bytes &mdash; and differs only for the runtime-length forms `[]` and `[]T`: there `<-` and `<<-` share the value's element region by copying its handle, while `<<` duplicates the elements into the destination's own storage. Copies cost, so `<<` is explicit and never a default; the distinction reads off the operator &mdash; an arrow *places the existing value* (`<-` own, `<<-` view), no-arrow `<<` *duplicates* it. A `<<` of an obligated, allocator-backed buffer yields a fresh, region-managed, unobligated copy and leaves the source's duty untouched (&sect;10.11).
+**The `<<` operator.** A third placement operator, `<<`, stores an *independent copy* of the right-hand value into a resting place &mdash; local introduction, plain-slot rewrite, field write, or a by-name argument position (&sect;3.14) &mdash; duplicating the value's backing storage so the result shares nothing with the source. It is admitted on **buffer-backed values only**: the containment rule (&sect;5.1) forbids embedded pointers, so structural duplication is total, with nothing to decide shallow-versus-deep &mdash; copying an object, pointer, or variant remains the explicit job of a constructor. For a fixed-size buffer-backed value `<<` coincides with an ordinary `<-` store &mdash; a record is already pure bytes &mdash; and differs only for the runtime-length forms `[]` and `[]T`: there `<-` and `<<-` share the value's element region by copying its handle, while `<<` duplicates the elements into the destination's own storage. Copies cost, so `<<` is explicit and never a default; the distinction reads off the operator &mdash; an arrow *places the existing value* (`<-` vests, `<<-` lends), no-arrow `<<` *duplicates* it. A `<<` of an obligated, allocator-backed buffer yields a fresh, region-managed, unobligated copy and leaves the source's duty untouched (&sect;10.11).
 
-An owning placement does not invalidate its source: the source name survives as a non-owning view of the value (&sect;10.11); what transfers under `<-` is ownership of any obligation the value carries &mdash; never the usability of the name.
+A vesting placement does not invalidate its source: the source name survives as a non-owning view of the value (&sect;10.11); what transfers under `<-` is ownership of any obligation the value carries &mdash; never the usability of the name. When invalidation is wanted, the fourth disposition supplies it: **move** (&sect;7.13a).
+
+**The placement and extraction family, in one table:**
+
+| Op | Name | Source afterward | What the destination / binding receives | Duty (&sect;10) |
+| --- | --- | --- | --- | --- |
+| `<-` | **vest** | survives as a non-owning view | ownership of the value | vests in the destination |
+| `<<-` | **lend** | unchanged; still the owner | a non-owning view | stays with the owner |
+| `<<` | **copy** | unchanged; still the owner | ownership of an independent duplicate &mdash; **both sides own, different values** | stays with the source; the copy is duty-free |
+| `>>` | **move** (&sect;7.13a) | **dies** (`uninit`) | ownership of the value | rides to the destination |
+| `-<` | **narrow** (&sect;7.14) | unchanged; still the owner | a non-owning binding at the narrowed type; fails on mismatch (`NarrowMismatch`) | stays with the owner |
+| `->` | **vesting extraction** (&sect;4.15) | envelope survives, demoted to viewing | ownership of the payload; fails on type mismatch or non-owning envelope | re-homes to the binding |
+| `->>` | **lending extraction** (&sect;4.15) | envelope unchanged; still the owner | a non-owning view of the payload; fails on mismatch | stays with the envelope |
+
+Mirror structure: `<-`/`->` vest, `<<-`/`->>` lend &mdash; placement into a value, extraction out of an envelope, one verb per disposition. `<<` has no extraction mirror (copyability is a property of concrete types, and a payload is a concept value; the sender copies at the source, where the type is known). `>>`'s reading is uniform across slots and future channels: the left relinquishes, the right receives.
+
+#### 7.13a The Move Statement: `>>`
+
+`src >> dest` **moves**: ownership transfers and the source dies &mdash; `src` is `uninit` after the statement. The disposition family is thereby four-cornered &mdash; **vest** (`<-`, source survives as a view), **lend** (`<<-`), **copy** (`<<`), **move** (`>>`, source dies) &mdash; with "move" meaning exactly what a reader trained elsewhere expects it to mean. The LHS transition is init&rarr;uninit, the DISPOSE shape, and the mode table legislates admissibility: legal on frame-owned locals and on `~` parameters, where moving the doomed value onward *fulfills* the consume contract by relocation; illegal on READ (invalidation is a write-class effect, &sect;6.4), on UPDATE (the stays-init contract, &sect;7.22), and on boxed slots (ending a slot mid-region, the `~`-while-boxed bar, &sect;6.14). Any duty rides to the destination, and the source's death makes `>>` the safest relocation for obligated values: no surviving view exists, so the A1 and A2 residue reachable through a moved-from name is unrepresentable. Moving a **non-owning reference** is checked: for message envelopes the owner/viewer bit makes it a **runtime failure** (`Basis::Lang::Failure::Ownership::NonOwningMove`, &sect;4.17), handled by `?`/`|`; for ordinary values, view-ness is static provenance and the rejection is compile-time. The RHS is a slot or a receiving endpoint; the reading is uniform &mdash; **the left relinquishes, the right receives** &mdash; and the future channel surface inherits both directions of it (`m >> chan` inserts; `chan >> m` dequeues).
 
 ### 7.2 Local Introduction Syntax
 
@@ -2078,28 +2177,29 @@ The operator's surface forms and their meanings:
 
 | Form | Domain | Meaning | Failure mode |
 | --- | --- | --- | --- |
-| `# T n -< v` | variant `v` | If `v`'s active candidate's type is at-or-below `T`, bind the candidate value to `n`. | `TagMismatch` failure on candidate type-mismatch; `TagMismatch` failure on `v` absent. |
-| `# T n -< obj` | object `obj` (or `^Object`) | If `obj`'s runtime type is at-or-below `T`, bind the narrowed reference to `n`. | `TagMismatch` failure on type-mismatch. |
-| `# T n -< p` | pointer `^P` admitting object-hierarchy narrowing | Same as object case applied to pointee type. | `TagMismatch` failure on type-mismatch. |
+| `# T n -< v` | variant `v` | If `v`'s active candidate's type is at-or-below `T`, bind the candidate value to `n`. | `NarrowMismatch` failure on candidate type-mismatch; `NarrowMismatch` failure on `v` absent. |
+| `# T n -< obj` | object `obj` (or `^Object`) | If `obj`'s runtime type is at-or-below `T`, bind the narrowed reference to `n`. | `NarrowMismatch` failure on type-mismatch. |
+| `# T n -< p` | pointer `^P` admitting object-hierarchy narrowing | Same as object case applied to pointee type. | `NarrowMismatch` failure on type-mismatch. |
 | `# T n -< u` | union `u` (T buffer-backed) | Existential subsumption check at compile time: `T` must appear on at least one declared candidate's subsumption chain. On compile-pass, the narrowing always succeeds at runtime. | Compile-time error if `T` is on no candidate's chain; otherwise no runtime failure (&sect;7.15). |
 | `# C n -< u` | union `u` (C a concept) | Exactly-one-candidate admissibility: exactly one of `u`'s candidates must have a `C` witness. On compile-pass, the narrowing always succeeds at runtime, with the qualifying candidate's dictionary selected statically. | Compile-time error if no candidate or more than one candidate qualifies; otherwise no runtime failure (&sect;7.15). |
-| `# SortedSet[&tau;:(Ord = W)] n -< s` | witness-bearing value `s` (&sect;9.20) of type `SortedSet[&tau;]`, witness component existential | If `s`'s embedded dictionary is the named witness's canonical dictionary, bind `s` at the annotated type (&sect;9.21) to `n`. | `TagMismatch` failure on dictionary inequality. |
+| `# SortedSet[&tau;:(Ord = W)] n -< s` | witness-bearing value `s` (&sect;9.20) of type `SortedSet[&tau;]`, witness component existential | If `s`'s embedded dictionary is the named witness's canonical dictionary, bind `s` at the annotated type (&sect;9.21) to `n`. | `NarrowMismatch` failure on dictionary inequality. |
+| `# M t -< m` | message `m` (&sect;4.14), `M` a hierarchy node | If `m`'s dynamic message type is at-or-below `M`, bind `m` to `t` at the narrowed **message** type &mdash; envelope intact, payload untouched, owner/viewer state unchanged (narrowing mutates nothing and is READ-legal). Extraction is `->>`/`->`'s job (&sect;4.15), and confirm-only is bare `->>`'s: message narrowing has no discard form, one spelling per meaning. | `NarrowMismatch` failure on type-mismatch. |
 | `v -< _` | variant `v` | Clear `v` to absent state. | Always succeeds; idempotent. |
-| `_ -< v` | variant `v` | Test whether `v` is non-absent. | `TagMismatch` failure if `v` is absent. |
+| `_ -< v` | variant `v` | Test whether `v` is non-absent. | `NarrowMismatch` failure if `v` is absent. |
 
 In the form `# T n -< value`, the binding is a **typed local introduction** (&sect;7.2): `T` is the introduced local `n`'s declared type, and `n` is bound to the narrowed value on success, scoped as any local from its introduction point. (Locals bear no parameter-mode markers; the `'` marker belongs to command signatures only. Narrowing into a signature's CREATE slot &mdash; unusual but well-formed &mdash; uses the slot's own name without `#`.) Success binds a fresh name rather than reinterpreting the operand: the operand's declared type is unchanged &mdash; slot types are declaration facts, and the narrowed view lives in the new binding. For reference-semantic operands (objects, pointers) the binding is the same reference at the narrower type; no copy occurs.
 
-**Witness narrowing** is the row for the witness component (&sect;9.21): the runtime check is **one pointer comparison** &mdash; the value's embedded dictionary against the named witness's canonical dictionary, decisive by per-declaration canonicity (&sect;9.5; for a combined-concept annotation, against the canonical composed dictionary, &sect;9.2 &mdash; still one pointer). The target names a declared witness or a bound witness variable (&sect;9.21) &mdash; narrowing against a variable checks agreement with whatever the variable bound to. Three cases are statically decided and **inadmissible at the operator**: an operand already annotated with the same witness (tautological &mdash; the failure arm is unreachable); one annotated with a different witness (the mismatch is already proven statically); and a buffer-backed operand (&sect;9.21 &mdash; its witness component is mandatory-static, no embedded word exists, and no runtime mismatch is possible). There are no discard forms for the witness component &mdash; a cell always holds a dictionary, so no "witness-absent" state exists to test or clear &mdash; and no widening operator: annotated-to-existential is ordinary subsumption. Composition with the other rows is free: narrowing a concept-typed slot to a concrete *annotated* type is the RTTI check then the dictionary check, one guard, one `TagMismatch`.
+**Witness narrowing** is the row for the witness component (&sect;9.21): the runtime check is **one pointer comparison** &mdash; the value's embedded dictionary against the named witness's canonical dictionary, decisive by per-declaration canonicity (&sect;9.5; for a combined-concept annotation, against the canonical composed dictionary, &sect;9.2 &mdash; still one pointer). The target names a declared witness or a bound witness variable (&sect;9.21) &mdash; narrowing against a variable checks agreement with whatever the variable bound to. Three cases are statically decided and **inadmissible at the operator**: an operand already annotated with the same witness (tautological &mdash; the failure arm is unreachable); one annotated with a different witness (the mismatch is already proven statically); and a buffer-backed operand (&sect;9.21 &mdash; its witness component is mandatory-static, no embedded word exists, and no runtime mismatch is possible). There are no discard forms for the witness component &mdash; a cell always holds a dictionary, so no "witness-absent" state exists to test or clear &mdash; and no widening operator: annotated-to-existential is ordinary subsumption. Composition with the other rows is free: narrowing a concept-typed slot to a concrete *annotated* type is the RTTI check then the dictionary check, one guard, one `NarrowMismatch`.
 
 **Clearing is idempotent.** `v -< _` clears `v` to absent regardless of `v`'s current state; clearing an already-absent variant is a defined no-op, not an error. When `v`'s active candidate is an obligated value the variant owns, the clear ends that candidate's lifetime and fires its discharge (&sect;10.15); on an already-absent variant there is nothing to discharge and the operation simply leaves `v` absent.
 
-The operator's failure-set is `{TagMismatch}` &mdash; a single failure message the language emits for `-<` mismatches and for variant absent-cases on the `# T n -< v` and `_ -< v` forms. The message integrates with typed failures (&sect;4) per the standard machinery: a `?:` chain implicitly emits the `TagMismatch` message on the failure path; a `|: TagMismatch` recovery elsewhere catches it.
+The operator's failure-set is `{Basis::Lang::Failure::Match::NarrowMismatch}` (&sect;4.17) &mdash; the catalog identity the language emits for `-<` mismatches and for variant absent-cases on the `# T n -< v` and `_ -< v` forms. The message integrates with typed failures (&sect;4) per the standard machinery: a `?:` chain implicitly emits the `NarrowMismatch` message on the failure path; a `|: NarrowMismatch` recovery elsewhere catches it.
 
 ### 7.15 The `-<` Operator Generalized
 
 The `-<` operator is the language's unified dynamic-narrowing surface across multiple type-pair scenarios: variant-to-candidate, object-to-subtype, pointer-to-subtype-of-pointee, union-to-candidate-or-parent, union-to-concept, and existential-witness-to-annotated (&sect;9.21). The unification follows principle 8 of &sect;1.2 &mdash; small orthogonal concepts over rich overlapping ones: existing language facilities compose to do the work; reaching for a per-case operator would violate the orthogonality preference.
 
-The operator's run-time behavior varies by domain while its surface form does not. For variants and object hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a `TagMismatch` failure fires on inequality. For the witness component, the check is the dictionary-pointer comparison &mdash; the dictionary functioning as the witness-level tag. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the &sect;5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a concept target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` witness, with the language selecting that candidate's dictionary statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime &mdash; the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and concept cases.
+The operator's run-time behavior varies by domain while its surface form does not. For variants and object hierarchies (objects, object-pointers), the narrowing is genuinely runtime-checked: the value's tag or runtime type is compared against the target type, and a `NarrowMismatch` failure fires on inequality. For the witness component, the check is the dictionary-pointer comparison &mdash; the dictionary functioning as the witness-level tag. For unions, the operator has no runtime discriminator to consult; admissibility is checked entirely at compile time, with two distinct rules per the &sect;5 union-section coverage. For a buffer-backed target type `T`, admissibility is *existential*: `-<` succeeds when `T` appears on the buffer-backed subsumption chain of at least one declared candidate. For a concept target `C`, admissibility is *exactly-one*: `-<` succeeds when exactly one of the union's candidates has a `C` witness, with the language selecting that candidate's dictionary statically; admissibility fails if no candidate or more than one candidate qualifies. In both union cases, an admissible `-<` always succeeds at runtime &mdash; the failure-recovery branch attached to a `-<` on a union is statically unreachable, which the typechecker may flag as an unreachable-code warning while preserving the code form for uniformity with the variant and concept cases.
 
 For union targets, the static admissibility check is not a guarantee that the union's bytes in fact represent a valid target-typed value. The language admits the byte-reinterpretation; the programmer's discrimination machinery &mdash; typically a discriminator field in a containing record, or program logic surrounding the union &mdash; remains responsible for ensuring the union's current bytes are a valid value of the target type. This is the standard user-asserted-byte-validity discipline for unions (&sect;5).
 
@@ -2136,7 +2236,7 @@ The choice form composes with the failure system (&sect;4): a `:`-marked alterna
 
 ### 7.18 Failure Atomicity at Placement
 
-A placement &mdash; `<-` (own), `<<-` (view), or `<<` (copy) &mdash; whose right-hand side contains may-fail subexpressions is itself a may-fail operation. The discipline below is stated for `<-`; it holds identically for the view and copy commits, which inherit the same atomicity device:
+A placement &mdash; `<-` (vest), `<<-` (lend), or `<<` (copy) &mdash; whose right-hand side contains may-fail subexpressions is itself a may-fail operation. The discipline below is stated for `<-`; it holds identically for the view and copy commits, which inherit the same atomicity device:
 
 - **Atomic failure.** A failure in any subexpression aborts the whole `<-` operation. The LHS slot's pre-write state is preserved.
 - **Order of evaluation is left-to-right.** For aggregate literals, fields are evaluated in textual order (whether named or positional). For sequence literals, elements are evaluated in textual order. For parenthesized calls, arguments are evaluated in textual order before the call fires.
@@ -2145,7 +2245,7 @@ A placement &mdash; `<-` (own), `<<-` (view), or `<<` (copy) &mdash; whose right
 
 The guarantee is **statement-granular**: the statement is one copy-restore boundary (&sect;6.3). For each slot the statement binds writeable, the first binding copies into a working copy; every subsequent binding of that slot in the statement &mdash; UPDATE copy-ins and READ views alike &mdash; resolves against the working copy as of that textual point; the real slot is written exactly once, on the statement's success edge, together with the LHS commit. *A statement commits nothing until it succeeds.* Failure anywhere discards the working copies: every slot is bit-identical to its pre-statement state. Later subexpressions see earlier write-backs through the working copies, so success-edge results are exactly those of per-call sequencing; the boundary strengthens only the failure edge. Single-call statements involve no additional copy &mdash; the working copy is the call's own. Invoking a command-typed value carrying an `&` capture of a working-copied slot within the statement is a static error (its own copy-restore against the real slot would race the join). Boxed slots under `*` (&sect;6.14), obligation transfers (&sect;10.11, eager with the existing failure-edge safety net), and object-mediated field mutation remain outside the boundary: it defers copy-restore write-backs, exactly and only.
 
-The implementation device: each subexpression's value is computed into a temporary slot until every subexpression of the placement has succeeded; only then does the commit into the LHS slot fire &mdash; by own, view, or copy disposition, per the operator. These temporaries and the working copies are invisible to diagnostics: a diagnostic implicating one cites the source span of the responsible sub-expression, never a synthetic slot name. The user-side observation is that the LHS is unchanged across the entire placement if any subexpression fails.
+The implementation device: each subexpression's value is computed into a temporary slot until every subexpression of the placement has succeeded; only then does the commit into the LHS slot fire &mdash; by vest, lend, or copy disposition, per the operator. These temporaries and the working copies are invisible to diagnostics: a diagnostic implicating one cites the source span of the responsible sub-expression, never a synthetic slot name. The user-side observation is that the LHS is unchanged across the entire placement if any subexpression fails.
 
 A nested construction `'r <- ${field <- (innerCtor: ...)}` composes failure-atomicity transitively. A `?`-marked failure inside `innerCtor` propagates to its caller; copy-restore at the `innerCtor` call leaves the field's temporary slot uninitialized; the outer `<-`'s atomic-failure rule sees a failed field-value computation; the outer `<-` aborts; the outer `'r` is unchanged. The chain reaches arbitrary depth without new mechanism. The frame-ownership lens (&sect;1.5) applies cleanly: each level's CREATE slot is *that level's caller's* slot, and each level's failure leaves that caller's slot in its pre-call state.
 
@@ -2183,7 +2283,7 @@ The exact `Allocator` concept shape &mdash; its source and sink signatures and t
 
 ### 7.21 The Region-Escape Ceiling Error
 
-A default-region or `.scope`-local **runtime-length buffer** (`[]` or `[]T`, &sect;5.2) carries its element data in the storage of the frame or scope that constructed it (&sect;7.20), and both `<-` (own) and `<<-` (view) bring such a value to rest by copying its *handle* &mdash; they share the element region rather than duplicating it (&sect;5.1, &sect;7.1). Resting that shared handle in a position whose lifetime ceiling exceeds the buffer's region would leave the handle pointing into storage already reclaimed when the region ends. Such a placement is a **static error**. The remedy the error names is `<<` (copy), which duplicates the elements into the destination's own storage so nothing escapes.
+A default-region or `.scope`-local **runtime-length buffer** (`[]` or `[]T`, &sect;5.2) carries its element data in the storage of the frame or scope that constructed it (&sect;7.20), and both `<-` (vest) and `<<-` (lend) bring such a value to rest by copying its *handle* &mdash; they share the element region rather than duplicating it (&sect;5.1, &sect;7.1). Resting that shared handle in a position whose lifetime ceiling exceeds the buffer's region would leave the handle pointing into storage already reclaimed when the region ends. Such a placement is a **static error**. The remedy the error names is `<<` (copy), which duplicates the elements into the destination's own storage so nothing escapes.
 
 **Scope.** The rule governs *unobligated* region-backed runtime-length buffers only. Allocator-backed buffers are handled by the obligation system instead &mdash; the value's duty discharges in its acquiring scope unless ownership transfers, in which case the obligation rides along to the eventual owner (&sect;10.10). Fixed-size buffer-backed values are byte-aggregates that copy wholesale on every store and raise no escape. The error is thus the static backstop for precisely the default-region runtime-length case that neither the object-lifetime ceiling (&sect;5.11) nor the pointer discipline (&sect;10.14) reaches.
 
@@ -2927,7 +3027,7 @@ union: #w, a1, b1      ; STATIC ERROR at the call site, naming both witnesses
 
 First occurrence introduces; repetitions unify; scope is the signature; binding-source rules are inherited from inline type variables (non-CREATE occurrences bind from the callers' annotations; CREATE outputs are stamped; an outputs-only variable is admissible exactly as far as destination-driven resolution fixes it). Within the body, a bound variable is a **valid witness reference** at annotation and provision positions &mdash; `union` builds its result under `W`. A variable occurring once in a signature is legal: it asserts nothing at the boundary but, with body visibility, captures the argument's witness for compatible sibling construction. Declaring a single-character type, concept, or witness is legal with a declaration-site warning; where such a name resolves, resolution wins over the variable reading.
 
-**(c) Witness narrowing** takes an existential to an annotated demand through the visible `-<` guard (&sect;7.14): one dictionary-pointer comparison, `TagMismatch` on inequality, the bound name at the annotated type on success. The one dynamic point in the design, and it is programmer-written at a failure-idiomatic position; static by default, dynamic only where spelled.
+**(c) Witness narrowing** takes an existential to an annotated demand through the visible `-<` guard (&sect;7.14): one dictionary-pointer comparison, `NarrowMismatch` on inequality, the bound name at the annotated type on success. The one dynamic point in the design, and it is programmer-written at a failure-idiomatic position; static by default, dynamic only where spelled.
 
 **(d) Buffer-backed types: mandatory-static.** For a buffer-backed witness-bearing type the component is not opt-in &mdash; it **is the dispatch source**, since no embedded word exists (&sect;9.20): concretely annotated, dispatch is monomorphic and fully static; variable-annotated, the dictionary flows on the ordinary hidden-parameter channel, supplied by the caller who statically knows the binding. The bytes stay pure &mdash; copyable, traversal-free, containment intact &mdash; and since the witness has no runtime existence on this side, **no runtime mismatch can occur**: narrowing is neither needed nor possible (&sect;7.14's inadmissibility). The bare spelling (`SortedVec[T] &dst, SortedVec[T] src`) means **one implicit witness variable shared across the signature**: agreement is the cheap spelling, and accepting disagreement must be spelled with distinct explicit variables.
 
@@ -3103,7 +3203,7 @@ For unobligated values both are ordinary stores; the ownership semantics activat
 
 **Down-stack is a borrow by default; ownership travels by binding an argument by name.** A positionally bound argument is a borrow &mdash; it lends without transferring, and is the unmarked common case. Binding an argument *by name* at the call site, however, uses the same two arrows as a lateral store, with the same meanings: `foo: x <- bar` binds parameter `x` to `bar` and *moves ownership* into the call &mdash; the down-stack counterpart of CREATE output, used to hand a freshly built resource to a constructor or factory that will incorporate it &mdash; while `foo: x <<- bar` binds by name but passes a *non-owning view*, the caller retaining ownership. The determination is thus the call site's, not the callee's signature: the same parameter may be borrowed at one call, owned at another, and aliased at a third, by the provenance of what is passed and the form of its binding (&sect;3.14).
 
-**The source after an owning placement survives as a view.** A `<-` moves ownership: the destination owns iff the source did, and the source becomes a non-owning **view** of the value wherever it now lives &mdash; turning `uninit` only if the value has been **finalized** (a finalizing discharge consumed it, &sect;10.4). A lateral store (`dest <- src`) leaves `src` viewing the value now in `dest`; a down-stack by-name `<-`, on its success edge, leaves the source viewing the re-homed value. The source is `uninit` exactly where finalization made the value provably gone &mdash; a `~` parameter, which finalizes on both edges, or a non-`~` failure edge whose safety-net default is itself finalizing &mdash; and a view everywhere else, including a non-`~` failure edge whose default is non-finalizing and leaves the value live. A surviving view is readable, but its validity is bounded by the value's storage outlasting the read: a view that provably outlives its owner's ceiling is rejected statically (&sect;7.21), and the data-dependent remainder is the dangling-view footgun (Appendix I, A2) &mdash; the same hazard a deliberately-installed `<<-` view carries, now reachable through the source's surviving name. Throughout, the single-owner invariant and *disposed exactly once* are untouched &mdash; one owner at a time, a view fires no duty, and the duty fires once at the owner's lifetime end.
+**The source after an vesting placement survives as a view.** A `<-` moves ownership: the destination owns iff the source did, and the source becomes a non-owning **view** of the value wherever it now lives &mdash; turning `uninit` only if the value has been **finalized** (a finalizing discharge consumed it, &sect;10.4). A lateral store (`dest <- src`) leaves `src` viewing the value now in `dest`; a down-stack by-name `<-`, on its success edge, leaves the source viewing the re-homed value. The source is `uninit` exactly where finalization made the value provably gone &mdash; a `~` parameter, which finalizes on both edges, or a non-`~` failure edge whose safety-net default is itself finalizing &mdash; and a view everywhere else, including a non-`~` failure edge whose default is non-finalizing and leaves the value live. A surviving view is readable, but its validity is bounded by the value's storage outlasting the read: a view that provably outlives its owner's ceiling is rejected statically (&sect;7.21), and the data-dependent remainder is the dangling-view footgun (Appendix I, A2) &mdash; the same hazard a deliberately-installed `<<-` view carries, now reachable through the source's surviving name. Throughout, the single-owner invariant and *disposed exactly once* are untouched &mdash; one owner at a time, a view fires no duty, and the duty fires once at the owner's lifetime end.
 
 A by-name `<-` into a **READ** parameter is legal, but it moves the obligation into a binding the callee only reads: if that obligation's default is finalizing, the value is consumed at the callee's frame end while the caller is left holding a surviving view that then dangles. The language does not yet treat this case precisely &mdash; the compiler **warns** on it and permits it for now.
 
@@ -3209,10 +3309,12 @@ The `.sub` and `.scope` keywords introduce body-internal constructs &mdash; subc
 | `::` | Scope operator (&sect;1.5) |
 | `=` | Definition introducer, default declaration, equality (in guard positions) |
 | `==` | Equality test (in guard positions) |
-| `->` | Result-designator clause |
-| `<-` | Placement operator (&sect;7.1) |
-| `<<-` | Non-owning-view placement operator (&sect;10.11) |
+| `->` | Result-designator clause (signature position); vesting extraction operator (statement position, &sect;4.15); recovery-arm separator |
+| `<-` | Vesting placement operator (&sect;7.1) |
+| `<<-` | Lending (non-owning) placement operator (&sect;10.11) |
 | `<<` | Copy (independent-duplicate) placement operator (&sect;7.1) |
+| `>>` | Move statement operator: transfer and invalidate the source (&sect;7.13a) |
+| `->>` | Lending extraction operator (&sect;4.15) |
 | `-<` | Dynamic narrowing operator (&sect;7.14) |
 | `^` | Pointer prefix; rewind block marker |
 | `&` | UPDATE mode marker (identifier-shape); pointer-of operator |
@@ -3577,8 +3679,18 @@ body-content      ::= subcommand-decl* statement+
 
 subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (S3.12)
 
-statement         ::= assignment | call | block-marker-construct | scope-block | atomic-group | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt | unbox-stmt
+statement         ::= assignment | call | block-marker-construct | scope-block | atomic-group | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt | unbox-stmt | move-stmt | extract-stmt
 atomic-group      ::= .atomic INDENT statement+ DEDENT           ; join-point grouping (S3.20); no nesting per body
+fail-directive    ::= .fail
+                    | .fail message-ref                          ; payload-less
+                    | .fail message-ref <- expression            ; owning payload
+                    | .fail message-ref <<- expression           ; viewing payload (S4.14)
+move-stmt         ::= expression >> place                        ; move: LHS dies (S7.13a)
+extract-stmt      ::= expression ->> message-spec identifier?    ; lending extraction / confirm-only
+                    | expression -> message-spec identifier      ; vesting extraction (S4.15)
+msg-construct     ::= ( message-ref <- expression )              ; owning envelope (S4.14)
+                    | ( message-ref <<- expression )             ; viewing envelope
+                    | message-ref                                ; payload-less, bare name
 box-stmt          ::= .box identifier
 unbox-stmt        ::= .unbox identifier
 
@@ -3657,6 +3769,8 @@ rewind-block      ::= ^ cmd-body                                 ; ^ DO_REWIND
                     | ^                                          ;   bodiless rewind
 
 recovery-block    ::= | recovery-spec? cmd-body                  ; | DO_RECOVER
+                    | |! msg-spec?                               ; |! discharge arm (S4.16): bodiless;
+                                                                 ;   proof-or-error; erases when proven
 recovery-spec     ::= TypeName identifier? -> 
 
 else-block        ::= - cmd-body                                 ; - DO_ELSE
@@ -3931,7 +4045,7 @@ The five RHS shapes admitted at `<-` positions (&sect;7.3):
 
 The construction-form conceptification is determined at the parser by the RHS shape; the typechecker dispatches construction-rule machinery (&sect;7) accordingly.
 
-`Placement` is the AST node for a placement statement: `{ lhs: Lvalue, op: PlacementOp, rhs: ConstructionForm }`. `PlacementOp` is `{ Own, View, Copy }` for `<-`, `<<-`, and `<<` respectively (&sect;7.1). `Lvalue` is one of `{ LocalIntro, Assignment, FieldWrite }`, mirroring &sect;7.1's three syntactic positions.
+`Placement` is the AST node for a placement statement: `{ lhs: Lvalue, op: PlacementOp, rhs: ConstructionForm }`. `PlacementOp` is `{ Vest, Lend, Copy }` for `<-`, `<<-`, and `<<` respectively (&sect;7.1). `Lvalue` is one of `{ LocalIntro, Assignment, FieldWrite }`, mirroring &sect;7.1's three syntactic positions.
 
 Two further statement nodes derive from the placement family:
 
@@ -3942,6 +4056,10 @@ Two further statement nodes derive from the placement family:
 | `Ack` | `code: String` | *ack-stmt* / *ack-decl* (&sect;3.18); prefixes the following node, which it encloses |
 | `BoxStmt` | `slot: identifier` | *box-stmt* (&sect;6.14) |
 | `AtomicGroup` | `body: [Statement]` | *atomic-group* (&sect;3.20); flat per body |
+| `MoveStmt` | `src: Expr`, `dest: Place` | *move-stmt* (&sect;7.13a) |
+| `ExtractStmt` | `subject: Expr`, `spec: MsgRef`, `binding: identifier?`, `disposition: {View, Own}` | *extract-stmt* (&sect;4.15) |
+| `MsgConstruct` | `msg: MsgRef`, `payload: Expr?`, `disposition: {Own, View}?` | *msg-construct* (&sect;4.14) |
+| `DischargeArm` | `spec: MsgSpec?` | *recovery-block*, discharge alternative (&sect;4.16); erases when proven |
 | `UnboxStmt` | `slot: identifier` | *unbox-stmt* (&sect;6.14) |
 
 `Choice` is the first-success choice form `lhs <- a | b | c` and its `<<-` and `<<` variants (&sect;7.17). The operator is uniform across the form &mdash; it parametrizes only how the winning alternative commits &mdash; so it is recorded once on the node rather than per alternative. `ChoiceLhs` is `{ LocalIntro, Identifier }`. The choice form is a *statement*, not an expression; it has no node in C.5.
@@ -4149,7 +4267,7 @@ $$
 Gamma |- subject : variant-type
 Gamma |- T narrowing-target of variant
 -----------------------------------------------
-Gamma |- (# T n -< subject) : T      (ExprNarrow, with TagMismatch on failure)
+Gamma |- (# T n -< subject) : T      (ExprNarrow, with NarrowMismatch on failure)
 ```
 
 ### D.5 Construction-Form Typing
@@ -4285,13 +4403,13 @@ The dynamic-narrowing operator (&sect;7.14) admits multiple type-pair scenarios:
 Gamma |- v : variant V with candidate types T1, ..., Tn
 Gamma |- T is at-or-below some Ti in T's subsumption chain
 ---------------------------------------------------------
-Gamma |- # T n -< v : T      (may-fail: TagMismatch if v's tag != Ti, or v absent)
+Gamma |- # T n -< v : T      (may-fail: NarrowMismatch if v's tag != Ti, or v absent)
 ```
 
 ```
 Gamma |- v : variant V
 ----------------------
-Gamma |- _ -< v : ok      (Variant absent test; may-fail: TagMismatch if v is in absent state)
+Gamma |- _ -< v : ok      (Variant absent test; may-fail: NarrowMismatch if v is in absent state)
 ```
 
 ```
@@ -4306,14 +4424,14 @@ Gamma |- v -< _ : ok      (Variant absent clear; always-succeeds; v becomes abse
 Gamma |- obj : object type O
 Gamma |- T at-or-below O in concept hierarchy
 -------------------------------------------
-Gamma |- # T n -< obj : T      (may-fail: TagMismatch on type-mismatch)
+Gamma |- # T n -< obj : T      (may-fail: NarrowMismatch on type-mismatch)
 ```
 
 ```
 Gamma |- p : ^P
 Gamma |- T at-or-below P
 ------------------------
-Gamma |- # T n -< p : ^T      (Pointer narrowing; may-fail: TagMismatch on type-mismatch)
+Gamma |- # T n -< p : ^T      (Pointer narrowing; may-fail: NarrowMismatch on type-mismatch)
 ```
 
 **Union narrowing (compile-time only):**
@@ -4482,7 +4600,7 @@ Unification: each witness variable V in a signature takes one assignment per cal
         conflicting assignments are a STATIC ERROR at the call site naming both.
 
 Gamma |- # T[tau:(C = W)] n -< v, v : T[tau]   ==>   n : T[tau:(C = W)]
-        (Witness narrowing; may-fail: TagMismatch on dictionary-pointer inequality;
+        (Witness narrowing; may-fail: NarrowMismatch on dictionary-pointer inequality;
          statically inadmissible where tautological, contradicted, or buffer-backed)
 
 Channel rule: within a body, live channels for a pair (C-pair) = flowed binders
@@ -4647,6 +4765,7 @@ $$
 | `??` (DO_WHEN_MULTI) | wraps inner `?` or `?-` | failure consumed by `??`; control elevates one level |
 | `^` (DO_REWIND) | (no engagement condition) | failure from any body statement consumed by `^`; control rewinds on success, falls through on failure |
 | `|` (DO_RECOVER) | preceding sibling `failing` | failure consumed; body executes from `clear`; propagating-set narrowed to $\emptyset$ |
+| `|!` (discharge, &sect;4.16) | statically: the spec'd set proven unreachable at this point | set consumed from inference at compile time; the arm erases &mdash; no runtime row |
 | `|`-with-spec | preceding sibling failing with matching message | failure consumed; payload bound; body executes from `clear`; propagating-set narrowed per the per-root rule below |
 | `-` (DO_ELSE) | paired with preceding `?` or `?-` | runs on the alternative branch; failure handling per parent |
 | `%` (DO_BLOCK) | (no engagement condition) | body executes as ordinary statements; unrecovered failure propagates |
@@ -4800,10 +4919,10 @@ $$
 \langle c_1\, \vec{v},\ \epsilon,\ \Sigma \rangle \to \langle v,\ \epsilon,\ \Sigma \rangle \qquad \text{(when } c_1 \text{ has fully reduced and } \Phi = \epsilon \text{)}
 $$
 
-**R3 &mdash; Failure firing (`.fail`).** The `.fail Name: payload` directive populates &Phi; (the failure register):
+**R3 &mdash; Failure firing (`.fail`).** The `.fail Name <- payload` (or `<<-`) directive populates &Phi; (the failure register):
 
 ```
-<.fail Name: payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
+<.fail Name <- payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
 ```
 
 where W is the dictionary selected at the `.fail` site for the (concrete-payload-type, Name's payload concept) pair, and `&payload` is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
@@ -4900,7 +5019,7 @@ Failure propagation copies the three-word slot up the call stack without relocat
 
 A payload value's *holding frame* is the frame whose slot storage currently contains the value. The holding-frame model (&sect;4.11):
 
-- **Initial holding frame.** When `.fail Name: payload` fires, the payload value resides in the firing frame's slot storage. That frame becomes the holding frame.
+- **Initial holding frame.** When `.fail Name <- payload` fires, the owned payload value resides in the firing frame's slot storage. That frame becomes the holding frame.
 - **Propagation.** As the failure propagates up the call stack, the holding frame does *not* change &mdash; only the failure-slot triple (message, pointer, dictionary) is copied. The payload value stays in its originating frame's storage.
 - **Binding event.** When a `|`-with-spec recovery engages, the bound payload value transfers from its originating frame to the recovery frame. The holding frame becomes the recovery frame; the originating frame's payload storage is now invalid for this value (the value has genuinely relocated).
 - **Re-fail event.** When a recovery handler re-emits the payload as a fresh failure (&sect;4.10), the value transfers into the new originating frame. The holding frame becomes the new originating frame.
@@ -5206,6 +5325,7 @@ Every top-level declaration in a module is visible to importers. There is no `pr
 
 The visibility rules in detail:
 
+- The module `Basis::Lang` (&sect;4.17) is implicitly imported into every module &mdash; the language's sole implicit import; its contents are spec-enumerated and closed to implementations.
 - A top-level declaration `D` in module `M` is visible in module `N` if and only if `N` has an `.import M` declaration (with or without aliasing).
 - Subcommand declarations (`.sub`) do not appear at module scope &mdash; they are confined to their enclosing command's body per &sect;3.12.
 - Concept members declared with `.decl` (signature-only) are visible to witness writers; concept methods declared with `.cmd` (default implementations) are visible to witness writers and to method dispatch sites.
@@ -5275,7 +5395,7 @@ Payload-concept covariance (&sect;4.8, &sect;9.17) keeps the extension safe: a `
 
 This appendix catalogs the sharp edges Basis deliberately leaves exposed. Each entry names the guarantee that *does* hold, the one that does *not*, and the discipline that closes the gap. The intent is to name the hazards plainly up front rather than let each be rediscovered painfully. Most are unpoliced by design: the analyses that would catch them &mdash; general aliasing, pointer lifetime &mdash; are ones Basis declined (&sect;10.3, &sect;10.14) in exchange for a simpler, signature-bounded reasoning model.
 
-A deliberate absence worth recording: the witness-coherence machinery (&sect;9.15, &sect;9.20&ndash;&sect;9.21) introduces **no new runtime failure messages and no new footgun entries**. Its violations are compile-time errors throughout; the single runtime check in the design &mdash; witness narrowing &mdash; is programmer-written and reuses `TagMismatch` (&sect;7.14), the dictionary pointer serving as the witness-level tag.
+A deliberate absence worth recording: the witness-coherence machinery (&sect;9.15, &sect;9.20&ndash;&sect;9.21) introduces **no new runtime failure messages and no new footgun entries**. Its violations are compile-time errors throughout; the single runtime check in the design &mdash; witness narrowing &mdash; is programmer-written and reuses `NarrowMismatch` (&sect;7.14), the dictionary pointer serving as the witness-level tag.
 
 **How to read an entry.** Each names what the language *does* guarantee, what it *does not*, and the discipline that closes the gap &mdash; the recurring shape is *the system guarantees X; it does not guarantee Y; you secure Y by Z.*
 
@@ -5285,19 +5405,19 @@ A deliberate absence worth recording: the witness-coherence machinery (&sect;9.1
 
 **A2 &mdash; Dangling view.** A `<<-` deliberately installs a view the discharge accounting ignores, so the owner may release the value while the view still points at it (&sect;10.11). This latitude is the price of admitting non-owning views at all. The default call convention passes arguments as views &mdash; a parameter borrows rather than owning unless its position is marked consuming (`~`, &sect;3.14) &mdash; so the owner stays up-stack of the view and necessarily outlives it: a view that stays within the call it was passed into cannot dangle. The exposure concentrates where a view is stored into something that can outlive its owner, paradigmatically a field of a longer-lived object; the region-escape ceiling (&sect;7.21) rejects that store wherever the lifetimes are statically visible, leaving the data-dependent residue &mdash; a view placed through a pointer or into region storage of unproven extent &mdash; as an unpoliced dangling read, the programmer's responsibility.
 
-Under the **surviving-view rule** (&sect;10.11) a `<-` source is itself such a view: after an owning placement, the source survives as a non-owning view of the value, which dangles if read after the new owner has finalized it. It is no new kind of hazard &mdash; the same dangling-view discipline, now reachable through the source's surviving name.
+Under the **surviving-view rule** (&sect;10.11) a `<-` source is itself such a view; and a **viewing message envelope** (&sect;4.14&ndash;&sect;4.15) is a newly named carrier of the same discipline &mdash; an envelope that outlives its payload's owner views dead storage, and the runtime owner/viewer bit knows viewer-versus-owner, not whether the owner lives. After an vesting placement, the source survives as a non-owning view of the value, which dangles if read after the new owner has finalized it. It is no new kind of hazard &mdash; the same dangling-view discipline, now reachable through the source's surviving name.
 
 *Discipline.* `<<-` is the "I accept responsibility for this lifetime" marker &mdash; reserve it for genuine views (a parent pointer, a `prev` link), and ensure the owner's lifetime encloses the view's. For a `<-` source, treat it as live only while its new owner is.
 
 **A3 &mdash; Dangling pointer (`^T`).** Pointer lifetime is not analyzed. A pointer may outlive the storage it references, and a copied pointer outliving a release dangles (&sect;10.14) &mdash; a chosen C-like discipline, not an oversight. *Discipline:* prefer the lifetimes the system *does* track &mdash; obligated handles (`.promise`), objects under their lifetime ceiling (&sect;5.11), region-backed buffers within their region (&sect;7.21) &mdash; and treat raw `^T` escape as your responsibility. A pointer created *before* a box region (&sect;6.14) that reaches the boxed slot's storage is the same class of edge: writes through it during the region are un-analyzed and are the programmer's stated responsibility.
 
-**A4 &mdash; Stale cleanup-block reference after an owning placement.** `@` and `@!` blocks bind to the *slot*, not to the value (&sect;3.13, &sect;4.11); if the value is transferred out of the frame &mdash; as a `.fail` payload, say &mdash; the block's reference names a slot that no longer holds what the block meant to clean up. Under the surviving-view rule (&sect;10.11) that slot holds a *view* on the success path, and is `uninit` only where the value was consumed, so the block names a live view rather than an empty slot &mdash; which is a hazard of a different shape, not an absence of one. *Discipline:* order operations so the slot still holds the value when the block fires, or register the cleanup at the destination frame. The frame-locally visible shape raises the `cleanup.slot-transferred` warning (Appendix J).
+**A4 &mdash; Stale cleanup-block reference after an vesting placement.** `@` and `@!` blocks bind to the *slot*, not to the value (&sect;3.13, &sect;4.11); if the value is transferred out of the frame &mdash; as a `.fail` payload, say &mdash; the block's reference names a slot that no longer holds what the block meant to clean up. Under the surviving-view rule (&sect;10.11) that slot holds a *view* on the success path, and is `uninit` only where the value was consumed, so the block names a live view rather than an empty slot &mdash; which is a hazard of a different shape, not an absence of one. *Discipline:* order operations so the slot still holds the value when the block fires, or register the cleanup at the destination frame. The frame-locally visible shape raises the `cleanup.slot-transferred` warning (Appendix J).
 
 ### I.2 Obligation hazards
 
 **B1 &mdash; Duty misfire: consuming through a view.** A `<<-` installs a view and leaves the duty with the source (&sect;7.1). Consuming or finalizing through that view ends the value while the duty still rides the source slot &mdash; and since every default is self-sufficient (&sect;10.2), that duty *does* fire at the owner's scope end, on a value already consumed: a discharge against dead storage, A1's double-discharge family in a different dress. The frame-locally visible shape &mdash; a slot the analysis knows to hold a non-owning view reaching a consuming or finalizing position &mdash; raises the `view.into-consuming` caveat (Appendix J); the residue here is what the analysis cannot see: views received across calls, aliasing through pointers. *Discipline:* to consume or finalize an owned value, place it with an owning `<-` so the duty travels with it. A `<<-` into a consuming position is almost always a mistake.
 
-**B2 &mdash; Wrong placement disposition (own / view / copy).** The three placement operators differ in consequence, the cheapest to type is not always the safe one, and the own/view divergence is *invisible* for an unobligated value &mdash; it manifests only once the value carries an obligation (&sect;7.1, &sect;10.11). Choosing wrongly silently mislocates ownership (`<-` where `<<-` was meant, or the reverse) or silently shares storage that should have been duplicated (`<-`/`<<-` where `<<` was meant). The runtime-length-buffer sub-case, where a shared region would outlive its owner, is caught by the region-escape ceiling error (&sect;7.21); the rest is on you. *Discipline:* hold the mnemonic &mdash; *an arrow places the existing value (`<-` own, `<<-` view); no arrow, `<<`, duplicates it* &mdash; and reserve `<<-` for the cases that genuinely want a view.
+**B2 &mdash; Wrong placement disposition (vest / lend / copy / move).** The three placement operators differ in consequence, the cheapest to type is not always the safe one, and the vest/lend divergence is *invisible* for an unobligated value (a `>>` move, by contrast, is always visible: the source dies) &mdash; it manifests only once the value carries an obligation (&sect;7.1, &sect;10.11). Choosing wrongly silently mislocates ownership (`<-` where `<<-` was meant, or the reverse) or silently shares storage that should have been duplicated (`<-`/`<<-` where `<<` was meant). The runtime-length-buffer sub-case, where a shared region would outlive its owner, is caught by the region-escape ceiling error (&sect;7.21); the rest is on you. *Discipline:* hold the mnemonic &mdash; *an arrow places the existing value (`<-` vests it, `<<-` lends it); no arrow, `<<`, duplicates it; `>>` moves it out, killing the source* &mdash; and reserve `<<-` for the cases that genuinely want a view.
 
 **B3 &mdash; Forgotten obligated field: a leak.** An obligation parked in a structure's field is the programmer's to fire. Object and record retirement does not auto-finalize owned fields (&sect;10.16), so a structure dropped without its obligated fields finalized strands their duties &mdash; silently, with no completeness check. What *does* hold is that a frame or `.scope` slot owning a duty fires it at scope end (&sect;10.12), and that an object's own obligation fires at its retirement; what does *not* is any implicit walk of its interior. A *local* record is bitten exactly as a heap one &mdash; the moment a resource is stored into a field, managing it is the programmer's. *Discipline:* give any type that owns an obligated field a finalizer that fires it (`~ self :: field`, or extract-then-`~` under the `~` receiver, &sect;7.22); treat storing a resource into a field as taking on its teardown.
 
