@@ -581,7 +581,7 @@ Object fields may be any type, buffer-backed or non-buffer. Objects participate 
 A union is a buffer-backed sum type — a single block of bytes that may be interpreted as any of several declared candidates. Unions carry no runtime tag; the user is responsible for tracking which candidate is active:
  
 ```
-.union RGBA8: [4] AsBytes, Int32 AsPacked, Pixel AsRgba
+.union RGBA8: [4] asBytes, Int32 asPacked, Pixel asRgba
 ```
  
 A union value implicitly subsumes (by zero-cost byte reinterpretation) to any type that appears on at least one declared candidate's chain — so a `RGBA8` may be supplied where an `Int32` is expected. The reverse direction (reading a union slot at a different candidate's interpretation) requires the user to track which candidate is active. This is the C-style overlay semantics, kept structurally available for byte-aliasing efficiency.
