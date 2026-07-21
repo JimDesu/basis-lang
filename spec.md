@@ -1660,7 +1660,7 @@ The five modes form a complete discipline: every parameter and receiver in the l
 
 **A CREATE obligation belongs to a call boundary, and a lambda is not one.** Lambda forms (&sect;8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of &sect;6.2 &mdash; `'name`, `&name`, or bare `name` for CREATE, UPDATE, and READ respectively.
 
-**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, a CREATE capture is definitionally a reference to `D` aimed at crossing `D`'s boundary, which the self-reference rule (&sect;8.4) exists to reject. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary. The rejection diagnostic names the replacing idiom: give the lambda its own CREATE parameter and let the invoker route the value.
+**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, a CREATE capture is definitionally a reference to the defining command's frame aimed at crossing that frame's boundary, which the self-reference rule (&sect;8.4) exists to reject. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary. The rejection diagnostic names the replacing idiom: give the lambda its own CREATE parameter and let the invoker route the value.
 
 
 The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or UPDATE value &mdash; captured via a lambda's slash list &mdash; carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
@@ -2335,7 +2335,7 @@ A lambda is a command-typed value with an explicit capture list. The surface for
 
 The slash separates the parameter list from the capture list. The capture list enumerates names from the construction site that the body may reference; the body may reference its own parameters, the captured names, and any language-visible names independent of capture (top-level commands, constants), and nothing else.
 
-**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.9): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.9): a CREATE capture is definitionally a reference to the defining frame aimed at crossing its boundary, which the self-reference rule rejects; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
+**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.9): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.9): a CREATE capture is definitionally a reference to the defining command's frame aimed at crossing its boundary, which the self-reference rule rejects; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
 
 **Reference-chain flattening for `&` captures.** A `&`-mode capture is flattened to the origin slot &mdash; identification for per-invocation copy-restore, with no lifetime implication (slot residency needs none) &mdash; parallel to the rule for command-reference `&` bindings (&sect;8.2). If `&x` captures a name that is itself an UPDATE parameter of the constructing frame, the capture chains through to the origin; the lambda's ceiling becomes the origin slot's owning frame.
 
@@ -2385,11 +2385,11 @@ The three mechanisms differ in their resolution site:
 | Lambda captures | Construction frame's scope (once) | Declared on the capture-list entry |
 
 
-### 8.8 Lambda Non-Inheritance of `D`'s Implicit Context Parameters
+### 8.8 Lambdas Do Not Inherit the Defining Command's Implicit Context Parameters
 
-A lambda's body may *not* reference `D`'s implicit context parameters by free name. The lambda's body sees only its own parameters, its capture list, and language-visible names; `D`'s implicit context parameters are not in scope.
+The **defining command** is the command whose body lexically contains the lambda's construction. A lambda's body may *not* reference the defining command's implicit context parameters (&sect;3.6) by free name: the body sees only its own parameters, its capture list, and language-visible names &mdash; the defining command's implicit parameters, like the rest of its bindings, are outside that set.
 
-The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site; the free-name diagnostic shows that spelling. If `D` declares `Logger logger` as an implicit context parameter, a lambda within `D` that wants to use `logger` writes `:<args / Logger logger>{body}` &mdash; capturing `logger` as a READ capture. The capture list is then explicit about which of `D`'s state the lambda uses, consistent with the lambda discipline of explicit captures only.
+The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site; the free-name diagnostic shows that spelling. If the defining command declares `Logger logger` as an implicit context parameter, a lambda constructed within it that wants to use `logger` writes `:<args / Logger logger>{body}` &mdash; capturing `logger` as a READ capture. The capture list is then explicit about which of the defining command's state the lambda uses, consistent with the lambda discipline of explicit captures only.
 
 
 ## 9. Concepts, Witnesses, and Dispatch
@@ -4347,7 +4347,7 @@ Gamma |- mark<params>{body} : mark<param-types>      (lifted to command-typed va
 ```
 Gamma |- each capture entry resolves in Gamma at READ or UPDATE mode
 Gamma |- body : mark ; F   under (Gamma-captures-extended)
-slot-resident; references-D iff any & capture resolves to D's slots (S8.4)
+slot-resident; frame-referencing iff any & capture resolves to a slot of the defining command's frame (S8.4)
 -------------------------------------------------------------------
 Gamma |- mark<params / captures>{body} : mark<param-types>
 ```
