@@ -392,7 +392,7 @@ A failure message may be **bound to a concept value** — the payload is a value
  
 .cmd ?fetchAll: Url u =
     ?- ping: u
-        .fail Net::Disconnected: (lastError: u)
+        .fail Net::Disconnected <- (lastError: u)
  
 .cmd useIt =
     fetchAll: someUrl
@@ -401,6 +401,16 @@ A failure message may be **bound to a concept value** — the payload is a value
         renderDiagnostic: e
 ```
  
+The `|` family has one more member, and it handles the *opposite* situation — a failure the type system says is possible but you know cannot happen here. Instead of writing an empty `| ; can't happen` handler (which would silently swallow a real bug if you're wrong), you write the **discharge arm**:
+
+```
+#env <- (Ctl::Throttle <- rate)   ; constructed owning, right here
+send: chan, env                   ; send's signature says "may fail on
+|! NonOwningMove                  ;   non-owning" — but we can PROVE ours owns
+```
+
+`|!` is a claim the compiler must *verify*: it checks that the named failure genuinely cannot arrive at this point (here, because the envelope's ownership is known from its construction two lines up). If the proof goes through, the failure vanishes from your command's signature and the arm compiles to *nothing* — a proved impossibility needs no runtime check. If the compiler can't prove it, that's a compile error telling you which fact is missing — not a runtime gamble. There is no "trust me" spelling; if you can't prove it, you handle it.
+
 The concept binding makes failures *contractual*: a recovery handler does not need to know the concrete type of the payload, only the operations the bound concept promises. Different `.fail` sites for the same message may pass values of different concrete types, all satisfying the same concept, and consumers continue to work without change. This is Haskell-style typeclass dispatch sliced through the failure machinery.
  
 ### 4.5 Cleanup: at-stack handlers and obligations
@@ -440,7 +450,7 @@ Reading the first line: `Runtime` is a **receiver type**, and `spawn` and `join`
 
 The **default sink** (the first listed) fires automatically when the obligated value reaches the end of the scope that owns it — which is why the transaction declaration puts `rollback` first: forget everything, and the safe thing happens. Discharging *explicitly* — calling `commit`, or finalizing the value with the **DISPOSE** mode (`~`), construction's destruction-dual — settles the duty early and the default stays quiet.
 
-Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by an owning binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, views versus owning placements, and object retirement — is in the spec's §10.
+Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by a vesting by-name binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, vesting versus lending, and object retirement — is in the spec's §10.
  
 ### 4.6 All-or-nothing updates: `.atomic`
 
@@ -479,6 +489,27 @@ For every reachable point in a command body, the typechecker maintains a *failur
 Block markers and recovery contexts manipulate the lattice precisely; the typechecker's job is to confirm the body's structure conforms.
  
  
+### 4.8 Messages beyond failures: one currency, many transports
+
+The messages that failures carry aren't special to failures — they're a first-class currency, and the failure system is just their first transport. You can construct one, hold it in a slot, queue it in an object, and unpack it anywhere:
+
+```
+#m <- (Ctl::Throttle <- rate)     ; construct: the envelope OWNS its payload
+#n <- (Status <<- bigReport)      ; or VIEWS a payload that lives elsewhere
+#q <- Ctl::Shutdown               ; payload-less: just the name
+
+? m ->> Ctl::Throttle r           ; unpack: confirm the type, view the payload
+    applyRate: r
+? m -> Ctl::Throttle r            ; or take it: ownership moves to r, and the
+    consume: r                    ;   envelope keeps only a view
+```
+
+Mismatches simply *fail*, so receive loops are ordinary guard chains — no match statement, no special control flow. And the mode system reads as protocol documentation for free: a command taking `Msg m` (READ) can inspect and view but never strip a message; `Msg &m` announces extraction rights in the signature.
+
+Two spellings tie the room together. `.fail Overheat <- reading` is this same construction launched on the failure transport. And `src >> dest` is the **move**: the value transfers and `src` dies — the one placement that invalidates its source, which makes it the safest way to relocate something carrying an obligation, and the natural verb for handing messages to the channels and mailboxes of Basis's (future) concurrency story.
+
+When something impossible-by-construction would force a `| ; can't happen` handler, the **discharge arm** `|! Spec` does better: the compiler must *prove* the failure unreachable — then the arm vanishes and your signature comes out clean — or it's a compile error telling you what fact is missing. There is no "trust me" spelling; the multi-million-dollar `unwrap()` has no Basis translation. Language-fired failures all live in one catalog under `Basis::Lang::Failure` (bounds, narrowing mismatches, ownership violations, math), which your libraries can extend and your tests can fire.
+
 ## 5. Types
  
 The type system has two layers, and they are what let Basis work in either style. **Buffer-backed** types are pure-bytes values: their layout is fully described by their fields' bytes, and they may be embedded inline in records, in arrays, in unions — the substrate for byte-level work. **Non-buffer** types — pointers, objects, command-typed values, variants — carry their own lifecycle machinery and are referenced indirectly — the substrate for object-and-behavior work. A program can stay close to the bytes, work in terms of objects, or mix the two as each part of the problem warrants.
@@ -748,7 +779,17 @@ The choice form gives concise fallback behavior:
 #config <- readFile: "user.cfg" | readFile: "default.cfg" | (Config: emptyDefaults)
 ```
  
-`<-` is the *owning* placement: it commits the value into the slot, and ownership of any obligation the value carries commits with it — the source name is not invalidated; it survives as a non-owning view of the value.
+`<-` is the *vesting* placement: ownership of the value — and of any obligation it carries — **vests in the destination**, while the source name survives as a non-owning view. `<<-` *lends*: the destination gets a view, the owner keeps everything. `<<` *copies*: afterward **both sides own something — different things** (the source keeps its value and its duty; the destination owns an independent, duty-free duplicate). And when you want the source *gone*, `>>` *moves*: ownership transfers and `src` dies — the one placement that invalidates its source, meaning exactly what Rust taught you "move" means. Four verbs — vest, lend, copy, move — and their extraction mirrors for messages (§4.8): `->` is *vesting extraction* (take the payload), `->>` is *lending extraction* (view it). If you're coming from a borrow-checked language: **lend is the borrow**, vest is the transfer that leaves a usable view behind, and the whole family in one table:
+
+| Op | Verb | Source afterward | Destination gets |
+|---|---|---|---|
+| `<-` | vest | lives on as a view | ownership (+ any duty) |
+| `<<-` | lend | still the owner | a view |
+| `<<` | copy | still the owner | its own duty-free duplicate |
+| `>>` | move | **dies** | ownership (+ any duty) |
+| `-<` | narrow | still the owner | a typed, non-owning binding — or failure |
+| `->` | vesting extraction | envelope keeps a view | the payload, owned — or failure |
+| `->>` | lending extraction | envelope still owns | a view of the payload — or failure |
 
 `#` is not restricted to the LHS of `<-`; it may also appear in argument position at a call site, introducing a fresh local that the called command may write into. See §6 for the parameter-mode discipline that governs such locals.
  
