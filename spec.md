@@ -746,9 +746,9 @@ The three forms cover the design space &mdash; function-pointer-style references
 
 Command-typed values are typed by command-type expressions of the form `:<paramTypes>`, `?<paramTypes>`, or `!<paramTypes>`, with mode markers as suffix on each parameter type per the nameless-context rule (&sect;3.3): `:<Int, Int'>`, `?<String'>`, `!<>`.
 
-Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application &mdash; including the mode-marker filter (CREATE deferred-only, UPDATE applied with ceiling-tracking, READ flexible) &mdash; are in &sect;9.14.
+Receivers are *always* applied at the partial-application site for command references (`{logger :: log}` resolves dispatch and bakes the receiver in immediately); non-receiver parameters may be applied or deferred (`_`). The full mechanics of partial application &mdash; including the mode-marker filter (CREATE deferred-only, UPDATE applied with frame-reference tracking, READ flexible) &mdash; are in &sect;9.14.
 
-The three constructional forms &mdash; their capture rules, their ceiling computations, and their mark-conformance rules &mdash; are detailed in &sect;8.
+The three constructional forms &mdash; their capture rules, their slot-residency discipline, and their mark-conformance rules &mdash; are detailed in &sect;8.
 
 ### 3.17 Scope Blocks: `.scope`
 
@@ -1420,7 +1420,7 @@ Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-
 
 ### 5.11 Objects
 
-An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, command-typed values, other objects, and variants. The declaration form is:
+An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, other objects, and variants; command-typed values are excluded (slot residency, &sect;8.4). The declaration form is:
 
     .object Logger : String name, ^File output, Severity threshold
     .object Cache  : [4096] storage, Int32 used, ^Cache next
@@ -1496,7 +1496,7 @@ Examples:
 
 Command-typed values are non-buffer types &mdash; they carry dispatch metadata and (for capture-bearing forms) capture information that does not reduce to bytes. They may not appear as record fields, union candidates, or other buffer-backed positions. They appear at top-level slots, parameters, receivers, object fields, and variant candidates.
 
-Command-typed values support every operation a value supports: binding to slots, passing as parameters, storing in object fields and variant candidates, capture by lambdas (within the rules of &sect;8), partial application (&sect;9.14), and direct invocation. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the concept declared for `name` minus the receiver position. The full operational mechanics of dispatch are in &sect;9.
+Command-typed values support binding to slots, passing as parameters, capture by lambdas (within the rules of &sect;8), partial application (&sect;9.14), and direct invocation. **Command values live on the stack**: they reside in frame slots and travel between them &mdash; down-stack as arguments, up-stack through CREATE outputs (a caller's output slot is a slot) &mdash; and are not stored in object fields or variant candidates (&sect;8.4). Long-lived behavior-with-state is the object category's job: an object satisfying a concept, held and dispatched as a concept value, is the language's spelling of a stored callback. The scope operator `::` produces a command-typed value with the receiver(s) baked in: `(receiver :: name)` has the type the concept declared for `name` minus the receiver position. The full operational mechanics of dispatch are in &sect;9.
 
 **The failure-mode marks on command-typed values follow the subsumption rule of &sect;4.2.** A `:`-marked value is acceptable wherever a `?`-marked value is expected; a `!`-marked value is similarly acceptable; a `?`-marked value is not interchangeable with `:` or `!`. Subsumption is on the failure mark axis only. **Parameter modes and parameter types are invariant** under mark subsumption: a `:<Int32'>` is not interchangeable with `:<Int32>` or `:<Int32&>`. Invariance is essential for soundness &mdash; the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts) breaks if the mode is permitted to vary.
 
@@ -1504,7 +1504,7 @@ The interaction with concept dispatch &mdash; when a concept method's signature 
 
 ## 6. Parameters and Mode Markers
 
-This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of five modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and ceiling bounds are preserved across access paths.
+This section specifies the parameter-mode discipline of Basis. Every parameter and every receiver carries one of five modes &mdash; READ, CREATE, UPDATE, or DISPOSE &mdash; that together determine the contract between caller and callee at that position. The mode markers are separate tokens that appear only in a parameter declaration &mdash; a prefix on the name in named contexts, a suffix on the type in nameless contexts (&sect;6.2). Two static analyses gate the discipline at the type-system level: the initialization analysis (whole-slot tracking, &sect;6.13) verifies that CREATE parameters are written exactly once on every successful exit; the taint analysis (the transitive READ contract, &sect;6.4) verifies that read-only contracts and residency rules are preserved across access paths.
 
 The &sect;3 surface for declaring parameters and receivers introduced the five modes informally; this section gives the full discipline. The full transfer-function tables for the static analyses are in Appendix E. The receiver-mode-by-signature-shape table is given here (&sect;6.7), in the context of the receiver rules R1 (call-site initialization) and R2 (callee-body obligation) that govern receiver mode mechanics uniformly across signature shapes.
 
@@ -1574,7 +1574,7 @@ For CREATE parameters specifically, the caller's slot may be uninitialized at th
 
 ### 6.4 The Transitive READ Contract
 
-A READ parameter introduces a contract: the callee may not write through any access path reached from the parameter. **Reachability is transitive** through pointer dereference, field access, indexing, and any other operation that extends an access path rooted at the parameter.
+**READ is a promise to the caller, kept transitively.** A READ parameter introduces a contract: the callee may not write through any access path reached from the parameter. **Reachability is transitive** through pointer dereference, field access, indexing, and any other operation that extends an access path rooted at the parameter.
 
 The contract is callee-side and verified at type-checking. A callee whose body would write through any reachable access path fails to type-check, regardless of whether that write would be "observable" at any particular call site. The discipline is structural; the language does not check for aliasing between the READ parameter and other writeable positions and then conditionally permit the write. The forbidding is unconditional: from a READ parameter's perspective, the storage it reaches is read-only.
 
@@ -1652,13 +1652,15 @@ Each parameter or receiver mode has a distinctive idiomatic use; the choice of m
 
 **DISPOSE &mdash; finalize/consume.** The callee ends the value's life: it discharges the finalizing duty and leaves the slot `uninit`. As a parameter, `~` marks a consumed argument &mdash; the common finalizing shape, where an ordinary-receiver method finalizes the value at the `~` position (`Heap h :: free: Storage ~s`). As a receiver, a `~` receiver names a finalizer, the destruction-dual of a CREATE constructor receiver. Only the items actually finalized carry `~`; the surrounding receiver and parameters keep their ordinary modes. The `~ x` operation and the field-teardown gate are in &sect;7.22.
 
+**The discipline in five sentences.** *READ is a promise to the caller, kept transitively (&sect;6.4). CREATE writes once, at the end &mdash; compute, then commit (&sect;6.12). The mode is part of the type (&sect;6.11). A CREATE obligation belongs to a call boundary, and a lambda is not one (&sect;6.9). Command values live on the stack, and one that references a frame cannot leave it (&sect;8.4).* Each is expanded in its own section; together they are the surface a working programmer needs.
+
 The five modes form a complete discipline: every parameter and receiver in the language belongs to exactly one of them, and the choice is structural &mdash; the language has no "default" mode, no mode that emerges from absence of declaration. The READ mode appears as the bare-name form (no marker); it is the no-marker case in the syntax, but it is no less a deliberate declaration than the other three.
 
 ### 6.9 Capture-List Mode Constraints
 
-Lambda forms (&sect;8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of &sect;6.2 &mdash; `'name`, `&name`, or bare `name` for CREATE, UPDATE, and READ respectively.
+**A CREATE obligation belongs to a call boundary, and a lambda is not one.** Lambda forms (&sect;8.4) accept an explicit capture list, written after the parameter list separated by `/`: `:<args / captures>{body}`. Each entry in the capture list carries a mode marker per the named-context rule of &sect;6.2 &mdash; `'name`, `&name`, or bare `name` for CREATE, UPDATE, and READ respectively.
 
-**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, lambda values may outlive `D` (the defining frame) through ceiling-flattening of reference captures (&sect;8.4), at which point the CREATE slot may no longer exist. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary.
+**Only READ and UPDATE modes are admitted in lambda capture lists; CREATE is forbidden.** Capturing a CREATE obligation into a lambda is not meaningful, for two related reasons. First, a CREATE capture is definitionally a reference to `D` aimed at crossing `D`'s boundary, which the self-reference rule (&sect;8.4) exists to reject. Second, lambdas have multi-invocation semantics &mdash; deferring a CREATE write to "whenever the lambda runs" would either have multiple lambda invocations attempt to write the same slot multiple times (violating the write-once rule) or have one invocation discharge the obligation while others receive a slot already-written (defeating the meaning of the capture). The CREATE obligation is to write at a specific call boundary in the defining frame, and the lambda capture list cannot carry that obligation across the construction boundary. The rejection diagnostic names the replacing idiom: give the lambda its own CREATE parameter and let the invoker route the value.
 
 
 The mode-and-taint discipline composes with the capture mechanisms uniformly. A captured READ or UPDATE value &mdash; captured via a lambda's slash list &mdash; carries the defining-frame slot's taint into the closure body; the closure's invocations operate on the captured value at the captured-mode contract, with the taint discipline preserved.
@@ -1673,7 +1675,7 @@ A constraint specific to implicit context parameters: **implicit parameters cann
 
 ### 6.11 Parameter-Mode Invariance Under Mark Subsumption
 
-The failure-mode marks (&sect;4.2) form a subsumption order: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>`, `:<Int32&>`, or `:<Int32~>`; a `?<String'>` value is not interchangeable with `?<String>`, `?<String&>`, or `?<String~>`. The subsumption relation is solely on the failure-mark axis.
+**The mode is part of the type.** The failure-mode marks (&sect;4.2) form a subsumption order: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>`, `:<Int32&>`, or `:<Int32~>`; a `?<String'>` value is not interchangeable with `?<String>`, `?<String&>`, or `?<String~>`. The subsumption relation is solely on the failure-mark axis.
 
 The invariance is essential for soundness. The per-mode static rules at the call site break if the mode is permitted to vary. A CREATE parameter discharges a write-once obligation; substituting a READ parameter would lose the obligation entirely; substituting an UPDATE parameter would lose the write-once-on-success commitment in favor of no commitment. An UPDATE parameter requires its slot initialized at the call site; substituting a CREATE parameter would change the precondition (CREATE admits uninitialized); substituting a READ parameter would lose the writeability axis entirely. A DISPOSE parameter consumes its argument, ending the value's lifetime; substituting a READ or UPDATE parameter would lose the consume commitment, leaving live a value the contract says is finalized, and substituting DISPOSE for any other mode would destroy a value the caller expects to keep. None of these substitutions preserve the per-mode contract, and none of them preserve the static analyses' soundness. The invariance is on the mode axis alone: whether an *obligation* moves at a call is fixed by the caller's binding form, not by the parameter's mode (&sect;10.11).
 
@@ -1683,7 +1685,7 @@ The invariance composes with the buffer-backed-hierarchy subsumption rules (&sec
 
 ### 6.12 Create Write-Once
 
-A CREATE parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation &mdash; the failure-atomicity principle commits that CREATE slots are never partially written when a command fails.
+**CREATE writes once, at the end &mdash; compute, then commit.** A CREATE parameter (`'name`) discharges the **write-once-on-success** rule: the callee's body must write the slot exactly once on every path that reaches a successful exit. Paths that reach a failure exit are exempt from the obligation &mdash; the failure-atomicity principle commits that CREATE slots are never partially written when a command fails.
 
 The rule is structural, not stylistic. There is no "you may write twice if you also clear in between" alternative, and there is no in-place-update form for CREATE parameters. The body must produce exactly one write to each CREATE slot per successful path. Failure to write a CREATE parameter on some successful path is a static error; writing it more than once on the same path is also a static error.
 
@@ -1879,7 +1881,7 @@ The form is well-defined for three categories of types:
 
 - **Buffer-backed types** (records, plain domains, unions, buffer primitives `[N]` / `[]`, typed buffers `[N]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (&sect;5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling conversions by invoking a conversion constructor or by routing through a shared ancestor.
 - **Pointers `^T`.** The pointer value is copied; both pointers reference the same target. The pointed-to storage is unaffected.
-- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values. The capture ceiling applies to the copy as it does to the source.
+- **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values. Slot residency (&sect;8.4) applies to the copy as it does to the source.
 
 The form is **rejected at the typechecker** for two non-buffer types:
 
@@ -2272,7 +2274,7 @@ Teardown factors freely around the gate, which sits only on the field-touching a
 
 ## 8. Command-Typed Value Construction
 
-The three constructional forms producing command-typed values &mdash; command reference, command literal, and lambda &mdash; share a common umbrella: each produces a value of a command type, may be invoked, and (subject to per-form restrictions) may be captured, passed as an argument, or stored in a slot. The forms differ along three axes: whether they have a body of their own (command literals and lambdas do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, command references bind partial-application arguments); and how their lifetimes relate to the construction site (lambdas are ceiling-tracked; command literals have no construction-site ties; command references inherit ceiling from any reference-bound arguments).
+The three constructional forms producing command-typed values &mdash; command reference, command literal, and lambda &mdash; share a common umbrella: each produces a value of a command type, may be invoked, and may be captured, passed as an argument, or stored in a slot &mdash; and only in a slot: **command values live on the stack** (&sect;8.4). The forms differ along two axes: whether they have a body of their own (command literals and lambdas do; command references refer to an existing command's body); what state they capture from their construction site (command literals capture nothing, lambdas capture explicitly via a slash list, command references bind partial-application arguments). The terminology is deliberate: **capture** is a body phenomenon &mdash; a form's own body reaching construction-site *names*, resolved lexically &mdash; while **binding** is an argument phenomenon &mdash; partial application evaluating argument expressions at construction and packing the results into the derived value. A reference has no body, so capture is inapplicable to it, not merely zero; and the distinction is mechanistic, not consequential: a `&` binding and a `&` capture behave identically at invocation (per-invocation copy-restore against the origin slot) and under slot residency (both make the value frame-referencing, &sect;8.4).
 
 This section specifies each form's surface and semantics, the failure-mark conformance discipline that governs how command-typed values may be invoked and assigned, and the context-variables umbrella across the forms. The mode-and-taint mechanisms governing captures (&sect;6.9) are referenced rather than repeated; the reader is assumed familiar with the lambda capture-list mode constraints (READ and UPDATE only, &sect;6.9).
 
@@ -2282,9 +2284,9 @@ The three forms are summarized below.
 
 | Form | Surface | Body? | Captures | Lifetime |
 | --- | --- | --- | --- | --- |
-| Command reference | `{cmd}`, `{cmd: x, _, y}`, `{receiver :: methodName}` | no (refers to an existing command's body) | partial-application bindings only | ordinary; ceiling-tracked iff any `&`-bound argument |
+| Command reference | `{cmd}`, `{cmd: x, _, y}`, `{receiver :: methodName}` | no (refers to an existing command's body) | partial-application bindings only | slot-resident; frame-referencing iff any `&`-bound argument (&sect;8.4) |
 | Command literal | `:<args>{body}` | yes | none | ordinary object lifecycle |
-| Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and UPDATE modes only (&sect;6.9) | ceiling computed from captures (&sect;8.4) |
+| Lambda | `:<args / captures>{body}` | yes | explicit slash list, READ and UPDATE modes only (&sect;6.9) | slot-resident; may not leave a frame it references (&sect;8.4) |
 
 The `:<args>{body}` and `:<args / captures>{body}` forms share the outer notation; the presence or absence of the slash discriminates command literal from lambda.
 
@@ -2300,7 +2302,7 @@ A command reference is a value of command type produced by enclosing a command n
 
 - **`{receiver :: methodName}`** and **`{receiver :: methodName: x, _, y}`** &mdash; method reference. The `::` operator binds the receiver, and this binding is **required** for method references: a method cannot be referenced without specifying its receiver, since the receiver is structurally part of the method's parameter list. The optional `: positional args` suffix adds positional partial application on the remaining parameters, exactly as on a non-method command reference. The result is a command-typed value with the receiver position and any explicitly-bound positional positions elided. The dispatch resolution is performed once at the construction site; subsequent invocations skip the per-call dispatch lookup &mdash; the canonical "tight-loop optimization" for concept-method dispatch, a deliberate user-level choice rather than an automatic compiler transform.
 
-The receiver-binding via `::` and positional-argument binding via `: ...` are orthogonal mechanisms. Both are partial application &mdash; the operation is uniform across the two surfaces. The difference is *which positions* each mechanism can bind: `::` binds the receiver position and is mandatory for method references; `: ...` binds positional argument positions and is always optional. The "receiver-elision" name describes a consequence of binding the receiver (the receiver position drops out of the visible signature), not a distinct operation. The structural rules of partial application &mdash; ceiling-tracking, mode restrictions, reference-chain flattening &mdash; apply uniformly to whichever positions are bound, by whichever mechanism.
+The receiver-binding via `::` and positional-argument binding via `: ...` are orthogonal mechanisms. Both are partial application &mdash; the operation is uniform across the two surfaces. The difference is *which positions* each mechanism can bind: `::` binds the receiver position and is mandatory for method references; `: ...` binds positional argument positions and is always optional. The "receiver-elision" name describes a consequence of binding the receiver (the receiver position drops out of the visible signature), not a distinct operation. The structural rules of partial application &mdash; slot residency, mode restrictions, reference-chain flattening &mdash; apply uniformly to whichever positions are bound, by whichever mechanism.
 
 A command reference has no body of its own; it refers to the underlying command's body. Invocation through a command reference is dispatched the same as a direct call to the underlying command, except that the bound arguments (in partial-application or receiver-elision) are supplied automatically and the dispatch lookup (in receiver-elision) is short-circuited.
 
@@ -2333,15 +2335,15 @@ A lambda is a command-typed value with an explicit capture list. The surface for
 
 The slash separates the parameter list from the capture list. The capture list enumerates names from the construction site that the body may reference; the body may reference its own parameters, the captured names, and any language-visible names independent of capture (top-level commands, constants), and nothing else.
 
-**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.9): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.9): lambdas may outlive the defining frame through ceiling-flattening of reference captures, leaving the CREATE slot potentially nonexistent at invocation; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
+**Capture modes.** The capture list admits READ-mode and UPDATE-mode captures only. CREATE-mode captures are forbidden (&sect;6.9): a CREATE obligation belongs to a specific call boundary in the defining frame and cannot be carried across a closure construction boundary. The two reasons (&sect;6.9): a CREATE capture is definitionally a reference to the defining frame aimed at crossing its boundary, which the self-reference rule rejects; and lambdas have multi-invocation semantics, where deferring a CREATE write to invocation time fails the write-once rule.
 
-**Reference-chain flattening for `&` captures.** A `&`-mode capture is flattened to the origin slot's owning frame, parallel to the rule for command-reference `&` bindings (&sect;8.2). If `&x` captures a name that is itself an UPDATE parameter of the constructing frame, the capture chains through to the origin; the lambda's ceiling becomes the origin slot's owning frame.
+**Reference-chain flattening for `&` captures.** A `&`-mode capture is flattened to the origin slot &mdash; identification for per-invocation copy-restore, with no lifetime implication (slot residency needs none) &mdash; parallel to the rule for command-reference `&` bindings (&sect;8.2). If `&x` captures a name that is itself an UPDATE parameter of the constructing frame, the capture chains through to the origin; the lambda's ceiling becomes the origin slot's owning frame.
 
 **Per-invocation copy-restore for `&` captures.** For each invocation of a lambda with `&` captures, the captured slot reference is bound at invocation time per the standard copy-restore discipline of &sect;6.3: the invocation observes the slot's current value, may mutate it during the invocation, and the mutations are written back at the invocation's successful completion. Failures during the invocation leave the captured slot's pre-invocation value preserved, per failure-atomicity (&sect;7.18). This is distinct from command-reference `&` *bindings* (&sect;8.2), which are partial-application and operate on the bound slot directly without per-invocation copy-restore.
 
-**Ceiling computation.** A lambda's ceiling is computed from its captures: a lambda with no `&` captures has no ceiling beyond the ordinary object lifecycle; a lambda with `&` captures has the ceiling of the most-restrictive reference-flattened owning frame across all `&` captures. The ceiling controls where the lambda value may be placed, returned, or stored; placement to a frame longer-lived than the ceiling is rejected.
+**Slot residency and the self-reference check &mdash; command values live on the stack, and a command value that references a frame cannot leave it.** Command values of every form are **slot-resident**: they live in frame slots, pass down-stack as arguments, and move up-stack only through CREATE outputs (the caller's output slot is a slot); storing a command value into an object field or a variant candidate is a static error whose diagnostic states the residency law and names the stored-behavior idiom (an object satisfying a concept, held as a concept value). This one bright line replaces lifetime tracking for command values entirely &mdash; there is no ceiling computation, no most-restrictive-capture arithmetic, and no placement comparison &mdash; because under slot residency and downward argument travel, every frame a value references is alive at every invocation, with a single residual check at CREATE writes: **a command value that references the writing frame's own slots may not be written to a CREATE output** (its references would die at return; the diagnostic names the offending capture). Values received from above reference caller-or-higher frames and pass the check by construction, so returning and composing received command values is unrestricted. The classic make-counter &mdash; returning a lambda over a local &mdash; is precisely the rejected program; its Basis spelling is an object (state with identity and a tracked lifetime), dispatched through a concept.
 
-**Two phenotypes.** Lambdas have two implementation phenotypes: a **lightweight** phenotype, used when the lambda has no `&` captures and the body's analysis fits a specific size budget &mdash; the lambda value is a function-pointer-with-bound-IN-captures pair; and a **ceiling-tracked** phenotype, used when the lambda has `&` captures or otherwise requires ceiling tracking &mdash; the lambda value carries the ceiling annotation alongside the function-pointer-and-captures payload. The phenotype is determined at compile time based on the construction-site analysis; the user-side semantics are identical across phenotypes.
+**Two phenotypes.** Lambdas have two implementation phenotypes: a **lightweight** phenotype, used when the lambda has no `&` captures and the body's analysis fits a specific size budget &mdash; the lambda value is a function-pointer-with-bound-IN-captures pair; and a **frame-referencing** phenotype, used when the lambda has `&` captures &mdash; the lambda value carries its slot references alongside the function-pointer-and-captures payload. The phenotype is determined at compile time based on the construction-site analysis; the user-side semantics are identical across phenotypes.
 
 **Visible-signature representation.** A lambda value's externally-visible type is its invoke-method signature &mdash; the parameter list and failure mark &mdash; without the capture list. The capture list is implementation detail; consumers of the lambda value see only what they invoke. This composes with the failure-mark conformance discipline (&sect;8.5): a lambda's signature carries its failure mark, and conformance applies symmetrically.
 
@@ -2387,7 +2389,7 @@ The three mechanisms differ in their resolution site:
 
 A lambda's body may *not* reference `D`'s implicit context parameters by free name. The lambda's body sees only its own parameters, its capture list, and language-visible names; `D`'s implicit context parameters are not in scope.
 
-The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site. If `D` declares `Logger logger` as an implicit context parameter, a lambda within `D` that wants to use `logger` writes `:<args / Logger logger>{body}` &mdash; capturing `logger` as a READ capture. The capture list is then explicit about which of `D`'s state the lambda uses, consistent with the lambda discipline of explicit captures only.
+The user resolves by **explicitly capturing** the implicit context parameter at the lambda's construction site; the free-name diagnostic shows that spelling. If `D` declares `Logger logger` as an implicit context parameter, a lambda within `D` that wants to use `logger` writes `:<args / Logger logger>{body}` &mdash; capturing `logger` as a READ capture. The capture list is then explicit about which of `D`'s state the lambda uses, consistent with the lambda discipline of explicit captures only.
 
 
 ## 9. Concepts, Witnesses, and Dispatch
@@ -2765,7 +2767,7 @@ An acknowledged under-specification, inherited and not worsened here: the sourci
 
 The receiver of a method reference is always specified &mdash; receiver-binding via `::` is mandatory for method references (&sect;8.2). The non-receiver parameters of the method may, at the call site or at command-reference construction time, be partially applied or deferred according to the standard partial-application discipline (&sect;8.2). The combined form is `{receiver :: methodName: x, _, y}` &mdash; receiver bound via `::`, positional parameters bound via `: arg, ..., _, ...`, leaving `_` positions open for subsequent invocations.
 
-**Mode-marker filter.** The same mode constraints from &sect;8.2 apply: CREATE positions cannot be bound (deferred only); UPDATE positions, if bound, capture a slot with ceiling tracking; READ positions are flexible &mdash; bound or deferred at the user's choice.
+**Mode-marker filter.** The same mode constraints from &sect;8.2 apply: CREATE positions cannot be bound (deferred only); UPDATE positions, if bound, capture a slot reference (making the value frame-referencing, &sect;8.4); READ positions are flexible &mdash; bound or deferred at the user's choice.
 
 **The `_` deferral marker.** A positional `_` in the partial-application surface marks "this position remains open." A subsequent invocation supplies the value for that position. The marker is uniform with the `_` used in non-method command references and elsewhere in the language.
 
@@ -4345,7 +4347,7 @@ Gamma |- mark<params>{body} : mark<param-types>      (lifted to command-typed va
 ```
 Gamma |- each capture entry resolves in Gamma at READ or UPDATE mode
 Gamma |- body : mark ; F   under (Gamma-captures-extended)
-ceiling = D   (lambda's defining frame, S8.4)
+slot-resident; references-D iff any & capture resolves to D's slots (S8.4)
 -------------------------------------------------------------------
 Gamma |- mark<params / captures>{body} : mark<param-types>
 ```
@@ -4444,16 +4446,12 @@ A command reference with partial application (&sect;9.14) produces a command-typ
 ```
 Gamma |- underlying cmd has type (R receiver, tau1 m1, ..., taun mn) -> mark
 Gamma |- partial-app applies: receiver (always); some subset of args; CREATE positions deferred via _
-ceiling: derived from captured mode markers (UPDATE captures yield ceiling = D)
+frame-references: derived from captured mode markers (UPDATE captures reference D)
 ----------------------------------------------------------------------------------------------------
 Gamma |- {receiver :: cmd : applied-args} : mark<deferred-arg-types>
 ```
 
-The ceiling-tracking rule for partial application (&sect;9.14):
-
-- READ captures: no ceiling implication
-- UPDATE captures: ceiling = the captured-slot's frame D
-- CREATE: forbidden in bound positions; must be deferred
+The slot-residency rule is uniform across the forms (&sect;8.4): partial application with `&` bindings makes the reference frame-referencing; the CREATE-write self-reference check applies to it as to lambdas.
 
 ### D.13 Witness-Coherence Typing
 
