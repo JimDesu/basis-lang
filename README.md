@@ -138,7 +138,8 @@ A source file is a sequence of four optional sections:
 .alias StringList: List[String]
 .domain UserId: Int
 .enum UserRole: admin = 0, user = 1, guest = 2
-.record User: UserId id, String name, String email, UserRole role
+.record User: UserId id, String name, String email,
+        UserRole role
 .object UserManager: List[User] users
 .witness UserJson[User] : Serializable
 .witness UserOrd[User]  : Comparable
@@ -171,7 +172,8 @@ A command is the unit of execution. Commands take parameters, may produce output
 The most common shape:
  
 ```
-.cmd name: Type1 'resultName, Type2 param2, ..., TypeN paramN / Type ctxParam = body
+.cmd name: Type1 'resultName, Type2 param2, ...,
+        TypeN paramN / Type ctxParam = body
 ```
  
 After `.cmd`, the failure mark prefix is optional:
@@ -235,7 +237,9 @@ A method takes one or more receivers, then `::`, then the command name and any f
  
 ```
 .cmd Logger logger :: log: String message = ...
-.cmd (Logger logger, Severity severity) :: format: String 'result, String message = ...
+.cmd (Logger logger,
+        Severity severity) :: format: String 'result,
+        String message = ...
 ```
  
 The receivers may carry mode markers (`'r`, no marker for READ). Calling uses the same `::` syntax, parenthesized only when there is more than one receiver:
@@ -254,8 +258,10 @@ A concept or module may declare methods that run at frame exit:
 ```
 .concept Resource:
     .decl Resource r: String name
-    .decl @ Resource r           ; runs at frame exit (success or failure)
-    .decl @! Resource r          ; runs at frame exit only on failure
+    .decl @ Resource r   ; runs at frame exit (success or
+                         ;   failure)
+    .decl @! Resource r  ; runs at frame exit only on
+                         ;   failure
 ```
  
 `@` is read "at exit"; `@!` is "at exit on failure." These execute when the frame holding the value retires, in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system.
@@ -313,9 +319,10 @@ Failures in Basis are neither exceptions nor error codes. A failure is a *messag
 `.fail` fires a failure:
  
 ```
-.fail                              ; no message
-.fail DivByZero                    ; message, no payload
-.fail BoundError <- (Widget: x, y) ; message with constructed (owned) payload
+.fail               ; no message
+.fail DivByZero     ; message, no payload
+.fail BoundError <- (Widget: x, y)
+    ; message with constructed (owned) payload
 ```
  
 `.fail` takes a message — either a message identifier alone (no payload), or a message identifier followed by a placement operator and a payload expression: `<-` for a payload the failure *owns*, `<<-` for one it merely *views* (§4.8) — or may be used alone with no message at all. The message identifier is always required when a payload is supplied: a raw value cannot be passed to `.fail` without a message identifier governing it. When a payload expression's evaluation itself fails, *that* failure propagates rather than the intended one.
@@ -325,9 +332,12 @@ Failures in Basis are neither exceptions nor error codes. A failure is a *messag
 Every command's signature declares its failure profile via the prefix on its name:
  
 ```
-.cmd safeWrite: String text = ...                       ; never fails
-.cmd ?openFile: Handle 'handle, String path = ...       ; may fail
-.cmd !abort: String reason = .fail Abort <- reason      ; must fail
+.cmd safeWrite: String text = ...
+    ; never fails
+.cmd ?openFile: Handle 'handle, String path = ...
+    ; may fail
+.cmd !abort: String reason = .fail Abort <- reason
+    ; must fail
 ```
  
 The mark is enforced. A never-fails body whose internal `?`-call could fail without recovery is a static error. A must-fail body whose path could succeed-and-return is a static error. Subsumption applies on the mark: never-fails values may stand in for may-fail expectations; must-fail values may also stand in for may-fail expectations; never-fails and must-fail are mutually incomparable.
@@ -397,16 +407,20 @@ A failure message may be **bound to a concept value** — the payload is a value
 .cmd useIt =
     fetchAll: someUrl
     | Net::Disconnected e ->
-        ; e satisfies Diagnosable; we can call its diagnostic ops on it
+    ; e satisfies Diagnosable; we can call its diagnostic
+    ; ops on it
         renderDiagnostic: e
 ```
  
 The `|` family has one more member, and it handles the *opposite* situation — a failure the type system says is possible but you know cannot happen here. Instead of writing an empty `| ; can't happen` handler (which would silently swallow a real bug if you're wrong), you write the **discharge arm**:
 
 ```
-#env <- (Ctl::Throttle <- rate)   ; constructed owning, right here
-send: chan, env                   ; send's signature says "may fail on
-|! NonOwningMove                  ;   non-owning" — but we can PROVE ours owns
+#env <- (Ctl::Throttle <- rate)  ; constructed owning,
+                                 ;   right here
+send: chan, env                  ; send's signature says
+                                 ;   "may fail on
+|! NonOwningMove                 ; non-owning" — but we
+                                 ;   can PROVE ours owns
 ```
 
 `|!` is a claim the compiler must *verify*: it checks that the named failure genuinely cannot arrive at this point (here, because the envelope's ownership is known from its construction two lines up). If the proof goes through, the failure vanishes from your command's signature and the arm compiles to *nothing* — a proved impossibility needs no runtime check. If the compiler can't prove it, that's a compile error telling you which fact is missing — not a runtime gamble. There is no "trust me" spelling; if you can't prove it, you handle it.
@@ -420,8 +434,9 @@ The concept binding makes failures *contractual*: a recovery handler does not ne
 ```
 .cmd processFile: String path =
     #handle <- openFile: path
-    @ closeHandle: handle           ; runs whether we succeed or fail
-    @! logIncomplete: path          ; runs only on failure path
+    @ closeHandle: handle   ; runs whether we succeed or
+                            ;   fail
+    @! logIncomplete: path  ; runs only on failure path
     process: handle
 ```
  
@@ -432,20 +447,25 @@ Frame-exit hooks are one half of Basis's cleanup story. The other is the **oblig
 Setting one up is a single top-level `.promise` declaration binding a **source** (the operation that incurs the duty) to one or more **sinks** (the operations that can settle it):
 
 ```
-.promise Runtime: spawn -> join                  ; spawning incurs a duty to join
+.promise Runtime: spawn -> join  ; spawning incurs a duty
+                                 ;   to join
 .promise LocalTxn: begin[transaction] -> rollback | commit
-                                                 ; several sinks: the FIRST is the default
-.promise Connection -> close                     ; source-less: constructing a Connection
-                                                 ;   is itself the obligating act
+    ; several sinks: the FIRST is the default
+.promise Connection -> close     ; source-less:
+                                 ;   constructing a
+                                 ;   Connection is itself
+                                 ;   the obligating act
 ```
 
 Reading the first line: `Runtime` is a **receiver type**, and `spawn` and `join` are ordinary **methods on it** — `rt :: spawn: task` starts a thread, `rt :: join: worker` awaits one. The declaration adds nothing to those methods; it *pairs* them, saying "whatever `spawn` produces, `join` must eventually consume." In the second line, `begin` is a method of `LocalTxn` and the bracket `[transaction]` names *which of `begin`'s parameters* carries the duty (useful when the obligated value is handed in rather than produced). The third line has no method at all: the source is `Connection`'s own constructor, so every construction is obligated. That's the entire setup — the methods themselves are unchanged and unannotated. From then on, every successful `spawn` yields a value carrying a join-duty, and the compiler takes it from there:
 
 ```
 .scope
-    #worker <- (rt :: spawn: task)    ; worker carries the join-duty
-    coordinate: worker, ...           ; use it freely
-    ; scope end: worker's duty fires — the thread is joined automatically
+    #worker <- (rt :: spawn: task)
+    ; worker carries the join-duty
+    coordinate: worker, ...  ; use it freely
+    ; scope end: worker's duty fires — the thread is joined
+    ; automatically
 ```
 
 The **default sink** (the first listed) fires automatically when the obligated value reaches the end of the scope that owns it — which is why the transaction declaration puts `rollback` first: forget everything, and the safe thing happens. Discharging *explicitly* — calling `commit`, or finalizing the value with the **DISPOSE** mode (`~`), construction's destruction-dual — settles the duty early and the default stays quiet.
@@ -459,22 +479,28 @@ Updates in Basis become observable at **statement boundaries**: a statement comm
 ```
 ; ONE statement — one observability boundary:
 #ok <- validate: (normalize: batch, limits)
-;   normalize updates batch and yields its stats; if validate then
-;   fails, the WHOLE statement discards — batch is untouched
+; normalize updates batch and yields its stats; if validate
+; then
+; fails, the WHOLE statement discards — batch is untouched
 
 ; TWO statements — two boundaries:
-#stats <- normalize: batch, limits     ; batch's new state commits here
-#ok <- validate: stats                 ; if this fails, the normalize above stays
+#stats <- normalize: batch, limits
+    ; batch's new state commits here
+#ok <- validate: stats  ; if this fails, the normalize
+                        ;   above stays
 ```
 
 Both shapes are legitimate — sometimes you *want* the intermediate state to survive. When you want the several-statement shape with the single-boundary guarantee, `.atomic` groups statements under one join point:
 
 ```
 .atomic
-    parseHeader: ctx, raw            ; ctx is UPDATE-mode in parseHeader's signature
-    validateSchema: ctx, policy      ; sees the parsed ctx
-    applyMigrations: ctx             ; if THIS fails, ctx is bit-identical
-                                     ;   to what it was before the .atomic
+    parseHeader: ctx, raw        ; ctx is UPDATE-mode in
+                                 ;   parseHeader's signature
+    validateSchema: ctx, policy  ; sees the parsed ctx
+    applyMigrations: ctx         ; if THIS fails, ctx is
+                                 ;   bit-identical to what
+                                 ;   it was before the
+                                 ;   .atomic
 ```
 
 Inside the group, everything reads and writes normally and in order; the difference is entirely on the failure path, where every slot the group was updating snaps back untouched. Two honest limits, both by design: the group is *not* a scope (names you introduce inside live on after it, and resources you open belong to the surrounding scope, as they should — they're part of what you're committing), and the guarantee covers *slot state*, not effects — a file written inside a failed group stays written. It's your updates that are all-or-nothing, which is usually exactly the promise you wanted.
@@ -494,14 +520,20 @@ Block markers and recovery contexts manipulate the lattice precisely; the typech
 The messages that failures carry aren't special to failures — they're a first-class currency, and the failure system is just their first transport. You can construct one, hold it in a slot, queue it in an object, and unpack it anywhere:
 
 ```
-#m <- (Ctl::Throttle <- rate)     ; construct: the envelope OWNS its payload
-#n <- (Status <<- bigReport)      ; or VIEWS a payload that lives elsewhere
-#q <- Ctl::Shutdown               ; payload-less: just the name
+#m <- (Ctl::Throttle <- rate)  ; construct: the envelope
+                               ;   OWNS its payload
+#n <- (Status <<- bigReport)   ; or VIEWS a payload that
+                               ;   lives elsewhere
+#q <- Ctl::Shutdown            ; payload-less: just the
+                               ;   name
 
-? m ->> Ctl::Throttle r           ; unpack: confirm the type, view the payload
+? m ->> Ctl::Throttle r        ; unpack: confirm the type,
+                               ;   view the payload
     applyRate: r
-? m -> Ctl::Throttle r            ; or take it: ownership moves to r, and the
-    consume: r                    ;   envelope keeps only a view
+? m -> Ctl::Throttle r         ; or take it: ownership
+                               ;   moves to r, and the
+    consume: r                 ; envelope keeps only a
+                               ;   view
 ```
 
 Mismatches simply *fail*, so receive loops are ordinary guard chains — no match statement, no special control flow. And the mode system reads as protocol documentation for free: a command taking `Msg m` (READ) can inspect and view but never strip a message; `Msg &m` announces extraction rights in the signature.
@@ -519,14 +551,14 @@ The type system has two layers, and they are what let Basis work in either style
 The fundamental type is the buffer — a fixed-size sequence of bytes. The grammar shape `[size]` gives a buffer of `size` bytes:
  
 ```
-[16]                    ; sixteen bytes
+[16]                ; sixteen bytes
 ```
  
 A typed range is `[size] T` for some buffer-backed `T`:
  
 ```
-[64] Byte               ; 64 bytes, statically typed as bytes
-[16] Float              ; 16 floats laid out contiguously
+[64] Byte           ; 64 bytes, statically typed as bytes
+[16] Float          ; 16 floats laid out contiguously
 ```
  
 An unsized range `[]T` describes a buffer whose size is determined at the call site:
@@ -557,7 +589,8 @@ A record is a buffer-backed product type with named fields:
  
 ```
 .record Point: Int x, Int y
-.record User: UserId id, String name, String email, UserRole role
+.record User: UserId id, String name, String email,
+        UserRole role
 ```
  
 Records are nominal — two records with structurally identical fields are distinct types. Record fields may be other buffer-backed types, including other records. Records may be parameterized:
@@ -591,7 +624,8 @@ A union value implicitly subsumes (by zero-cost byte reinterpretation) to any ty
 A variant is a non-buffer sum type — a tagged union where the language tracks which candidate is active:
  
 ```
-.variant Shape: Circle circle, Rectangle rectangle, Polygon polygon
+.variant Shape: Circle circle, Rectangle rectangle,
+        Polygon polygon
 .variant Tree[T]: T leaf, ^Tree[T] branch
 ```
  
@@ -600,8 +634,9 @@ Variants have an **absent state** by default — a variant slot may be empty, ho
 A variant type provides a built-in constructor that accepts an aggregate literal designating the active candidate:
  
 ```
-#shape <- Shape: ${Circle <- (Circle: 1.0)}        ; Circle state
-#shape <- Shape: ${}                               ; absent state
+#shape <- Shape: ${Circle <- (Circle: 1.0)}
+    ; Circle state
+#shape <- Shape: ${}  ; absent state
 ```
  
 The aggregate literal names which candidate is active and supplies its value; the type prefix `Shape:` provides the explicit type context the literal requires. The empty form `${}` constructs the variant in its absent state. (Aggregate-literal forms are detailed in §7.3.)
@@ -641,9 +676,12 @@ For object types, pointers carry runtime type information at the implementation 
 Commands are first-class. A command-typed value is described by a command-type expression that names the failure mark and the parameter types in declaration order, with a postfix `'` on each writeable type:
  
 ```
-:<Int, Int'>                ; never-fails command taking an Int and a writeable Int
-?<String'>                  ; may-fail command taking a writeable String slot
-!<>                         ; pure must-fail command, no parameters
+:<Int, Int'>        ; never-fails command taking an Int
+                    ;   and a writeable Int
+?<String'>          ; may-fail command taking a writeable
+                    ;   String slot
+!<>                 ; pure must-fail command, no
+                    ;   parameters
 ```
  
 The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, with one bright line: they live on the stack (§8.5). The three constructional forms that produce them are §8.
@@ -722,7 +760,8 @@ Parameters listed after a `/` separator are *implicit context parameters* — Sc
  
 .cmd reportAll: List[String] lines =
     #log <- (Logger: "console")
-    writeAll: lines           ; logger=log filled by uniqueness-of-type
+    writeAll: lines  ; logger=log filled by
+                     ;   uniqueness-of-type
 ```
  
 Ambiguity (two `Logger` values in scope) is a compile error; absence (no `Logger` value in scope) is also a compile error. Both are resolvable by passing the value explicitly with the full positional form.
@@ -732,19 +771,26 @@ Ambiguity (two `Logger` values in scope) is a compile error; absence (no `Logger
 Copy-restore is the default because it makes mutation transactional — but on a hot path, copying a large record in and out of every call is a price you may refuse. Boxing is the refusal, made explicit:
 
 ```
-.record FrameState : [64]Int64 lanes, Int64 cursor     ; a big, byte-defined value
+.record FrameState : [64]Int64 lanes, Int64 cursor
+    ; a big, byte-defined value
 
-.cmd step: FrameState *fs, Sample s =                  ; * marks a DIRECT parameter
-    fs :: cursor <- (fs :: cursor) + 1                 ; writes hit the caller's storage
+.cmd step: FrameState *fs, Sample s =
+    ; * marks a DIRECT parameter
+    fs :: cursor <- (fs :: cursor) + 1
+    ; writes hit the caller's storage
     ...
 
 .cmd render: Frame f =
     # FrameState state
     ...
-    .box state                        ; from here, state passes directly — no copies
-    step: state, (next: src)          ; tight loop: zero copy-in, zero restore
-    ^ moreSamples: src                ;   rewind while more samples remain
-    .unbox state                      ; back to ordinary semantics (or at scope end)
+    .box state                ; from here, state passes
+                              ;   directly — no copies
+    step: state, (next: src)  ; tight loop: zero copy-in,
+                              ;   zero restore
+    ^ moreSamples: src        ; rewind while more samples
+                              ;   remain
+    .unbox state              ; back to ordinary semantics
+                              ;   (or at scope end)
     commit: state
 ```
 
@@ -776,7 +822,8 @@ Variable introduction uses the `#` prefix on the lvalue:
 The choice form gives concise fallback behavior:
  
 ```
-#config <- readFile: "user.cfg" | readFile: "default.cfg" | (Config: emptyDefaults)
+#config <- readFile: "user.cfg" | readFile: "default.cfg"
+    | (Config: emptyDefaults)
 ```
  
 `<-` is the *vesting* placement: ownership of the value — and of any obligation it carries — **vests in the destination**, while the source name survives as a non-owning view. `<<-` *lends*: the destination gets a view, the owner keeps everything. `<<` *copies*: afterward **both sides own something — different things** (the source keeps its value and its duty; the destination owns an independent, duty-free duplicate). And when you want the source *gone*, `>>` *moves*: ownership transfers and `src` dies — the one placement that invalidates its source, meaning exactly what Rust taught you "move" means. Four verbs — vest, lend, copy, move — and their extraction mirrors for messages (§4.8): `->` is *vesting extraction* (take the payload), `->>` is *lending extraction* (view it). If you're coming from a borrow-checked language: **lend is the borrow**, vest is the transfer that leaves a usable view behind, and the whole family in one table:
@@ -815,7 +862,8 @@ An aggregate literal builds a record, object, or variant value. The fence is `${
 A positional form is admitted where the lhs type is contextually explicit — for example, at typed parameter positions or on the rhs of a typed CREATE slot. Values are listed in the lhs type's declaration order, without field names:
  
 ```
-origin <- ${3, 4}                                   ; positional; origin's declared type provides the field order
+origin <- ${3, 4}   ; positional; origin's declared type
+                    ;   provides the field order
 ```
  
 Where the lhs type is not contextually explicit, the positional form is rejected and the named form is required. In positional form, every field — including variant-typed fields — must be supplied; `_` stands in for variants in the absent state. The named form is always well-formed.
@@ -829,9 +877,10 @@ Compound construction is *atomic*: a constructor whose body partially succeeds a
 `-<` is the runtime-checked sibling of `<-`. It narrows a wider value to a more-specific type at runtime, producing a propagating failure on type mismatch:
  
 ```
-?: # Circle c -< shape        ; if shape's active candidate is Circle, bind to c
+?: # Circle c -< shape  ; if shape's active candidate is
+                        ;   Circle, bind to c
     handleCircle: c
-fallback                      ; runs only if the guard failed
+fallback                ; runs only if the guard failed
 ```
  
 Forms:
@@ -882,9 +931,12 @@ Three constructional forms produce command-typed values:
 `{name}` is a value-typed reference to an existing command — a function pointer. Partial application binds some of the underlying command's parameters:
  
 ```
-{add: 5, _}                  ; partial: 5 is bound, second arg deferred
-{logger :: log}              ; method dispatch resolved; receiver baked in
-{logger :: log: _, "warn"}   ; method-style with one deferred and one bound
+{add: 5, _}                 ; partial: 5 is bound, second
+                            ;   arg deferred
+{logger :: log}             ; method dispatch resolved;
+                            ;   receiver baked in
+{logger :: log: _, "warn"}  ; method-style with one
+                            ;   deferred and one bound
 ```
  
 The `_` token marks deferred parameters. Receivers, when present, are always applied at the partial-application site — the dispatch is resolved and captured immediately. This is a user-level optimization for calling methods in tight loops: resolving the method dispatch once at capture time and reusing the resulting reference avoids the per-call dispatch overhead that would otherwise apply to each invocation.
@@ -923,17 +975,18 @@ One rule covers the entire lifetime story for command values, and you can hold i
 ```
 .cmd makeCounter: :<Int'> 'out =
     #n <- 0
-    out <- :<Int 'r / &n>{ r <- n + 1 }   ; ✗ rejected: the lambda references n,
-                                          ;   and n dies with this frame
+    out <- :<Int 'r / &n>{ r <- n + 1 }
+    ; ✗ rejected: the lambda references n, and n dies with
+    ; this frame
 ```
 
 That's the textbook closure-counter, and Basis turns it down on purpose. The language's spelling for long-lived state-plus-behavior is the category built for it:
 
 ```
 .object Counter : Int64 n
-.cmd Counter &c :: bump: Int64 'r = ...   ; ✓ visible state, tracked lifetime,
-                                          ;   dispatched through a concept like
-                                          ;   everything else
+.cmd Counter &c :: bump: Int64 'r = ...
+    ; ✓ visible state, tracked lifetime, dispatched through
+    ; a concept like everything else
 ```
 
 Want to *store* behavior — a callback registry, a strategy in a config? Store an object satisfying a concept (a concept value), and you get everything a stored closure would have given you, plus a name, inspectable state, and a lifetime the compiler tracks. Meanwhile the lambdas you pass downward — comparators, loop bodies, visitors — need no annotations, no lifetime thought, nothing: everything below you on the stack is alive by construction.
@@ -950,7 +1003,8 @@ A concept declaration enumerates the methods that any member type must provide:
 .concept Showable:
     .decl render: String 'output
     .cmd describe: String 'output =
-        render: output                   ; default body, built on the declared method
+        render: output  ; default body, built on the
+                        ;   declared method
 ```
  
 `.decl` is signature-only: the witness must supply the body. `.cmd` inside a concept body is a *default* implementation that any witness may override; a witness that does not override the default uses the concept's body.
@@ -981,12 +1035,15 @@ One declaration covers one concept; a type satisfying several concepts takes one
 When delegation is used, the *delegate itself* is the receiver in calls to the delegated concept's methods — not the outer object that named it. So under `ArrivalOrder`, comparing two envelopes compares their stamps. This receiver-substitution is unusual; most languages' delegation patterns keep the wrapper as the conceptual receiver. Among other uses, it lets a context object collect any number of services into a single binding — and it makes statecharts nearly free. A delegate field may be *re-pointable*:
  
 ```
-.object Machine : ^StateHandling active, IdleState idle, RunState run
+.object Machine : ^StateHandling active, IdleState idle,
+        RunState run
 .witness MachineAsState[Machine] : StateHandling -> active
  
 .cmd Machine &m :: toRun =
-    m :: active <- m :: run &        ; the transition: one write swaps the
-                                     ; machine's behavior and state together
+    m :: active <- m :: run &  ; the transition: one write
+                               ;   swaps the machine's
+                               ;   behavior and state
+                               ;   together
 ```
  
 Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism (the spec's §9.4 has the details).
@@ -1013,9 +1070,12 @@ Dispatch happens once at the binding; thereafter `renderFn` is invoked directly 
 A method invocation over multiple receivers takes a tuple of receivers that must be in parentheses, dispatching based on all their types in concert:
  
 ```
-.cmd (Logger logger, Severity severity) :: format: String 'result, String message =
+.cmd (Logger logger,
+        Severity severity) :: format: String 'result,
+        String message =
     ; body authored against Logger and Severity concepts;
-    ; (logger :: emit) and (severity :: prefix) dispatch independently
+    ; (logger :: emit) and (severity :: prefix) dispatch
+    ; independently
     ...
 ```
  
@@ -1046,8 +1106,11 @@ Constructors take CREATE receivers only: `.cmd Widget 'w: Int x, Int y = ...`. A
 Partial application generalizes the receiver-baked-in form to bind any subset of the underlying command's parameters:
  
 ```
-{add: 5, _, _}                    ; first arg bound, second and third deferred
-{logger :: log: _, "warn", _}     ; receiver applied; second arg "warn" bound; first and third deferred
+{add: 5, _, _}                 ; first arg bound, second
+                               ;   and third deferred
+{logger :: log: _, "warn", _}  ; receiver applied; second
+                               ;   arg "warn" bound; first
+                               ;   and third deferred
 ```
  
 Receivers are always applied at the partial-application site — never deferred. This keeps dispatch resolved at compile time. Non-receiver parameters may be applied or deferred (`_`) freely. The resulting value's type covers only the deferred parameters in declaration order.
@@ -1084,7 +1147,7 @@ A type may satisfy one concept in several ways — and that's a feature, not a c
 Resolution is simple: if only one witness could apply at a use site, it's used automatically, and you never think about it — the whole-program common case. If more than one could apply, the site is an error until you *say which one you mean*: name it at the site, or once per file with a `.using` directive:
  
 ```
-.using ForwardOrd                     ; this file's standing choice
+.using ForwardOrd   ; this file's standing choice
 ```
  
 There is no cleverness in between — no ranking, no "most specific module wins," no import-order effects. Nothing you import can silently change which witness your code dispatches through; a new competitor arriving in your dependency graph can at worst turn a site into a loud error asking you to choose. (That's the no-spooky-action principle from the introduction, applied to dispatch.)
@@ -1093,7 +1156,8 @@ One more ergonomic layer: a concept's author may bless a *canonical default* by 
  
 ```
 .concept Ord:
-    .witness Ascending                ; the default ordering, unless you say otherwise
+    .witness Ascending  ; the default ordering, unless you
+                        ;   say otherwise
     .decl ?before: ...
 ```
  
@@ -1102,13 +1166,16 @@ One more ergonomic layer: a concept's author may bless a *canonical default* by 
 And a design pattern that falls out of the pieces above, worth knowing on its own: a type parameter's constraint can name a **witness family** instead of just a concept. Read it as "any type is welcome here — domains included — so long as `Ascending` knows how to order it":
  
 ```
-.domain Score    : Int32                      ; cheap nominal types over plain integers
+.domain Score    : Int32  ; cheap nominal types over plain
+                          ;   integers
 .domain Priority : Int8
  
-.witness Core::Ascending[Score]    : Ord      ; joining the default family: one line each
+.witness Core::Ascending[Score]    : Ord
+    ; joining the default family: one line each
 .witness Core::Ascending[Priority] : Ord
  
-.record Leaderboard[T:(Ord = Ascending)] : [64]T entries, Int32 count
+.record Leaderboard[T:(Ord = Ascending)] : [64]T entries,
+        Int32 count
 ```
  
 `Leaderboard[Score]` and `Leaderboard[Priority]` are both fine — the instantiation check is simply "does `Ascending` cover this type?" — and `Leaderboard[Widget]` is a clear error naming exactly what's missing. Pinning the ordering in the header means every leaderboard sorts the same way *by construction*: there is no per-value ordering choice to get wrong. (A nice bonus for buffer-backed types like these domains: with the witness fixed in the type, dispatch is fully static — the compiled code is monomorphic per instantiation.) The workflow for a new type is exactly one line — declare how it inhabits `Ascending` — and every `Ascending`-pinned container in the program accepts it.
@@ -1129,8 +1196,10 @@ Basis has ordinary infix operators — `+ - * / %`, and the comparatives — but
 .domain Scaled : Int64
 .witness ScaledArith[Scaled] : Additive
 
-#total <- price + tax          ; ✓ licensed — sugar for a concept-method call
-#oops  <- price * tax          ; ✗ compile error: nothing sanctions * for Scaled
+#total <- price + tax  ; ✓ licensed — sugar for a
+                       ;   concept-method call
+#oops  <- price * tax  ; ✗ compile error: nothing
+                       ;   sanctions * for Scaled
 ```
 
 That's the whole model: `Scaled` gets exactly the operators its concepts sanction, a set type can map `-` to set-difference, and a matrix library can map `*` for both `matrix * vector` and `vector * matrix` orders within one concept.
@@ -1138,7 +1207,8 @@ That's the whole model: `Scaled` gets exactly the operators its concepts sanctio
 Comparatives follow Icon rather than C: a comparison is a *may-fail test* that, on success, produces its right-hand value — so comparisons chain:
 
 ```
-? lo <= x < hi                 ; the range test: lo ≤ x succeeds *with* x, then x < hi
+? lo <= x < hi      ; the range test: lo ≤ x succeeds
+                    ;   *with* x, then x < hi
     process: x
 ```
 
