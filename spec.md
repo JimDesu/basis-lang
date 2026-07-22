@@ -50,65 +50,21 @@ Basis programs reduce under a small-step operational semantics over a state tupl
 
 The reduction rules below describe how the state tuple evolves. Each rule is read as: *given the antecedent state shape, the system reduces to the consequent state shape.* The notation ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', φ', Σ' ⟩ denotes a complete sub-evaluation of v that itself produced post-state ⟨ v', φ', Σ' ⟩.
 
-```
-(normal execution)
-    ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', ε, Σ' ⟩
-    ⇒  ⟨ v⃗, ε, Σ' ⟩
-
-(generating failure)
-    v = fail(φ)
-    ⟨ v, ε, Σ ⟩
-    ⇒  ⟨ v⃗, φ, Σ ⟩
-
-(command failure)
-    ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', φ, Σ' ⟩
-    ⇒  ⟨ v⃗, φ, Σ ⟩
-
-(skips from failure)
-    v ∈ {exec(c), rewind(w), fail(γ)}
-    ⟨ v, φ, Σ ⟩
-    ⇒  ⟨ v⃗, φ, Σ ⟩
-
-(generic recovery)
-    v = recover
-    ⟨ v, φ, Σ ⟩
-    ⇒  ⟨ v⃗, ε, Σ ⟩
-
-(specific recovery)
-    v = recover(φ, σ, c)
-    ⟨ v, φ, Σ ⟩
-    ⇒  ⟨ c, ε, Σ + σ/c ⟩,
-    c⃗ ← v⃗
-
-(recovery failure)
-    v = recover(α, σ, c)
-    ⟨ v, φ, Σ ⟩
-    φ ≠ α
-    ⇒  ⟨ v⃗, φ, Σ ⟩
-
-(scope boundary)
-    v = scope(c)
-    κ ∈ Φ
-    ⟨ v, κ, Σ ⟩
-    ⇒  ⟨ c, ε, Σ ⟩,
-    c⃗ ← ⟨ v⃗, κ, Σ' ⟩
-
-(scope under success)
-    v = scopefail(c)
-    ⟨ v, ε, Σ ⟩
-    ⇒  ⟨ v⃗, ε, Σ ⟩
-
-(scope under failure)
-    v = scopefail(c)
-    ⟨ v, φ, Σ ⟩
-    ⇒  ⟨ c, ε, Σ ⟩,
-    c⃗ ← ⟨ v⃗, φ, Σ' ⟩
-
-(looping)
-    v = rewind(c)
-    ⟨ v, ε, Σ ⟩
-    ⇒  ⟨ c, ε, Σ ⟩
-```
+$$
+\begin{align}
+\text{normal execution}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies & \langle \vec{v}, \epsilon, \Sigma' \rangle \\
+\text{generating failure}\quad & v = fail(\phi) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
+\text{command failure}\quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi, \Sigma' \rangle & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
+\text{skips from failure}\quad & v \in \{exec(c),rewind(w),fail(\gamma)\} \quad \langle v, \phi, \Sigma \rangle & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
+\text{generic recovery}\quad & v=recover \quad \langle v, \phi, \Sigma \rangle & \implies & \langle \vec{v}, \epsilon, \Sigma \rangle \\
+\text{specific recovery}\quad & v=recover(\phi,\sigma,c) \quad \langle v, \phi, \Sigma \rangle & \implies & \langle c, \epsilon, \Sigma+\sigma/c \rangle \quad \vec{c} \leftarrow \vec{v} \\
+\text{recovery failure}\quad & v=recover(\alpha,\sigma,c) \quad \langle v, \phi, \Sigma \rangle \quad \phi \neq \alpha & \implies & \langle \vec{v}, \phi, \Sigma \rangle \\
+\text{scope boundary}\quad & v=scope(c) \quad \kappa\in\Phi \quad \langle v, \kappa, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle \quad \vec{c} \leftarrow \langle \vec{v},\kappa,\Sigma' \rangle \\
+\text{scope boundary under failure}\quad & v=scopefail(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle \vec{v},\epsilon,\Sigma \rangle \\
+\text{} & v=scopefail(c) \quad \langle v, \phi, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle \quad \vec{c} \leftarrow \langle \vec{v},\phi,\Sigma' \rangle \\
+\text{looping}\quad & v=rewind(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \langle c,\epsilon,\Sigma \rangle
+\end{align}
+$$
 
 A program executes by repeated application of these rules, beginning with the verb sequence corresponding to a `.program` directive's body and an empty failure register. The full operational semantics &mdash; including the details of how user commands exec(c) interact with parameter passing, how the failure register's φ is realized as a slot in an activation record, and how the scope and scopefail verbs map onto block markers &mdash; is given in &sect;3 (commands), &sect;4 (failure and recovery), and Appendix F (formal operational semantics).
 
