@@ -40,33 +40,41 @@ These principles are not separate features that the language assembles; they are
 
 ### 1.3 Core Semantic Skeleton
 
-Basis programs reduce under a small-step operational semantics over a state tuple $\langle V, \Phi, \Sigma \rangle$, where:
+Basis programs reduce under a small-step operational semantics over a state tuple ⟨ V, Φ, Σ ⟩, where:
 
-- **$V$** is the current verb to be executed. Verbs include user commands $\mathit{exec}(c)$, the failure-firing $\mathit{fail}(\phi)$, the recovery markers $\mathit{recover}$ and $\mathit{recover}(\phi, \sigma, c)$, the scope boundary markers $\mathit{scope}(c)$ and $\mathit{scopefail}(c)$, and the rewind verb $\mathit{rewind}(v)$ for loop continuation. The notation $\overrightarrow{v}$ denotes the continuation from $v$ &mdash; what runs next once $v$ has completed.
+- **V** is the current verb to be executed. Verbs include user commands exec(c), the failure-firing fail(φ), the recovery markers recover and recover(φ, σ, c), the scope boundary markers scope(c) and scopefail(c), and the rewind verb rewind(v) for loop continuation. The notation v⃗ denotes the continuation from v &mdash; what runs next once v has completed.
 
-- **$\Phi$** is the failure register. When no failure is in flight, $\Phi$ holds the empty value $\epsilon$. When a failure is propagating, $\Phi$ holds a failure value $\phi$ &mdash; a message identity, an optional payload pointer, and an optional concept dictionary (the runtime details are specified in &sect;4 and Appendix F).
+- **Φ** is the failure register. When no failure is in flight, Φ holds the empty value ε. When a failure is propagating, Φ holds a failure value φ &mdash; a message identity, an optional payload pointer, and an optional concept dictionary (the runtime details are specified in &sect;4 and Appendix F).
 
-- **$\Sigma$** is the variable state &mdash; a mapping from in-scope names to slot identities and contents, partitioned by frame. The notation $\sigma/c$ denotes $\sigma$ bound within the lexical scope of the verb $c$.
+- **Σ** is the variable state &mdash; a mapping from in-scope names to slot identities and contents, partitioned by frame. The notation σ/c denotes σ bound within the lexical scope of the verb c.
 
-The reduction rules below describe how the state tuple evolves. Each rule is read as: *given the antecedent state shape, the system reduces to the consequent state shape.* The notation $\langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi', \Sigma' \rangle$ denotes a complete sub-evaluation of $v$ that itself produced post-state $\langle v', \phi', \Sigma' \rangle$.
+The reduction rules below describe how the state tuple evolves. Each rule is read as: *given the antecedent state shape, the system reduces to the consequent state shape.* The notation ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', φ', Σ' ⟩ denotes a complete sub-evaluation of v that itself produced post-state ⟨ v', φ', Σ' ⟩.
 
-$$
-\begin{aligned}
-\text{(normal execution)} \quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \epsilon, \Sigma' \rangle & \implies & \quad \langle \vec{v}, \epsilon, \Sigma' \rangle \\
-\text{(generating failure)} \quad & v = \mathit{fail}(\phi) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \quad \langle \vec{v}, \phi, \Sigma \rangle \\
-\text{(command failure)} \quad & \langle v, \epsilon, \Sigma \rangle \Downarrow \langle v', \phi, \Sigma' \rangle & \implies & \quad \langle \vec{v}, \phi, \Sigma \rangle \\
-\text{(skips from failure)} \quad & v \in \{\mathit{exec}(c), \mathit{rewind}(w), \mathit{fail}(\gamma)\} \quad \langle v, \phi, \Sigma \rangle & \implies & \quad \langle \vec{v}, \phi, \Sigma \rangle \\
-\text{(generic recovery)} \quad & v = \mathit{recover} \quad \langle v, \phi, \Sigma \rangle & \implies & \quad \langle \vec{v}, \epsilon, \Sigma \rangle \\
-\text{(specific recovery)} \quad & v = \mathit{recover}(\phi, \sigma, c) \quad \langle v, \phi, \Sigma \rangle & \implies & \quad \langle c, \epsilon, \Sigma + \sigma/c \rangle, \quad \vec{c} \leftarrow \vec{v} \\
-\text{(recovery failure)} \quad & v = \mathit{recover}(\alpha, \sigma, c) \quad \langle v, \phi, \Sigma \rangle \quad \phi \neq \alpha & \implies & \quad \langle \vec{v}, \phi, \Sigma \rangle \\
-\text{(scope boundary)} \quad & v = \mathit{scope}(c) \quad \kappa \in \Phi \quad \langle v, \kappa, \Sigma \rangle & \implies & \quad \langle c, \epsilon, \Sigma \rangle, \quad \vec{c} \leftarrow \langle \vec{v}, \kappa, \Sigma' \rangle \\
-\text{(scope under success)} \quad & v = \mathit{scopefail}(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \quad \langle \vec{v}, \epsilon, \Sigma \rangle \\
-\text{(scope under failure)} \quad & v = \mathit{scopefail}(c) \quad \langle v, \phi, \Sigma \rangle & \implies & \quad \langle c, \epsilon, \Sigma \rangle, \quad \vec{c} \leftarrow \langle \vec{v}, \phi, \Sigma' \rangle \\
-\text{(looping)} \quad & v = \mathit{rewind}(c) \quad \langle v, \epsilon, \Sigma \rangle & \implies & \quad \langle c, \epsilon, \Sigma \rangle
-\end{aligned}
-$$
+```
+(normal execution)        ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', ε, Σ' ⟩     ⇒        ⟨ v⃗, ε, Σ' ⟩
 
-A program executes by repeated application of these rules, beginning with the verb sequence corresponding to a `.program` directive's body and an empty failure register. The full operational semantics &mdash; including the details of how user commands $\mathit{exec}(c)$ interact with parameter passing, how the failure register's $\phi$ is realized as a slot in an activation record, and how the scope and scopefail verbs map onto block markers &mdash; is given in &sect;3 (commands), &sect;4 (failure and recovery), and Appendix F (formal operational semantics).
+(generating failure)        v = fail(φ)    ⟨ v, ε, Σ ⟩     ⇒        ⟨ v⃗, φ, Σ ⟩
+
+(command failure)        ⟨ v, ε, Σ ⟩ ⇓ ⟨ v', φ, Σ' ⟩     ⇒        ⟨ v⃗, φ, Σ ⟩
+
+(skips from failure)        v ∈ {exec(c), rewind(w), fail(γ)}    ⟨ v, φ, Σ ⟩     ⇒        ⟨ v⃗, φ, Σ ⟩
+
+(generic recovery)        v = recover    ⟨ v, φ, Σ ⟩     ⇒        ⟨ v⃗, ε, Σ ⟩
+
+(specific recovery)        v = recover(φ, σ, c)    ⟨ v, φ, Σ ⟩     ⇒        ⟨ c, ε, Σ + σ/c ⟩,    c⃗ ≤ftarrow v⃗
+
+(recovery failure)        v = recover(α, σ, c)    ⟨ v, φ, Σ ⟩    φ ≠ α     ⇒        ⟨ v⃗, φ, Σ ⟩
+
+(scope boundary)        v = scope(c)    κ ∈ Φ    ⟨ v, κ, Σ ⟩     ⇒        ⟨ c, ε, Σ ⟩,    c⃗ ≤ftarrow ⟨ v⃗, κ, Σ' ⟩
+
+(scope under success)        v = scopefail(c)    ⟨ v, ε, Σ ⟩     ⇒        ⟨ v⃗, ε, Σ ⟩
+
+(scope under failure)        v = scopefail(c)    ⟨ v, φ, Σ ⟩     ⇒        ⟨ c, ε, Σ ⟩,    c⃗ ≤ftarrow ⟨ v⃗, φ, Σ' ⟩
+
+(looping)        v = rewind(c)    ⟨ v, ε, Σ ⟩     ⇒        ⟨ c, ε, Σ ⟩
+```
+
+A program executes by repeated application of these rules, beginning with the verb sequence corresponding to a `.program` directive's body and an empty failure register. The full operational semantics &mdash; including the details of how user commands exec(c) interact with parameter passing, how the failure register's φ is realized as a slot in an activation record, and how the scope and scopefail verbs map onto block markers &mdash; is given in &sect;3 (commands), &sect;4 (failure and recovery), and Appendix F (formal operational semantics).
 
 A few features of the reduction system are worth flagging at this level:
 
@@ -74,7 +82,7 @@ A few features of the reduction system are worth flagging at this level:
 
 - **No expression-level evaluation primitive.** The reduction system has commands and failure flow; it has no evaluation-to-a-value primitive. Surface forms that look like expression evaluation &mdash; the right-hand side of `<-`, parenthesized command invocations in argument position &mdash; desugar into command sequences whose effects produce what the surface form denotes. The operational semantics has no expression layer beneath the command layer.
 
-- **Failure as a parallel axis.** The failure register $\Phi$ is independent of the verb $V$ and the variable state $\Sigma$. A failure in flight does not modify $\Sigma$; it skips past subsequent verbs that would execute under no-failure conditions. The recovery rules consume $\Phi$ explicitly. The two axes &mdash; command flow and failure flow &mdash; never confuse for each other in the reduction system.
+- **Failure as a parallel axis.** The failure register Φ is independent of the verb V and the variable state Σ. A failure in flight does not modify Σ; it skips past subsequent verbs that would execute under no-failure conditions. The recovery rules consume Φ explicitly. The two axes &mdash; command flow and failure flow &mdash; never confuse for each other in the reduction system.
 
 - **Scope as the unit of structural recovery.** The `scope` and `scopefail` verbs map onto the block-marker constructs that establish failure-recovery contexts (`?`, `?-`, `?:`, `^`, `|`, `??`). The mapping is given in &sect;4.4. The invariant the reduction system enforces is that every failure in flight either consumes at a structurally-visible recovery point or propagates upward to the program's top frame.
 
@@ -110,9 +118,9 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Access paths, not storage.** The transitive READ contract operates on access paths &mdash; the named ways through which a value is reached &mdash; not on storage locations. The language does not detect aliasing; it tracks paths. Developed in &sect;6.4.
 
-**Buffer-backed containment.** Byte-aggregate containers &mdash; records, unions, `[N]T`, and domain parents &mdash; admit only fixed-size buffer-backed contents. The runtime-length forms `[]` and `[]T` are excluded from these positions, as are all non-buffer types (pointers, command-typed values, objects, variants). Objects and variants, being identity-bearing or tagged-sum constructs rather than byte aggregates, admit any type in their fields or candidates respectively. This rule eliminates whole categories of static-analysis questions: cases that presuppose a byte-aggregate structure containing non-fixed-size components are not Basis cases.
+**Buffer-backed containment.** Byte-aggregate containers &mdash; records, unions, `[n]T`, and domain parents &mdash; admit only fixed-size buffer-backed contents. The runtime-length forms `[]` and `[]T` are excluded from these positions, as are all non-buffer types (pointers, command-typed values, objects, variants). Objects and variants, being identity-bearing or tagged-sum constructs rather than byte aggregates, admit any type in their fields or candidates respectively. This rule eliminates whole categories of static-analysis questions: cases that presuppose a byte-aggregate structure containing non-fixed-size components are not Basis cases.
 
-**Buffer-backed subsumption is uniform within fixed-size types.** Every fixed-size buffer-backed type subsumes up its parent chain to its byte-width `[N]`. A `Point` (record over an `[8]`-byte parent) is implicitly acceptable where `[8]` is expected. Sibling types &mdash; two distinct records over `[8]`, or `Inches` and `Centimeters` both over `Int32` &mdash; subsume separately to their shared parent but do not implicitly convert peer-to-peer. The runtime-length types `[]` and `[]T` are leaves in this lattice: they encode their length in the value rather than in the type, and conversion to or from a fixed-size type is explicit.
+**Buffer-backed subsumption is uniform within fixed-size types.** Every fixed-size buffer-backed type subsumes up its parent chain to its byte-width `[n]`. A `Point` (record over an `[8]`-byte parent) is implicitly acceptable where `[8]` is expected. Sibling types &mdash; two distinct records over `[8]`, or `Inches` and `Centimeters` both over `Int32` &mdash; subsume separately to their shared parent but do not implicitly convert peer-to-peer. The runtime-length types `[]` and `[]T` are leaves in this lattice: they encode their length in the value rather than in the type, and conversion to or from a fixed-size type is explicit.
 
 **Variants are the only "may-be-absent" type.** Every variant slot inherently admits an absent state in addition to its declared candidate states. A single-candidate variant is an optional. A bare `# x : SomeVariant` introduction produces a variant slot in the absent state. No other type has this property: pointers, objects, command-typed values, records, unions, and named domains all contain what their type declaration says they contain. Variants alone admit an inherent "nothing here" state &mdash; the language's null-pointer-inclusive data structures without admitting NULL into the type system.
 
@@ -120,7 +128,7 @@ Reasoning about Basis correctly requires a small set of mental lenses that are n
 
 **Orthogonality of language and standard library.** Where a new mechanism's work can be done by composing existing language facilities, the composition is preferred over a new intrinsic or new syntactic form. The `-<` operator unifies dynamic type coercion across all type pairs without per-case operators. Variant pattern matching uses `?:` chains plus `-<` rather than a `match` keyword. The standard library is consumer of the language, not co-author of it.
 
-**Liskov substitution as a design tool.** Where the language admits a subtyping relation, the design preserves Liskov substitutability. The buffer-backed parent-chain subsumption preserves Liskov by construction (the upcast is one-directional and carries no value rewriting). The concept-witness system preserves Liskov by concept-method-contract (witnesses must satisfy the concept's declared shape). Where Liskov substitution fails &mdash; as it does for the union $\to$ candidate-or-parent byte-reinterpretation, where the bytes' meaning depends on the active candidate &mdash; the relation is given a distinct name (byte-reinterpretation subsumption) and not conflated with Liskov-preserving subsumption.
+**Liskov substitution as a design tool.** Where the language admits a subtyping relation, the design preserves Liskov substitutability. The buffer-backed parent-chain subsumption preserves Liskov by construction (the upcast is one-directional and carries no value rewriting). The concept-witness system preserves Liskov by concept-method-contract (witnesses must satisfy the concept's declared shape). Where Liskov substitution fails &mdash; as it does for the union → candidate-or-parent byte-reinterpretation, where the bytes' meaning depends on the active candidate &mdash; the relation is given a distinct name (byte-reinterpretation subsumption) and not conflated with Liskov-preserving subsumption.
 
 **Frame-bound region reclamation is the default storage discipline.** Value construction implicitly draws any variable-size storage it needs (the data behind runtime-length types `[]T` and `[]`, the storage behind constructed pointers and objects) from a frame-bound region that is freed at frame retirement &mdash; or, for a scope-local value, as early as the close of its enclosing `.scope` block (&sect;3.17) &mdash; with nothing to track. Non-default storage &mdash; heap, pool, arena, etc. &mdash; is drawn from an allocator, whose acquire/release pair is governed by the obligation system (&sect;10): acquisition is an ordinary source-method call producing an obligated value, and bringing an allocator into scope does nothing on its own until such a call is made. Non-buffer types remain confined to positions where ownership and lifetime are explicit (top-level slots, object fields with object-lifetime ceiling, frame-bound parameters and receivers).
 
@@ -295,7 +303,7 @@ Basis has three independent structural nesting mechanisms: bracket pairs `(` `)`
 
 Indentation is the language's primary block delimiter. A line indented under another line is part of the construct begun by that line. Block markers (&sect;4.4) carry a body whose extent is determined by indentation: the body comprises every line indented strictly more than the marker's own line, up to the first line not so indented. The block-marker composition rules &mdash; sibling adjacency for `?:` chains, `|` recovery cascades, `^` rewinds &mdash; operate on lines at the *same* indentation level as the marker. The user reading source can determine block structure by inspection; the language enforces the same structure during parsing.
 
-The `${...}` and `$[...]` literal-fence tokens introduce a single bracketed group each, matched by a single `}` or `]`. The `$` prefix is unambiguous &mdash; the `$` character has no other use in Basis source &mdash; so `${` and `$[` are recognized as single tokens at lex time.
+The `${...}` and `$[...]` literal-fence tokens introduce a single bracketed group each, matched by a single `}` or `]`. The `` prefix is unambiguous    mdash; the `` character has no other use in Basis source &mdash; so `${` and `$[` are recognized as single tokens at lex time.
 
 The full lexer specification &mdash; the token concepts, the literal-token grammar, the disambiguation rules between `'`, `&`, and adjacent tokens, the placement of the `.splice` modifier, and the `(T:Concept)` constraint form at method receiver positions &mdash; is given in Appendix A.
 
@@ -314,12 +322,12 @@ The `.using` directive establishes a **standing witness selection**: an explicit
 .using ForwardOrd                     ; file scope: the general-purpose selection
 
 .cmd analyze: []NumberField data =
-    #summary <- (SortedSet[NumberField])        ; ForwardOrd &mdash; outer selection
+    #summary <- (SortedSet[NumberField])        ; ForwardOrd — outer selection
     .scope
         .using ReverseOrd                        ; shadows for this region
         #ranked <- (SortedSet[NumberField])      ; ReverseOrd
         ...
-    #more <- (SortedSet[NumberField])            ; ForwardOrd again &mdash; by scope exit
+    #more <- (SortedSet[NumberField])            ; ForwardOrd again — by scope exit
 ```
 
 **Checks.** A `.using` entry must resolve, per the ordinary name rules, to a witness family, member, or profile the file can name (a direct import; Appendix H.4) &mdash; a dangling entry is a static error at the directive, which is also the pinning property: a file that selects a witness by name learns loudly if that witness vanishes from its dependencies. Two selections covering any common `(Subject, Concept)` pair *in one scope* error at the second; overlap checking runs on the transitively flattened union of all entries, and additionally at each `.profile` declaration for what it can see.
@@ -440,16 +448,16 @@ The mechanism resolves at compile time. The provision-chain reading of the no-no
 ```
 .cmd work: Payload p / Loggable log = ...
 ;   concept-typed (Case B existential) implicit: matches an in-scope binding whose
-;   static type IS `Loggable` &mdash; a 3-word slot; the slot's own dictionary dispatches
+;   static type IS `Loggable` — a 3-word slot; the slot's own dictionary dispatches
 
 .cmd audit: Payload p / SortedSet[NumberField:(Ord = ForwardOrd)] cache = ...
-;   annotated implicit: only a provably-annotated binding matches (&sect;9.21)
+;   annotated implicit: only a provably-annotated binding matches (§9.21)
 
 .cmd top: =
     # Loggable log <- consoleLogger    ; the ONE line naming a concrete provider:
-                                       ;   the boxing installation &mdash; the witness for
+                                       ;   the boxing installation — the witness for
                                        ;   (ConsoleLogger, Loggable) is selected HERE,
-                                       ;   per the full precedence chain (&sect;9.15)
+                                       ;   per the full precedence chain (§9.15)
     work: payload                      ; log filled by uniqueness-of-type; every frame
                                        ;   below resolves likewise, naming only the concept
 ```
@@ -684,7 +692,7 @@ Provision entries follow the uppercase-LHS binding form (&sect;9.4). When a sign
 pairUp (Ord[K] = ChronoOrd, Ord[V] = SizeOrd): stamp, widget, #rep
 pairUp (Ord[K] = ChronoOrd): stamp, widget, #rep     ; partial provision: the (V, Ord)
                                                       ; pair falls through the ordinary
-                                                      ; precedence chain (&sect;9.15)
+                                                      ; precedence chain (§9.15)
 ```
 
 A qualification naming a variable the signature does not introduce, or one not bounded by the named concept, is a static error naming the mismatch. Bound witness variables (&sect;9.21) are admissible on an entry's right-hand side within a body where they are bound.
@@ -867,8 +875,8 @@ Basis admits infix operator expressions over a **closed, fixed operator apparatu
 **Comparative desugaring.** A comparative token maps to a **may-fail predicate**: receiver, one READ operand, zero CREATE outputs, and a mandatory `->` result designation (&sect;3.7) naming the operand or the receiver. The desugared call is an ordinary expression-position invocation; &sect;3.7's READ-designation rule supplies the success value &mdash; the designated parameter's passed value &mdash; and the method's failure propagates as expression failure. With the standard concepts designating the textually-right operand, left associativity yields Icon-style chaining:
 
 ```
-? lo <= x < hi              ; ((lo <= x) < hi): lo &le; x succeeds WITH x, then x < hi
-    process: x              ;   &mdash; the range test; each link dispatches on its own left value
+? lo <= x < hi              ; ((lo <= x) < hi): lo ≤ x succeeds WITH x, then x < hi
+    process: x              ;   — the range test; each link dispatches on its own left value
 ```
 
 Chain consequences, none of them additional rules: **short-circuiting is failure propagation** (a failed link's failure exits the whole expression before later operands evaluate); **negation is the `?-` guard**; comparative results are ordinary may-fail expression values (`#m <- x < y` binds `y` on success); heterogeneous chains compose per-link, each link dispatching on its left value's static type. A method mapped to a comparative token must declare a **single-message failure set** &mdash; a comparative is a pure test, and a predicate that can fail for reasons other than "no" is not operator material; a failing link propagates that method's one message.
@@ -911,7 +919,7 @@ Both divisions are legitimate &mdash; an intermediate state is often *meant* to 
 .atomic
     parseHeader: ctx, raw               ; ctx is UPDATE-mode in parseHeader's signature
     validateSchema: ctx, policy        ; sees the parsed ctx (working copy)
-    applyMigrations: ctx               ; may fail &mdash; and if it does,
+    applyMigrations: ctx               ; may fail — and if it does,
                                        ;   ctx is bit-identical to group entry
 ```
 
@@ -947,7 +955,7 @@ Every command-typed value in Basis carries one of three **failure-mode marks** a
 - The `!` mark &mdash; the **must-fail** mark &mdash; denotes a command whose body must reach exit on a propagating-failure path on every reachable execution; no successful return is possible. A must-fail command is declared `.cmd !name: ...`. The `.fail` directive itself (&sect;4.3) is the canonical `!`-call.
 The marks conceptify command-typed values uniformly across all of the language's command-bearing constructs: named `.cmd` declarations, command-typed slots (`:<...>`, `?<...>`, `!<...>`), concept methods, single- and multi-receiver methods, and lambdas (&sect;&sect;3.10&ndash;3.11, 5.15&ndash;5.16, 8). The same conformance rules apply to all.
 
-The marks form a partial order under subsumption: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful &mdash; its failure edge is statically dead &mdash; but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
+The marks form a partial order under subsumption: : ⊑ ? and ! ⊑ ?, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked value may stand wherever a `?`-marked value is expected; a `?`-marked value may not stand for either of the more-specific marks. The reading is natural: `?` is the "may-or-may-not" supremum, with `:` and `!` as the two "definitely" specializations of it. A `:`-value at a `?`-call site is simply more useful &mdash; its failure edge is statically dead &mdash; but the call site's analysis is still that of a `?`-call. Subsumption permits the substitution; it does not narrow the analysis.
 
 Parameter modes (&sect;3.3) and parameter types are **invariant** under mark subsumption. A `:<Int'>` value is not interchangeable with `:<Int>`, `:<Int&>`, or `:<Int~>`; the subsumption relation is solely on the failure mark. Invariance is essential for soundness: the per-mode discipline at the call site (CREATE obligations, reference-initialization preconditions, READ-taint contracts, DISPOSE consume commitments) breaks if the mode is permitted to vary. The rule is developed in &sect;6.11.
 
@@ -1169,9 +1177,9 @@ A downstream module **may extend** the hierarchy of an imported message by decla
 
 A **failure set** is a set of messages. A command's signature carries a failure-set component declaring which messages the command may emit, expressed either as an explicit list or as the closure-at-or-below of a higher-level message. By convention, a set listing `Net` denotes "any message at-or-below `Net`"; a set listing several messages denotes the union of their respective at-or-below closures.
 
-A set `A` **subsumes** a set `B` (notation $B \subseteq A$) iff for every message $m$ in `B`, there exists a message $m'$ in `A` such that $m$ is at-or-below $m'$ in $m'$'s hierarchy. Messages from different hierarchies are mutually incomparable; nothing in one hierarchy subsumes anything in another. The relation is reflexive, transitive, and antisymmetric (modulo at-or-below equivalence within a single hierarchy, which is trivial).
+A set `A` **subsumes** a set `B` (notation B ⊆ A) iff for every message m in `B`, there exists a message m' in `A` such that m is at-or-below m' in m''s hierarchy. Messages from different hierarchies are mutually incomparable; nothing in one hierarchy subsumes anything in another. The relation is reflexive, transitive, and antisymmetric (modulo at-or-below equivalence within a single hierarchy, which is trivial).
 
-A caller invoking a command with declared failure set `D` is responsible for ensuring its enclosing signature's set `E` satisfies $D \subseteq E$, modulo any sets consumed by recovery within the caller. A caller may *widen* (`E` a superset of `D`) at the cost of precision; a caller may *not* narrow at a call site. A `|` consumes failures of certain messages: bare `|` consumes the entire propagating set; `| Name -> ...` consumes failures whose message is at-or-below `Name`. The post-block propagating set is the original set minus the at-or-below closure of the matched message.
+A caller invoking a command with declared failure set `D` is responsible for ensuring its enclosing signature's set `E` satisfies D ⊆ E, modulo any sets consumed by recovery within the caller. A caller may *widen* (`E` a superset of `D`) at the cost of precision; a caller may *not* narrow at a call site. A `|` consumes failures of certain messages: bare `|` consumes the entire propagating set; `| Name -> ...` consumes failures whose message is at-or-below `Name`. The post-block propagating set is the original set minus the at-or-below closure of the matched message.
 
 **Surface form for declaring a failure set.** A failure set is declared by attaching square brackets containing message names to the failure mark in a signature or command-type expression:
 
@@ -1398,13 +1406,13 @@ This section defines the type forms of Basis. Every value the language admits in
 
 Every type in Basis falls into exactly one of two categories. The split is structural: it determines what positions a type may inhabit, how it is initialized, how it composes with other types, and how the static analyses treat it.
 
-**Buffer-backed types** are types whose representation reduces &mdash; transitively &mdash; to bytes. Buffer-backed values are byte-copyable, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. The category includes the buffer primitives `[N]` and `[]`, typed buffers `[N]T` and `[]T`, domains, records, and unions. Aliases that resolve to a buffer-backed type are buffer-backed; enums whose enumerated-type is buffer-backed are buffer-backed.
+**Buffer-backed types** are types whose representation reduces &mdash; transitively &mdash; to bytes. Buffer-backed values are byte-copyable, fit inside other byte-aggregates, and are reclaimable at frame retirement without traversal. The category includes the buffer primitives `[n]` and `[]`, typed buffers `[n]T` and `[]T`, domains, records, and unions. Aliases that resolve to a buffer-backed type are buffer-backed; enums whose enumerated-type is buffer-backed are buffer-backed.
 
 **Non-buffer types** are types whose representation includes references, identity, dispatch information, or other non-byte semantics. The category includes pointers, command-typed values (the `:<...>`, `?<...>`, `!<...>` family), objects, and variants.
 
-The split is enforced by a **containment rule**: byte-aggregate containers &mdash; records, unions, typed buffers `[N]T`, and domain parents &mdash; admit only **fixed-size buffer-backed** contents. A record's fields must all be fixed-size buffer-backed; a union's candidates must all be fixed-size buffer-backed; a typed buffer `[N]T` requires `T` to be fixed-size buffer-backed; a domain's parent must be fixed-size buffer-backed. The runtime-length forms `[]` and `[]T`, while themselves buffer-backed, do not have a static byte-width and are therefore excluded from these positions. Non-buffer types may appear only at top-level positions &mdash; slots introduced via `#`, parameters, receivers &mdash; or as fields of objects or candidates of variants. Object fields and variant candidates are unrestricted as to category; they may hold fixed-size buffer-backed, runtime-length buffer-backed, or non-buffer types freely.
+The split is enforced by a **containment rule**: byte-aggregate containers &mdash; records, unions, typed buffers `[n]T`, and domain parents &mdash; admit only **fixed-size buffer-backed** contents. A record's fields must all be fixed-size buffer-backed; a union's candidates must all be fixed-size buffer-backed; a typed buffer `[n]T` requires `T` to be fixed-size buffer-backed; a domain's parent must be fixed-size buffer-backed. The runtime-length forms `[]` and `[]T`, while themselves buffer-backed, do not have a static byte-width and are therefore excluded from these positions. Non-buffer types may appear only at top-level positions &mdash; slots introduced via `#`, parameters, receivers &mdash; or as fields of objects or candidates of variants. Object fields and variant candidates are unrestricted as to category; they may hold fixed-size buffer-backed, runtime-length buffer-backed, or non-buffer types freely.
 
-The grammar enforces the byte-aggregate-vs-other distinction by partitioning the type-expression non-terminal: record-field, union-candidate, `[N]T`-element, and domain-parent positions admit a `fixed-size-type-expr` (Appendix B), which excludes the runtime-length forms `[]` and `[]T` and all non-buffer forms. Object-field and variant-candidate positions admit the full `type-expr`. Named-type references in `fixed-size-type-expr` positions are checked by the typechecker against the resolved type's category.
+The grammar enforces the byte-aggregate-vs-other distinction by partitioning the type-expression non-terminal: record-field, union-candidate, `[n]T`-element, and domain-parent positions admit a `fixed-size-type-expr` (Appendix B), which excludes the runtime-length forms `[]` and `[]T` and all non-buffer forms. Object-field and variant-candidate positions admit the full `type-expr`. Named-type references in `fixed-size-type-expr` positions are checked by the typechecker against the resolved type's category.
 
 The containment rule's load-bearing consequence is that mutation either succeeds fully or fails fully (principle 4, &sect;1.2). A record's bytes are unambiguously a byte-aggregate, copy-restored to the caller's slot atomically on success and not at all on failure. A record-with-pointers would punch a hole in this &mdash; the pointer copies, the pointee doesn't, and partial-failure semantics drift. The containment rule eliminates the concern at the type level rather than relying on convention or analysis.
 
@@ -1412,7 +1420,7 @@ The split also determines whole-slot initialization tracking (&sect;6.13): a buf
 
 ### 5.2 Buffer Primitives
 
-The bracket form `[N]` denotes an `N`-byte buffer with the length fixed in the type. The form `[]` denotes a runtime-length byte buffer: its length is carried alongside the bytes at runtime rather than in the type. The forms `[N]T` and `[]T` denote buffers laid out as a sequence of `T`-values, sized to `N` elements in the type (`[N]T`) or to a count carried in the value at runtime (`[]T`). Buffers are the substrate over which all value-like types are interpreted: a `[4]` is four bytes &mdash; what those bytes *mean* (a 32-bit integer, an RGBA pixel, a packed pair of 16-bit values, a Unicode code point) is determined by the domain layered on top of it (&sect;5.3). The fixed-size forms (`[N]`, `[N]T`) and the runtime-length forms (`[]`, `[]T`) are different representational categories; conversion between them is explicit (&sect;5.5). Duplicating the elements of a runtime-length buffer into fresh storage, rather than sharing its handle as an ordinary store does, is the copy operator `<<` (&sect;7.1) &mdash; a buffer-backed-only placement whose static role in preventing region escape is the subject of &sect;7.21.
+The bracket form `[n]` denotes an `n`-byte buffer with the length fixed in the type. The form `[]` denotes a runtime-length byte buffer: its length is carried alongside the bytes at runtime rather than in the type. The forms `[n]T` and `[]T` denote buffers laid out as a sequence of `T`-values, sized to `N` elements in the type (`[n]T`) or to a count carried in the value at runtime (`[]T`). Buffers are the substrate over which all value-like types are interpreted: a `[4]` is four bytes &mdash; what those bytes *mean* (a 32-bit integer, an RGBA pixel, a packed pair of 16-bit values, a Unicode code point) is determined by the domain layered on top of it (&sect;5.3). The fixed-size forms (`[n]`, `[n]T`) and the runtime-length forms (`[]`, `[]T`) are different representational categories; conversion between them is explicit (&sect;5.5). Duplicating the elements of a runtime-length buffer into fresh storage, rather than sharing its handle as an ordinary store does, is the copy operator `<<` (&sect;7.1) &mdash; a buffer-backed-only placement whose static role in preventing region escape is the subject of &sect;7.21.
 
 **Indexing into a buffer-shaped value uses the suffix `[index]` syntax.** Indexing is failable: out-of-bounds is a first-class failure, not undefined behavior. Indexing on a domain works because domains are themselves buffer-backed, transitively reducing to a buffer; whether indexing is *meaningful* on a particular domain (versus syntactically permitted but not idiomatic) is a domain-specific concern that the standard library and user code resolve at the domain level.
 
@@ -1446,7 +1454,7 @@ Pointers, command-typed values, objects, and variants cannot serve as domain par
 
 The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**. The bytes underlying the value are unchanged across the upcast boundary; the static analysis simply accepts the value at the broader type. What changes at the boundary is the type-lens through which the value is interpreted: methods declared on a type interpret that type's bytes per that type's conventions, and methods declared on a parent or ancestor type interpret the bytes per the parent's conventions, which may differ. Dictionaries for concept dispatch are selected at the relevant slot boundary based on the slot's declared type at that point &mdash; with one carrying exception: a witness-annotated slot (&sect;9.21) demands the dictionary the value already carries or was proven to carry, so annotated slots "look back" *by carrying*, never by history-walking. This is the buffer-backed subsumption rule applied to domains; it is stated in full in &sect;5.5, and the conditions under which a child type's dispatch identity carries through or is lost in transit are &sect;9.18.
 
-Domains are first-class types: they may be parameters, fields, receivers of concept methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child $\to$ parent) and child declarations do not widen the upcast set for any existing type.
+Domains are first-class types: they may be parameters, fields, receivers of concept methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child → parent) and child declarations do not widen the upcast set for any existing type.
 
 ### 5.4 Records
 
@@ -1464,7 +1472,7 @@ A **record** is a contiguous, byte-addressable buffer with named field offsets. 
     .record RGBA   : UInt8 red, UInt8 green, UInt8 blue, UInt8 alpha
     .record Header : UInt16 version, UInt32 length, [4] reserved
 
-Record fields are constrained to fixed-size buffer-backed types (the containment rule of &sect;5.1), reflecting the requirement that every field have a definite byte width and offset. A record is **packed**: its total byte size is exactly the sum of its fields' sizes, with no implementation padding, and each field's offset is the sum of the preceding fields' sizes in declaration order. The packed rule is load-bearing for record-to-buffer subsumption (&sect;5.5) &mdash; a record whose fields total N bytes is `[N]` exactly. Object types (&sect;5.11) are not byte-aggregates and have no such constraint; object layout is implementation-determined and may include alignment padding.
+Record fields are constrained to fixed-size buffer-backed types (the containment rule of &sect;5.1), reflecting the requirement that every field have a definite byte width and offset. A record is **packed**: its total byte size is exactly the sum of its fields' sizes, with no implementation padding, and each field's offset is the sum of the preceding fields' sizes in declaration order. The packed rule is load-bearing for record-to-buffer subsumption (&sect;5.5) &mdash; a record whose fields total N bytes is `[n]` exactly. Object types (&sect;5.11) are not byte-aggregates and have no such constraint; object layout is implementation-determined and may include alignment padding.
 
 Records are **nominally typed** (&sect;5.1's containment rule makes the structural matching well-defined; nominality is the choice on top): two `.record` declarations with identical field structure produce two distinct types. Values of one are not interchangeable with values of the other on the basis of structural similarity alone. The discipline is uniform across the type system; it is what gives module-exposed types their abstraction story.
 
@@ -1480,7 +1488,7 @@ Records also admit **inline definitions** &mdash; anonymous declarations within 
 
 ### 5.5 Buffer-Backed Subsumption
 
-Fixed-size buffer-backed types compose under a **uniform parent-chain subsumption** relation that operates across domains, records, unions, and the fixed-size primitive buffer forms together. A value of any fixed-size buffer-backed type subsumes upward through its parent chain &mdash; every ancestor along the chain accepts it implicitly &mdash; terminating at the relevant `[N]` primitive. **An `Inches` is implicitly an `Int32`; an `Int32` is implicitly a `[4]`.** A `Point` (record over an `[8]`-byte representation) is implicitly an `[8]`. The chain extends through every named refinement on the way; nothing is special about the named-domain step versus the record-to-primitive step.
+Fixed-size buffer-backed types compose under a **uniform parent-chain subsumption** relation that operates across domains, records, unions, and the fixed-size primitive buffer forms together. A value of any fixed-size buffer-backed type subsumes upward through its parent chain &mdash; every ancestor along the chain accepts it implicitly &mdash; terminating at the relevant `[n]` primitive. **An `Inches` is implicitly an `Int32`; an `Int32` is implicitly a `[4]`.** A `Point` (record over an `[8]`-byte representation) is implicitly an `[8]`. The chain extends through every named refinement on the way; nothing is special about the named-domain step versus the record-to-primitive step.
 
 The runtime-length forms `[]` and `[]T` are **leaves in the subsumption lattice**. They participate in the buffer-backed category but have no implicit parents and no implicit children: implicit subsumption never crosses the boundary between fixed-size types (which encode length in the type) and runtime-length types (which encode length in the value). Movement between a fixed-size type and a runtime-length type is an explicit operation &mdash; a constructor that wraps the fixed-size bytes with a length tag, or that reads bytes from the runtime-length value into a fixed-size slot under a runtime length check.
 
@@ -1490,7 +1498,7 @@ The subsumption is **type-acceptance, not value-rewriting**. The bytes are uncha
 
 The subsumption rule is one-directional: child to parent, never the reverse. A value of a parent type does not implicitly become a child value. Constructing a child value from a parent value requires an explicit constructor invocation (&sect;3.9), which the typechecker recognizes as a deliberate cross-type movement.
 
-A separate buffer-backed subsumption rule applies to unions: the **union $\to$ candidate-or-parent byte-reinterpretation** rule (&sect;5.7) admits a union value into any buffer-backed slot whose type is on the parent chain of *at least one* of the union's declared candidates. This rule is given its own subsection because it differs from the parent-chain subsumption rule in two important respects: it is existential across the candidate set, not universal; and it is **not Liskov-preserving**, since the bytes' meaning depends on which candidate is currently active in the union &mdash; a property the language does not track.
+A separate buffer-backed subsumption rule applies to unions: the **union → candidate-or-parent byte-reinterpretation** rule (&sect;5.7) admits a union value into any buffer-backed slot whose type is on the parent chain of *at least one* of the union's declared candidates. This rule is given its own subsection because it differs from the parent-chain subsumption rule in two important respects: it is existential across the candidate set, not universal; and it is **not Liskov-preserving**, since the bytes' meaning depends on which candidate is currently active in the union &mdash; a property the language does not track.
 
 The narrowness of the implicit-conversion story across buffer-backed types is a deliberate design commitment. Implicit conversions are a routine source of reasoning errors in languages that admit them. The parent-chain rule is the minimum that makes refinement-style domain hierarchies usable; the union byte-reinterpretation rule is the buffer-backed-side answer to the discriminated-overlay question that variants answer differently (&sect;5.12). Every other type-crossing &mdash; record to record, sibling domain to sibling domain, anything to or from a non-buffer type &mdash; is explicit, requiring a constructor invocation, an interpretive cast against a union, or the dynamic-narrowing operator `-<` (&sect;7.14).
 
@@ -1503,7 +1511,7 @@ The narrowness of the implicit-conversion story across buffer-backed types is a 
 
 w :: asPacked <- fromWire                 ; write through one candidate
 #b <- w :: asBytes[0]                     ; read through another: reinterpretation is
-                                          ;   what a union IS &mdash; no diagnostic fires;
+                                          ;   what a union IS — no diagnostic fires;
                                           ;   the `.union` declaration was the choice,
                                           ;   made once, at the type (compare `.box`,
                                           ;   S6.14: the declared exception needs no
@@ -1891,7 +1899,7 @@ A constraint specific to implicit context parameters: **implicit parameters cann
 
 ### 6.11 Parameter-Mode Invariance Under Mark Subsumption
 
-**The mode is part of the type.** The failure-mode marks (&sect;4.2) form a subsumption order: $\texttt{:} \sqsubseteq \texttt{?}$ and $\texttt{!} \sqsubseteq \texttt{?}$, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>`, `:<Int32&>`, or `:<Int32~>`; a `?<String'>` value is not interchangeable with `?<String>`, `?<String&>`, or `?<String~>`. The subsumption relation is solely on the failure-mark axis.
+**The mode is part of the type.** The failure-mode marks (&sect;4.2) form a subsumption order: : ⊑ ? and ! ⊑ ?, with `:` and `!` mutually incomparable. A `:`-marked or `!`-marked command-typed value may stand wherever a `?`-marked value is expected. **Parameter modes and parameter types are invariant under this subsumption.** A `:<Int32'>` value is not interchangeable with `:<Int32>`, `:<Int32&>`, or `:<Int32~>`; a `?<String'>` value is not interchangeable with `?<String>`, `?<String&>`, or `?<String~>`. The subsumption relation is solely on the failure-mark axis.
 
 The invariance is essential for soundness. The per-mode static rules at the call site break if the mode is permitted to vary. A CREATE parameter discharges a write-once obligation; substituting a READ parameter would lose the obligation entirely; substituting an UPDATE parameter would lose the write-once-on-success commitment in favor of no commitment. An UPDATE parameter requires its slot initialized at the call site; substituting a CREATE parameter would change the precondition (CREATE admits uninitialized); substituting a READ parameter would lose the writeability axis entirely. A DISPOSE parameter consumes its argument, ending the value's lifetime; substituting a READ or UPDATE parameter would lose the consume commitment, leaving live a value the contract says is finalized, and substituting DISPOSE for any other mode would destroy a value the caller expects to keep. None of these substitutions preserve the per-mode contract, and none of them preserve the static analyses' soundness. The invariance is on the mode axis alone: whether an *obligation* moves at a call is fixed by the caller's binding form, not by the parameter's mode (&sect;10.11).
 
@@ -1950,7 +1958,7 @@ Copy-restore stays; boxing is the explicit, slot-scoped bypass for the hot path.
 .box count
 bump: count
 | Interrupted ->
-    log: count                    ; 1 &mdash; the write is visible after recovery.
+    log: count                    ; 1 — the write is visible after recovery.
                                   ;   Had bump taken `&n` instead, the failed call
                                   ;   would have committed nothing (principle 4)
                                   ;   and count would still be 0. `*` is that
@@ -2019,7 +2027,7 @@ Mirror structure: `<-`/`->` vest, `<<-`/`->>` lend &mdash; placement into a valu
 ```
 #f <- (db :: begin)                       ; obligated: rollback | commit
 f >> archive :: pending                   ; MOVE: duty rides to the destination and
-                                          ;   `f` is uninit &mdash; no surviving view
+                                          ;   `f` is uninit — no surviving view
 log: (f :: id)                            ; STATIC ERROR: `f` moved from
 
 .cmd stash: Vault &v, Txn ~doomed =
@@ -2063,7 +2071,7 @@ The right-hand side of `<-` accepts five distinct surface shapes, each fitting a
 | --- | --- | --- | --- |
 | Parenthesized call | `(cmd: args)` | Any (the cmd's CREATE output type) | &sect;3.14 |
 | Aggregate literal | `${...}` | Records, objects, unions, variants | &sect;7.4 |
-| Sequence literal | `$[...]` | Buffer primitives `[N]` / `[]`; typed buffers `[N]T` / `[]T` | &sect;7.5 |
+| Sequence literal | `$[...]` | Buffer primitives `[n]` / `[]`; typed buffers `[n]T` / `[]T` | &sect;7.5 |
 | Bare identifier | `name` | Buffer-backed types, pointers, command-typed values | &sect;7.6 |
 | Bare literal | `42`, `3.14`, `"hello"`, `0x41`, etc. | Whatever a matching `.implicit` constructor accepts | &sect;7.7 |
 
@@ -2073,8 +2081,8 @@ A summary acceptance matrix:
 
 | LHS type category | Call | `${...}` | `$[...]` | Bare ident | Bare literal |
 | --- | --- | --- | --- | --- | --- |
-| Buffer primitive `[N]` / `[]` | yes | &mdash; | yes | yes (copy) | via `.implicit` |
-| Typed buffer `[N]T` / `[]T` | yes | &mdash; | yes | yes (copy) | via `.implicit` |
+| Buffer primitive `[n]` / `[]` | yes | &mdash; | yes | yes (copy) | via `.implicit` |
+| Typed buffer `[n]T` / `[]T` | yes | &mdash; | yes | yes (copy) | via `.implicit` |
 | Plain domain | yes | &mdash; | &mdash; | yes (copy, on type-compat) | via `.implicit` |
 | Record | yes | yes | &mdash; | yes (copy, identical type) | via `.implicit` |
 | Union | yes | yes | &mdash; | yes (copy, identical type) | via `.implicit` |
@@ -2139,14 +2147,14 @@ The same disambiguation rules and constraints apply to `$[...]` (Sequence Litera
 
 A sequence-shaped construct &mdash; `$[value, value, ...]` &mdash; initializes a positional, vector-like target. The same disambiguation rules of &sect;7.4 apply: a `$[...]` containing only Literals is a **Sequence Literal**; a `$[...]` containing both Literals and non-Literals is an **initialization temporary** with literals bridged to each position's expected type via `.implicit` conversion (&sect;7.8); a `$[...]` containing only non-Literals is an initialization temporary with each element consumed at its expected type directly. **`Sequence`-typed slots accept only Sequence Literals (Rule 1)**; an init temp is not assignable to a `Sequence`-typed slot.
 
-The form initializes a buffer primitive `[N]` or `[]`, or a typed buffer `[N]T` or `[]T`. The opening token `$[` is unambiguous; the closing `]` is the matching bracket. The empty form `$[]` is a single token denoting a construct with zero elements; vacuously all-Literal, it is a Sequence Literal. It is well-formed for `[0]T` (the zero-length typed buffer) and for `[]T` (the unbounded typed buffer's empty case), and ill-formed for `[N]T` with N greater than zero.
+The form initializes a buffer primitive `[n]` or `[]`, or a typed buffer `[n]T` or `[]T`. The opening token `$[` is unambiguous; the closing `]` is the matching bracket. The empty form `$[]` is a single token denoting a construct with zero elements; vacuously all-Literal, it is a Sequence Literal. It is well-formed for `[0]T` (the zero-length typed buffer) and for `[]T` (the unbounded typed buffer's empty case), and ill-formed for `[n]T` with N greater than zero.
 
 The typechecker enforces two rules:
 
-- **Element count must match the LHS type's expected count, unless the LHS is unbounded.** For `[N]T`, exactly N elements; for `[]T`, any count, with the count becoming part of the buffer's runtime length.
+- **Element count must match the LHS type's expected count, unless the LHS is unbounded.** For `[n]T`, exactly `n` elements; for `[]T`, any count, with the count becoming part of the buffer's runtime length.
 - **Each element must be a value of the LHS type's element type.** The element may come from any source that produces that type &mdash; an identifier of the type, a constructor call producing the type, any other value-producing form of the type, or a bare literal whose source type has a matching constructor in scope (&sect;7.7, &sect;7.8). A Sequence Literal `$[1, 2, 3]` for a `[3]Float32` LHS is well-formed when a constructor producing `Float32` from `Integer` is in scope (`1`, `2`, `3` are `Integer` literals; a Sequence Literal containing fractional values like `$[1.0, 2.0, 3.0]` would require a `Float32`-from-`Decimal` constructor instead).
 
-For untyped buffer primitives `[N]` and `[]`, the element type is the byte (a one-byte cell with no domain interpretation); a sequence-shaped construct targeting `[N]` requires each element to be of byte width.
+For untyped buffer primitives `[n]` and `[]`, the element type is the byte (a one-byte cell with no domain interpretation); a sequence-shaped construct targeting `[n]` requires each element to be of byte width.
 
 The aggregate and sequence forms are **disjoint** in the LHS types they accept. Sequences do not initialize records, objects, unions, or variants; aggregates do not initialize buffer primitives or typed buffers. The two surface forms occupy non-overlapping construction territory: records have *named* field structure (the aggregate form's nominal matching is the natural surface); typed buffers have *positional* element structure (the sequence form's element-by-position matching is the natural surface).
 
@@ -2156,7 +2164,7 @@ The bare-identifier form `#y <- x` (or `'r <- x`, or `&y <- x`) is a primitive v
 
 The form is well-defined for three categories of types:
 
-- **Buffer-backed types** (records, plain domains, unions, buffer primitives `[N]` / `[]`, typed buffers `[N]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (&sect;5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling conversions by invoking a conversion constructor or by routing through a shared ancestor.
+- **Buffer-backed types** (records, plain domains, unions, buffer primitives `[n]` / `[]`, typed buffers `[n]T` / `[]T`). The bytes of `x` are copied to the LHS slot's storage. The LHS and RHS types must be compatible: identical, or one a parent of the other in the buffer-backed subsumption hierarchy (&sect;5.5). Sibling domains do not implicitly convert peer-to-peer; the user resolves cross-sibling conversions by invoking a conversion constructor or by routing through a shared ancestor.
 - **Pointers `^T`.** The pointer value is copied; both pointers reference the same target. The pointed-to storage is unaffected.
 - **Command-typed values.** The command-value is copied &mdash; including hidden capture fields for lambda values. Slot residency (&sect;8.4) applies to the copy as it does to the source.
 
@@ -2794,7 +2802,7 @@ These mean different things. (a) admits `a` and `b` of any two types that each s
 ```
 .concept Showable :
     .decl Showable x :: show: String 'r     ; UNARY: a bare concept name AT THE RECEIVER
-                                            ;   denotes the member type &mdash; the common
+                                            ;   denotes the member type — the common
                                             ;   case costs nothing
 
 .concept Ord :
@@ -2804,12 +2812,12 @@ These mean different things. (a) admits `a` and `b` of any two types that each s
                                             ;   introduced at the receiver; b repeats it
 
     .decl (S:Ord) a :: ?beforeOrEqual: S b -> b
-    .operator (<)  = before                 ; operator sanctions (&sect;3.19): Ord members
+    .operator (<)  = before                 ; operator sanctions (§3.19): Ord members
     .operator (<=) = beforeOrEqual          ;   license < and <=, threading rightward
 
-    .decl (S:Ord) src :: successor: S 'out  ; member-typed CREATE output: expressible &mdash;
+    .decl (S:Ord) src :: successor: S 'out  ; member-typed CREATE output: expressible —
                                             ;   the receiver anchors dispatch (it is
-                                            ;   non-delegatable per &sect;9.8, independently)
+                                            ;   non-delegatable per §9.8, independently)
 
     .decl (S:Ord) r :: register: Showable item   ; MIXED: a free existential at a non-
                                                  ;   receiver position keeps the
@@ -2827,7 +2835,7 @@ The member variable is introduced exactly when the signature references the memb
     ;   independent of r's type; each slot carries its own dictionary
 
 .cmd Tree t :: absorbSpan: Ord lo, Ord hi = ...
-    ;   an implementing method: X-positions are ordinary existential parameters &mdash;
+    ;   an implementing method: X-positions are ordinary existential parameters —
     ;   the match is the CONTRACT's boundary obligation, not the body's
 ```
 
@@ -3106,8 +3114,8 @@ The composition is at the language-surface level &mdash; the method's declared b
 **Per-receiver anchoring.** In a multi-receiver *concept-body* signature, each concept-bounded receiver position is the member-type anchor for the concept bounding it, with &sect;9.1's surface applying per-receiver (bare concept name, or `(V:C)` when the signature references that member type elsewhere); concretely-typed receivers raise no anchoring question. Two same-concept receivers are **independent by default** &mdash; bare names or distinct variables; each its own member type, own slot, own dictionary, per the per-appearance rule &mdash; and **matched by a shared variable**, the match being a *boundary contract only*:
 
 ```
-.decl Ord a, Ord b :: ?absorb: ...       ; independent &mdash; two members, two dictionaries
-.decl (S:Ord) a, S b :: ?merge: ...      ; matched &mdash; the receivers' member types agree;
+.decl Ord a, Ord b :: ?absorb: ...       ; independent — two members, two dictionaries
+.decl (S:Ord) a, S b :: ?merge: ...      ; matched — the receivers' member types agree;
                                          ;   representation and dispatch UNCHANGED: still
                                          ;   two slots, still per-receiver routing
 ```
@@ -3146,9 +3154,11 @@ The receiver of a method reference is always specified &mdash; receiver-binding 
 sort: readings                            ; STATIC ERROR: Ascending and ByTick both
                                           ;   witness (Ord, Reading) here
 
-sort: (readings : [](Ord = ByTick))       ; 1. name the witness at the site
-? # (Ord = Ascending) rs -< readings      ; 2. narrow to a pinned witness component
-runs :: insert: r                         ; 3. route through a receiver: its embedded
+sort (Ord = ByTick): readings             ; 1. select per call: the prefix clause
+? # SortedSet[Reading:(Ord = ByTick)] rs -< runs
+    merge: rs, batch                      ; 2. narrow a witness-bearing value to its
+                                          ;   pinned component (S7.14's table row)
+dst :: insert: r                          ; 3. route through a receiver: its embedded
                                           ;   dictionary decides, never ambiguous
 ```
 
@@ -3188,12 +3198,12 @@ The resolution rule is **most-specific-candidate-wins**: among all candidates ma
                                    ;   the witness for (NumericField, Show) then
                                    ;   resolves by the remaining precedence chain
 nf :: (GuiElement :: show)         ; the other contract, same machinery
-nf :: (FancyShow :: show)          ; WITNESS-selection &mdash; which also selects the
+nf :: (FancyShow :: show)          ; WITNESS-selection — which also selects the
                                    ;   concept: a witness family has exactly one concept
-                                   ;   (&sect;9.4), so naming the witness names the
+                                   ;   (§9.4), so naming the witness names the
                                    ;   contract
 nf :: show                         ; ambiguous when NumericField inhabits both Show
-                                   ;   and GuiElement &mdash; error naming both concepts
+                                   ;   and GuiElement — error naming both concepts
                                    ;   and these remedies
 ```
 
@@ -3261,7 +3271,7 @@ s :: insert: x
 
 ; ---- module M2 ----
 .using ReverseOrd                     ; irrelevant to s
-? s :: contains: y                    ; dispatches through s's embedded ForwardOrd &mdash;
+? s :: contains: y                    ; dispatches through s's embedded ForwardOrd —
     ...                               ;   correct by dataflow; M2 cannot get this wrong
 ```
 
@@ -3272,7 +3282,7 @@ s :: insert: x
 **Operations beyond the type's identity.** A method restates the header bound exactly &mdash; always; a method may not strengthen its receiver's constraints, which would make the type's effective interface a per-method patchwork. An operation needing more from `T` than the type's identity is a **standalone command bounded by an extending concept** (a combined concept, &sect;9.2), with subsumption by dictionary projection from the canonical tuple:
 
 ```
-.concept ShowOrd : Ord, Showable            ; the extension &mdash; &sect;9.2, verbatim
+.concept ShowOrd : Ord, Showable            ; the extension — §9.2, verbatim
 
 .cmd printAll: SortedSet[T:ShowOrd] s =   ; standalone; T introduced at first occurrence
     #line <- (x :: show)                  ; one channel for (T, Showable): flowed
@@ -3294,7 +3304,7 @@ Every installation site selects its witness at compile time (&sect;9.15, Appendi
 ```
 .cmd union: SortedSet[T:(Ord = W)] 'r, SortedSet[T:(Ord = W)] a, SortedSet[T:(Ord = W)] b = ...
 
-union: #u, a1, a2      ; W := ForwardOrd; u carries it forward &mdash; chains compose
+union: #u, a1, a2      ; W := ForwardOrd; u carries it forward — chains compose
 union: #w, a1, b1      ; STATIC ERROR at the call site, naming both witnesses
 ```
 
@@ -3316,7 +3326,7 @@ First occurrence introduces; repetitions unify; scope is the signature; binding-
 
 ```
 .cmd printLedger: SortedSet[T:ShowOrd(Ord = W)] s, T lo, T hi =
-    ? lo :: before: hi     ; one effective (T, Ord) channel &mdash; W unified with s's cell;
+    ? lo :: before: hi     ; one effective (T, Ord) channel — W unified with s's cell;
         ...                ;   disagreeing callers fail statically at their call site
 ```
 
@@ -3468,7 +3478,7 @@ An obligation that does not escape on a given path is discharged within its acqu
 held <- f                    ; VEST: duty now with `held`; `f` survives as a view
 peek <<- held                ; LEND: a view; the duty does not move
 backup << held               ; COPY: independent duplicate; the copy is duty-free
-held >> vault :: pending     ; MOVE: duty rides onward and `held` is uninit &mdash;
+held >> vault :: pending     ; MOVE: duty rides onward and `held` is uninit —
                              ;   no name remains through which to double-discharge
 ```
 
@@ -3657,6 +3667,8 @@ The capitalization rule is structural &mdash; the lexer routes identifier tokens
 
 Type names may include `::`-separated qualifiers: `Module::TypeName`, `Module::Nested::TypeName`. Each `::`-separated segment is a type name and must begin uppercase. The full qualified name routes through the module-system resolution rules (Appendix G, Appendix H).
 
+**Type-parameter variables follow the same case split.** Within a parameterized typename's bracket list, an **uppercase** variable is a type variable, and a **lowercase** variable is a value variable of type `Integer` &mdash; the form fixed-size buffers exhibit at the root: in `[n]T`, `n` is an Integer-valued parameter and `T` a type parameter. User-declared parameterized types admit both kinds under the same case rule (`Grid[n, T]` takes a length and an element type); the parser distinguishes them by case alone. Integer arguments participate in type identity exactly as type arguments do: **distinct integer arguments yield distinct type instances** &mdash; `Grid[2, Int64]` and `Grid[7, Int64]` are different types, just as `[2]Int64` and `[7]Int64` are.
+
 ### A.4 Literal Token Forms
 
 The lexer recognizes six categories of literal token, corresponding to the six literal types of &sect;7.7:
@@ -3664,10 +3676,14 @@ The lexer recognizes six categories of literal token, corresponding to the six l
 **Integer literals.** Whole-number literals admit decimal, hexadecimal, and binary forms:
 
 ```
-42       0       1000000        ; decimal
-0xFF     0x1234  0xCAFEBABE     ; hexadecimal
-0b1010   0b1     0b0            ; binary
+42            1_000_000       0                          ; decimal
+0xFF          0x12_34         0xCAFE_BABE                ; hexadecimal
+0b1010_0011   0b1111_1111     0b0000_0001_1000_0000      ; binary: whole bytes
 ```
+
+**Digit separators.** Every numeric form &mdash; decimal, hexadecimal, and binary alike &mdash; admits the underscore `_` as a digit separator: a single `_` may appear between two digits of the same literal. It may not lead, trail, double (`__`), or sit adjacent to the `0x`/`0b` prefix or a decimal point; separators carry no semantic content and do not affect the literal's value.
+
+**Binary literals spell whole bytes.** The number of binary digits (separators excluded) must be a multiple of eight; `0b1010` is a lexical error. The rationale is the memory model's: **the least addressable unit in Basis is one byte** &mdash; a binary literal spells bytes, never loose bits, and the whole-byte rule keeps a literal's width unambiguous at a glance.
 
 The literal-kind tag of an integer literal is `Integer`. The literal's value is the numeric value the digits express. Negative values are expressed using the prefix `-` operator applied to the literal at parse time, not as a sign-bearing literal token; `-42` is `-` (operator) applied to `42` (Integer literal).
 
@@ -3677,7 +3693,7 @@ The literal-kind tag of an integer literal is `Integer`. The literal's value is 
 3.14      0.5      0.0      1.0       2.71828
 ```
 
-The literal-kind tag is `Decimal`. Decimal literals do not include exponent notation.
+The literal-kind tag is `Decimal`. Decimal literals do not include exponent notation; the digit-separator rule above applies on both sides of the point (`1_000.000_1`).
 
 **Hexadecimal literals as `Hex`.** Hex-shaped literals admitted at byte-positional positions carry the literal-kind tag `Hex`, distinct from `Integer`:
 
@@ -3732,15 +3748,18 @@ The initial state is the zero-level boundary corresponding to the top level of t
 
 **Comments and blank lines.** A line consisting only of a comment or only of whitespace is ignored for the purpose of indentation comparison and is logically skipped.
 
-**Bracket-mode indent suspension.** When inside a bracketed or braced construct (`(...)`, `[...]`, `{...}`, `${...}`, or `$[...]`), the indentation rule is suspended. Multi-line argument lists, multi-line aggregate literals, and similar bracketed constructs may span lines with any indentation that aids readability:
+**Brackets do not suspend indentation.** The indentation discipline remains in force inside every bracketed and braced construct (`(...)`, `[...]`, `{...}`, `${...}`, `$[...]`): continuation lines of a bracketed construct are **more indented** than the line that opened it, and consequently **the closing bracket always sits at greater indentation than its opening bracket** &mdash; either on the opening line itself or on a more-indented continuation line. A closing bracket at or left of the opening line's indentation is a syntax error: the dedent would end the enclosing block while the bracket is still open, and the two nesting mechanisms may never cross.
 
 ```
-process: arg1,
-    arg2,
-        arg3
+(                                 ; NEGATIVE: the closing paren returns to the
+  stuff                           ;   opening column — a dedent inside an open
+)                                 ;   bracket — syntax error
+
+( stuff                           ; POSITIVE: continuation more indented; the
+  more stuff )                    ;   closing paren rides the continuation line
 ```
 
-The closing bracket re-engages indentation: the line containing the closing bracket is compared against the line that opened the bracket, and subsequent lines resume normal block-structure determination.
+The lexer and parser coordinate to enforce this consistency; the mechanism is an implementation concern, and this specification constrains only the observable rule above.
 
 ### A.6 Bracket, Brace, and Block Balance
 
@@ -3752,7 +3771,7 @@ Basis distinguishes three independent kinds of nesting:
 
 At end-of-input, every opening must have been closed, and the source must have returned to its top-level indentation. Unbalanced brackets, unbalanced braces, or unclosed nested blocks at end-of-input are static errors.
 
-Within a bracketed or braced construct, block-nesting changes are suspended (A.5). This is the rule that admits multi-line argument lists and aggregate literals without dictating their internal indentation.
+Within a bracketed or braced construct, the indentation discipline remains in force (A.5): continuation lines are more indented than the opening line, and the closing token sits at greater indentation than its opener. Multi-line argument lists and aggregate literals are therefore laid out as continuations, never as dedents, and bracket nesting and block nesting can never crossation.
 
 ### A.7 Disambiguation Rules
 
@@ -3823,7 +3842,7 @@ alias-decl        ::= .alias TypeName = type-expr
 concept-decl        ::= .concept TypeName type-params? : concept-body
 concept-body        ::= concept-body-entry+
 concept-body-entry  ::= decl-decl | cmd-decl | operator-item
-                    | .witness TypeName              ; canonical default family (&sect;9.1)
+                    | .witness TypeName              ; canonical default family (§9.1)
 cmd-decl          ::= .cmd cmd-signature = cmd-body
 decl-decl         ::= .decl cmd-signature
 domain-decl       ::= .domain TypeName : fixed-size-type-expr
@@ -3882,28 +3901,28 @@ type-args         ::= [ type-arg-list ]
 type-arg-list     ::= type-arg ( , type-arg )*
 type-arg          ::= type-expr                         ; concrete type argument
                     | type-expr : constraint            ; constrained argument: annotation
-                                                        ;   (&sect;9.21) or bounded variable
-                                                        ;   introduction (&sect;9.20)
+                                                        ;   (§9.21) or bounded variable
+                                                        ;   introduction (§9.20)
 type-params       ::= [ type-param-list ]
 type-param-list   ::= type-param ( , type-param )*
 type-param        ::= TypeName                          ; bare type parameter
                     | TypeName : constraint             ; bounded / pinned type parameter
 
 constraint        ::= TypeName                          ; concept bound
-                    | TypeName binding-clause           ; compound: bound with bindings (&sect;9.21)
+                    | TypeName binding-clause           ; compound: bound with bindings (§9.21)
                     | binding-clause                    ; pin / annotation: pairs named by LHS
 binding-clause    ::= ( binding-entry ( , binding-entry )* )
 binding-entry     ::= TypeName ( [ TypeName ] )? = witness-ref   ; uppercase LHS; optional
                                                         ;   bracket-suffix variable qualifier
-                                                        ;   (&sect;3.14)
+                                                        ;   (§3.14)
 witness-ref       ::= TypeName                          ; family head or witness variable
                     | TypeName [ type-expr ]            ; applied member Head[Subject]
                     | TypeName :: witness-ref           ; module-qualified
 ```
 
-The bracket forms `[N]` and `[]` are the buffer-backed root types (&sect;5.5). A `Type` with parameters is a parameterized type; the parameter list at declaration is `type-params`, and at use-site is `type-args`. The `constraint` non-terminal serves every constraint position with one grammar (&sect;9.3, &sect;9.21): a bare concept bound, a compound bound-with-bindings (`ShowOrd(Ord = W)`), or a clause-only pin/annotation (`(Ord = ForwardOrd)`); uses of a bound variable are bare. Kind checks (which names must resolve to concepts, witnesses, or variables) are semantic, per Appendix G.
+The bracket forms `[n]` and `[]` are the buffer-backed root types (&sect;5.5). A `Type` with parameters is a parameterized type; the parameter list at declaration is `type-params`, and at use-site is `type-args`. The `constraint` non-terminal serves every constraint position with one grammar (&sect;9.3, &sect;9.21): a bare concept bound, a compound bound-with-bindings (`ShowOrd(Ord = W)`), or a clause-only pin/annotation (`(Ord = ForwardOrd)`); uses of a bound variable are bare. Kind checks (which names must resolve to concepts, witnesses, or variables) are semantic, per Appendix G.
 
-The `fixed-size-type-expr` non-terminal is a syntactic subset of `type-expr` that excludes the runtime-length forms (`[]` and `[]T`), pointers, and command-types. It is used in positions requiring fixed-size buffer-backed contents: record fields, union candidates, `[N]T` and `[]T` element types, and domain parents (&sect;5.1). The typechecker further verifies that any `TypeName` reference in a `fixed-size-type-expr` position resolves to a type satisfying the fixed-size buffer-backed predicate (Appendix D.2); a grammatically well-formed `fixed-size-type-expr` whose named-type reference resolves to a non-buffer type or a runtime-length type is rejected statically.
+The `fixed-size-type-expr` non-terminal is a syntactic subset of `type-expr` that excludes the runtime-length forms (`[]` and `[]T`), pointers, and command-types. It is used in positions requiring fixed-size buffer-backed contents: record fields, union candidates, `[n]T` and `[]T` element types, and domain parents (&sect;5.1). The typechecker further verifies that any `TypeName` reference in a `fixed-size-type-expr` position resolves to a type satisfying the fixed-size buffer-backed predicate (Appendix D.2); a grammatically well-formed `fixed-size-type-expr` whose named-type reference resolves to a non-buffer type or a runtime-length type is rejected statically.
 
 ### B.4 Command-Type Expressions
 
@@ -4146,17 +4165,17 @@ concept-decl        ::= .concept TypeName type-params? : concept-body
 concept-body        ::= concept-body-entry+
 concept-body-entry  ::= decl-decl                                  ; signature-only requirement
                     | cmd-decl                                   ; default-implementation body
-                    | .witness TypeName                          ; canonical default family (&sect;9.1)
-                    | operator-item                              ; token sanction (&sect;3.19, &sect;9.1)
+                    | .witness TypeName                          ; canonical default family (§9.1)
+                    | operator-item                              ; token sanction (§3.19, §9.1)
 
 operator-item     ::= .operator ( op-shape ) = identifier
 op-shape          ::= op-token                                   ; homogeneous sugar
-                    | shape-pos op-token shape-pos               ; operand shape; &ge;1 position
+                    | shape-pos op-token shape-pos               ; operand shape; ≥1 position
                     ;                                              is the enclosing concept's head
 shape-pos         ::= TypeName                                   ; concept head / header parameter /
                     ;                                              concrete type / other concept
 op-token          ::= + | - | * | / | % | < | <= | > | >= | == | <>
-                    ;                                            ; = and != are not mappable (&sect;3.19)
+                    ;                                            ; = and != are not mappable (§3.19)
 
 witness-decl      ::= .witness witness-head : concept-entry            ; head-only (family)
                     | .witness witness-head [ type-expr ] : concept-entry   ; member
@@ -4420,30 +4439,49 @@ Several invariants are maintained at AST construction:
 
 ## Appendix D. Typechecking Rules (Judgment Forms)
 
+**Notation.** The appendices set mathematics in plain fenced text using the following glyph inventory (Appendices E and F use the same conventions):
+
+| Glyph | Name | Meaning |
+| --- | --- | --- |
+| Γ | Gamma | the typing context |
+| ⊢ | turnstile | "entails" / "proves" |
+| τ, σ, ρ | tau, sigma, rho | types |
+| ε | epsilon | the empty / clear failure state |
+| φ | phi | a particular failure |
+| Φ, Σ | Phi, Sigma | the failure register; the store |
+| κ | kappa | a continuation-selecting failure |
+| ⊑, <: | | subsumes-into; subtype |
+| ∈, ⊆, ∅ | | membership; subset; empty set |
+| →, ⇒, ⇓, ↦ | | function/transition arrows; big-step evaluation; maps-to |
+| ∧, ∨, ¬, ∀, ∃ | | logical connectives and quantifiers |
+| ⟨ ⟩ | angle tuples | machine-state tuples |
+| v⃗ | v-vector | the remaining verb sequence |
+| ───── | rule bar | inference: premises above, conclusion below |
+
 This appendix specifies the typechecker as a collection of judgment-form rules. The rules are organized by what they conclude (well-formed types, well-formed expressions, well-formed signatures, well-formed bodies); the structure parallels the body's &sect;&sect;3&ndash;9.
 
 ### D.1 Notation Conventions
 
 The judgments use the following metavariables and forms:
 
-- **$\Gamma$** &mdash; typing environment: a finite map from identifiers to their type and mode. Entries include both lexical-scope locals and the enclosing command's parameters.
-- **$\tau, \sigma$** &mdash; types (well-formed type expressions).
-- **$e$** &mdash; expressions.
-- **$s$** &mdash; statements.
-- **$m$** &mdash; mode marks (READ, CREATE, UPDATE, DISPOSE, DIRECT).
-- **$\phi$** &mdash; failure marks (`:`, `?`, `!`).
-- **$F$** &mdash; failure sets (sets of message names).
-- **$M$** &mdash; module-import graph context (for instance-resolution).
-- **$C$** &mdash; concept context (for concept-method-dispatch and witness-coherence rules).
+- **Γ** &mdash; typing environment: a finite map from identifiers to their type and mode. Entries include both lexical-scope locals and the enclosing command's parameters.
+- **τ, σ** &mdash; types (well-formed type expressions).
+- **e** &mdash; expressions.
+- **s** &mdash; statements.
+- **m** &mdash; mode marks (READ, CREATE, UPDATE, DISPOSE, DIRECT).
+- **φ** &mdash; failure marks (`:`, `?`, `!`).
+- **F** &mdash; failure sets (sets of message names).
+- **M** &mdash; module-import graph context (for instance-resolution).
+- **C** &mdash; concept context (for concept-method-dispatch and witness-coherence rules).
 
 Judgment forms:
 
-- $\Gamma \vdash \tau\ \text{wf}$ &mdash; $\tau$ is a well-formed type in environment $\Gamma$.
-- $\Gamma \vdash e : \tau$ &mdash; $e$ has type $\tau$ in $\Gamma$.
-- $\Gamma \vdash s\ \text{ok}$ &mdash; $s$ is a well-formed statement in $\Gamma$.
-- $\Gamma \vdash \tau <: \sigma$ &mdash; $\tau$ is a subtype of $\sigma$.
-- $\Gamma \vdash \text{sig}\ \text{wf}$ &mdash; sig is a well-formed signature.
-- $\Gamma \vdash \text{body} : \phi \,;\, F\ \text{ok}$ &mdash; body is well-formed with failure mark $\phi$ and failure set $F$.
+- Γ ⊢ τ wf &mdash; τ is a well-formed type in environment Γ.
+- Γ ⊢ e : τ &mdash; e has type τ in Γ.
+- Γ ⊢ s ok &mdash; s is a well-formed statement in Γ.
+- Γ ⊢ τ <: σ &mdash; τ is a subtype of σ.
+- Γ ⊢ sig wf &mdash; sig is a well-formed signature.
+- Γ ⊢ body : φ  ;  F ok &mdash; body is well-formed with failure mark φ and failure set F.
 
 Premises sit above the line; conclusion below. Multiple premises read as conjunction. Side conditions appear in parentheses to the right.
 
@@ -4451,44 +4489,53 @@ Premises sit above the line; conclusion below. Multiple premises read as conjunc
 
 A type expression is well-formed if its components are well-formed and their composition is admitted by the language:
 
-$$
-\frac{\Gamma \vdash \text{TypeName declared in } \Gamma}{\Gamma \vdash \text{TypeName}\ \text{wf}}
-\quad \text{(NamedType-Decl)}
-$$
+```
+Γ ⊢ TypeName declared in  Γ
+───────────────────────────
+      Γ ⊢ TypeName wf
+   (NamedType-Decl)
+```
 
-$$
-\frac{\Gamma \vdash \tau\ \text{wf} \qquad \tau\ \text{buffer-backed}}{\Gamma \vdash [N]\tau\ \text{wf}}
-\quad \text{(TypedBuffer)}
-$$
+```
+Γ ⊢ τ wf      τ buffer-backed
+───────────────────────────────
+          Γ ⊢ [n]τ wf
+   (TypedBuffer)
+```
 
-$$
-\frac{\Gamma \vdash \tau\ \text{wf}}{\Gamma \vdash {\uparrow}\tau\ \text{wf}}
-\quad \text{(Pointer)}
-$$
+```
+     Γ ⊢ τ wf
+───────────────────
+Γ ⊢ {↑}τ wf
+   (Pointer)
+```
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \tau_i\ \text{wf for each parameter type } \tau_i \\
-\text{mark} \in \{:, ?, !\}
-\end{array}}{\Gamma \vdash \text{mark}\langle \tau_1\ \text{mode}_1, \ldots, \tau_n\ \text{mode}_n \rangle\ \text{wf}}
-\quad \text{(CmdType)}
-$$
+```
+Γ ⊢ τ_i wf for each parameter type  τ_i
 
-**Buffer-backed and fixed-size buffer-backed predicates.** `[N]T` requires `T` to be fixed-size buffer-backed; a record-field, union-candidate, or domain-parent declaration also requires fixed-size buffer-backed:
+mark ∈ {:, ?, !}
+───────────────────────────────────────────────────────────
+        Γ ⊢ mark⟨ τ_1 mode_1, …, τ_n mode_n ⟩ wf
+   (CmdType)
+```
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \tau\ \text{wf} \\
-\tau \notin \{\text{pointer}, \text{object}, \text{variant}, \text{command-typed}, \ldots\}
-\end{array}}{\Gamma \vdash \tau\ \text{buffer-backed}}
-$$
+**Buffer-backed and fixed-size buffer-backed predicates.** `[n]T` requires `T` to be fixed-size buffer-backed; a record-field, union-candidate, or domain-parent declaration also requires fixed-size buffer-backed:
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \tau\ \text{buffer-backed} \\
-\tau \notin \{[\,], [\,]\sigma\ \text{for any}\ \sigma\}
-\end{array}}{\Gamma \vdash \tau\ \text{fixed-size buffer-backed}}
-$$
+```
+Γ ⊢ τ wf
+
+τ ∉ {pointer, object, variant, command-typed, …}
+────────────────────────────────────────────────────────────
+                    Γ ⊢ τ buffer-backed
+```
+
+```
+Γ ⊢ τ buffer-backed
+
+τ ∉ {[ ], [ ]σ for any σ}
+──────────────────────────────────────────────────
+         Γ ⊢ τ fixed-size buffer-backed
+```
 
 The disjoint cases enumerate all the non-buffer types; the union of all named-type-as-buffer-backed plus the literal types covers the buffer-backed case (&sect;5.1). The runtime-length forms `[]` and `[]T` (for any `T`) are buffer-backed but not fixed-size; they participate in the buffer-backed category but are excluded from byte-aggregate containment positions (&sect;5.1).
 
@@ -4504,58 +4551,66 @@ Gamma |- tau : .domain T : sigma
 Gamma |- tau <: sigma
 ```
 
-$$
-\frac{\Gamma \vdash \tau\ \text{fixed-size buffer-backed} \qquad \tau\ \text{has byte-width}\ N}{\Gamma \vdash \tau <: [N]}
-$$
+```
+Γ ⊢ τ fixed-size buffer-backed      τ has byte-width N
+─────────────────────────────────────────────────────────
+                       Γ ⊢ τ <: [n]
+```
 
 The runtime-length types `[]` and `[]T` are leaves in this lattice: no rule produces them as a supertype of any fixed-size type, and no rule produces a fixed-size type as a supertype of either of them (&sect;5.5).
 
 **Reflexivity and transitivity:**
 
-$$
-\frac{}{\tau <: \tau}
-\quad \text{(Refl)}
-\qquad\qquad
-\frac{\begin{array}{c}
-\Gamma \vdash \tau <: \sigma \\
-\Gamma \vdash \sigma <: \rho
-\end{array}}{\Gamma \vdash \tau <: \rho}
-\quad \text{(Trans)}
-$$
+```
+──────
+τ <: τ
+   (Refl)
+
+Γ ⊢ τ <: σ
+
+Γ ⊢ σ <: ρ
+──────────────────────────
+      Γ ⊢ τ <: ρ
+   (Trans)
+```
 
 **Failure-mark subsumption (&sect;4.2):**
 
-$$
-: \ \sqsubseteq\ ? \qquad !\ \sqsubseteq\ ?
-\qquad \text{(compatible mark substitution within a family)}
-$$
+```
+:  ⊑ ?      ! ⊑ ?
+     (compatible mark substitution within a family)
+```
 
-The relation $\sqsubseteq$ applies to mark positions; assignment from a `:`-marked or `!`-marked call to a `?`-marked slot is admitted, but neither `:` nor `!` is the other's subtype.
+The relation ⊑ applies to mark positions; assignment from a `:`-marked or `!`-marked call to a `?`-marked slot is admitted, but neither `:` nor `!` is the other's subtype.
 
-**Concept-typed-family invariance (&sect;5.5):** Concept types do not subtype each other except through explicit concept hierarchies (&sect;9). A `Container[A]` is not a `Container[B]` unless $A = B$.
+**Concept-typed-family invariance (&sect;5.5):** Concept types do not subtype each other except through explicit concept hierarchies (&sect;9). A `Container[A]` is not a `Container[B]` unless A = B.
 
 **Payload-concept covariance for failure messages (&sect;4.8, &sect;9.17):**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash M\ \text{child of}\ M'\ \text{in message hierarchy} \\
-\Gamma \vdash \text{payload concept}\ C\ \text{of}\ M\ \text{is a sub-concept of payload concept}\ C'\ \text{of}\ M'
-\end{array}}{\Gamma \vdash \text{payload of}\ M\ \text{acceptable where}\ M'\text{-payload expected}}
-$$
+```
+Γ ⊢ M child of M' in message hierarchy
+
+Γ ⊢ payload concept C of M is a sub-concept of payload concept C' of M'
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                 Γ ⊢ payload of M acceptable where M'-payload expected
+```
 
 ### D.4 Expression-Position Typing
 
 A command invoked in expression position (right-hand side of `<-`, parenthesized argument, guard, scrutinee) produces a value of the type designated by the `-> name` clause (&sect;3.7):
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{cmd} : \text{sig} \\
-\text{sig has}\ \texttt{-> param-name} \\
-\Gamma \vdash \text{args satisfy the sig argument positions (excluding param-name)} \\
-\text{the sig param-name has mode}\ m\ \text{and type}\ \tau
-\end{array}}{\Gamma \vdash (\text{cmd: args}) : \tau}
-\quad \text{(ExprCall, with reading-from-}m\text{ semantics)}
-$$
+```
+Γ ⊢ cmd : sig
+
+sig has -> param-name
+
+Γ ⊢ args satisfy the sig argument positions (excluding param-name)
+
+the sig param-name has mode m and type τ
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                   Γ ⊢ (cmd: args) : τ
+   (ExprCall, with reading-from-m semantics)
+```
 
 ```
 Gamma |- subject : variant-type
@@ -4570,48 +4625,56 @@ The five RHS shapes admitted at `<-` positions (&sect;7.3) each have their own t
 
 **Parenthesized command call:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash (\text{cmd: args}) : \tau\ \text{(D.4 ExprCall)} \\
-\Gamma \vdash \text{lhs has type}\ \sigma \\
-\Gamma \vdash \tau <: \sigma
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ (\text{cmd: args})\ \text{ok}}
-$$
+```
+Γ ⊢ (cmd: args) : τ (D.4 ExprCall)
+
+Γ ⊢ lhs has type σ
+
+Γ ⊢ τ <: σ
+──────────────────────────────────────────────────────────────────────
+                     Γ ⊢ lhs <- (cmd: args) ok
+```
 
 **Aggregate literal:**
 
 For `lhs <- ${...}` (aggregate literal):
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{lhs has type}\ \sigma \\
-\sigma\ \text{admits Aggregate-shape construction}\ (\S7.4) \\
-\text{each entry RHS satisfies the corresponding position}
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{aggregate literal ok}}
-$$
+```
+Γ ⊢ lhs has type σ
+
+σ admits Aggregate-shape construction (§7.4)
+
+each entry RHS satisfies the corresponding position
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                             Γ ⊢ lhs <- aggregate literal ok
+```
 
 **Sequence literal:**
 
 For `lhs <- $[...]` (sequence literal):
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{lhs has element type}\ \tau\ \text{(lhs is a typed buffer or sequence-admitting type)} \\
-\text{Each sequence entry has type}\ \subseteq \tau\ \text{(with .implicit bridging)}
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{sequence literal ok}}
-$$
+```
+Γ ⊢ lhs has element type τ (lhs is a typed buffer or sequence-admitting type)
+
+Each sequence entry has type ⊆ τ (with .implicit bridging)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                       Γ ⊢ lhs <- sequence literal ok
+```
 
 **Bare identifier:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{rhs} : \tau \\
-\tau\ \text{value-copyable (buffer-backed)} \\
-\Gamma \vdash \text{lhs has type}\ \sigma \\
-\Gamma \vdash \tau <: \sigma
-\end{array}}{\Gamma \vdash \text{lhs}\ \texttt{<-}\ \text{rhs}\ \text{ok}}
-\quad \text{(with byte-copy semantics)}
-$$
+```
+Γ ⊢ rhs : τ
+
+τ value-copyable (buffer-backed)
+
+Γ ⊢ lhs has type σ
+
+Γ ⊢ τ <: σ
+──────────────────────────────────────────────────────────────────────────────────
+                               Γ ⊢ lhs <- rhs ok
+   (with byte-copy semantics)
+```
 
 **Bare literal:**
 
@@ -4628,62 +4691,78 @@ These are the formal typing judgments for the call forms whose prose homes are &
 
 **Regular call:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{cmd} : (\tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
-\text{Each}\ \text{arg}_i\ \text{supplies the }i\text{-th call position per its mode}\ m_i \\
-\text{Implicit context parameters resolve uniquely from}\ \Gamma\ \text{(D.7)}
-\end{array}}{\Gamma \vdash \text{cmd: args}\ \text{ok}}
-\quad \text{(with failure mark = mark)}
-$$
+```
+Γ ⊢ cmd : (τ_1 m_1, …, τ_n m_n) → mark
+
+Each arg_i supplies the i-th call position per its mode m_i
+
+Implicit context parameters resolve uniquely from Γ (D.7)
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                           Γ ⊢ cmd: args ok
+   (with failure mark = mark)
+```
 
 **Method call:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{receiver} : R \\
-\Gamma \vdash R \in \text{concept containing method}\ m \\
-\Gamma \vdash m : (R\ \text{receiver-mode}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
-\text{Each}\ \text{arg}_i\ \text{satisfies position}\ i\ \text{per}\ m_i \\
-\text{Receiver mode satisfies the R1 (call-site initialization) rule of}\ \S6.6
-\end{array}}{\Gamma \vdash \text{receiver}\ \texttt{::}\ m\texttt{:}\ \text{args}\ \text{ok}}
-\quad \text{(with failure mark = mark)}
-$$
+```
+Γ ⊢ receiver : R
+
+Γ ⊢ R ∈ concept containing method m
+
+Γ ⊢ m : (R receiver-mode, τ_1 m_1, …, τ_n m_n) → mark
+
+Each arg_i satisfies position i per m_i
+
+Receiver mode satisfies the R1 (call-site initialization) rule of §6.6
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                       Γ ⊢ receiver :: m: args ok
+   (with failure mark = mark)
+```
 
 **Multi-receiver method call:**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{each receiver}_i : R_i \\
-\text{each}\ R_i\ \text{in a concept containing}\ m \\
-\Gamma \vdash m : ((R_1, \ldots, R_k)\ \text{receiver-tuple}, \tau_1\ m_1, \ldots, \tau_n\ m_n) \to \text{mark} \\
-\text{Each receiver and arg satisfies its position} \\
-\text{Joint witness resolution per}\ \S3.11\ /\ \S9.4
-\end{array}}{\Gamma \vdash (\text{receiver}_1, \ldots, \text{receiver}_k)\ \texttt{::}\ m\texttt{:}\ \text{args}\ \text{ok}}
-$$
+```
+Γ ⊢ each receiver_i : R_i
+
+each R_i in a concept containing m
+
+Γ ⊢ m : ((R_1, …, R_k) receiver-tuple, τ_1 m_1, …, τ_n m_n) → mark
+
+Each receiver and arg satisfies its position
+
+Joint witness resolution per §3.11 / §9.4
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                            Γ ⊢ (receiver_1, …, receiver_k) :: m: args ok
+```
 
 ### D.7 Implicit Context Parameter Resolution
 
 Implicit context parameters (&sect;3.6) are filled at the call site by uniqueness-of-type:
 
-$$
-\frac{\begin{array}{c}
-\text{Implicit parameter declared with type}\ \tau_{\text{impl}}\ \text{and mode}\ m \\
-\Gamma\ \text{contains exactly one identifier}\ \texttt{x}\ \text{with type}\ \tau_{\text{impl}} \\
-\text{mode-compatibility: the caller}\ \texttt{x}\ \text{mode satisfies the callee}\ m
-\end{array}}{\Gamma \vdash \text{implicit position satisfied with}\ \texttt{x}\ \text{ok}}
-\quad \text{(ImplicitResolve)}
-$$
+```
+Implicit parameter declared with type τ_{impl} and mode m
 
-$$
-\frac{\Gamma\ \text{contains multiple identifiers with type}\ \tau_{\text{impl}}}{\Gamma \vdash \text{implicit resolution ambiguous (static error)}}
-\quad \text{(ImplicitFail-Ambiguous)}
-$$
+Γ contains exactly one identifier x with type τ_{impl}
 
-$$
-\frac{\Gamma\ \text{contains no identifier with type}\ \tau_{\text{impl}}}{\Gamma \vdash \text{implicit resolution absent (static error)}}
-\quad \text{(ImplicitFail-Absent)}
-$$
+mode-compatibility: the caller x mode satisfies the callee m
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                        Γ ⊢ implicit position satisfied with x ok
+   (ImplicitResolve)
+```
+
+```
+Γ contains multiple identifiers with type τ_{impl}
+────────────────────────────────────────────────────
+  Γ ⊢ implicit resolution ambiguous (static error)
+   (ImplicitFail-Ambiguous)
+```
+
+```
+Γ contains no identifier with type τ_{impl}
+─────────────────────────────────────────────
+Γ ⊢ implicit resolution absent (static error)
+   (ImplicitFail-Absent)
+```
 
 The user-resolvable rescue path: pass the value explicitly at the call site, bypassing the resolution algorithm.
 
@@ -4778,23 +4857,25 @@ Gamma |- {receiver :: name : args} : underlying-type with bound positions elided
 
 **Case A &mdash; Type-variable-bound parameter (&sect;9.9):**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{at call site, }(T\!:\!C)\text{ parameter receives concrete type}\ \tau \\
-\Gamma \vdash \tau \in \text{concept}\ C\ \text{in the module-import graph}\ M
-\end{array}}{\Gamma \vdash \text{method call dispatches through the}\ C\text{-witness dictionary of}\ \tau}
-$$
+```
+Γ ⊢ at call site, (T:C) parameter receives concrete type τ
 
-Dictionary is a hidden parameter; dispatch is at call-site type $\tau$.
+Γ ⊢ τ ∈ concept C in the module-import graph M
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                       Γ ⊢ method call dispatches through the C-witness dictionary of τ
+```
+
+Dictionary is a hidden parameter; dispatch is at call-site type τ.
 
 **Case B &mdash; Existential concept-typed parameter (&sect;9.9):**
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{at call site, }C\text{-typed parameter receives a slot whose runtime type}\ \tau \in C \\
-\Gamma \vdash \text{slot is a 3-word triple (tag identifying}\ \tau\text{, payload pointer, dictionary)}
-\end{array}}{\Gamma \vdash \text{method call dispatches through the stored slot dictionary}}
-$$
+```
+Γ ⊢ at call site, C-typed parameter receives a slot whose runtime type τ ∈ C
+
+Γ ⊢ slot is a 3-word triple (tag identifying τ, payload pointer, dictionary)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                Γ ⊢ method call dispatches through the stored slot dictionary
+```
 
 Tag is consulted at runtime; dictionary chosen at construction site.
 
@@ -4839,7 +4920,7 @@ DIRECT param p in callee:  boxed(p) throughout; onward to * or READ only;
 Per &sect;9.10, overload resolution proceeds in three layers:
 
 1. **Argument-shape filter.** Eliminate candidates whose signature does not match the call's argument shape (arity, types, modes).
-2. **Most-specific-candidate ranking.** Among remaining candidates, prefer the one whose signature is most-specifically matched by the call. The specificity ordering is: type variables less specific than concrete types; broader buffer-backed types (`[N]`, `[]`) less specific than narrower (named domain, record).
+2. **Most-specific-candidate ranking.** Among remaining candidates, prefer the one whose signature is most-specifically matched by the call. The specificity ordering is: type variables less specific than concrete types; broader buffer-backed types (`[n]`, `[]`) less specific than narrower (named domain, record).
 3. **Tie rejection.** If two candidates are equally specific (incomparable), the call is ambiguous and rejected with a static error. The user resolves via type annotation or via the `{C::method}` disambiguation form (&sect;9.10).
 
 The judgment form:
@@ -4910,16 +4991,18 @@ Family resolution: bare head F at a pair-specific position with subject tau
 
 ### D.14 Failure-Mark Conformance
 
-A command body's failure mark $\phi_{\text{body}}$ must conform to its declared mark $\phi_{\text{decl}}$:
+A command body's failure mark φ_{body} must conform to its declared mark φ_{decl}:
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{body} : \phi_{\text{body}}\,;\,F_{\text{body}} \\
-\Gamma \vdash \phi_{\text{body}} \sqsubseteq \phi_{\text{decl}} \\
-F_{\text{body}} \subseteq F_{\text{decl}}
-\end{array}}{\Gamma \vdash \text{body conforms with}\ (\phi_{\text{decl}}, F_{\text{decl}})}
-\quad \text{(Conform)}
-$$
+```
+Γ ⊢ body : φ_{body} ; F_{body}
+
+Γ ⊢ φ_{body} ⊑ φ_{decl}
+
+F_{body} ⊆ F_{decl}
+──────────────────────────────────────────────────────────────────────────────
+                 Γ ⊢ body conforms with (φ_{decl}, F_{decl})
+   (Conform)
+```
 
 **Six-state failure-state lattice.** The body's failure state at each program point is one of:
 
@@ -4936,21 +5019,23 @@ The transfer-function table for each block marker and each call-site shape is in
 
 A subcommand's name resolves only within the enclosing command's body (&sect;3.12):
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \text{subcommand}\ s\ \text{declared at body}\ B \\
-\text{Use site of}\ s\ \text{is within}\ B\ \text{or any deeper subcommand body of}\ B
-\end{array}}{\Gamma \vdash s\ \text{reachable at use site}}
-\quad \text{(SubVisibility)}
-$$
+```
+Γ ⊢ subcommand s declared at body B
 
-$$
-\frac{\begin{array}{c}
-\text{subcommand body operates against parameters and module scope only} \\
-\text{no use of enclosing-command local identifiers}
-\end{array}}{\Gamma \vdash \text{subcommand body has no capture (well-formed)}}
-\quad \text{(SubCapture-Forbidden)}
-$$
+Use site of s is within B or any deeper subcommand body of B
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                       Γ ⊢ s reachable at use site
+   (SubVisibility)
+```
+
+```
+subcommand body operates against parameters and module scope only
+
+no use of enclosing-command local identifiers
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                 Γ ⊢ subcommand body has no capture (well-formed)
+   (SubCapture-Forbidden)
+```
 
 The no-capture rule (&sect;3.12) is enforced as a typechecker invariant on subcommand bodies: a name resolution that would resolve to an identifier in the enclosing command's body (other than implicit-context-parameter resolution at the call site, which is parameter-supplied) is a static error.
 
@@ -4958,13 +5043,14 @@ The no-capture rule (&sect;3.12) is enforced as a typechecker invariant on subco
 
 A `.scope` block (&sect;3.17) introduces a sub-scope whose local introductions are visible only within the block. Unlike a subcommand (D.15), it is not a call: its body shares the enclosing frame's parameters and visible locals, so no no-capture rule applies, and a scope-local introduction may shadow an enclosing name (G.10).
 
-$$
-\frac{\begin{array}{c}
-\Gamma \vdash \#x\ \text{introduced in `.scope` block}\ B \\
-\text{use site of}\ x\ \text{is within}\ B
-\end{array}}{\Gamma \vdash x\ \text{visible at use site, out of scope after}\ B}
-\quad \text{(ScopeVisibility)}
-$$
+```
+Γ ⊢ #x introduced in `.scope` block B
+
+use site of x is within B
+──────────────────────────────────────────────────────────────────────
+          Γ ⊢ x visible at use site, out of scope after B
+   (ScopeVisibility)
+```
 
 At the block's close, every obligation still owned by a scope-local binding is discharged (&sect;10.5, &sect;10), scope-local frame-bound-region storage is reclaimed (&sect;7.20), and any `@`/`@!` hooks registered within the block fire (&sect;4.11) &mdash; together, in the reverse-registration order of &sect;3.17.
 
@@ -4994,9 +5080,9 @@ A `.scope` block (&sect;3.17) appears in the CFG as a region with a single entry
 
 **Lattice.** Per-slot initialization state:
 
-$$
-\text{InitLattice} = \{\,\text{uninit},\ \text{init},\ \text{uncertain}\,\}\ \text{per slot}, \qquad \bot = \text{uninit},\ \top = \text{uncertain} = \text{join of uninit and init}
-$$
+```
+InitLattice = { uninit, init, uncertain } per slot,      ⊥ = uninit, ⊤ = uncertain = join of uninit and init
+```
 
 The lattice is per-slot. The state vector tracks initialization for every named slot in the command body's scope. The initial state at the body's entry: parameters are `init` for READ and UPDATE modes, `uninit` for CREATE modes (the callee must produce them); locals are `uninit` until introduced.
 
@@ -5025,9 +5111,9 @@ The lattice is per-slot. The state vector tracks initialization for every named 
 
 **Lattice.** Six states per program point:
 
-$$
-\{\ \text{clear},\ \text{failing}(?),\ \text{failing}(!),\ \text{mixed}(?),\ \text{mixed}(!),\ \text{unreachable}\ \}
-$$
+```
+{ clear, failing(?), failing(!), mixed(?), mixed(!), unreachable }
+```
 
 - **`clear`** &mdash; no in-flight failure; subsequent statements execute.
 - **`failing(?)`** &mdash; may-fail-mark failure in flight; subsequent statements are skipped until a recovery context engages.
@@ -5038,7 +5124,7 @@ $$
 
 **Join table** (rows are state-A, columns are state-B; cell is the joined state):
 
-| A \ B | clear | failing(?) | failing(!) | mixed(?) | mixed(!) | unreachable |
+| A  B | clear | failing(?) | failing(!) | mixed(?) | mixed(!) | unreachable |
 | --- | --- | --- | --- | --- | --- | --- |
 | **clear** | clear | mixed(?) | mixed(!) | mixed(?) | mixed(!) | clear |
 | **failing(?)** | mixed(?) | failing(?) | mixed(?) | mixed(?) | mixed(?) | failing(?) |
@@ -5058,7 +5144,7 @@ $$
 | `?:` (DO_WHEN_SELECT) | guard `clear` | guard's failure consumed; control exits surrounding indentation level on engagement |
 | `??` (DO_WHEN_MULTI) | wraps inner `?` or `?-` | failure consumed by `??`; control elevates one level |
 | `^` (DO_REWIND) | (no engagement condition) | failure from any body statement consumed by `^`; control rewinds on success, falls through on failure |
-| `|` (DO_RECOVER) | preceding sibling `failing` | failure consumed; body executes from `clear`; propagating-set narrowed to $\emptyset$ |
+| `|` (DO_RECOVER) | preceding sibling `failing` | failure consumed; body executes from `clear`; propagating-set narrowed to ∅ |
 | `|!` (discharge, &sect;4.16) | statically: the spec'd set proven unreachable at this point | set consumed from inference at compile time; the arm erases &mdash; no runtime row |
 | `|`-with-spec | preceding sibling failing with matching message | failure consumed; payload bound; body executes from `clear`; propagating-set narrowed per the per-root rule below |
 | `-` (DO_ELSE) | paired with preceding `?` or `?-` | runs on the alternative branch; failure handling per parent |
@@ -5066,13 +5152,13 @@ $$
 | `@` (DO_ON_EXIT) | (fires at frame retirement) | body runs at exit; failure not propagated through body |
 | `@!` (DO_ON_EXIT_FAIL) | (fires at frame failure-exit) | body runs only on failure exits |
 
-**Propagating-set narrowing for `|`-with-spec.** Under typed failures (&sect;4.9), the lattice carries a propagating-set component represented as a union of at-or-below closures with declared roots. When a `|`-with-spec block engages on $\text{at-or-below}(\text{Name})$, the post-set is computed per-root: for each root $R$ in the pre-set,
+**Propagating-set narrowing for `|`-with-spec.** Under typed failures (&sect;4.9), the lattice carries a propagating-set component represented as a union of at-or-below closures with declared roots. When a `|`-with-spec block engages on at-or-below(Name), the post-set is computed per-root: for each root R in the pre-set,
 
-- If $\text{at-or-below}(R) \subseteq \text{at-or-below}(\text{Name})$: $R$ is **removed** (entirely consumed).
-- If $\text{at-or-below}(R) \cap \text{at-or-below}(\text{Name}) = \emptyset$: $R$ is **retained unchanged** (the consumption doesn't touch it).
-- Otherwise &mdash; $\text{Name}$ is a proper descendant of $R$, so $\text{at-or-below}(\text{Name}) \subsetneq \text{at-or-below}(R)$ &mdash; $R$ is **retained unchanged** conservatively. The set representation is a union of at-or-below closures; subtracting a strict-descendant closure would leave a closure-with-holes, which the representation does not capture. The conservative retention preserves soundness at the cost of precision.
+- If at-or-below(R) ⊆ at-or-below(Name): R is **removed** (entirely consumed).
+- If at-or-below(R) ∩ at-or-below(Name) = ∅: R is **retained unchanged** (the consumption doesn't touch it).
+- Otherwise &mdash; Name is a proper descendant of R, so at-or-below(Name) ⊂neq at-or-below(R) &mdash; R is **retained unchanged** conservatively. The set representation is a union of at-or-below closures; subtracting a strict-descendant closure would leave a closure-with-holes, which the representation does not capture. The conservative retention preserves soundness at the cost of precision.
 
-The post-set is the union of $\text{at-or-below}(R)$ for each retained root $R$. The rule is precise when the spec's closure either fully covers or fully misses each pre-set root, and conservative only when the spec sits strictly inside some pre-set root's closure.
+The post-set is the union of at-or-below(R) for each retained root R. The rule is precise when the spec's closure either fully covers or fully misses each pre-set root, and conservative only when the spec sits strictly inside some pre-set root's closure.
 
 **Conformance.** At every reachable exit edge:
 
@@ -5084,9 +5170,9 @@ The post-set is the union of $\text{at-or-below}(R)$ for each retained root $R$.
 
 **Lattice.** Per-slot taint state:
 
-$$
-\text{TaintLattice} = \{\,\text{untainted},\ \text{READ-tainted}\,\}\ \text{per slot}, \qquad \bot = \text{untainted},\ \top = \text{READ-tainted}
-$$
+```
+TaintLattice = { untainted, READ-tainted } per slot,      ⊥ = untainted, ⊤ = READ-tainted
+```
 
 A slot is READ-tainted if its access path is rooted at a READ parameter. The taint propagates through:
 
@@ -5169,9 +5255,9 @@ The body typechecks.
 
 ### E.6 Composed-Analysis Performance
 
-The joint state-vector grows linearly with the number of named slots in scope; each component lattice contributes its per-slot dimension. For a typical command body with $O(10)$ slots, the state vector is small enough that the analysis terminates in $O(N \cdot V)$ time where $N$ is CFG node count and $V$ is the per-state-vector size &mdash; well within compile-time budgets for any practical body.
+The joint state-vector grows linearly with the number of named slots in scope; each component lattice contributes its per-slot dimension. For a typical command body with O(10) slots, the state vector is small enough that the analysis terminates in O(N · V) time where N is CFG node count and V is the per-state-vector size &mdash; well within compile-time budgets for any practical body.
 
-Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite height bounds the iteration count to $O(\text{slots} \times \text{max-lattice-height})$ per loop. The lattices' heights are small (init: 3, failure: 6, taint: 2, obligation per-path state: 2), so fixpoint convergence is fast.
+Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite height bounds the iteration count to O(slots × max-lattice-height) per loop. The lattices' heights are small (init: 3, failure: 6, taint: 2, obligation per-path state: 2), so fixpoint convergence is fast.
 
 ---
 
@@ -5179,93 +5265,91 @@ Loop bodies (via `^` rewinds) require fixpoint iteration: the lattice's finite h
 
 This appendix formalizes the operational semantics sketched in &sect;1.3, elaborating each reduction rule with full transfer-function detail and integrating the structural rules introduced throughout the body.
 
-### F.1 The State Tuple &lang;V, &Phi;, &Sigma;&rang;
+### F.1 The State Tuple &lang;V, &Φ;, &Σ;&rang;
 
 Program state at any reduction step is a triple:
 
-- **$V$** &mdash; the *current verb*, i.e., the next reduction step to apply. The verb category includes user commands `exec(c)`, the failure-firing verb `fail(`$\phi$`)`, the recovery markers `recover` and `recover(`$\phi, \sigma, c$`)`, the scope boundary markers `scope(c)` and `scopefail(c)`, and the loop rewind verb `rewind(v)`. The notation $\vec{v}$ denotes the continuation that runs after $v$ completes.
+- **V** &mdash; the *current verb*, i.e., the next reduction step to apply. The verb category includes user commands `exec(c)`, the failure-firing verb `fail(`φ`)`, the recovery markers `recover` and `recover(`φ, σ, c`)`, the scope boundary markers `scope(c)` and `scopefail(c)`, and the loop rewind verb `rewind(v)`. The notation v⃗ denotes the continuation that runs after v completes.
 
-- **$\Phi$** &mdash; the *failure register*. Holds the value $\epsilon$ when no failure is in flight; holds a failure value $\phi$ when a failure is propagating. $\phi$ is a triple (message, payload-pointer, dictionary) where:
+- **Φ** &mdash; the *failure register*. Holds the value ε when no failure is in flight; holds a failure value φ when a failure is propagating. φ is a triple (message, payload-pointer, dictionary) where:
   - *message* is the failure message's identifier (per &sect;4.1).
   - *payload-pointer* is either null (for payload-less messages) or a pointer to the payload value's storage.
   - *dictionary* is either null (for payload-less messages) or a pointer to the typeclass dictionary for the (concrete-payload-type, message's-payload-concept) pair (&sect;4.7).
 
-- **$\Sigma$** &mdash; the *variable state*. A mapping from in-scope names to slot identities and contents, partitioned by frame. The notation $\sigma/c$ denotes $\sigma$ bound within the lexical scope of the verb $c$.
+- **Σ** &mdash; the *variable state*. A mapping from in-scope names to slot identities and contents, partitioned by frame. The notation σ/c denotes σ bound within the lexical scope of the verb c.
 
-A program executes by repeated application of reduction rules; the rules collectively transform $\langle V, \Phi, \Sigma \rangle$ to a new triple $\langle V', \Phi', \Sigma' \rangle$.
+A program executes by repeated application of reduction rules; the rules collectively transform ⟨ V, Φ, Σ ⟩ to a new triple ⟨ V', Φ', Σ' ⟩.
 
 ### F.2 Reduction Rules
 
-The reduction rules are presented in the form &lang;V, &Phi;, &Sigma;&rang; &rarr; &lang;V&prime;, &Phi;&prime;, &Sigma;&prime;&rang;. The rules form a small-step semantics.
+The reduction rules are presented in the form &lang;V, &Φ;, &Σ;&rang; &rarr; &lang;V&prime;, &Φ;&prime;, &Σ;&prime;&rang;. The rules form a small-step semantics.
 
-**R1 &mdash; Sequential composition.** A verb c<sub>1</sub>; c<sub>2</sub> (semicolon-separated, or block-marker-sibling-separated) reduces by running c<sub>1</sub> first; if &Phi; remains &epsilon;, control proceeds to c<sub>2</sub>; if &Phi; becomes non-&epsilon; (a failure fires), c<sub>2</sub> is skipped via the failure-skip rule.
+**R1 &mdash; Sequential composition.** A verb c<sub>1</sub>; c<sub>2</sub> (semicolon-separated, or block-marker-sibling-separated) reduces by running c<sub>1</sub> first; if &Φ; remains &ε;, control proceeds to c<sub>2</sub>; if &Φ; becomes non-&ε; (a failure fires), c<sub>2</sub> is skipped via the failure-skip rule.
 
-$$
-\begin{aligned}
-\langle c_1; c_2,\ \epsilon,\ \Sigma \rangle &\to \langle c_1\, \vec{c_2},\ \epsilon,\ \Sigma \rangle \\
-\langle c_1; c_2,\ \phi,\ \Sigma \rangle &\to \langle c_2,\ \phi,\ \Sigma \rangle \qquad \text{(failure-skip)}
-\end{aligned}
-$$
+```
+⟨ c_1; c_2, ε, Σ ⟩    → ⟨ c_1  c_2⃗, ε, Σ ⟩
+
+⟨ c_1; c_2, φ, Σ ⟩    → ⟨ c_2, φ, Σ ⟩      (failure-skip)
+```
 
 **R2 &mdash; Successful exit of a verb.** When c<sub>1</sub> reduces fully without producing a failure, the continuation runs:
 
-$$
-\langle c_1\, \vec{v},\ \epsilon,\ \Sigma \rangle \to \langle v,\ \epsilon,\ \Sigma \rangle \qquad \text{(when } c_1 \text{ has fully reduced and } \Phi = \epsilon \text{)}
-$$
+```
+⟨ c_1  v⃗, ε, Σ ⟩ → ⟨ v, ε, Σ ⟩      (when  c_1  has fully reduced and  Φ = ε )
+```
 
-**R3 &mdash; Failure firing (`.fail`).** The `.fail Name <- payload` (or `<<-`) directive populates &Phi; (the failure register):
+**R3 &mdash; Failure firing (`.fail`).** The `.fail Name <- payload` (or `<<-`) directive populates &Φ; (the failure register):
 
 ```
-<.fail Name <- payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
+<.fail Name <- payload, ε, Σ>  ->  <ε, (Name, &payload, W), Σ>
 ```
 
 where W is the dictionary selected at the `.fail` site for the (concrete-payload-type, Name's payload concept) pair, and `&payload` is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
 
-**R4 &mdash; Failure propagation through siblings.** With &Phi; non-&epsilon;, the next ordinary statement at the same indentation level is skipped:
+**R4 &mdash; Failure propagation through siblings.** With &Φ; non-&ε;, the next ordinary statement at the same indentation level is skipped:
 
-$$
-\langle c,\ \phi,\ \Sigma \rangle \to \langle \epsilon,\ \phi,\ \Sigma \rangle \qquad \text{(the next statement is skipped; control still advances)}
-$$
+```
+⟨ c, φ, Σ ⟩ → ⟨ ε, φ, Σ ⟩      (the next statement is skipped; control still advances)
+```
 
-(The rule is implicit in R1: a non-&epsilon; &Phi; causes subsequent c's to skip.)
+(The rule is implicit in R1: a non-&ε; &Φ; causes subsequent c's to skip.)
 
 **R5 &mdash; Scope boundary.** Entering a recovery context (a block-marker construct with a body) introduces a scope verb `scope(c)`; exiting it produces a scopefail or scoperestore based on whether the body's failure was consumed.
 
-$$
-\begin{aligned}
-\langle \texttt{scope}(c),\ \epsilon,\ \Sigma \rangle &\to \langle c\, \overrightarrow{\texttt{scopepop}},\ \epsilon,\ \Sigma \rangle \\
-\langle \texttt{scope}(c),\ \phi,\ \Sigma \rangle &\to \langle \texttt{recover}(\phi, \Sigma, c)\, \overrightarrow{\texttt{scopepop}},\ \epsilon,\ \Sigma \rangle \qquad \text{(recovery engages)}
-\end{aligned}
-$$
+```
+⟨ scope(c), ε, Σ ⟩    → ⟨ c  scopepop⃗, ε, Σ ⟩
 
-A `.scope` block (&sect;3.17) reuses this boundary machinery without being a recovery context. Entry pushes a scope whose exit verb `scopepop` fires the scope's cleanup; the body runs as in the &epsilon;-branch. A `.scope` carries no recovery spec, so the &phi;-branch's `recover(...)` engagement is absent: an in-flight failure reaching the boundary is neither matched nor consumed &mdash; `scopepop` fires the scope's cleanup and the failure then propagates past, exactly as past a `%` group (&sect;4.4). The cleanup `scopepop` performs is the frame-exit cleanup of R10&mdash;R11 applied at an inner boundary: the scope's `@`/`@!` hooks and the discharges of obligations still owned by its scope-local bindings fire in one reverse-registration order (&sect;3.17, &sect;10.6), and the scope-local storage is reclaimed. `scopepop` is a boundary verb, not an ordinary sibling; it is reached on both the success and failure paths, so the cleanup is not subject to failure-skip (R4).
+⟨ scope(c), φ, Σ ⟩    → ⟨ recover(φ, Σ, c)  scopepop⃗, ε, Σ ⟩      (recovery engages)
+```
+
+A `.scope` block (&sect;3.17) reuses this boundary machinery without being a recovery context. Entry pushes a scope whose exit verb `scopepop` fires the scope's cleanup; the body runs as in the &ε;-branch. A `.scope` carries no recovery spec, so the &φ;-branch's `recover(...)` engagement is absent: an in-flight failure reaching the boundary is neither matched nor consumed &mdash; `scopepop` fires the scope's cleanup and the failure then propagates past, exactly as past a `%` group (&sect;4.4). The cleanup `scopepop` performs is the frame-exit cleanup of R10&mdash;R11 applied at an inner boundary: the scope's `@`/`@!` hooks and the discharges of obligations still owned by its scope-local bindings fire in one reverse-registration order (&sect;3.17, &sect;10.6), and the scope-local storage is reclaimed. `scopepop` is a boundary verb, not an ordinary sibling; it is reached on both the success and failure paths, so the cleanup is not subject to failure-skip (R4).
 
 **R6 &mdash; Recovery engagement.** A `|`-with-spec block engages on a propagating failure whose message matches the spec:
 
 ```
-<recover(phi, Sigma_pre, c), epsilon, Sigma>
-    ->  <c[binding := phi's payload], epsilon, Sigma union {binding}>   if phi.message <= spec
-    ->  <epsilon, phi, Sigma_pre>                                      otherwise (propagate past)
+<recover(φ, Sigma_pre, c), ε, Σ>
+    ->  <c[binding := φ's payload], ε, Σ union {binding}>   if φ.message <= spec
+    ->  <ε, φ, Sigma_pre>                                      otherwise (propagate past)
 ```
 
 **R7 &mdash; Guard-bearing block engagement.** A `?`, `?-`, or `?:` block runs its guard; the body engages based on guard outcome:
 
-$$
-\begin{aligned}
-\langle \texttt{? guard body},\ \epsilon,\ \Sigma \rangle &\to \langle \text{guard}\, \overrightarrow{\texttt{when(body)}},\ \epsilon,\ \Sigma \rangle \\
-\langle \texttt{when(body)},\ \epsilon,\ \Sigma \rangle &\to \langle \text{body},\ \epsilon,\ \Sigma \rangle \qquad \text{(guard succeeded)} \\
-\langle \texttt{when(body)},\ \phi,\ \Sigma \rangle &\to \langle \epsilon,\ \epsilon,\ \Sigma \rangle \qquad \text{(guard failed; failure consumed)}
-\end{aligned}
-$$
+```
+⟨ ? guard body, ε, Σ ⟩    → ⟨ guard  when(body)⃗, ε, Σ ⟩
+
+⟨ when(body), ε, Σ ⟩    → ⟨ body, ε, Σ ⟩      (guard succeeded)
+
+⟨ when(body), φ, Σ ⟩    → ⟨ ε, ε, Σ ⟩      (guard failed; failure consumed)
+```
 
 Analogous rules for `?-` (engage on guard failure), `?:` (chain semantics: first guard to succeed engages, chain exits).
 
 **R8 &mdash; Rewind.** A `^` block re-enters the preceding sibling on body success:
 
 ```
-<^body, epsilon, Sigma>                ->  <body ; rewind_to_preceding, epsilon, Sigma>
-<rewind_to_preceding, epsilon, Sigma>  ->  <preceding_sibling ; ^body, epsilon, Sigma>
-<^body's body, phi, Sigma>             ->  <epsilon, epsilon, Sigma>   (body failed; loop exits)
+<^body, ε, Σ>                ->  <body ; rewind_to_preceding, ε, Σ>
+<rewind_to_preceding, ε, Σ>  ->  <preceding_sibling ; ^body, ε, Σ>
+<^body's body, φ, Σ>             ->  <ε, ε, Σ>   (body failed; loop exits)
 ```
 
 **R9 &mdash; Frame entry.** A command call introduces a new frame. The callee's frame is allocated; arguments are copy-restored into the callee's slots per their modes (&sect;6.3). The current frame's slots remain in scope but are not directly accessible to the callee.
@@ -5273,13 +5357,13 @@ Analogous rules for `?-` (engage on guard failure), `?:` (chain semantics: first
 **R10 &mdash; Frame exit (success).** When a command body reaches a `clear` exit, the frame retires. `@`-blocks and `@!`-blocks registered against this frame fire in reverse registration order. After all blocks fire, the frame's storage is reclaimable.
 
 ```
-<frame_exit, epsilon, Sigma>  ->  fire @-blocks in reverse  ->  reclaim frame  ->  <..., epsilon, Sigma_caller>
+<frame_exit, ε, Σ>  ->  fire @-blocks in reverse  ->  reclaim frame  ->  <..., ε, Sigma_caller>
 ```
 
 **R11 &mdash; Frame exit (failure).** When a command body reaches a `failing` exit, the failure propagates. `@`-blocks fire (every-exit) and `@!`-blocks fire (failure-only) in reverse order, then the failure continues propagating to the caller's frame.
 
 ```
-<frame_exit, phi, Sigma>  ->  fire @-blocks and @!-blocks in reverse  ->  propagate phi  ->  <..., phi, Sigma_caller>
+<frame_exit, φ, Σ>  ->  fire @-blocks and @!-blocks in reverse  ->  propagate φ  ->  <..., φ, Sigma_caller>
 ```
 
 The originating-frame deferred-retirement rule of &sect;4.12 applies: the frame holding the payload value cannot retire until consumption, but the `@` and `@!` blocks fire at the failure-exit moment (before consumption).
@@ -5327,7 +5411,7 @@ The model describes the value's location across the failure-flow path. The `@` a
 
 - **Registration time.** A `@ body` or `@! body` block at the source level adds the block to the current frame's registration list. The block is registered at the point of execution flow, not at the body's source-level declaration: a `@ body` inside a conditional is registered only if the conditional engages.
 - **Firing order.** At frame retirement (success or failure exit), blocks fire in *reverse registration order*. The most-recently-registered block runs first.
-- **Failure-exit filtering.** `@!` blocks fire only when the frame exits via failure ($\Phi$ non-$\epsilon$ at exit). `@` blocks fire on every exit.
+- **Failure-exit filtering.** `@!` blocks fire only when the frame exits via failure (Φ non-ε at exit). `@` blocks fire on every exit.
 - **No value-attached firing.** Frame-exit hooks are not tied to any value's lifetime; they are tied to the frame's retirement. A value that has transferred out of the frame (via failure-payload transfer, etc.) is not in the registration list's responsibility. Value-lifetime-tied discharge is the obligation system's province (&sect;10), not the hook discipline's.
 - **Scope-block registration.** A hook registered inside a `.scope` block registers against that scope rather than the frame, and fires at the `.scope`'s boundary via `scopepop` (R5). The firing order and failure-exit filtering above apply identically at the inner boundary. The frame is the outermost scope, so a hook outside every `.scope` registers against it.
 
@@ -5335,8 +5419,8 @@ The model describes the value's location across the failure-flow path. The `@` a
 
 At most one in-flight failure exists per thread at any moment (&sect;4.12). This is maintained by:
 
-- `.fail` is valid only when $\Phi = \epsilon$ at the firing point. A propagating failure would have failure-skipped past the `.fail` site already, so the case where $\Phi$ is non-$\epsilon$ at a `.fail` site doesn't arise in well-formed code.
-- A recovery `|`-block consumes the in-flight failure before any new statement (including a new `.fail`) is reached in the handler body. So $\Phi$ is back to $\epsilon$ when the handler body runs.
+- `.fail` is valid only when Φ = ε at the firing point. A propagating failure would have failure-skipped past the `.fail` site already, so the case where Φ is non-ε at a `.fail` site doesn't arise in well-formed code.
+- A recovery `|`-block consumes the in-flight failure before any new statement (including a new `.fail`) is reached in the handler body. So Φ is back to ε when the handler body runs.
 
 Multi-threaded programs may have one in-flight failure per thread; the invariant is thread-local.
 
