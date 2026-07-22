@@ -4546,9 +4546,9 @@ The subtyping relation `<:` is the union of multiple sources of subsumption:
 **Buffer-backed parent-chain subsumption (&sect;5.5):**
 
 ```
-Gamma |- tau : .domain T : sigma
---------------------------------
-Gamma |- tau <: sigma
+Γ ⊢ τ : .domain T : σ
+────────────────────────────────
+Γ ⊢ τ <: σ
 ```
 
 ```
@@ -4613,10 +4613,10 @@ the sig param-name has mode m and type τ
 ```
 
 ```
-Gamma |- subject : variant-type
-Gamma |- T narrowing-target of variant
------------------------------------------------
-Gamma |- (# T n -< subject) : T      (ExprNarrow, with NarrowMismatch on failure)
+Γ ⊢ subject : variant-type
+Γ ⊢ T narrowing-target of variant
+───────────────────────────────────────────────
+Γ ⊢ (# T n -< subject) : T      (ExprNarrow, with NarrowMismatch on failure)
 ```
 
 ### D.5 Construction-Form Typing
@@ -4679,11 +4679,11 @@ Each sequence entry has type ⊆ τ (with .implicit bridging)
 **Bare literal:**
 
 ```
-Gamma |- rhs is a literal of kind K
-Gamma |- lhs has type sigma
-sigma admits K-kind literals directly, OR .implicit registers K -> sigma
-------------------------------------------------------------------------
-Gamma |- lhs <- rhs   ok      (with .implicit insertion if needed)
+Γ ⊢ rhs is a literal of kind K
+Γ ⊢ lhs has type σ
+σ admits K-kind literals directly, OR .implicit registers K -> σ
+────────────────────────────────────────────────────────────────────────
+Γ ⊢ lhs <- rhs   ok      (with .implicit insertion if needed)
 ```
 
 ### D.6 Call-Site Typing
@@ -4773,54 +4773,54 @@ The dynamic-narrowing operator (&sect;7.14) admits multiple type-pair scenarios:
 **Variant narrowing:**
 
 ```
-Gamma |- v : variant V with candidate types T1, ..., Tn
-Gamma |- T is at-or-below some Ti in T's subsumption chain
----------------------------------------------------------
-Gamma |- # T n -< v : T      (may-fail: NarrowMismatch if v's tag != Ti, or v absent)
+Γ ⊢ v : variant V with candidate types T1, ..., Tn
+Γ ⊢ T is at-or-below some Ti in T's subsumption chain
+─────────────────────────────────────────────────────────
+Γ ⊢ # T n -< v : T      (may-fail: NarrowMismatch if v's tag != Ti, or v absent)
 ```
 
 ```
-Gamma |- v : variant V
-----------------------
-Gamma |- _ -< v : ok      (Variant absent test; may-fail: NarrowMismatch if v is in absent state)
+Γ ⊢ v : variant V
+──────────────────────
+Γ ⊢ _ -< v : ok      (Variant absent test; may-fail: NarrowMismatch if v is in absent state)
 ```
 
 ```
-Gamma |- v : variant V
-----------------------
-Gamma |- v -< _ : ok      (Variant absent clear; always-succeeds; v becomes absent)
+Γ ⊢ v : variant V
+──────────────────────
+Γ ⊢ v -< _ : ok      (Variant absent clear; always-succeeds; v becomes absent)
 ```
 
 **Concept hierarchy narrowing:**
 
 ```
-Gamma |- obj : object type O
-Gamma |- T at-or-below O in concept hierarchy
--------------------------------------------
-Gamma |- # T n -< obj : T      (may-fail: NarrowMismatch on type-mismatch)
+Γ ⊢ obj : object type O
+Γ ⊢ T at-or-below O in concept hierarchy
+───────────────────────────────────────────
+Γ ⊢ # T n -< obj : T      (may-fail: NarrowMismatch on type-mismatch)
 ```
 
 ```
-Gamma |- p : ^P
-Gamma |- T at-or-below P
-------------------------
-Gamma |- # T n -< p : ^T      (Pointer narrowing; may-fail: NarrowMismatch on type-mismatch)
+Γ ⊢ p : ^P
+Γ ⊢ T at-or-below P
+────────────────────────
+Γ ⊢ # T n -< p : ^T      (Pointer narrowing; may-fail: NarrowMismatch on type-mismatch)
 ```
 
 **Union narrowing (compile-time only):**
 
 ```
-Gamma |- u : union U
-Gamma |- T appears on at least one union-candidate's subsumption chain
----------------------------------------------------------------------
-Gamma |- # T n -< u : T      (no runtime failure; the recovery branch is unreachable)
+Γ ⊢ u : union U
+Γ ⊢ T appears on at least one union-candidate's subsumption chain
+─────────────────────────────────────────────────────────────────────
+Γ ⊢ # T n -< u : T      (no runtime failure; the recovery branch is unreachable)
 ```
 
 ```
-Gamma |- u : union U
-Gamma |- exactly one union-candidate type has a C-concept witness
-----------------------------------------------------------------
-Gamma |- # C n -< u : C-dictionary-typed binding      (Concept-narrowing on union)
+Γ ⊢ u : union U
+Γ ⊢ exactly one union-candidate type has a C-concept witness
+────────────────────────────────────────────────────────────────
+Γ ⊢ # C n -< u : C-dictionary-typed binding      (Concept-narrowing on union)
 ```
 
 ### D.9 Lambda, Command-Literal, and Command-Reference Typing
@@ -4828,29 +4828,29 @@ Gamma |- # C n -< u : C-dictionary-typed binding      (Concept-narrowing on unio
 **Command literal:**
 
 ```
-Gamma |- body : mark ; F   under (Gamma extended with params)
-------------------------------------------------------------
-Gamma |- mark<params>{body} : mark<param-types>      (lifted to command-typed value)
+Γ ⊢ body : mark ; F   under (Γ extended with params)
+────────────────────────────────────────────────────────────
+Γ ⊢ mark<params>{body} : mark<param-types>      (lifted to command-typed value)
 ```
 
 **Lambda:**
 
 ```
-Gamma |- each capture entry resolves in Gamma at READ or UPDATE mode
-Gamma |- body : mark ; F   under (Gamma-captures-extended)
+Γ ⊢ each capture entry resolves in Γ at READ or UPDATE mode
+Γ ⊢ body : mark ; F   under (Γ-captures-extended)
 slot-resident; frame-referencing iff any & capture resolves to a slot of the defining command's frame (S8.4)
--------------------------------------------------------------------
-Gamma |- mark<params / captures>{body} : mark<param-types>
+───────────────────────────────────────────────────────────────────
+Γ ⊢ mark<params / captures>{body} : mark<param-types>
 ```
 
 **Command reference:**
 
 ```
-Gamma |- underlying cmd resolves in Gamma as either bare or method form
-Gamma |- each partial arg type-checks at its position
+Γ ⊢ underlying cmd resolves in Γ as either bare or method form
+Γ ⊢ each partial arg type-checks at its position
 CREATE positions are not bound (must be deferred via _)
-----------------------------------------------------------------------
-Gamma |- {receiver :: name : args} : underlying-type with bound positions elided
+──────────────────────────────────────────────────────────────────────
+Γ ⊢ {receiver :: name : args} : underlying-type with bound positions elided
 ```
 
 ### D.10 Concept-Method Dispatch Typing
@@ -4882,7 +4882,7 @@ Tag is consulted at runtime; dictionary chosen at construction site.
 Operator expressions (&sect;3.19), schematically:
 
 ```
-Gamma |- a : Ta    Gamma |- b : Tb
+Γ ⊢ a : Ta    Γ ⊢ b : Tb
 sanction (C, shape, m) selected by two-stage resolution (S9.16: overload stage,
         then S9.15 witness chain on the winning (anchor-type, C) pair)
 ==>  a (+) b  desugars to  recv :: m: opnd        recv/opnd per shape's member position
@@ -4928,8 +4928,8 @@ The judgment form:
 ```
 candidates_after_arg_filter = {c1, c2, ..., ck}
 most-specific candidate exists and is unique -> c
--------------------------------------------------
-Gamma |- call resolves to c
+─────────────────────────────────────────────────
+Γ ⊢ call resolves to c
 ```
 
 ### D.12 Partial-Application Typing
@@ -4937,11 +4937,11 @@ Gamma |- call resolves to c
 A command reference with partial application (&sect;9.14) produces a command-typed value with bound positions elided:
 
 ```
-Gamma |- underlying cmd has type (R receiver, tau1 m1, ..., taun mn) -> mark
-Gamma |- partial-app applies: receiver (always); some subset of args; CREATE positions deferred via _
+Γ ⊢ underlying cmd has type (R receiver, tau1 m1, ..., taun mn) -> mark
+Γ ⊢ partial-app applies: receiver (always); some subset of args; CREATE positions deferred via _
 frame-references: derived from captured mode markers (UPDATE captures reference D)
-----------------------------------------------------------------------------------------------------
-Gamma |- {receiver :: cmd : applied-args} : mark<deferred-arg-types>
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Γ ⊢ {receiver :: cmd : applied-args} : mark<deferred-arg-types>
 ```
 
 The slot-residency rule is uniform across the forms (&sect;8.4): partial application with `&` bindings makes the reference frame-referencing; the CREATE-write self-reference check applies to it as to lambdas.
@@ -4961,20 +4961,20 @@ For witnesses (&sect;9.15):
 The witness-component judgments (&sect;9.20&ndash;&sect;9.21), schematically:
 
 ```
-Gamma |- (Ctor: args) at T[tau] under selection W   ==>   value : T[tau:(C = W)]
+Γ ⊢ (Ctor: args) at T[τ] under selection W   ==>   value : T[τ:(C = W)]
         (Installation: the site's resolved selection annotates the result)
 
-Gamma |- v : T[tau:(C = W)]   ==>   v : T[tau]
+Γ ⊢ v : T[τ:(C = W)]   ==>   v : T[τ]
         (Annotation subsumption: annotated-to-existential, always)
 
-Gamma |- v : T[tau]  at slot T[tau:(C = W)]   ==>   STATIC ERROR (no proof; remedy: -<)
-Gamma |- v : T[tau:(C = W1)]  at slot T[tau:(C = W2)], W1 != W2   ==>   STATIC ERROR
+Γ ⊢ v : T[τ]  at slot T[τ:(C = W)]   ==>   STATIC ERROR (no proof; remedy: -<)
+Γ ⊢ v : T[τ:(C = W1)]  at slot T[τ:(C = W2)], W1 != W2   ==>   STATIC ERROR
 
 Unification: each witness variable V in a signature takes one assignment per call;
         occurrences bind from argument annotations (CREATE outputs stamp);
         conflicting assignments are a STATIC ERROR at the call site naming both.
 
-Gamma |- # T[tau:(C = W)] n -< v, v : T[tau]   ==>   n : T[tau:(C = W)]
+Γ ⊢ # T[τ:(C = W)] n -< v, v : T[τ]   ==>   n : T[τ:(C = W)]
         (Witness narrowing; may-fail: NarrowMismatch on dictionary-pointer inequality;
          statically inadmissible where tautological, contradicted, or buffer-backed)
 
@@ -4983,8 +4983,8 @@ Channel rule: within a body, live channels for a pair (C-pair) = flowed binders
         pair with >1 live channel is a STATIC ERROR; receiver-routed dispatch
         (x :: m) always uses x's own channel and is never ambiguous.
 
-Family resolution: bare head F at a pair-specific position with subject tau
-        resolves to the unique visible member covering tau; zero covering =
+Family resolution: bare head F at a pair-specific position with subject τ
+        resolves to the unique visible member covering τ; zero covering =
         STATIC ERROR; >1 covering (independent extensions) = STATIC ERROR
         naming both declaring modules (lazy cross-module disjointness).
 ```
