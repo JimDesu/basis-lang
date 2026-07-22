@@ -377,6 +377,19 @@ The signature variations for constructors (&sect;3.9), single-receiver methods (
 
 ### 3.3 Parameter Modes
 
+**Exemplar &mdash; all five modes in one signature, and the bare call site beneath it:**
+
+```
+.cmd ?commitEntry: Ledger &book, Entry e, Receipt 'receipt, Session ~session, Stats *stats =
+    ...        ; &book UPDATE, e READ, 'receipt CREATE, ~session DISPOSE, *stats DIRECT
+
+.box stats                                ; DIRECT arguments must be boxed slots (S6.14)
+commitEntry: book, entry, #receipt, session, stats
+                                          ; call sites carry no markers: the signature
+                                          ;   owns the modes; #receipt introduces the
+                                          ;   fresh CREATE output slot
+```
+
 Every parameter and every receiver carries one of five *modes*, which together determine the contract between caller and callee at that position:
 
 - **READ** (no marker, bare name) &mdash; the callee may read the parameter but may not write it, and the guarantee is transitive: the value cannot be smuggled into a writeable position downstream (&sect;6.4).
@@ -706,6 +719,13 @@ UPDATE-mode parameters always appear in the argument list &mdash; they cannot be
 
 ### 3.15 The `_` Placeholder
 
+**Exemplar &mdash; discarding an output:**
+
+```
+#q <- quotrem: _, 22, 7                   ; keep the quotient, discard the remainder
+                                          ;   output; `_` absorbs a CREATE position
+```
+
 The `_` token is a single-character placeholder serving four distinct uses across the language. The uses are syntactically disjoint &mdash; context determines which is meant &mdash; and are listed here for completeness; the relevant sections cover each role in detail.
 
 - **Discard at CREATE positions.** At a CREATE parameter position in a call, `_` says "I don't care about this output." The CREATE write happens (the callee's contract is unchanged), but the caller declines to bind the result.
@@ -732,9 +752,9 @@ The `_` token is a single-character placeholder serving four distinct uses acros
 
 The four uses are syntactically distinguishable by surrounding context. The lexer treats `_` uniformly as a single token; the parser routes it to the appropriate non-terminal based on its position.
 
-### 3.16 First-Concept Commands
+### 3.16 First-Class Command Values
 
-Commands are values. A command-typed value may be stored in a field, passed as an argument, returned from a constructor, or invoked indirectly. The language admits three constructional forms that produce command-typed values:
+Commands are values. A command-typed value may be held in a slot, passed as an argument, returned through a CREATE output, or invoked indirectly &mdash; and only in slots: command values live on the stack (&sect;8.4). The language admits three constructional forms that produce command-typed values:
 
 | Form | Surface | Captures? | Body? |
 |---|---|---|---|
@@ -815,14 +835,15 @@ The split is deliberate: a *structurally* incomplete `.ack` (nothing follows) ca
 
 `.ack` is a compile-time directive with no runtime presence. It performs no computation, writes no slot, and is transparent to every static analysis: it does not alter the failure state, does not count toward any CREATE obligation, and does not participate in control or data flow. Removing every `.ack` from a program changes only which warnings the compiler emits, never the program's behavior.
 
-For example, reading a union at a candidate the compiler cannot confirm it holds (C1, Appendix I) raises the `union.unconfirmed-read` caveat; a programmer managing the discriminator themselves answers it:
+For example, taking the address of a boxed slot in-region raises the `box.address-taken` caveat (&sect;6.14, Appendix J); a programmer accepting the alias &mdash; and the withdrawal of the no-alias license it entails &mdash; answers it:
 
 ```
-.ack "union.unconfirmed-read"      ; deliberate: we validated the tag ourselves above
-#raw <- RawHeader -< packet
+.box hot
+.ack "box.address-taken"           ; deliberate: the alias is handed to the DMA
+#p <- &hot                         ;   engine; we accept the license withdrawal
 ```
 
-The acknowledgment encloses the single read that follows. Placed before a `.scope` block instead, it would cover every diagnostic of that code raised anywhere in the block.
+The acknowledgment encloses the single statement that follows. Placed before a `.scope` block instead, it would cover every diagnostic of that code raised anywhere in the block.
 
 ---
 
@@ -1073,6 +1094,19 @@ A failure propagating out of a sibling-block at the same indentation level **ski
 
 ### 4.6 Typed Recovery
 
+**Exemplar &mdash; a spec chain binding a concept-typed payload and using it through the concept:**
+
+```
+fetchAll: cache, keys
+| Net::Timeout t ->
+    log: "retrying after", (t :: elapsed)     ; payload used through its bound
+    retryLater: keys                          ;   concept's methods only
+| Net::Disconnected d ->
+    .fail Fatal <- (describe: d)              ; escalate, constructing anew
+| ->
+    useStale: cache                           ; bare catch-all closes the chain
+```
+
 A `|`-with-spec block engages on failures whose message matches the spec, with subtype-inclusive matching against the relevant hierarchy. The surface is `| Name name -> body`. The spec engages on:
 
 - A failure whose message is exactly `Name`.
@@ -1195,6 +1229,17 @@ The value's lifetime across a re-fail chain is governed by the holding-frame mod
 
 ### 4.11 At-Stack Handlers Under Failure
 
+**Exemplar &mdash; a failure-only hook observing a propagating failure:**
+
+```
+#txn <- (db :: begin)
+@!
+    log: "unwinding under failure"        ; runs on failure exits only, after the
+                                          ;   frame's arms have declined the failure
+apply: txn, batch                         ; may fail: the hook above fires on that
+db :: commit: txn                         ;   path; the happy path never runs it
+```
+
 The frame-exit hooks `@` and `@!` (&sect;4.4) compose with failure flow as follows.
 
 `@`-bodies run on every scope exit. When a failure propagates out of a scope containing `@` blocks, the `@` bodies fire as part of that scope's exit, in reverse registration order, before the failure propagates past the scope. The bodies execute as if no failure were active: they neither see nor consume the propagating failure. A failure produced *within* an `@`-body propagates through the cleanup machinery's own rules, not back into the original failure's flow.
@@ -1302,6 +1347,22 @@ On mismatch the operation **fails** &mdash; mismatch is failure, not falsehood &
 
 ### 4.16 The Discharge Arm: `|!`
 
+**Exemplar &mdash; a discharged impossibility, and an undischargeable one:**
+
+```
+#env <- (Ctl::Throttle <- rate)       ; constructed OWNING, in this frame
+send: chan, env
+|! Ownership::NonOwningMove           ; PROVEN: construction provenance is
+                                      ;   frame-local; the arm erases, and the
+                                      ;   failure leaves this command's signature
+
+.cmd ?relay: Chan &chan, Net &m =
+    send: chan, m
+    |! Ownership::NonOwningMove       ; STATIC ERROR: `m` arrived as a parameter;
+                                      ;   ownership is not frame-locally provable.
+                                      ;   Remedy: handle it, or take `~m` and move.
+```
+
 The recovery-arm family gains its fourth member: `|! Spec` (scoped) and `|!` (total) claim the named failures **impossible by construction at this site** &mdash; and the claim is a **proof obligation, not an assertion**. Proven, the set is consumed from failure inference exactly as a recovery arm consumes it &mdash; the enclosing command's signature reflects the discharge &mdash; and the arm **erases**: a proved impossibility needs no runtime check. Unprovable, the arm is a **static error** whose diagnostic names the missing fact and the remedies (establish it, or handle the failure). No trust-me spelling exists in the language: "can't happen" is either proved or handled.
 
 The arm's power source is asymmetric knowledge: a callee's failure set is conservative over all callers, but the caller holds frame-local facts the signature discarded &mdash; an envelope's ownership known from its `<-` birth two lines up, a dominating guard, an established narrowing. `|!` is the conduit for caller-side static knowledge to discharge callee-side conservatism.
@@ -1361,6 +1422,17 @@ There are no privileged primitive types in Basis. The standard library defines `
 
 ### 5.3 Domains
 
+**Exemplar:**
+
+```
+.domain Celsius : Decimal64               ; distinct type, same bytes
+.domain Setpoint : Celsius                ; domains nest; Setpoint <= Celsius <= Decimal64
+
+.cmd clamp: Setpoint s, Setpoint 'r = ...    ; unmarked name: never-fail, like READ's absent marker
+clamp: target, #limited                   ; a Setpoint is a Celsius where a Celsius is
+                                          ;   asked for (subsumption), never the reverse
+```
+
 A **domain** is a new type declared in terms of a parent type, where the parent must reduce &mdash; transitively, through any aliases &mdash; to a fixed-size buffer-backed type. The declaration form is:
 
     .domain Inches : Int32
@@ -1377,6 +1449,14 @@ The implicit upcast is a **typing-acceptance rule, not a value-rewriting rule**.
 Domains are first-class types: they may be parameters, fields, receivers of concept methods, expression-position results via `-> name`, and so on. The hierarchy is **open for child extension**: a downstream module may declare a child of an imported domain. The implicit-upcast relation is structurally stable across this extension because the upcast is one-directional (child $\to$ parent) and child declarations do not widen the upcast set for any existing type.
 
 ### 5.4 Records
+
+**Exemplar:**
+
+```
+.record Reading : Celsius temp, Int64 tick
+# Reading r <- ${21.5, 0}                 ; aggregate literal, field order; each
+#t <- r :: temp                           ;   literal adapts to its field's type (S7.9)
+```
 
 A **record** is a contiguous, byte-addressable buffer with named field offsets. Record values are value-like: copyable as bytes, with no identity beyond byte-content, and laid out at deterministic offsets within their containing storage. The declaration form is:
 
@@ -1415,6 +1495,20 @@ A separate buffer-backed subsumption rule applies to unions: the **union $\to$ c
 The narrowness of the implicit-conversion story across buffer-backed types is a deliberate design commitment. Implicit conversions are a routine source of reasoning errors in languages that admit them. The parent-chain rule is the minimum that makes refinement-style domain hierarchies usable; the union byte-reinterpretation rule is the buffer-backed-side answer to the discriminated-overlay question that variants answer differently (&sect;5.12). Every other type-crossing &mdash; record to record, sibling domain to sibling domain, anything to or from a non-buffer type &mdash; is explicit, requiring a constructor invocation, an interpretive cast against a union, or the dynamic-narrowing operator `-<` (&sect;7.14).
 
 ### 5.6 Unions
+
+**Exemplar &mdash; reinterpretation is the norm:**
+
+```
+.union Payload : [4] asBytes, Int32 asPacked
+
+w :: asPacked <- fromWire                 ; write through one candidate
+#b <- w :: asBytes[0]                     ; read through another: reinterpretation is
+                                          ;   what a union IS &mdash; no diagnostic fires;
+                                          ;   the `.union` declaration was the choice,
+                                          ;   made once, at the type (compare `.box`,
+                                          ;   S6.14: the declared exception needs no
+                                          ;   per-access acknowledgment)
+```
 
 A **union** is a byte-level overlay of declared candidate types. The union's storage is `max(candidate-sizes)` bytes; assigning a candidate value writes that candidate's bytes into the overlay. The declaration form is:
 
@@ -1501,6 +1595,16 @@ Reading from `^T` and writing to `^T` do not, in themselves, violate the no-non-
 
 ### 5.11 Objects
 
+**Exemplar &mdash; an object with an embedded variant field:**
+
+```
+.variant Backing : [] heap, FilePage page
+.object Buffer : Int64 len, Backing store ; reference semantics, identity, tracked
+                                          ;   lifetime; `store` is a 3-word variant
+.cmd Buffer &b :: grow: Int64 by = ...
+buf :: grow: 4096                         ; in-place mutation through an UPDATE receiver
+```
+
 An **object** is a stack-or-heap-allocated, identity-bearing aggregate. Object fields can be of any type &mdash; fixed-size buffer-backed, runtime-length buffer-backed (`[]` and `[]T`), or non-buffer &mdash; including pointers, other objects, and variants; command-typed values are excluded (slot residency, &sect;8.4). The declaration form is:
 
     .object Logger : String name, ^File output, Severity threshold
@@ -1542,6 +1646,17 @@ Variants are reference-semantics: variant values are normally manipulated throug
 Variants are nominally typed: two `.variant` declarations with identical candidate sets produce two distinct types. The variant declaration's full surface &mdash; including any candidate parameterization and any hierarchy structure &mdash; is given in Appendix B; the variant construction surface is in &sect;7.12.
 
 ### 5.13 The Absent State
+
+**Exemplar &mdash; the one-candidate variant as the idiomatic optional:**
+
+```
+.variant Found : User user
+# Found hit                               ; bare introduction: absent
+hit <- Found: ${user <- candidate}        ; now present
+? # User u -< hit
+    greet: u
+hit -< _                                  ; cleared back to absent
+```
 
 Every variant slot inherently admits an **absent state** in addition to its declared candidate states. A variant in the absent state has no active candidate: its tag identifies "no candidate here," its candidate pointer is null, and its dictionary is correspondingly null.
 
@@ -1655,6 +1770,17 @@ For CREATE parameters specifically, the caller's slot may be uninitialized at th
 
 ### 6.4 The Transitive READ Contract
 
+**Exemplar &mdash; the taint at work:**
+
+```
+.cmd audit: Config c =
+    c :: cache :: insert: key, v          ; STATIC ERROR: write through a READ-rooted
+                                          ;   path; the taint follows access paths
+
+.cmd audit: Config c, Cache &cache =      ; the honest signature: the mutation is
+    cache :: insert: key, v               ;   named where the caller can see it
+```
+
 **READ is a promise to the caller, kept transitively.** A READ parameter introduces a contract: the callee may not write through any access path reached from the parameter. **Reachability is transitive** through pointer dereference, field access, indexing, and any other operation that extends an access path rooted at the parameter.
 
 The contract is callee-side and verified at type-checking. A callee whose body would write through any reachable access path fails to type-check, regardless of whether that write would be "observable" at any particular call site. The discipline is structural; the language does not check for aliasing between the READ parameter and other writeable positions and then conditionally permit the write. The forbidding is unconditional: from a READ parameter's perspective, the storage it reaches is read-only.
@@ -1687,6 +1813,15 @@ The frame-ownership lens is sufficient because each frame's signature carries th
 The aliasing question &mdash; whether a fresh local in the caller's frame might at runtime alias storage the caller passed at READ &mdash; is intentionally not addressed by the static taint analyses. The language tracks access paths, not storage locations (&sect;1.5 standing lens). The READ contract's static soundness is the callee-side commitment that the callee will not perform writes through its own READ-rooted paths; the caller's analysis is its own concern, with the caller's signature determining what the caller's body may do. The two-sided locality is what keeps the analyses tractable.
 
 ### 6.6 The R1 and R2 Receiver Rules
+
+**Exemplar &mdash; the idiomatic quartet on one type (&sect;6.8):**
+
+```
+.cmd Logger logger :: emit: String m = ...      ; READ: externalized effect
+.cmd Counter &c :: bump = c <- c + 1            ; UPDATE: in-place mutation
+.cmd Pool 'p :: fresh: Int64 cap = ...          ; CREATE: (re)initialize the receiver
+.cmd Session ~s :: close = ...                  ; DISPOSE: consume the receiver
+```
 
 Receivers participate in the same four-mode discipline as parameters, but the receiver-mode rules carry an additional structural constraint that parameters do not. The receiver in a method dispatch must exist as a real value at runtime, regardless of the receiver's declared mode, because dispatch resolves a method-bearing value from the receiver's type and invokes it on the receiver's value. Dispatching on an uninitialized slot is meaningless. Two rules govern receiver-mode mechanics uniformly across signature shapes:
 
@@ -1801,6 +1936,28 @@ Copy-restore stays; boxing is the explicit, slot-scoped bypass for the hot path.
 .unbox name        ; end it early (optional)
 ```
 
+**Worked exemplar &mdash; the salient point: DIRECT writes survive failure:**
+
+```
+.msg Interrupted
+.domain Hits : Int64
+
+.cmd !bump: Hits *n =
+    n <- n + 1                    ; lands in the caller's storage as it executes
+    .fail Interrupted             ; ...and the failure does not undo it
+
+# Hits count <- 0             ; typed introduction (S7.2): the literal adapts
+.box count
+bump: count
+| Interrupted ->
+    log: count                    ; 1 &mdash; the write is visible after recovery.
+                                  ;   Had bump taken `&n` instead, the failed call
+                                  ;   would have committed nothing (principle 4)
+                                  ;   and count would still be 0. `*` is that
+                                  ;   principle's declared exception, chosen at
+                                  ;   the `.box`.
+```
+
 **The box region.** Boxed status runs from the `.box` statement to the earliest of an explicit `.unbox` or the end of the innermost enclosing block containing the `.box`. Status evaporates on every exit edge &mdash; success and failure alike &mdash; *before* exit-cleanup processing, so `@`/`@!` handlers, obligation default sinks, and reclamation always operate on ordinary slots. Regions for one slot are sequential, non-overlapping, and LIFO with blocks; re-boxing after `.unbox` is legal. `~` consumption of a slot while boxed is a static error.
 
 **Eligibility.** The slot's declared type must belong to the **domain family** &mdash; `.domain`, `.record`, `.union`, `.enum` and their compositions: fixed-size, defined-by-their-bytes values. Buffers are not admitted (their descriptor-over-region representation entangles region lifetime; `^T` serves those cases). The same eligibility applies at every DIRECT parameter declaration.
@@ -1859,6 +2016,17 @@ Mirror structure: `<-`/`->` vest, `<<-`/`->>` lend &mdash; placement into a valu
 
 #### 7.13a The Move Statement: `>>`
 
+```
+#f <- (db :: begin)                       ; obligated: rollback | commit
+f >> archive :: pending                   ; MOVE: duty rides to the destination and
+                                          ;   `f` is uninit &mdash; no surviving view
+log: (f :: id)                            ; STATIC ERROR: `f` moved from
+
+.cmd stash: Vault &v, Txn ~doomed =
+    doomed >> v :: held                   ; a `~` parameter fulfilled by relocation:
+                                          ;   consumed by moving onward, not finalizing
+```
+
 `src >> dest` **moves**: ownership transfers and the source dies &mdash; `src` is `uninit` after the statement. The disposition family is thereby four-cornered &mdash; **vest** (`<-`, source survives as a view), **lend** (`<<-`), **copy** (`<<`), **move** (`>>`, source dies) &mdash; with "move" meaning exactly what a reader trained elsewhere expects it to mean. The LHS transition is init&rarr;uninit, the DISPOSE shape, and the mode table legislates admissibility: legal on frame-owned locals and on `~` parameters, where moving the doomed value onward *fulfills* the consume contract by relocation; illegal on READ (invalidation is a write-class effect, &sect;6.4), on UPDATE (the stays-init contract, &sect;7.22), and on boxed slots (ending a slot mid-region, the `~`-while-boxed bar, &sect;6.14). Any duty rides to the destination, and the source's death makes `>>` the safest relocation for obligated values: no surviving view exists, so the A1 and A2 residue reachable through a moved-from name is unrepresentable. Moving a **non-owning reference** is checked: for message envelopes the owner/viewer bit makes it a **runtime failure** (`Basis::Lang::Failure::Ownership::NonOwningMove`, &sect;4.17), handled by `?`/`|`; for ordinary values, view-ness is static provenance and the rejection is compile-time. The RHS is a slot or a receiving endpoint; the reading is uniform &mdash; **the left relinquishes, the right receives** &mdash; and the future channel surface inherits both directions of it (`m >> chan` inserts; `chan >> m` dequeues).
 
 ### 7.2 Local Introduction Syntax
@@ -1878,6 +2046,16 @@ The typed form `# T x <- value` declares the slot's type explicitly. The declare
 The upper-bound semantics of typed introduction is uniform with the language's other type-bound positions: a parameter's declared type is the upper bound for the parameter, an object field's declared type is the upper bound for the field, and so on. A subsequent assignment to a typed local is type-checked against the local's declared type, not against the value-type the local currently holds.
 
 ### 7.3 The Five RHS Shapes
+
+**Exemplar &mdash; one placement per shape:**
+
+```
+#a <- 42                                  ; bare literal
+# Reading b <- ${21.5, 0}                 ; aggregate literal (typed introduction
+#c <- $[1, 2, 3]                          ;   supplies the context); sequence literal
+#d <- a                                   ; bare-identifier value-copy
+#e <- quotrem: _, 22, 7                   ; call
+```
 
 The right-hand side of `<-` accepts five distinct surface shapes, each fitting a subset of left-hand-side types:
 
@@ -2149,6 +2327,19 @@ The construction-side principle is uniform: the candidate's value is a value of 
 
 ### 7.13 Variant Pattern Matching Idiom
 
+**Exemplar &mdash; construct, then the `?:` chain:**
+
+```
+#shape <- Shape: ${Circle <- radius}
+?: # Circle c -< shape
+    #area <- pi * (c :: r) * (c :: r)
+?: # Rect r -< shape
+    #area <- (r :: w) * (r :: h)
+| ->
+    .fail UnknownShape                    ; chain fell through: variant absent or
+                                          ;   an unhandled candidate
+```
+
 Variant case analysis composes via `?:` chains plus the `-<` dynamic-narrowing operator (&sect;7.14), with `?-` available for explicit absent-only tests. No dedicated `match` keyword is introduced.
 
 The canonical pattern for a variant `v` with candidates `A`, `B`, ... and an absent case to handle:
@@ -2170,6 +2361,15 @@ The pieces:
 Coverage discipline is the user's responsibility. The typechecker does not enforce exhaustive variant-case coverage at `?:` chains; a chain that omits a candidate falls through to the default arm with the variant in its current state.
 
 ### 7.14 The `-<` Dynamic-Narrowing Operator
+
+**Exemplar &mdash; one narrowing per family:**
+
+```
+? # Circle c -< shape                     ; variant: candidate at-or-below Circle
+? # Sprite s -< entity                    ; object: runtime type check on the reference
+? # Int32 n -< word                       ; union: compile-time admissibility, then free
+? # Ctl::Throttle t -< msg                ; message: envelope narrowed, payload untouched
+```
 
 The `-<` operator performs a runtime type check and, on success, binds the narrowed value (or no value, in the discard cases) to its left-hand slot. On mismatch, it produces a propagating failure &mdash; the same surface form as the rest of the failure system. The operator is parallel to `<-` syntactically and contrasts on the static-vs-dynamic axis: `<-` writes a value the typechecker has confirmed at compile time; `-<` writes a value the typechecker has confirmed at compile time *might* fit, with a runtime check making the determination.
 
@@ -2394,6 +2594,15 @@ The pure-thunk form `:<>{body}` is a command literal with an empty parameter lis
 
 ### 8.2 Command Reference
 
+**Exemplar:**
+
+```
+#step <- {advance}                        ; bare reference to an existing command
+#tick <- {advance: clock, _}              ; partial application; `&clock` slot bound,
+                                          ;   remaining position deferred
+tick: 50                                  ; invoke like any command
+```
+
 A command reference is a value of command type produced by enclosing a command name in braces, optionally with partial-application bindings. The forms are:
 
 - **`{cmd}`** &mdash; bare command reference to a non-method command; produces a command-typed value with `cmd`'s full signature.
@@ -2413,6 +2622,14 @@ A command reference has no body of its own; it refers to the underlying command'
 
 ### 8.3 Command Literal
 
+**Exemplar:**
+
+```
+#double <- :<Int64 x, Int64 'r>{ r <- x * 2 }
+double: 21, #answer                       ; pure: parameters in, output out,
+                                          ;   nothing captured, travels freely
+```
+
 A command literal is a command-typed value whose body is supplied at the construction site, evaluated eagerly. The surface form is:
 
     :<args>{body}
@@ -2428,6 +2645,22 @@ The angle-bracketed parameter list declares the command's parameters using the s
 A command literal's body is subject to the **transitive READ contract** (&sect;6.4): if the body reads or modifies state reached through a parameter, the parameter's mode contract &mdash; including any taint propagated through the storage graph in the constructing frame's analysis &mdash; applies to the body's operations on that state. The contract is local to the construction frame's analysis; the command literal value, once constructed, carries the obligations as a property of the value but does not propagate further analysis state across the frame boundary.
 
 ### 8.4 Lambda
+
+**Exemplar &mdash; a legal downward lambda, and the rejected make-counter:**
+
+```
+#total <- 0
+each: items, :<Int64 x / &total>{ total <- total + x }
+                                          ; `&total` referenced per invocation,
+                                          ;   copy-restored; downward travel only
+
+.cmd makeCounter: :<Int64'> 'out =
+    #n <- 0
+    out <- :<Int64 'r / &n>{ r <- n + 1 }
+                                          ; STATIC ERROR (self-reference rule):
+                                          ;   the value references this frame and
+                                          ;   cannot be written to a CREATE output
+```
 
 A lambda is a command-typed value with an explicit capture list. The surface form is:
 
@@ -2448,6 +2681,15 @@ The slash separates the parameter list from the capture list. The capture list e
 **Visible-signature representation.** A lambda value's externally-visible type is its invoke-method signature &mdash; the parameter list and failure mark &mdash; without the capture list. The capture list is implementation detail; consumers of the lambda value see only what they invoke. This composes with the failure-mark conformance discipline (&sect;8.5): a lambda's signature carries its failure mark, and conformance applies symmetrically.
 
 ### 8.5 Failure-Mark Conformance
+
+**Exemplar:**
+
+```
+.cmd apply: :<Int64> op, Int64 x = ...    ; parameter demands a never-fail command
+apply: {advance}, 3                       ; OK if advance is `:`-marked
+apply: {tryAdvance}, 3                    ; STATIC ERROR: `?tryAdvance` may fail;
+                                          ;   `?` does not conform to `:` position
+```
 
 Command-typed values carry a failure mark (`:`, `?`, or `!`) as part of their type. The failure-mark conformance discipline governs how command-typed values may be invoked, assigned, and composed.
 
@@ -2778,6 +3020,17 @@ The dictionary is **immutable** once constructed; witness declarations do not pr
 
 ### 9.9 Cases A and B
 
+**Exemplar &mdash; the same call, resolved statically and existentially:**
+
+```
+.cmd maxOf: (T:Ord) a, T b, T 'r = ...    ; Case A: T fixed per call site, the
+maxOf: low, high, #hot                    ;   T fixed from the arguments' types;
+                                          ;   dictionary chosen at compile time
+
+.cmd describe: Show s = ...               ; Case B: `s` is a concept value; its
+describe: anything                        ;   carried dictionary dispatches at runtime
+```
+
 A concept-typed parameter appears in two distinct forms at command signature positions:
 
 **Case A &mdash; type-variable bound.** A type variable `T` is declared with a concept bound at the first occurrence's parameter position, and subsequent parameters refer to the same `T`:
@@ -2865,6 +3118,14 @@ An acknowledged under-specification, inherited and not worsened here: the sourci
 
 ### 9.14 Partial Application Beyond Receiver-Elision
 
+**Exemplar:**
+
+```
+#greet <- {format: salutation, _, _}      ; READ binding applied now; the deferred
+greet: name, #line                        ;   positions (incl. the CREATE output)
+                                          ;   are supplied at invocation
+```
+
 The receiver of a method reference is always specified &mdash; receiver-binding via `::` is mandatory for method references (&sect;8.2). The non-receiver parameters of the method may, at the call site or at command-reference construction time, be partially applied or deferred according to the standard partial-application discipline (&sect;8.2). The combined form is `{receiver :: methodName: x, _, y}` &mdash; receiver bound via `::`, positional parameters bound via `: arg, ..., _, ...`, leaving `_` positions open for subsequent invocations.
 
 **Mode-marker filter.** The same mode constraints from &sect;8.2 apply: CREATE positions cannot be bound (deferred only); UPDATE positions, if bound, capture a slot reference (making the value frame-referencing, &sect;8.4); READ positions are flexible &mdash; bound or deferred at the user's choice.
@@ -2878,6 +3139,18 @@ The receiver of a method reference is always specified &mdash; receiver-binding 
 **Uniformity through `(T:C)` constraints.** When the method's receiver is concept-bounded &mdash; `(T:C) self :: ...` &mdash; receiver-elision via `{x :: methodName}` produces a command reference whose visible signature has the type variable resolved to the static type of `x`. The mechanism by which the concept dictionary flows &mdash; Case A as a hidden parameter from the enclosing frame, Case B embedded in the receiver's 3-word slot (&sect;9.12) &mdash; is implementation-internal and does not affect the visible signature. The two cases produce command references of the same shape; ceiling-tracking treats the command reference as bound by whichever lifetime is more restrictive (the captured receiver's slot, or the dictionary's source frame).
 
 ### 9.15 Witness Coherence: Named Coexistence and Resolution
+
+**Exemplar &mdash; two visible witnesses, the ambiguity, the three escapes:**
+
+```
+sort: readings                            ; STATIC ERROR: Ascending and ByTick both
+                                          ;   witness (Ord, Reading) here
+
+sort: (readings : [](Ord = ByTick))       ; 1. name the witness at the site
+? # (Ord = Ascending) rs -< readings      ; 2. narrow to a pinned witness component
+runs :: insert: r                         ; 3. route through a receiver: its embedded
+                                          ;   dictionary decides, never ambiguous
+```
 
 **Coexistence.** Multiple witnesses for one `(Subject, Concept)` pair may coexist, distinguished by name. Coexistence is the design center, not a conflict state: alternative satisfactions of one contract by one type (a forward and a reverse ordering; a binary and a JSON serialization) are all first-class, each a named declaration with its own canonical dictionary. Duplicate `(name, subject)` declarations within a module are static errors; same-head declarations with distinct subjects form a family (&sect;9.4); cross-module head collisions resolve by module qualification.
 
@@ -3188,6 +3461,17 @@ An obligation that does not escape on a given path is discharged within its acqu
 
 ### 10.11 Ownership and Transfer
 
+**Exemplar &mdash; the duty's location, line by line:**
+
+```
+#f <- (db :: begin)          ; duty (rollback | commit) lives with `f`
+held <- f                    ; VEST: duty now with `held`; `f` survives as a view
+peek <<- held                ; LEND: a view; the duty does not move
+backup << held               ; COPY: independent duplicate; the copy is duty-free
+held >> vault :: pending     ; MOVE: duty rides onward and `held` is uninit &mdash;
+                             ;   no name remains through which to double-discharge
+```
+
 Escape happens by transferring ownership of the obligation. Ownership is not a standing mark on a binding or a qualifier on a type; it is the consequence of the operation that brings a value to rest, and it is provenance, not type. The owner of an obligation is whichever binding currently carries its anchored discharge (&sect;10.13), and there is exactly one owner at any time.
 
 The owner/reference question arises only at **resting places** &mdash; a new persisting slot, an object field, a CREATE return, or a variant candidate that persists past the scope. It never arises for borrows: by default, passing an obligated value lends it without transferring ownership, which is how a value travels through calls freely and unmarked.
@@ -3244,6 +3528,16 @@ The typechecker verifies the structural properties of an obligation but not the 
 Symmetrically &mdash; and this applies to local obligations as well &mdash; when an obligated value is borrowed as a READ argument and its value is a pointer, the callee receives a copy of the pointer into the same storage; if the obligation is later discharged and the storage released, any escaped copies dangle. The obligation system guarantees the storage is released once; it does not guarantee no copies of the pointer outlive the release. Closing these gaps would require pointer-aliasing or lifetime analysis the language has deliberately declined.
 
 ### 10.15 Obligated Values in Variants
+
+**Exemplar &mdash; parking a duty:**
+
+```
+# Pending slot
+slot <- Pending: ${open <- txn}           ; the duty parks with the variant slot
+...                                       ; nothing fires while parked
+slot -< _                                 ; clearing an obligated candidate first
+                                          ;   fires its pending discharge (S10.5)
+```
 
 A variant whose active candidate is an obligated value is handled by the ownership rules of &sect;10.11. Clearing the variant to absent (`v -< _`, &sect;7.14) or replacing the active candidate ends that candidate's lifetime in the slot; if the variant owns the candidate's obligation, its discharge fires at that moment, as overwriting any owning slot does. A candidate installed by `<<-` fires nothing &mdash; the variant was never the owner.
 
@@ -5423,7 +5717,7 @@ Under the **surviving-view rule** (&sect;10.11) a `<-` source is itself such a v
 
 ### I.3 Type-interpretation hazards
 
-**C1 &mdash; Union read at the wrong candidate.** A union carries no discriminator. Reading it as a candidate it does not currently hold reinterprets its bytes as a type they are not, and the relation is not Liskov-preserving (&sect;5.6, &sect;5.7). The language guarantees the bytes; it guarantees nothing about which candidate they mean. *Discipline:* if you want safety, use a **variant** &mdash; tagged, dictionary-bearing. Choose a union only when you will manage the discriminator and the validity yourself, in the C-style discipline; the unconfirmed read raises the `union.unconfirmed-read` caveat (&sect;3.18, Appendix J), answered where the discipline is deliberate.
+**C1 &mdash; Union read at the wrong candidate.** A union carries no discriminator. Reading it as a candidate it does not currently hold reinterprets its bytes as a type they are not, and the relation is not Liskov-preserving (&sect;5.6, &sect;5.7). The language guarantees the bytes; it guarantees nothing about which candidate they mean. *Discipline:* if you want safety, use a **variant** &mdash; tagged, dictionary-bearing. Choose a union only when you will manage the discriminator and the validity yourself, in the C-style discipline. Reads are undiagnosed by design: the `.union` declaration is the choice, made once, at the type.
 
 **C2 &mdash; Dispatch-identity loss in transit (the slicing analog).** This is Basis's counterpart to C++ object slicing, with an important difference: the buffer-backed upcast is *value-preserving* &mdash; the bytes are unchanged and the upcast preserves Liskov substitution (&sect;5.5), so **no data is lost**. What can be lost is *dispatch identity*: a buffer-backed value passed through a bare parent-typed, non-concept-typed slot is interpreted per the parent and may not carry its child identity through to a later dispatch (&sect;5.3, &sect;9.18). *Discipline:* where dispatch must resolve on the child type, route the value through a concept-typed slot, which captures its identity; a plain parent-typed parameter interprets per the parent.
 
@@ -5440,7 +5734,6 @@ This appendix enumerates the specification's **caveats** and its named **warning
 | --- | --- | --- | --- |
 | `eq.independent-inequality` | `.operator (<>)` in a concept that also maps `==` | none (documents multi-valued-equality intent) | &sect;3.19 |
 | `box.address-taken` | `&` of a boxed slot in-region | withdraws the no-alias license for the affected `*` bindings | &sect;6.14 |
-| `union.unconfirmed-read` | reading a union at a candidate the compiler cannot confirm | none (C-style discipline accepted) | &sect;3.18, I.C1 |
 | `view.into-consuming` | a slot the frame's analysis knows to hold a non-owning view reaching a `~`-marked position | none (accepts misfire risk knowingly) | &sect;10.5, I.B1 |
 
 ### J.2 Named warnings
