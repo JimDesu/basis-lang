@@ -1144,10 +1144,14 @@ A type may satisfy one concept in several ways — and that's a feature, not a c
 .witness ReverseOrd[NumberField] : Ord (before = afterOrEqual)
 ```
  
-Resolution is simple: if only one witness could apply at a use site, it's used automatically, and you never think about it — the whole-program common case. If more than one could apply, the site is an error until you *say which one you mean*: name it at the site, or once per file with a `.using` directive:
+Resolution is simple: if only one witness could apply at a use site, it's used automatically, and you never think about it — the whole-program common case. If more than one could apply, the site is an error until you *say which one you mean*: name it at the site, or make a standing choice with a `.using` directive — valid at the file preamble or anywhere a statement is, scoping to the enclosing scope and shadowing inward:
  
 ```
-.using ForwardOrd   ; this file's standing choice
+.using ForwardOrd          ; the file's standing choice
+
+.cmd audit: Batch b =
+    .using ReverseOrd      ; scope-level: shadows the file's
+    ...                    ;   choice for this command's frame
 ```
  
 There is no cleverness in between — no ranking, no "most specific module wins," no import-order effects. Nothing you import can silently change which witness your code dispatches through; a new competitor arriving in your dependency graph can at worst turn a site into a loud error asking you to choose. (That's the no-spooky-action principle from the introduction, applied to dispatch.)
@@ -1161,7 +1165,40 @@ One more ergonomic layer: a concept's author may bless a *canonical default* by 
     .decl ?before: ...
 ```
  
-— so everyone declares how their type inhabits `Ord` and moves on, ambiguity resolving to `Ascending` unless a file `.using`s or names something else. Only the concept's own author can set this, so it can't be hijacked from a distance.
+— so everyone declares how their type inhabits `Ord` and moves on, ambiguity resolving to `Ascending` unless a `.using` in scope or a name at the site says otherwise. Only the concept's own author can set this, so it can't be hijacked from a distance.
+ 
+The per-call form makes the flexibility concrete. One value, one concept, two witnesses — both alive in the same scope, chosen call by call:
+
+```
+.concept Log:
+    .decl log: String line
+
+.record Event : Int32 code, String text
+
+.cmd Event e :: xmlLog: String line = ...
+.cmd Event e :: textLog: String line = ...
+
+.witness XmlLogger[Event]  : Log (log = xmlLog)
+.witness TextLogger[Event] : Log (log = textLog)
+
+.cmd announce: Log t, String line =
+    t :: log: line
+
+#e <- ${503, "backend timeout"}
+e :: (XmlLogger :: log): "boot"    ; witness-qualified method:
+                                   ;   this call, the XML shape
+e :: (TextLogger :: log): "boot"   ; same value, same concept —
+                                   ;   the other witness
+announce (Log = XmlLogger): e, "boot"
+                                   ; the same selection as a
+                                   ;   prefix clause on a
+                                   ;   regular call (§3.14):
+                                   ;   the clause provides the
+                                   ;   witness for whatever the
+                                   ;   call resolves
+```
+
+Nothing about `e` changed between those calls. Witness selection is a property of the *call site*, never of the value: `Event` inhabits `Log` in two ways at once, and each use names the way it wants — `(XmlLogger :: log)` qualifies the method right at the receiver, and the prefix clause does the same job on a regular call — `announce` here — where it provides the witness for whatever that call resolves (§3.14's rule is keyed to the call *form*, not the signature's shape: regular call takes the prefix clause, method call takes the method-prefix, construction takes the annotation). Absent the clause, the choice falls to the standing rules you just saw: the `.using`, the unique visible witness, or the concept's default. Two details worth noticing in passing: the implementing methods (`xmlLog`, `textLog`) are ordinary methods *on `Event`* — the mapping clause names a method of the subject, not a free-floating command — and the parenthetical can also name a *concept* rather than a witness (`e :: (Log :: log)`), which disambiguates between two concepts that both declare a `log` rather than between two witnesses of one concept.
  
 And a design pattern that falls out of the pieces above, worth knowing on its own: a type parameter's constraint can name a **witness family** instead of just a concept. Read it as "any type is welcome here — domains included — so long as `Ascending` knows how to order it":
  
@@ -1183,7 +1220,7 @@ And a design pattern that falls out of the pieces above, worth knowing on its ow
 Two spec-only teasers, for the curious: leaving the header bound *unpinned* (`SortedSet[T:Ord]`) makes every constructed set instead *remember the ordering that built it* — each value carries its own, and probing code can't accidentally use the wrong one; and witness identity can be tracked statically on individual values (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
  
 ### 9.8 Operators: concepts license them
-
+ 
 Basis has ordinary infix operators — `+ - * / %`, and the comparatives — but no type gets them for free and no programmer can redefine how they work. Precedence, associativity, and evaluation order are fixed by the language; a *concept* declares which of its methods answers to a token, and a type licenses the token by satisfying the concept:
 
 ```
