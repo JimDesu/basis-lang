@@ -31,7 +31,7 @@ There is no greater technical obscurity than creating a new programming language
 - Every feature should be load-bearing, orthogonal, and simple to reason about
 - Trust the programmer, but warn them about potential footguns
 
-### For Nerds: Core Semantics
+## Core Semantics
 Basis has a number of features that it provides, but underlying all of them is the following informal semantic model.  All program execution in Basis strictly adheres to this semantic model.  If you can read this, then you'll immediately understand how Basis works.  After that, understanding Basis is just a matter of understanding how Bass's features fit together.
 
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
