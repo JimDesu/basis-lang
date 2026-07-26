@@ -1184,7 +1184,7 @@ The per-call form makes the flexibility concrete. One value, one concept, two wi
 .cmd announce: Log t, String line =
     t :: log: line
 
-#e <- ${503, "backend timeout"}
+# Event e <- ${503, "backend timeout"}
 e :: (XmlLogger :: log): "boot"    ; witness-qualified method:
                                    ;   this call, the XML shape
 e :: (TextLogger :: log): "boot"   ; same value, same concept —
