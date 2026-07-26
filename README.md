@@ -2,7 +2,7 @@
 
 *This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
 
-*This is just an overview (and slightly out of date); please see `spec.md` for all the gory details.*
+*This is just an overview; please see `spec.md` for all the gnarly details.*
 
 ## Introduction
 There is no greater technical obscurity than creating a new programming language, and this is my contribution to that vast heap of better mousetraps.  It's inspired by aspects of Zig, Julia, Scala, Icon, Haskell, and Kernel.  
@@ -31,7 +31,9 @@ There is no greater technical obscurity than creating a new programming language
 - Every feature should be load-bearing, orthogonal, and simple to reason about
 - Trust the programmer, but warn them about potential footguns
 
-### TL;DR for Nerds: Core Semantics
+### For Nerds: Core Semantics
+Basis has a number of features that it provides, but underlying all of them is the following informal semantic model.  All program execution in Basis strictly adheres to this semantic model.  If you can read this, then you'll immediately understand how Basis works.  After that, understanding Basis is just a matter of understanding how Bass's features fit together.
+
 Given program state as a tuple $\langle V,\Phi,\Sigma \rangle$ where
 * V is the current verb to be executed:
     * $\overrightarrow{v}$ represents the continuation from $v$
