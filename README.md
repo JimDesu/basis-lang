@@ -1,6 +1,6 @@
 # The Basis Programming Language.  
 
-*This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
+*This's one of several projects being done at the pace of a parent's spare time, so it will be a while before the code here matches the intent.  I have a pretty solid understanding of what I want to achieve, and I'm writing this as a "measure twice, cut once" means of clarifying my intent to avoid painting myself into a corner with my implementation.  As Leslie Lamport pointed out, "writing is nature's way of telling you how lousy your thinking is", so please expect changes while I'm working this out.* 
 
 *This is just an overview; please see `spec.md` for all the gnarly details.*
 
