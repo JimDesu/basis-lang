@@ -754,7 +754,7 @@ Receivers are *always* applied at the partial-application site for command refer
 
 The three constructional forms &mdash; their capture rules, their ceiling computations, and their mark-conformance rules &mdash; are detailed in &sect;8.
 
-### 3.17 Scope Blocks: `.scope` and `.staged`
+### 3.17 Scope Blocks: `.scope` and `.stage`
 
 A **scope block**, introduced by the `.scope` keyword, is a lexical region inside a command body that establishes a retirement boundary without establishing a new frame. It makes no call, passes no parameters, and imposes no copy-restore boundary; control enters and leaves it by ordinary sequential flow. What it adds over plain sequencing is a boundary at which scope-local storage is reclaimed and scope-local cleanup fires.
 
@@ -796,21 +796,21 @@ The connection is released at the end of the guard scope &mdash; on either outco
 
 A `.box` extent (&sect;6.14) ends at its enclosing scope's close: the boxed slots return to ordinary access on every exit path.
 
-**The staged variant: `.staged`.** A **staged block** is a scope block whose writes to *outer* slots defer to the block's success edge. It is in every scoping respect a `.scope` &mdash; the same retirement boundary, obligation ownership, cleanup registration, and `%`-like failure-flow composition &mdash; and adds one discipline: for each outer slot the block touches writeable, the frame materializes a working copy (&sect;6.3) at the block's first touch; every read and write of that slot within the block resolves through the working copy in textual order; one join lands the copy on the real slot at the block's success edge. Failure anywhere in the block discards the copies, leaving every outer slot bit-identical to block entry. Block-local slots are ordinary and die with the block.
+**The staged variant: `.stage`.** A **staged block** is a scope block whose writes to *outer* slots defer to the block's success edge. It is in every scoping respect a `.scope` &mdash; the same retirement boundary, obligation ownership, cleanup registration, and `%`-like failure-flow composition &mdash; and adds one discipline: for each outer slot the block touches writeable, the frame materializes a working copy (&sect;6.3) at the block's first touch; every read and write of that slot within the block resolves through the working copy in textual order; one join lands the copy on the real slot at the block's success edge. Failure anywhere in the block discards the copies, leaving every outer slot bit-identical to block entry. Block-local slots are ordinary and die with the block.
 
 ```
-.staged
+.stage
     parseHeader: &ctx, raw
     validateSchema: ctx, policy        ; sees the parsed ctx (working copy)
     applyMigrations: &ctx              ; may fail &mdash; and if it does,
                                        ;   ctx is bit-identical to block entry
 ```
 
-Statements inside the block carry their own boundary (&sect;6.3) and join into the block's working copies; nested `.staged` blocks join into the enclosing block's copies, LIFO &mdash; the uniform rule of &sect;6.3: every boundary joins into the nearest enclosing boundary, and the real slot is the outermost.
+Statements inside the block carry their own boundary (&sect;6.3) and join into the block's working copies; nested `.stage` blocks join into the enclosing block's copies, LIFO &mdash; the uniform rule of &sect;6.3: every boundary joins into the nearest enclosing boundary, and the real slot is the outermost.
 
 Five rules pin the interactions, each on existing precedent. **Obligations are untouched by construction**: acquisition inside the block is owned by the block and discharges at block end; failure fires the block's exit machinery exactly as `.scope` failure does; transfers out are eager at the call boundary (&sect;10.11) &mdash; the boundary defers copy-restore write-backs, exactly and only (&sect;6.3). **Finalizing an outer working-copied slot inside the block is a static error**: `~` fires duties, and duties cannot un-fire on a discard &mdash; the discard guarantee would be a lie. Finalize outside the block, or transfer the value in first (precedent: finalization of a boxed slot, &sect;6.14). **Boxing an outer working-copied slot inside the block is a static error**: `.box` demands sole license over the real storage, and staging virtualizes it &mdash; the combination is contradictory. Boxing block-locals is unrestricted (the mirror of &sect;6.3's exclusion of boxed slots from the boundary). **Escape is policed by existing rules**: working copies are block-frame storage, so a view of one escaping the block is rejected by the region-escape ceiling (&sect;7.21), and the `&`-capture error of &sect;6.3 extends to the block's extent, covering command values and spawn-class calls alike. **On the failure edge, `@` and `@!` blocks fire inside the boundary**: their side effects through calls and obligations happen normally, but their copy-restore writes to outer slots discard with the boundary &mdash; cleanup that must survive failure acts through obligations, which is what obligations are for.
 
-The cost model is ordinary copy-restore pricing at boundary granularity: one working copy per touched outer slot, visible and chosen at the `.staged` &mdash; domain-family slots cheap, large records a legible price, the same trade the language already prices per call (&sect;6.3).
+The cost model is ordinary copy-restore pricing at boundary granularity: one working copy per touched outer slot, visible and chosen at the `.stage` &mdash; domain-family slots cheap, large records a legible price, the same trade the language already prices per call (&sect;6.3).
 
 ### 3.18 Warning Acknowledgment: `.ack`
 
@@ -1589,7 +1589,7 @@ For CREATE parameters specifically, the caller's slot may be uninitialized at th
 
 Three consequences pin the mechanics. Same-slot READs within the statement go through the working copy, so textual-order visibility is exact: in `f: ctx, (g: &ctx, x)`, the READ binding of `ctx` supplied to `f` sees the post-`g` working copy. Invoking a command-typed value carrying an `&`-capture of a working-copied slot, within the statement, is a static error: the invocation's own copy-restore against the real slot would race the statement-end join into a lost update &mdash; the tracking is the capture-list machinery of &sect;6.9, and the rule has the same shape as the stale-capture rule for boxed slots (&sect;6.14). A single-call statement degenerates to the per-call semantics at zero cost, because the working copy *is* the call's own copy; the mechanism is pay-per-use &mdash; one extra slot and one final join, only in multi-call statements with writeable bindings, and only for the bound slots.
 
-The statement is the smallest instance of a general mechanism. A **`.staged` block** (&sect;3.17) is a programmer-placed boundary with the same semantics at block granularity: working copies per touched outer slot, textual-order resolution, one success-edge join, discard on failure. Boundaries compose by one rule: **every boundary joins into the nearest enclosing boundary; the real slot is the outermost.** A statement inside a staged block joins into the block's working copies; nested staged blocks join into the enclosing block's copies, LIFO.
+The statement is the smallest instance of a general mechanism. A **`.stage` block** (&sect;3.17) is a programmer-placed boundary with the same semantics at block granularity: working copies per touched outer slot, textual-order resolution, one success-edge join, discard on failure. Boundaries compose by one rule: **every boundary joins into the nearest enclosing boundary; the real slot is the outermost.** A statement inside a staged block joins into the block's working copies; nested staged blocks join into the enclosing block's copies, LIFO.
 
 **Exclusions from the boundary.** Three categories stand outside it, each on existing principle: boxed slots under `*`, the declared principle-4 exception (&sect;6.14); obligation transfers, which are eager at the call boundary (&sect;10.11) and not restore-based &mdash; the obligation system's own failure-edge machinery governs them; and object-mediated field mutation, which is reference semantics performed in place (&sect;5.11). The boundary defers copy-restore write-backs, exactly and only.
 
@@ -2193,7 +2193,7 @@ A placement &mdash; `<-` (move), `<<-` (view), or `<<` (copy) &mdash; whose righ
 
 The atomicity falls out of statement-granular copy-restore (&sect;6.3): a statement commits nothing until it succeeds. The language commits no half-written state on failure &mdash; for the LHS and for every slot bound writeable anywhere in the statement alike, regardless of which subexpression failed and at what point. No new transactional machinery is introduced.
 
-The implementation device: each subexpression's value is computed into a temporary slot, and every writeable-bound slot resolves through its working copy (&sect;6.3), until every subexpression of the placement has succeeded; only then do the commits fire &mdash; the LHS by move, view, or copy per the operator, and the working copies by the statement-end join. Within a `.staged` block (&sect;3.17), the join lands in the block's working copies rather than the real slots, per the uniform boundary rule of &sect;6.3. The user-side observation is that the LHS is unchanged across the entire placement if any subexpression fails. Both devices are invisible to diagnostics: a synthetic temporary or working copy never surfaces under a compiler-generated name; any diagnostic implicating one cites the source span of the responsible subexpression.
+The implementation device: each subexpression's value is computed into a temporary slot, and every writeable-bound slot resolves through its working copy (&sect;6.3), until every subexpression of the placement has succeeded; only then do the commits fire &mdash; the LHS by move, view, or copy per the operator, and the working copies by the statement-end join. Within a `.stage` block (&sect;3.17), the join lands in the block's working copies rather than the real slots, per the uniform boundary rule of &sect;6.3. The user-side observation is that the LHS is unchanged across the entire placement if any subexpression fails. Both devices are invisible to diagnostics: a synthetic temporary or working copy never surfaces under a compiler-generated name; any diagnostic implicating one cites the source span of the responsible subexpression.
 
 A nested construction `'r <- ${field <- (innerCtor: ...)}` composes failure-atomicity transitively. A `?`-marked failure inside `innerCtor` propagates to its caller; copy-restore at the `innerCtor` call leaves the field's temporary slot uninitialized; the outer `<-`'s atomic-failure rule sees a failed field-value computation; the outer `<-` aborts; the outer `'r` is unchanged. The chain reaches arbitrary depth without new mechanism. The frame-ownership lens (&sect;1.5) applies cleanly: each level's CREATE slot is *that level's caller's* slot, and each level's failure leaves that caller's slot in its pre-call state.
 
@@ -3206,7 +3206,7 @@ Cost is set by escape, not by representation concept. A `.promise` that does not
 
 **A live batch of N individual obligations: intrinsically O(N).** N simultaneously live obligated values require N discharge entries; no representation choice avoids it. The mitigation is structural &mdash; stream rather than batch, so each obligation is acquired and discharged within an iteration and never coexists with the others, collapsing the case to the free one.
 
-The one standing structural cost is on object types whose fields can hold escaping obligated values: each such field needs room for a per-value discharge entry, used or not per value, because obligation-ness is recorded by the value and not the type. The entry records which sink the field would fire and is consulted when the field is finalized explicitly; retirement never walks it (&sect;10.16). Object types without such fields pay nothing; there are no global tables and no per-value tags on the common path. Types usable as source receivers carry one head word for the liveness machinery of &sect;10.14, paid per receiver-capable type and consulted only where an acknowledged blind escape exists. The cost follows wherever the obligation lives: arena-style allocation concentrates it on the single arena handle and leaves every node free, while malloc-style per-node ownership pays per node.
+The one standing structural cost is on object types with fields not marked `.static` (&sect;10.17) &mdash; the fields that can hold escaping obligated values: each such field needs room for a per-value discharge entry, used or not per value, because obligation-ness is recorded by the value and not the type. The entry records which sink the field would fire and is consulted when the field is finalized explicitly; retirement never walks it (&sect;10.16). Object types without such fields pay nothing; there are no global tables and no per-value tags on the common path. Types usable as source receivers carry one head word for the liveness machinery of &sect;10.14, paid per receiver-capable type and consulted only where an acknowledged blind escape exists. The cost follows wherever the obligation lives: arena-style allocation concentrates it on the single arena handle and leaves every node free, while malloc-style per-node ownership pays per node.
 
 **Where obligations may rest.** An obligation anchors only to an identity-bearing, lifetime-tracked location &mdash; a top-level slot or an object field &mdash; never a byte offset inside a buffer-backed aggregate. A record field, a union member, or a typed-buffer element is a byte offset within a value that copies wholesale; there is nowhere to attach the anchor, and a store into one is an ordinary byte copy that leaves the obligation on the source and yields an unobligated copy. The unifying rule: carrying an obligation confines a value to slot and object-field positions exactly as being non-buffer would, regardless of the value's underlying type. A batch of individually obligated buffer-backed items must therefore live in object fields or separate slots, not in a buffer-backed container.
 
@@ -3258,6 +3258,36 @@ The consequence, named plainly: **an object or record that owns an obligated fie
 
 Finalization composes by recursion: finalizing a sub-object held in a field runs *that* object's finalizer, where *its* fields are torn down in turn, and so on down. Each level is explicit; the chain bottoms out at objects with no obligated fields.
 
+### 10.17 Obligation-Static Declarations: `.static`
+
+A command's frame can perform obligation work its source never shows. Three channels are signature-silent: a caller's by-name `<-` transfer rides an anchor in at entry and the frame-end fires a sink no line of the body mentions (&sect;10.11); a callee's CREATE output or UPDATE write-back lands a value carrying an escaped duty in the frame's slot, a variant slot included (&sect;10.15); and a callee performs an owning `<-` into a field of an object the frame lent writeable (&sect;10.11's path-dependent owning-ness). The contrast case is the locally acquired duty, whose discharge compiles statically into the scope's exit code (&sect;10.6). The surprise is never the duty; it is the duty with no local acquisition. The `.static` mark exists for code that cannot afford that surprise, under one governing constraint: admissibility must be readable from the page &mdash; a property discoverable only by compilation cannot gate a call.
+
+**The property.** A `.static` command's obligation behavior is fully resolved at compile time from its own source text: no dynamically-attached discharge record ever exists in its frame, and every discharge that fires there &mdash; direct sink call, `@`/`@!` scheduling, scope-end default, `~` consumption of a local &mdash; traces to an acquisition visible in the body and compiles per &sect;10.6. The mark does not ban obligations; it bans dynamism. Two clauses state it: **(i)** no dynamic record enters the frame; **(ii)** the command emits no duty across its own boundary through any signature-silent channel &mdash; no escaped duty rides its CREATE output or UPDATE write-backs, and it performs no owning `<-` into fields of borrowed objects. Clause (i) makes clause (ii) frame-locally checkable: nothing dynamic entering, every obligated value in the frame is locally acquired and statically tracked (&sect;10.5), so every potential emission site is visible in the frame's own source, and the check never crosses a declaration boundary. Announced conferral is exempt from clause (ii): a `.static` command may itself be a declared `.resource` or `.promise` source, and may call sources freely &mdash; source-ness is visible at every call site (&sect;10.2), so the conferred duty is announced, not sprung.
+
+**Admissibility: marked calls marked.** Within a `.static` command or region, a call is admissible iff the callee's declaration carries `.static` &mdash; one sentence for the reader, the identical per-frame check for the compiler, the mark traveling in the signature across module boundaries. Calling an unmarked command draws the **`static.dynamic-callee`** caveat (Appendix J): the analysis engaged and could not decide, and the `.ack` withdraws the static guarantee for that path. Invoking a command-typed value draws **`static.opaque-invocation`** on the same terms; command-type expressions carry no `.static` component. A `.static` command is freely callable from anywhere &mdash; the mark constrains the marked party and its callees, never its callers. Reception is per-invocation, so a shared callee is not poisoned for `.static` callers by what other callers transfer into it elsewhere: every crossing is policed at the site that performs it.
+
+**The caller-side rule.** Binding any parameter of a `.static` command by name with `<-` is a static error at the caller, the party that knows a transfer is occurring; the remedy names the two meaningful programs &mdash; discharge locally before the call, or call an unmarked variant.
+
+**Surfaces.** `.static` immediately follows the introducing keyword of a command, concept-method declaration, or object declaration; a field, having no introducing keyword, takes it at the head of its item; and as a body-internal head keyword it opens an obligation-static region in the `.scope`/`.stage` shape:
+
+    .cmd .static ?fetchInto: Buffer &dst, Request req = ...
+    .decl .static (S:Codec) s :: ?encodeInto: Buffer &dst
+    .object .static Frame : ...
+    .object Cache : [4096] storage, .static Int32 used, ^Cache next
+
+    .cmd process: Stream &s =
+        ...
+        .static                       ; obligation-static region
+            hotLoop: &s.buf
+
+**Fields and objects.** A `.static` field never holds a dynamically-attached duty. An owning `<-` into one is admissible iff the storing frame statically knows the source binding carries no open duty (&sect;10.5); where the analysis cannot classify the source, the store draws the **`static.unknown-provenance-store`** caveat, and where it decides the source is encumbered, the store is a static error. `<<-` and `<<` stores are always admissible. A `.static` field needs no per-value discharge entry &mdash; the anchor-room criterion of &sect;10.13 &mdash; and `.object .static` marks every field so, making the type's teardown obligation-flat by declaration; per-field marks inside it are permitted and redundant. A `.static` frame may lend a `.static`-typed object writeable to any callee, marked or not: the store sites that could encumber it are barred at those sites.
+
+**The region.** `.static` heading an indented block applies the discipline over that block's extent inside an otherwise unmarked command: calls follow the marked-calls-marked rule; owning `<-` from a binding the frame cannot statically classify into region-introduced slots or `.static` fields follows the field rule above; borrowing, viewing, and copying such values is free; slots introduced in the region admit acquisitions, statically compiled, and the block's close discharges their remaining duties by their statically-scheduled defaults as any scope close does. A dynamic record attached to an enclosing-frame slot before the region neither fires nor grows inside it.
+
+**Sinks and consumption.** A `.static` command may serve as a non-finalizing sink: the value survives the discharge, and nothing fires beyond the sink's own body. It may not serve as a finalizing sink, and more generally admits no `~` (DISPOSE) parameter and no DISPOSE receiver: consumption of an externally-received value is a detonation point, triggering the consumed value's per-value discharge entries (&sect;10.16) and the deferred defaults of any record set anchored to it (&sect;10.12) &mdash; dynamic work the page can neither show nor bound. `~ x` on frame-tracked local values remains permitted static behavior: in a `.static` frame every value is statically tracked, so local consumption detonates nothing unseen.
+
+**Concepts and composition.** `.decl .static` marks the concept's declared method surface; every witness must implement it with a `.static` command, checked at the witness declaration, so dispatch admissibility is read off the concept page. `.static` regions nest freely with `.scope`, `.stage`, and `.box`: the disciplines are orthogonal, and a `.stage` block's working-copy join moves bytes, not duties (&sect;6.3's exclusions), so no interaction rule is needed.
+
 ---
 
 ## Appendix A. Lexical Structure
@@ -3273,11 +3303,11 @@ The lexer recognizes the following token classes:
 ```
 .ack      .alias    .box      .concept  .cmd      .decl     .domain   .enum     .fail
 .implicit .import   .witness .intrinsic .module   .msg      .object   .operator
-.program  .promise  .record   .resource .scope    .splice   .staged   .sub      .test
+.program  .promise  .record   .resource .scope    .splice   .stage    .static   .sub      .test
 .union    .variant
 ```
 
-The `.sub`, `.scope`, `.staged`, and `.box` keywords introduce body-internal constructs &mdash; subcommands (&sect;3.12), scope blocks and their staged variant (&sect;3.17), and DIRECT extents (&sect;6.14) respectively; `.ack` is a directive that prefixes an item at either level (&sect;3.18); the rest are top-level forms (&sect;2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
+The `.sub`, `.scope`, `.stage`, `.static`, and `.box` keywords introduce body-internal constructs &mdash; subcommands (&sect;3.12), scope blocks and their staged variant (&sect;3.17), obligation-static regions (&sect;10.17), and DIRECT extents (&sect;6.14) respectively; `.static` additionally annotates declarations immediately after their introducing keyword (&sect;10.17); `.ack` is a directive that prefixes an item at either level (&sect;3.18); the rest are top-level forms (&sect;2.2). The dot-prefix is part of the keyword token; the lexer does not produce `.` followed by a separate identifier.
 
 **Punctuation tokens.** Single-character and short-sequence punctuation:
 
@@ -3512,8 +3542,8 @@ concept-decl        ::= .concept TypeName type-params? : concept-body
 concept-body        ::= concept-body-entry+
 concept-body-entry  ::= decl-decl | cmd-decl
                     | .witness TypeName              ; canonical default family (&sect;9.1)
-cmd-decl          ::= .cmd cmd-signature = cmd-body
-decl-decl         ::= .decl cmd-signature
+cmd-decl          ::= .cmd .static? cmd-signature = cmd-body
+decl-decl         ::= .decl .static? cmd-signature
 domain-decl       ::= .domain TypeName : fixed-size-type-expr
 enum-decl         ::= .enum TypeName : enum-entries                ; one-name form (S5.9)
                     | .enum TypeName TypeName : enum-entries        ; two-name form: repr-type enum-type (S5.9)
@@ -3525,9 +3555,9 @@ profile-decl      ::= .profile TypeName = using-entry ( , using-entry )*   ; (B.
 using-directive   ::= .using using-entry ( , using-entry )*                ; (B.11)
 intrinsic-decl    ::= .intrinsic cmd-signature
 msg-decl          ::= .msg TypeName ( [ TypeName ] )? (: TypeName)?
-object-decl       ::= .object TypeName : object-fields
+object-decl       ::= .object .static? TypeName : object-fields
 object-fields     ::= field-decl+
-field-decl        ::= identifier : type-expr
+field-decl        ::= .static? identifier : type-expr
 program-decl      ::= .program cmd-body
 record-decl       ::= .record TypeName : record-fields
 record-fields     ::= record-field+
@@ -3662,7 +3692,7 @@ body-content      ::= subcommand-decl* statement+
 
 subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (S3.12)
 
-statement         ::= assignment | call | block-marker-construct | scope-block | staged-block | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt
+statement         ::= assignment | call | block-marker-construct | scope-block | stage-block | static-block | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt
 
 finalize-stmt     ::= ~ identifier                               ; finalize the slot now (S7.22)
                     | ~ field-access                             ; field teardown, `~`-receiver only (S7.22)
@@ -3672,7 +3702,8 @@ ack-stmt          ::= .ack string-literal                       ; acknowledge a 
 box-stmt          ::= .box identifier ( , identifier )*          ; DIRECT extent to scope close (S6.14)
 
 scope-block       ::= .scope cmd-body                            ; body-internal block (S3.17), composing like group-block
-staged-block      ::= .staged cmd-body                          ; scope-block variant: outer writes defer to the success edge (S3.17, S6.3)
+stage-block      ::= .stage cmd-body                          ; scope-block variant: outer writes defer to the success edge (S3.17, S6.3)
+static-block      ::= .static cmd-body                         ; obligation-static region (S10.17)
 
 expr              ::= test-chain                                 ; tiers of S3.19
 test-chain        ::= additive ( test-op additive )*             ; chains left; yield = right operand
@@ -3725,7 +3756,7 @@ arg               ::= expr | # identifier | _
 
 Subcommand declarations appear at the head of *body-content* per &sect;3.12's strict placement rule. After the contiguous subcommand-declaration block, only *statement*s are admitted.
 
-A *scope-block* (`.scope`) and its staged variant (`.staged`) are body-internal keyword constructs, not among the eleven block markers (&sect;3.1). Both compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:` &mdash; while adding the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17.
+A *scope-block* (`.scope`) and its staged variant (`.stage`) are body-internal keyword constructs, not among the eleven block markers (&sect;3.1). Both compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:` &mdash; while adding the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17.
 
 ### B.7 Block Markers and Indentation-Sensitive Composition
 
@@ -3898,7 +3929,7 @@ A note on `Expr`. Basis has syntactic expressions (B.6's `expr` productions, &se
 | `AliasDecl` | `name: TypeName`, `target: TypeExpr` | *alias-decl* |
 | `ConceptDecl` | `name: TypeName`, `typeParams: [TypeParam]`, `entries: [ConceptEntry]` | *concept-decl* |
 | `CombinedConceptDecl` | `name: TypeName`, `typeParams: [TypeParam]`, `parents: [TypeName]`, `entries: [ConceptEntry]` | *combined-concept-decl* |
-| `CmdDecl` | `signature: CmdSignature`, `body: CmdBody` | *cmd-decl* |
+| `CmdDecl` | `signature: CmdSignature`, `body: CmdBody`, `static: Bool` | *cmd-decl* |
 | `DeclDecl` | `signature: CmdSignature` | *decl-decl* |
 | `DomainDecl` | `name: TypeName`, `parent: TypeExpr` | *domain-decl* |
 | `EnumDecl` | `name: TypeName`, `constraint: TypeExpr?`, `entries: [EnumEntry]` | *enum-decl* |
@@ -3906,7 +3937,7 @@ A note on `Expr`. Basis has syntactic expressions (B.6's `expr` productions, &se
 | `WitnessDecl` | (fields per C.8) | *witness-decl* |
 | `IntrinsicDecl` | `signature: CmdSignature` | *intrinsic-decl* |
 | `MsgDecl` | `name: TypeName`, `payloadConcept: TypeName?`, `parent: TypeName?` | *msg-decl* |
-| `ObjectDecl` | `name: TypeName`, `fields: [FieldDecl]` | *object-decl* |
+| `ObjectDecl` | `name: TypeName`, `fields: [FieldDecl]`, `static: Bool` | *object-decl* |
 | `ProgramDecl` | `body: Expr` | *program-decl* |
 | `PromiseDecl` | `receiver: TypeExpr`, `source: MethodDesignator?`, `sinks: [MethodDesignator]` | *promise-decl* |
 | `RecordDecl` | `name: TypeName`, `fields: [RecordField]` | *record-decl* |
@@ -3963,7 +3994,8 @@ A note on `Expr`. Basis has syntactic expressions (B.6's `expr` productions, &se
 | `DoElse` | `-` | `body: CmdBody` |
 | `DoBlock` | `%` | `body: CmdBody` |
 | `DoScope` | `.scope` | `body: CmdBody` |
-| `DoStaged` | `.staged` | `body: CmdBody` |
+| `DoStage` | `.stage` | `body: CmdBody` |
+| `DoStatic` | `.static` | `body: CmdBody` |
 | `DoOnExit` | `@` | `body: CmdBody` |
 | `DoOnExitFail` | `@!` | `body: CmdBody` |
 | `DoBranch` | (paired with `?` or `?-`) | (the `-` is a sibling, recorded in the parent body's statement list) |
@@ -4606,7 +4638,9 @@ $$
 
 At the block's close, every obligation still owned by a scope-local binding is discharged (&sect;10.5, &sect;10), scope-local frame-bound-region storage is reclaimed (&sect;7.20), and any `@`/`@!` hooks registered within the block fire (&sect;4.11) &mdash; together, in the reverse-registration order of &sect;3.17.
 
-A `.staged` block (&sect;3.17) types as a `.scope` block under the same visibility rule; its outer-write deferral is the boundary discipline of &sect;6.3 and adds no typing judgment of its own &mdash; the two static errors it introduces (finalizing or boxing an outer working-copied slot within the block) are enforced by the boundary analysis (&sect;6.3, Appendix E).
+A `.stage` block (&sect;3.17) types as a `.scope` block under the same visibility rule; its outer-write deferral is the boundary discipline of &sect;6.3 and adds no typing judgment of its own &mdash; the two static errors it introduces (finalizing or boxing an outer working-copied slot within the block) are enforced by the boundary analysis (&sect;6.3, Appendix E).
+
+A `.static`-marked declaration (&sect;10.17) adds a conformance obligation on the same walk: within a marked command or region, every callee's declaration must carry the mark or an acknowledged caveat, no `~` parameter or DISPOSE receiver appears in the marked signature, and the obligation analysis verifies that every fired discharge traces to a local acquisition. The check is frame-local; no judgment crosses a declaration boundary.
 
 ---
 
@@ -4776,7 +4810,7 @@ The components do not interact at transfer functions except at specific cross-co
 
 - The `.fail` statement updates `failure` and may propagate READ-taint (if the failure payload's value is READ-tainted, the failure is marked accordingly for downstream recovery analysis).
 - A CREATE write `'r <- expr` updates `init` and verifies READ-taint conformance simultaneously (a tainted RHS rejected if `'r` is a CREATE write through a READ-rooted path).
-- The statement-end join of working copies (&sect;6.3) is a single node on the statement's success edge; `init` and `obligations` flow through it unchanged &mdash; the join writes slots the statement already tracks as initialized, and obligations are excluded from the boundary by construction (&sect;6.3). A `.staged` block's success-edge join is the same node at block granularity; nested boundaries compose LIFO with no new lattice.
+- The statement-end join of working copies (&sect;6.3) is a single node on the statement's success edge; `init` and `obligations` flow through it unchanged &mdash; the join writes slots the statement already tracks as initialized, and obligations are excluded from the boundary by construction (&sect;6.3). A `.stage` block's success-edge join is the same node at block granularity; nested boundaries compose LIFO with no new lattice. Static-marked frames and regions (&sect;10.17) add a conformance check on the obligation component &mdash; every fired discharge traces to a local acquisition &mdash; with no new lattice.
 
 ### E.6 Worked Example
 
@@ -5383,6 +5417,9 @@ Codes are string values (&sect;3.18), spelled `area.condition` in kebab-case and
 | `view.into-consuming` | the statically visible `<<-`-view reaching a consuming position (Appendix I, B1) | the consumed value's duty is otherwise handled |
 | `box.address-taken` | `&` pointer-of applied to a boxed slot in-region (&sect;6.14) | consent to aliased codegen; the no-alias license is withdrawn for the affected `*` bindings |
 | `eq.independent-non-equivalence` | `.operator (<>)` declared in a concept that also declares `.operator (==)` (&sect;3.19) | the three-valued intent: both operators may fail, neither equivalence nor non-equivalence established |
+| `static.dynamic-callee` | a call to an unmarked command within a `.static` command or region (&sect;10.17) | the callee's obligation behavior toward this frame is clean; the static guarantee is withdrawn for this path |
+| `static.opaque-invocation` | invoking a command-typed value within a `.static` command or region (&sect;10.17) | as `static.dynamic-callee`, for the value's eventual referent |
+| `static.unknown-provenance-store` | owning `<-` into a `.static` field or region slot from a binding the analysis cannot classify (&sect;10.17) | the stored value carries no open duty |
 
 **Warnings** (dispellable):
 
