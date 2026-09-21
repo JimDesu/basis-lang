@@ -8,7 +8,7 @@
 
 Basis is a programming language designed for code that benefits from a direct semantic match to Hexagonal Architecture, that maintains tight bounded scope on side effects, and that supports both high-level polymorphic styles and low-level byte-faithful work in a single coherent surface. The language's specific design commitments are oriented toward making AI-generated and AI-reviewed code tractable: side-effect bounds on commands flow through their signatures, recovery contexts are structurally visible in the source, and the static analyses guarantee the runtime properties the signatures describe.
 
-This specification describes the language at the level needed to implement a parser, a typechecker, the core static analyses, and an interpreter or naive AST-walking executor. It does not describe an intermediate representation, a code generator, a runtime support library, or the standard library. Where the language depends on standard-library or runtime presence &mdash; as for the `Int64`-arithmetic intrinsics, the `CoercionFailure` standard message, or the platform-specific allocator &mdash; the specification names the dependency without specifying its provider.
+This specification describes the language at the level needed to implement a parser, a typechecker, the core static analyses, and an interpreter or naive AST-walking executor. It does not describe an intermediate representation, a code generator, a runtime support library, or the standard library. Where the language depends on standard-library or runtime presence &mdash; as for the `Int64`-arithmetic intrinsics, the `Basis::Lang::Failure` catalog (&sect;4.9), or the platform-specific allocator &mdash; the specification names the dependency without specifying its provider.
 
 ### 1.2 Guiding Principles
 
@@ -165,7 +165,7 @@ A Basis source file may contain any of nineteen top-level definition forms, each
 
 - **`.intrinsic` *signature*** &mdash; Declares a command whose body is supplied by the compiler or the standard library, rather than by user-level code. Structurally a `.decl` for typechecking purposes; the implementation supplies the body. The standard `Int64`-arithmetic operations, the platform allocator primitives, and the language's primitive byte-reinterpretation operations are typical examples.
 
-- **`.msg` *Name*`[`*PayloadType*`]` `:` *ParentMessageType*** &mdash; Declares a message type. Both the `[`*PayloadType*`]` brackets and the `:` *ParentMessageType* clause are optional. Messages declared without a payload-type are payload-less; messages declared without a parent are roots of new hierarchies. The failure-handling system (&sect;4) is the principal current use of messages; the language anticipates broader use (notably for inter-thread communication, not yet specified).
+- **`.msg` *Name*`[`*PayloadType*`]` `:` *ParentMessageType*** &mdash; Declares a message type. Both the `[`*PayloadType*`]` brackets and the `:` *ParentMessageType* clause are optional. Messages declared without a payload-type are payload-less; messages declared without a parent are roots of new hierarchies. Messages are first-class values (&sect;4.14); the failure-handling system (&sect;4) is one transport of two. Inter-thread delivery is not yet specified.
 
 - **`.operator` *(shape)*` = `*method*** &mdash; Maps an operator symbol to a named method of the enclosing concept; admissible only inside `.concept` bodies (&sect;3.19).
 - **`.object` *Name*` : `*field declarations*** &mdash; Declares a non-buffer object type &mdash; an identity-bearing aggregate whose fields may be of any type (buffer-backed or non-buffer). Objects participate in the concept system as receivers and have explicit lifetime ceilings tied to their introducing frames.
@@ -799,9 +799,9 @@ A `.box` extent (&sect;6.14) ends at its enclosing scope's close: the boxed slot
 
 ```
 .stage
-    parseHeader: &ctx, raw
+    parseHeader: ctx, raw              ; ctx is UPDATE in parseHeader's signature
     validateSchema: ctx, policy        ; sees the parsed ctx (working copy)
-    applyMigrations: &ctx              ; may fail &mdash; and if it does,
+    applyMigrations: ctx               ; may fail &mdash; and if it does,
                                        ;   ctx is bit-identical to block entry
 ```
 
@@ -844,7 +844,7 @@ Basis admits an infix operator surface &mdash; the arithmetic and comparison for
 | Tier | Operators | Kind | Associativity |
 | --- | --- | --- | --- |
 | 1 | unary `-` | value | (prefix) |
-| 2 | `*` `/` | value | left |
+| 2 | `*` `/` `%` | value | left |
 | 3 | binary `+` `-` | value | left |
 | 4 | `<` `<=` `>` `>=` `==` `<>` `=` `!=` | test | chains left |
 
@@ -948,22 +948,21 @@ A failure is produced by the `.fail` directive, which has three surface forms:
 ```
 .fail
 .fail Name
-.fail Name: payload
+.fail Name <- payload
+.fail Name <<- payload
 ```
 
-A bare `.fail` produces a payload-less, message-less failure. `.fail Name` produces a failure carrying message `Name` with no payload. `.fail Name: payload` produces a failure carrying message `Name` with the value of `payload` as its payload; the typechecker requires that `payload`'s type satisfy the concept bound to `Name` (&sect;4.7).
+A bare `.fail` produces a payload-less, message-less failure. `.fail Name` produces a failure carrying message `Name` with no payload. `.fail Name <- payload` produces a failure carrying message `Name` owning the value of `payload` as its payload; `.fail Name <<- payload` carries a *view* of the payload, admissible only where the view survives the transport &mdash; &Phi; outlives the frame, so a viewed local is rejected by the region-escape ceiling exactly as any escaping view is (&sect;&sect;4.14, 7.21). The typechecker requires that `payload`'s type satisfy the concept bound to `Name` (&sect;4.7). The construction is the message-value surface of &sect;4.14 launched on the failure transport.
 
 The `.fail` directive is itself a `!`-call: its post-call lattice state is `failing(!)` carrying the propagating set `{Name}` (or empty, for bare `.fail`). The next ordinary statement in the surrounding block is reachable only along the failure-skip path, which means: not at all, unless caught by a recovery context.
 
-Payload expressions whose surface contains `:` must be parenthesized to disambiguate them from a continuation of the `.fail` directive's syntax:
+The placement operator delimits the directive's head, so the payload is an ordinary expression with no continuation ambiguity; constructor-call payloads are parenthesized as constructor calls always are:
 
 ```
-.fail Net::Disconnected: (lastError: u)
+.fail Net::Disconnected <- (lastError: u)
 ```
 
-Without the parentheses, the parser cannot determine where the payload expression ends and a continuation of the directive begins.
-
-Two forms are explicitly disallowed: a `.fail` whose right-hand side is a raw value with no message (`.fail (a + b)` &mdash; a value cannot carry the role of a failure message), and a `.fail` that uses a payload type's name in message position (`.fail Widget: x, y` &mdash; `Widget` is a type, not a message identifier; the constructor call `(Widget: x, y)` produces a payload value, but a separate message identifier is needed). Both are message-required-when-payload-present violations.
+Two forms are explicitly disallowed: a `.fail` whose right-hand side is a raw value with no message (`.fail (a + b)` &mdash; a value cannot carry the role of a failure message), and a `.fail` that uses a payload type's name in message position (`.fail Widget <- x` &mdash; `Widget` is a type, not a message identifier; a constructor call produces a payload value, but a separate message identifier is needed). Both are message-required-when-payload-present violations.
 
 Re-failing a recovered value &mdash; passing a `|`-with-spec-bound payload forward as the payload of a fresh failure &mdash; is an ordinary `.fail` invocation in the handler's frame; it requires an explicit message because the recovery binding captures only the payload, not the original message. The full mechanics are in &sect;4.10.
 
@@ -971,7 +970,7 @@ Signature-level failure-set declarations &mdash; how a command's signature names
 
 ### 4.4 Block Markers
 
-Eleven block markers govern failure flow. They are enumerated as a syntactic list in &sect;3.1, with `|` and its parametrized `|`-with-spec form treated as a single marker for the enumeration; this section enumerates all eleven by their **failure-mode role** &mdash; what each one consumes, what it permits to propagate, and where it places execution after consumption.
+Twelve block markers govern failure flow. They are enumerated as a syntactic list in &sect;3.1, with `|` and its parametrized `|`-with-spec form treated as a single marker for the enumeration and the discharge arm `|!` (&sect;4.6) counted as its own; this section enumerates all twelve by their **failure-mode role** &mdash; what each one consumes, what it permits to propagate, and where it places execution after consumption.
 
 #### Guard-only recovery: `?`, `?-`, `?:`
 
@@ -1053,7 +1052,7 @@ The `@` and `@!` markers are **scope-lifetime-tied**. They register a body again
 
 ### 4.5 Block-Marker Composition
 
-Block markers compose by adjacency at the same indentation level. The composition rules for the eleven markers are summarized below; the operational details of each marker individually are in &sect;4.4.
+Block markers compose by adjacency at the same indentation level. The composition rules for the twelve markers are summarized below; the operational details of each marker individually are in &sect;4.4.
 
 | Marker | Combines with `??`? | Combines with `-`? | Body recovers failures? |
 | --- | --- | --- | --- |
@@ -1065,6 +1064,7 @@ Block markers compose by adjacency at the same indentation level. The compositio
 | `^` | n/a (`^` is sibling, not inner) | no | yes (entire body) |
 | `\|` | yes (catches non-guard `??`-block failures) | no | no |
 | `\|`-spec | (same as `\|`) | no | no |
+| `\|!` | no | no | no body &mdash; a proof, not a handler (&sect;4.6) |
 | `??` | (meta; inner is `?` or `?-`) | n/a | consumes only inner guard |
 | `@` | no | no | no (runs alongside, doesn't recover) |
 | `@!` | no | no | no (runs alongside, doesn't recover) |
@@ -1094,6 +1094,10 @@ The presence of the bound name in the spec is governed by an asymmetric rule aga
 Match-by-message-identity, not match-by-payload-value, is a design commitment: failures are dispatched on what they *are*, not on what they *carry*. Forms like `| 0 -> handleZero` or `| "error" -> handleError` are not part of the language. Programs that need to distinguish payload values do so by inspecting the bound payload within the recovery body.
 
 When a `|`-with-spec block engages, the failure's status as in-flight ends at the moment of binding. The handler body runs from no-active-failure, with the bound payload available for inspection, consumption, or forwarding into a re-fail (&sect;4.10). The discipline governing the *value's* lifetime &mdash; distinct from the failure's status, and tracked through the holding-frame model &mdash; is in &sect;4.11.
+
+**The discharge arm `|!`.** The twelfth marker attaches where recovery arms attach and makes the opposite move: `|! Spec` claims that a `Spec`-or-below failure *cannot reach this point* &mdash; and the claim is admitted only as a **theorem**. The compiler proves it, or the program does not compile. There is no `.ack`, no caveat, and no assertion path, deliberately and permanently: everywhere else the language lets the programmer confess to what the analysis cannot decide (&sect;3.18), because there the programmer may genuinely know better; here, "the programmer knows better" is precisely the failure mode being eliminated. On proof, `Spec` and everything below it is subtracted from the statement's propagating set, and the enclosing command's failure mark and failure-set obligations (&sect;&sect;4.2, 4.9) are computed from the subtracted set &mdash; the arm's payoff: a site-specific proof lets a `?`-marked callee sit inside a `:`-marked caller.
+
+The verifier's power is fixed by this specification, not by the implementation: the proof is conducted in the failure-state lattice (&sect;4.13, Appendix E.3) over the frame's tracked facts &mdash; the four static analyses of Appendix E, the obligation records of &sect;10.5, and the construction forms of &sect;4.14 &mdash; and a conforming implementation accepts *exactly* what those prove. An implementation may not accept more, however true, and may not accept less: `|!` programs are portable because the theorem's proof system is part of the language. An arm whose `Spec` is already absent from the reaching set proves trivially and draws nothing from this specification; implementations may warn under their own codes (&sect;3.18).
 
 ### 4.7 Concept-Bound Payloads
 
@@ -1179,13 +1183,15 @@ The bare additive form `?[+]` is well-formed: it admits whatever callees emit, w
 
 A concept method's failure set must be uniform across all witnesses. At a concept-dispatched call, the typechecker knows the concept and the method but not the witness; the failure set must therefore be a property of the (concept, method) pair, not of the witness. A witness's implementation may emit any subset of the concept-declared set; emitting a message outside the set is a static error. A concept method declared additive (e.g., `.decl ?[+ Net] traverse: ?<T> f`) propagates the callable parameter's set uniformly across witnesses, with the substitution happening per call site.
 
+**The language's failure catalog: `Basis::Lang::Failure`.** Every failure the language itself fires belongs to one declared hierarchy, rooted at the path `Basis::Lang::Failure`. Its children today are exactly two: **`TagMismatch`** &mdash; fired by `-<` narrowing mismatches and absent-state engagements (&sect;7.14) and by message-extraction mismatches (&sect;4.14) &mdash; and **`CoercionFailure`** &mdash; fired by failed conversion constructors (&sect;7.8). Nothing else is language-fired: arithmetic, bounds, and division failures belong to the concepts and library commands whose declared marks announce them, per the no-privileged-primitives design. The catalog is ordinary in every respect: a recovery arm `| Basis::Lang::Failure f ->` catches all language-fired failures by the same subsumption as any hierarchy; user hierarchies may parent at any catalog node under this section's opening rules; and every catalog message is constructible and fireable by user code (&sect;&sect;4.3, 4.14) &mdash; there is nothing privileged about firing one, which is what makes them test-fireable. Future language failures land as children of this root. Prose throughout this specification uses the short names; this block is their definition site.
+
 ### 4.10 Re-Failing
 
 A common pattern is recovering a failure, deriving from its payload, and propagating a fresh failure with new identity:
 
 ```
 | LowLevel value ->
-    .fail DomainSpecific: (translate: value)
+    .fail DomainSpecific <- (translate: value)
 ```
 
 This is an **ordinary `.fail`** originating from the handler's frame; no re-fail-specific machinery exists in the language. The handler binds a payload (`value`); the new `.fail` is fired from the handler's frame with a freshly-named message and a payload of the handler's choosing. The original failure's identity is consumed at binding and does not survive.
@@ -1194,7 +1200,7 @@ The bound name binds the **payload only**, not the original message. To propagat
 
 ```
 | FatalFailure f ->
-    .fail FatalFailure: f
+    .fail FatalFailure <- f
 ```
 
 Forms that elide the message &mdash; `.fail f` to "re-raise" &mdash; are not valid: `f` is the payload, not the message; the directive cannot infer which message to attach.
@@ -1256,6 +1262,34 @@ Under typed failures (&sect;4.9), the lattice refines: each `failing(M)` and `mi
 A typechecker implementation may begin with the un-refined six-state lattice and add the failure-set component incrementally; dropping the failure-set component recovers the un-refined lattice exactly.
 
 When a recovery block engages, the propagating-set component is narrowed: a bare `|` consumes the entire set; a `|`-with-spec narrows per-root from the spec's at-or-below closure, with precise removal when the closure fully covers a root and conservative retention when it would only partially cover one (the set representation does not capture closures with holes). The formal per-root rule is in Appendix E.3 alongside the lattice's transfer functions.
+
+### 4.14 Messages as First-Class Values
+
+Messages are complete values: a tag plus a payload, typed by a declared hierarchy, matched by subsumption. The preceding sections built that machinery for the failure transport; this section frees the currency. There is one construction surface and two transports: a message constructed by `.fail` (&sect;4.3) enters &Phi;; the same construction in expression position enters an ordinary slot by placement.
+
+**Construction.** `(MsgType <- payload)` builds an envelope that *owns* its payload; `(MsgType <<- payload)` an envelope that *views* one; a bare payload-less message type stands alone. The payload expression is present iff the message type is payload-bearing, mirroring &sect;4.6's asymmetric rule, and must satisfy the declared payload type, payload-concept bounds included (&sect;4.7). A viewing envelope is a view-holder: the region-escape ceiling (&sect;7.21) bounds it by its payload's extent, with no message-specific rule.
+
+```
+#m <- (Ctl::Throttle <- rate)      ; envelope owns its payload
+#n <- (Status <<- bigReport)       ; envelope views a payload it does not own
+#q <- Ctl::Shutdown                ; payload-less
+```
+
+**Storage.** `# Net m` is an ordinary slot: static type a hierarchy node, dynamic type at-or-below it. Messages are admissible in object fields and variant candidates. An obligated payload rides under &sect;10's ordinary rules; whether the duty entered the envelope is exactly the own-versus-view choice at construction.
+
+**Extraction.** Two statement-level binding forms, kin to `-<` (&sect;7.14): each tests the envelope's dynamic type at-or-below the spec by &sect;4.6's subsumption, binds on match, and *fails* on mismatch with `TagMismatch` (&sect;4.9's catalog) &mdash; settlement-clean, at most one evaluation, outcomes final. The binder is present iff the spec is payload-bearing.
+
+```
+? m ->> Ctl::Throttle rate     ; lend: binds a view of the payload;
+                               ;   the envelope retains everything; READ m suffices
+? m -> Ctl::Throttle rate      ; vest: payload ownership and riding duties move
+                               ;   to the binder; the envelope retains a view;
+                               ;   requires an UPDATE-licensed source (&m)
+```
+
+Mode is the protocol documentation: a READ `Msg m` parameter can inspect and lend but never strip; `Msg &m` announces vesting rights in the signature. Both operators are language-fixed and concept-unmappable &mdash; the envelope is language structure, the same ground as `=` (&sect;3.19) &mdash; and neither is a resident of &sect;3.19's expression tiers.
+
+**The vested envelope.** After a successful `->`, the envelope views a payload owned elsewhere. Later payload extraction or re-emission through it draws the **`msg.transferred-payload`** caveat (Appendix J) &mdash; uniformly and acknowledgeably, never a hard error, because the envelope may never have owned the payload and ownership is per-value provenance the analysis cannot always decide. The `.ack` asserts the use is sound: the envelope never owned the payload, or the vested duty's handling covers the use. Tag tests and payload-less matching through a vested envelope draw nothing.
 
 ---
 
@@ -1363,7 +1397,7 @@ Reading a candidate value out of a union is **interpretive casting** &mdash; a r
 
 ### 5.7 Union &rarr; Candidate-or-Parent Byte-Reinterpretation
 
-A union value implicitly subsumes &mdash; by zero-cost byte reinterpretation &mdash; to any buffer-backed type `T` such that `T` appears on the standard buffer-backed subsumption chain (&sect;5.5) of *at least one* declared candidate of the union. The relation is the union's reading rule: a union value flows into any context expecting a candidate's type or any of that candidate's ancestors.
+A **named** candidate is directly referable &mdash; the reference is a zero-cost reinterpretation of the union's bytes at the candidate's type, and it is exactly the read the `union.candidate-unchecked` warning governs (&sect;3.18): the bytes are guaranteed, their meaning is the programmer's discipline. Anonymous candidates are reached through subsumption and `-<` alone; this is the designed contrast with variants, whose candidates are anonymous and whose unpacking *requires* the tag check (&sect;7.14) &mdash; a union's contents are always directly reachable because bytes are all there is, a variant's never are because the tag is the truth. A union value implicitly subsumes &mdash; by zero-cost byte reinterpretation &mdash; to any buffer-backed type `T` such that `T` appears on the standard buffer-backed subsumption chain (&sect;5.5) of *at least one* declared candidate of the union. The relation is the union's reading rule: a union value flows into any context expecting a candidate's type or any of that candidate's ancestors.
 
 The relation is **existential** across the candidate set, not universal. A union with candidates `{A, B, C}` where `A`'s parent chain reaches `T`, regardless of whether `B`'s or `C`'s chain reaches `T`, admits the subsumption to `T`. The user's reading: if some candidate's bytes could plausibly be interpreted as `T`, the language admits the operation; the responsibility for ensuring the union's bytes *are* a valid `T`-value at the moment of reading rests with the user's discrimination machinery.
 
@@ -1586,7 +1620,7 @@ For CREATE parameters specifically, the caller's slot may be uninitialized at th
 
 **Statement-granular atomicity.** The copy-restore boundary is the statement, not the individual call. For each slot bound writeable (CREATE or UPDATE) anywhere in a statement's desugared sequence, the frame materializes one **working copy** at the statement's first binding of that slot; every subsequent binding of the slot within the statement &mdash; UPDATE copy-ins and READ views alike &mdash; resolves against the working copy as of that textual point. The real slot is written exactly once, on the statement's **success edge**, in the same commit that delivers the statement's LHS (&sect;7.18): a statement commits nothing until it succeeds. Failure anywhere in the statement discards the working copies, leaving every slot bit-identical to its statement-entry state. Success-edge results are observably identical to per-call write-back &mdash; the boundary strictly strengthens the failure edge &mdash; and failure-atomicity lifts from call granularity to statement granularity compositionally (principle 4, now true of whole statements).
 
-Three consequences pin the mechanics. Same-slot READs within the statement go through the working copy, so textual-order visibility is exact: in `f: ctx, (g: &ctx, x)`, the READ binding of `ctx` supplied to `f` sees the post-`g` working copy. Invoking a command-typed value carrying an `&`-capture of a working-copied slot, within the statement, is a static error: the invocation's own copy-restore against the real slot would race the statement-end join into a lost update &mdash; the tracking is the capture-list machinery of &sect;6.9, and the rule has the same shape as the stale-capture rule for boxed slots (&sect;6.14). A single-call statement degenerates to the per-call semantics at zero cost, because the working copy *is* the call's own copy; the mechanism is pay-per-use &mdash; one extra slot and one final join, only in multi-call statements with writeable bindings, and only for the bound slots.
+Three consequences pin the mechanics. Same-slot READs within the statement go through the working copy, so textual-order visibility is exact: in `f: ctx, (g: ctx, x)` where `g` binds `ctx` UPDATE by signature, the READ binding of `ctx` supplied to `f` sees the post-`g` working copy. Invoking a command-typed value carrying an UPDATE-mode capture of a working-copied slot, within the statement, is a static error: the invocation's own copy-restore against the real slot would race the statement-end join into a lost update &mdash; the tracking is the capture-list machinery of &sect;6.9, and the rule has the same shape as the stale-capture rule for boxed slots (&sect;6.14). A single-call statement degenerates to the per-call semantics at zero cost, because the working copy *is* the call's own copy; the mechanism is pay-per-use &mdash; one extra slot and one final join, only in multi-call statements with writeable bindings, and only for the bound slots.
 
 The statement is the smallest instance of a general mechanism. A **`.stage` block** (&sect;3.17) is a programmer-placed boundary with the same semantics at block granularity: working copies per touched outer slot, textual-order resolution, one success-edge join, discard on failure. Boundaries compose by one rule: **every boundary joins into the nearest enclosing boundary; the real slot is the outermost.** A statement inside a staged block joins into the block's working copies; nested staged blocks join into the enclosing block's copies, LIFO.
 
@@ -1755,7 +1789,7 @@ Each named slot is boxed from the statement to the close of its enclosing scope 
                                      ;   against buf's real slot, baked in
                                      ;   at construction
 .box buf                             ; buf's storage goes DIRECT
-fill: *buf, source                   ; in-place mutation, no copy, no restore
+fill: buf, source                    ; in-place mutation, no copy, no restore
 report:                              ; STATIC ERROR (stale capture): the
                                      ;   &-capture predates the box; invoking
                                      ;   it now would run its copy-restore
@@ -1770,7 +1804,7 @@ The mirror rule: a `*` capture-list entry (&sect;6.9) takes the box's extent as 
 ```
 # Buffer secret <- (make: 64)
 .box secret
-scrub: *secret                   ; DIRECT under the no-alias license: the
+scrub: secret                    ; DIRECT under the no-alias license: the
                                  ;   compiler may cache, reorder, vectorize
                                  ;   through *secret freely
 .ack "box.address-taken"
@@ -1780,7 +1814,7 @@ scrub: *secret                   ; DIRECT under the no-alias license: the
                                  ;   license -- every *secret binding below
                                  ;   compiles as aliased (loads and stores
                                  ;   kept), memory-safe, unoptimized
-audit: p, *secret                ; legal: acknowledged aliasing, no license
+audit: p, secret                 ; legal: acknowledged aliasing, no license
 ```
 
 The caveat covers in-region address-taking; pointers predating or bypassing the region discipline remain Appendix I A3's documented territory.
@@ -1805,24 +1839,12 @@ The `.implicit` mechanism (&sect;7.8) admits bare literals at typed slots by reg
 
 In all three positions, the typechecker enforces failure-atomicity (&sect;7.18): a may-fail right-hand side whose evaluation fails leaves the left-hand slot in its pre-write state. For CREATE and reference writes, the pre-write state is the slot's contents before the `<-` evaluation began. For local introductions, the pre-write state is the slot's pre-introduction status &mdash; uninitialized for `#x <- value` whose right-hand side fails, since the `#`-introduction-with-initializer is a single atomic operation that either completes or does not.
 
-**The choice form.** The right-hand side of a placement admits a chain of alternatives separated by `|`, built on any one of the three placement operators: `lhs <- a | b | c`, `lhs <<- a | b | c`, or `lhs << a | b | c`. Alternatives are evaluated left-to-right; the first that succeeds is committed to `lhs` through the form's operator and the chain stops; an alternative's failure selects the next. If every alternative fails, the choice form as a whole fails with the last alternative's failure.
-
-The operator is **uniform across the form**: it parametrizes only how the first-success winner commits to `lhs`, leaving `lhs`'s provenance fixed regardless of which alternative wins. The desugaring is one substitution: the form becomes a `?:` chain with each alternative as a guard whose success commits to `lhs` through that operator and whose failure advances the chain. Where alternatives would need *different* operators, the `?:` chain is written directly &mdash; the choice form is sugar for the uniform case only. No choice-form-specific checking is added: an operator that does not fit a winning alternative surfaces as that operator's existing diagnostic, and because only the first success commits, non-winning alternatives place nothing under any operator, so the form adds no ownership or copy hazard beyond the operators' own.
-
-The `lhs` is constrained to be a slot of a single type; each alternative must produce a value compatible with the slot. For a typed introduction, `# T x <- a | b | c` declares the slot's type explicitly, with each alternative checked against `T`.
-
-The form composes with the failure system (&sect;4): a `:`-marked alternative is statically certain to succeed and short-circuits the chain at that position; a `?`-marked alternative is the typical case; a `!`-marked alternative is statically certain to fail and is statically equivalent to skipping it. The typechecker derives the chain's overall failure mode from its alternatives &mdash; a chain ending in a never-fail alternative is itself never-fail, the fallback idiom:
-
-```
-#config <- readFile: "user.cfg" | readFile: "default.cfg"
-    | (Config: emptyDefaults)
-```
-
-A `|` on an indented continuation line of an unfinished placement is the choice separator; a `|` opening a statement is the recovery marker (&sect;4.4). The two are distinguished by position, never by lookahead.
-
 **The `<<-` operator.** A second placement operator, `<<-`, stores a value into a resting place as a *non-owning view*. It is admitted in the resting-place store positions &mdash; local introduction, plain-slot rewrite, and field write &mdash; and at by-name argument positions (&sect;3.14). For an unobligated value `<<-` is an ordinary store, identical in effect to `<-`. The two diverge only when the stored value carries an obligation (&sect;10): `<-` moves ownership of the obligation into the destination, which discharges it at the destination's lifetime end &mdash; the moved-from source is not consumed, but survives as a non-owning view of the value (&sect;10.10) &mdash; while `<<-` installs a deliberate alias and leaves ownership with the source. `<<-` is the surface for back-edges &mdash; a parent pointer, a `prev` link &mdash; where the destination must reference an obligated value without owning its discharge (&sect;10.10).
 
-**The `<<` operator.** A third placement operator, `<<`, stores an *independent copy* of the right-hand value into a resting place &mdash; local introduction, plain-slot rewrite, field write, or a by-name argument position (&sect;3.14) &mdash; duplicating the value's backing storage so the result shares nothing with the source. It is admitted on **buffer-backed values only**: the containment rule (&sect;5.1) forbids embedded pointers, so structural duplication is total, with nothing to decide shallow-versus-deep &mdash; copying an object, pointer, or variant remains the explicit job of a constructor. For a fixed-size buffer-backed value `<<` coincides with an ordinary `<-` store &mdash; a record is already pure bytes &mdash; and differs only for the runtime-length forms `[]` and `[]T`: there `<-` and `<<-` share the value's element region by copying its handle, while `<<` duplicates the elements into the destination's own storage. Copies cost, so `<<` is explicit and never a default; the distinction reads off the operator &mdash; an arrow *places the existing value* (`<-` move, `<<-` view), no-arrow `<<` *duplicates* it. A `<<` of an obligated, allocator-backed buffer yields a fresh, region-managed, unobligated copy and leaves the source's duty untouched (&sect;10.10).
+\1
+**The `>>` operator.** The fourth placement operator is the **move**: `src >> dst` transfers ownership of the value &mdash; any riding duties with it, undischarged, per &sect;10.10's ordinary rules &mdash; into `dst`, and the source *dies*: `src`'s slot is `uninit` after the statement, the one placement that invalidates its source. Where `dst <- src` moves ownership but leaves `src` as a live view for continued reading, `src >> dst` is for values that must not be reachable through the old name again; it is the natural verb for handing an envelope onward (&sect;4.14). The form is source-first and rightward, joining the rightward family: leftward operators are destination-first, rightward ones source-first, and the value flows the way the arrow points. A move never fails &mdash; a store plus a kill has nothing to fail &mdash; and it participates in statement and `.stage` boundaries as any placement: a deferred move's kill discards with the boundary on failure. It is excluded from the choice form (&sect;7.17), whose alternatives are sources against a fixed destination. On a boxed slot it is rejected by the boxing exclusivity rule (&sect;6.14) with no further text: `>>` is neither `*` nor READ.
+
+**The move's source is frame-owned.** `src` must be a binding *introduced by the current frame* &mdash; a `#` local or a block-local. A parameter of any mode, a receiver, or a capture is statically rejected: a READ source cannot be killed; a kill through an UPDATE parameter would be a covert DISPOSE, and the honest spelling exists &mdash; declare the parameter `~` (&sect;7.22); a `~` parameter's contract is to end the value, not resurrect it elsewhere; and a by-name-vested parameter, though genuinely owned, is statically indistinguishable to the callee from a borrow (&sect;10.10's "the callee needs nothing"), so no parameter can be admissible without the check leaving the frame. The take-and-relocate program is written through existing machinery: `#mine <- param` vests ownership into a local &mdash; moving the duty iff the parameter actually owned one &mdash; and `mine >> dst` moves a frame-owned binding. Localize, then move.
 
 ### 7.2 Local Introduction Syntax
 
@@ -1892,7 +1914,7 @@ The opening token `${` is unambiguous (the `$` character has no other use in cur
 
 The empty form `${}` is a single token denoting a construct with no field entries; vacuously all-Literal under Rule 1, it is an Aggregate Literal. It is well-formed in two cases: when the LHS type is a record or object whose every field is defaulted (via `=` declarations, &sect;7.10), in which case the literal constructs the all-defaulted value; and when the LHS type is a variant, in which case the literal produces the variant's absent state. The variant case is equivalent to bare introduction `# T x` with no initializer (&sect;7.2): both forms produce an absent-state variant slot, and a programmer may use either at any contextually-typed variant LHS position.
 
-**Field-name nominal matching.** The typechecker matches the construct's field names to the LHS type's declared field names. The matching is nominal, not positional: `${y <- 2, x <- 1}` and `${x <- 1, y <- 2}` are equivalent for an LHS type whose declared fields are `x` then `y`. Repeated field names are rejected at parse time. Field names not declared on the LHS type generate a compiler warning and are silently dropped at runtime; the discrepancy surfaces to the user without defeating tooling that emits constructs from heterogeneous sources. Required fields must be present unless covered by a default (`=` declaration, &sect;7.10); a defaulted field may be omitted with a suppressible warning. Variant-typed fields are always required, with `_` as the absent value (&sect;7.16).
+**Field-name nominal matching.** The typechecker matches the construct's field names to the LHS type's declared field names. The matching is nominal, not positional: `${y <- 2, x <- 1}` and `${x <- 1, y <- 2}` are equivalent for an LHS type whose declared fields are `x` then `y`. Repeated field names are rejected at parse time. Field names not declared on the LHS type generate a compiler warning and are silently dropped at runtime; the discrepancy surfaces to the user without defeating tooling that emits constructs from heterogeneous sources. Required fields must be present unless covered by a default (`=` declaration, &sect;7.10); a defaulted field may be omitted with a suppressible warning, its default expression evaluated **at construction time**, at the construct site, and the value placed as though written. Variant-typed fields are always required, with `_` as the absent value (&sect;7.16).
 
 **Positional form under contextual clarity.** The positional surface `${value, value, ...}` is admitted when the LHS type is contextually explicit &mdash; when the typechecker can determine the LHS type at the construct's position without reference to its contents. The contextually-clear positions are:
 
@@ -2385,7 +2407,7 @@ A command reference has no body of its own; it refers to the underlying command'
 
 **Mode restrictions on bound arguments.** A command reference may bind arguments at READ or UPDATE positions of the underlying command's parameter list. CREATE positions cannot be bound: a CREATE parameter discharges its write at the invocation site, where the receiving frame owns the slot, and pre-binding would either capture a slot in the construction frame (defeating frame-ownership) or defer the slot identity to invocation (which is not partial application). The user resolves by leaving the CREATE position open with `_`, allowing each invocation to supply the CREATE slot. The rule parallels the lambda capture-list mode constraint (&sect;6.9): CREATE is forbidden for the same structural reason in both surfaces.
 
-**Reference-chain flattening.** When a command reference binds a `&`-mode argument (e.g., `{cmd: &x}`), the binding flattens through any reference chain: if `&x` is itself an UPDATE parameter of the constructing command's frame, the binding chains through to the origin slot's frame. The command reference's effective ceiling is the origin slot's owning frame &mdash; the frame at which the slot lives, not the immediate constructing frame. A command reference with no `&`-bound arguments has no ceiling beyond the ordinary object lifecycle; it can be returned, stored, or moved freely.
+**Reference-chain flattening.** When a command reference binds an argument at an UPDATE-mode parameter (e.g., `{cmd: x}` where `cmd`'s parameter is UPDATE by signature), the binding flattens through any reference chain: if `x` is itself an UPDATE parameter of the constructing command's frame, the binding chains through to the origin slot's frame. The command reference's effective ceiling is the origin slot's owning frame &mdash; the frame at which the slot lives, not the immediate constructing frame. A command reference with no `&`-bound arguments has no ceiling beyond the ordinary object lifecycle; it can be returned, stored, or moved freely.
 
 ### 8.3 Command Literal
 
@@ -3171,8 +3193,7 @@ For unobligated values both are ordinary stores; the ownership semantics activat
 
 **Down-stack is a borrow by default; ownership travels by binding an argument by name.** A positionally bound argument is a borrow &mdash; it lends without transferring, and is the unmarked common case. Binding an argument *by name* at the call site, however, uses the same two arrows as a lateral store, with the same meanings: `foo: x <- bar` binds parameter `x` to `bar` and *moves ownership* into the call &mdash; the down-stack counterpart of CREATE output, used to hand a freshly built resource to a constructor or factory that will incorporate it &mdash; while `foo: x <<- bar` binds by name but passes a *non-owning view*, the caller retaining ownership. The determination is thus the call site's, not the callee's signature: the same parameter may be borrowed at one call, owned at another, and aliased at a third, by the provenance of what is passed and the form of its binding (&sect;3.14).
 
-**The moved-from source survives as a view.** A `<-` moves ownership: the destination owns iff the source did, and the source becomes a non-owning **view** of the value wherever it now lives. A lateral store (`dest <- src`) leaves `src` viewing the value now in `dest`; a down-stack by-name `<-` leaves the source viewing the re-homed value on both edges. The source turns `uninit` in exactly one place: a `~` parameter, whose finalizing consume empties it on both edges (&sect;7.22). Every other by-name transfer's duty is non-finalizing (&sect;10.2), so its safety-net default leaves the value live and the source a view, unconditionally. A surviving view is readable, but its validity is bounded by the value's storage outlasting the read: a view that provably outlives its owner's ceiling is rejected statically (&sect;7.21), and the data-dependent remainder is the dangling-view footgun (Appendix I, A2) &mdash; the same hazard a deliberately-installed `<<-` view carries, now reachable through a moved-from name. Throughout, the single-owner invariant and *disposed exactly once* are untouched &mdash; one owner at a time, a view fires no duty, and the duty fires once at the owner's lifetime end.
-
+\1\n**The `>>` move does not leave a view.** `src >> dst` (&sect;7.1) is the one placement whose source dies: ownership and riding duties transfer, and `src` is `uninit` after the statement. It is a lateral ownership move plus a source-kill, not a discharge; within a `.static` extent it is a vesting-outward event under &sect;10.16's rules like any other.\n
 A by-name `<-` into any non-sink parameter draws the handoff diagnostic specified at &sect;7.22: the warning `obligation.handoff`. A finalizing duty cannot be bound by name at all (&sect;10.5's escape row).
 
 Transfer is eager &mdash; ownership moves at call entry, not on the callee's success. On a callee failure the value does not return to the caller as an owner: ownership already left at entry, and the callee's frame discharges the obligation, its default firing unless the callee arranged otherwise. The caller's slot is then left a surviving view per the rule above &mdash; the discharge is non-finalizing (&sect;10.2), so the value lives &mdash; and it is not restored to its pre-call owning state, a deliberate relaxation of failure atomicity that is the inverse of a CREATE output not being committed on failure.
@@ -3273,7 +3294,7 @@ A command's frame can perform obligation work its source never shows. Three chan
     .cmd process: Stream &s =
         ...
         .static                       ; obligation-static region
-            hotLoop: &s
+            hotLoop: s                ; s is UPDATE in hotLoop's signature
 
 **Fields and objects.** A `.static` field never holds a dynamically-attached duty. An owning `<-` into one is admissible iff the storing frame statically knows the source binding carries no open duty (&sect;10.5); where the analysis cannot classify the source, the store draws the **`static.unknown-provenance-store`** caveat, and where it decides the source is encumbered, the store is a static error. `<<-` and `<<` stores are always admissible. A `.static` field needs no per-value discharge entry &mdash; the anchor-room criterion of &sect;10.12 &mdash; and `.object .static` marks every field so, making the type's teardown obligation-flat by declaration; per-field marks inside it are permitted and redundant. A `.static` frame may lend a `.static`-typed object writeable to any callee, marked or not: the store sites that could encumber it are barred at those sites.
 
@@ -3486,7 +3507,13 @@ Applying `.splice` to a non-record-typed field (a domain, primitive, union, or b
 
 **Negative-number adjacency.** A `-` token followed immediately by a digit could be either subtraction or unary negation. The disambiguation is parser-side and follows the standard rule: in expression position where a value is expected, `- N` is unary negation; in expression position where a binary operator is expected (after a value), `- N` is subtraction. The lexer produces the same `-` and `42` (Integer literal) tokens in both cases.
 
-**`|` as choice separator vs recovery marker.** A `|` opening a statement line is the recovery block marker (&sect;4.4); a `|` inside a placement's right-hand side, including on an indented continuation line of an unfinished placement, is the choice separator (&sect;7.1). Position decides; no lookahead is involved.
+**`|` as choice separator vs recovery marker.** A `|` opening a statement line is the recovery block marker (&sect;4.4); a `|` inside a choice statement, including on an indented continuation line of an unfinished one, is the choice separator (&sect;7.17, B.7). Position decides; no lookahead is involved.
+
+**The `%` token.** A `%` opening a statement line is the group-block marker (&sect;4.4); between operands in expression position it is the remainder operator (&sect;3.19), concept-mapped like its tier-mates. Position decides, the same pattern as `|`, `->`, and `*`.
+
+**The `>>` token.** `>>` lexes maximal-munch as one token; no legal `>` `>` adjacency exists, since Basis parameterizes with brackets and the test stratum's chains always have operands between comparators.
+
+**The arrow tokens `->` and `->>`.** `->>` lexes maximal-munch as one token, never `-` `>>` nor `->` `>`. `->` carries three position-disambiguated roles: the sink arrow inside a `.promise` declaration (&sect;10.2), the recovery arrow after a `|` spec (&sect;4.6), and the vesting-extraction statement after an identifier (&sect;4.14). The roles never share a position.
 
 **Comparison and equivalence tokens (&sect;3.19).** `<=`, `>=`, and `!=` are single tokens: a `<`, `>`, or `!` immediately followed by `=` in expression position lexes as the comparison or value-inequality token, never as the mark or angle plus a separate `=`; the must-fail mark `!` occurs only prefixing a name or type surface, so no collision arises. `<>` in expression position is the single non-equivalence token; the empty command-type angles of `:<>`, `?<>`, and `!<>` follow a failure mark in type-expression position and are recognized there parser-side, by position. Comparison `<` and `>` versus the command-type-expression angles resolve by the same positional rule: type-expression position reads angles, expression position reads operators.
 
@@ -3553,22 +3580,26 @@ using-directive   ::= .using using-entry ( , using-entry )*                ; (B.
 intrinsic-decl    ::= .intrinsic cmd-signature
 msg-decl          ::= .msg TypeName ( [ TypeName ] )? (: TypeName)?
 object-decl       ::= .object .static? TypeName : object-fields
-object-fields     ::= field-decl+
-field-decl        ::= .static? identifier : type-expr
+object-fields     ::= field-decl ( , field-decl )*
+field-decl        ::= .static? type-expr identifier              ; type-first, as parameters (S3.3)
 program-decl      ::= .program cmd-body
 record-decl       ::= .record TypeName : record-fields
-record-fields     ::= record-field+
-record-field      ::= ( .splice )? identifier : fixed-size-type-expr ( = expr )?
+record-fields     ::= record-field ( , record-field )*
+record-field      ::= ( .splice )? fixed-size-type-expr identifier ( = expr )?
 test-decl         ::= .test string-literal : cmd-body                ; regular test
                     | .test string-literal ? cmd-body                ; speculative test
                     | .test string-literal = string-literal-list     ; test-aggregation suite
 string-literal-list ::= string-literal ( , string-literal )*
 union-decl        ::= .union TypeName : union-candidates
-union-candidates  ::= union-candidate+
-union-candidate   ::= identifier : fixed-size-type-expr
+union-candidates  ::= union-candidate ( , union-candidate )*
+union-candidate   ::= fixed-size-type-expr identifier?           ; a named candidate is directly referable (S5.7); -< always applies
 variant-decl      ::= .variant TypeName : variant-candidates
-variant-candidates ::= variant-candidate+
-variant-candidate ::= identifier : type-expr
+variant-candidates ::= variant-candidate ( , variant-candidate )*
+                    ; Declaration surfaces are type-first (Type name) uniformly. Two colon uses
+                    ; remain: the declaration head (keyword TypeName : contents) and the
+                    ; bounded-variable introduction (T: Concept), where a variable receives
+                    ; a bound (S9.20); neither is a name-colon-type field surface.
+variant-candidate ::= type-expr                                  ; anonymous: unpacking requires -< (S7.14); never name-selection
 promise-decl      ::= .promise  type-expr obligation-clause
 obligation-clause ::= : method-designator -> sink-list      ; source-method-borne
                     | -> sink-list                          ; source-less (constructor-borne)
@@ -3688,7 +3719,7 @@ body-content      ::= subcommand-decl* statement+
 
 subcommand-decl   ::= .sub cmd-signature = cmd-body              ; lexically scoped (S3.12)
 
-statement         ::= assignment | call | block-marker-construct | scope-block | stage-block | static-block | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt
+statement         ::= assignment | call | block-marker-construct | scope-block | stage-block | static-block | local-intro | choice-stmt | finalize-stmt | ack-stmt | box-stmt | extract-stmt | move-stmt
 
 finalize-stmt     ::= ~ identifier                               ; finalize the slot now (S7.22)
                     | ~ field-access                             ; field teardown, `~`-receiver only (S7.22)
@@ -3705,30 +3736,34 @@ expr              ::= test-chain                                 ; tiers of S3.1
 test-chain        ::= additive ( test-op additive )*             ; chains left; yield = right operand
 test-op           ::= < | <= | > | >= | == | <> | = | !=
 additive          ::= multiplicative ( ( + | - ) multiplicative )*
-multiplicative    ::= unary ( ( * | / ) unary )*
+multiplicative    ::= unary ( ( * | / | % ) unary )*
 unary             ::= - unary | primary
-primary           ::= literal | identifier | field-access | ( expr ) | invocation-form
+primary           ::= literal | identifier | field-access | ( expr ) | invocation-form | msg-construct
                                                                  ; invocation-form spans the call
                                                                  ;   forms of this section and the
                                                                  ;   fences of B.9-B.10, each per
                                                                  ;   its own section
 
-local-intro       ::= # type-expr? identifier ( <- choice-rhs )?
-choice-rhs        ::= expr ( | expr )*                           ; first success commits (S7.1)
+local-intro       ::= # type-expr? identifier ( <- expr )?
                     | # type-expr? identifier <<- expr           ; non-owning-view local (S10.10)
                     | # type-expr? identifier << expr            ; copy local (S7.1)
 
-assignment        ::= identifier <- choice-rhs                   ; rewrite existing local
-                    | identifier <<- choice-rhs                  ; non-owning-view rewrite (S10.10)
-                    | identifier << choice-rhs                   ; copy rewrite (S7.1)
-                    | field-access <- choice-rhs                 ; field write
-                    | field-access <<- choice-rhs                ; non-owning-view field write (S10.10)
+assignment        ::= identifier <- expr                         ; rewrite existing local
+                    | identifier <<- expr                        ; non-owning-view rewrite (S10.10)
+                    | identifier << expr                         ; copy rewrite (S7.1)
+                    | field-access <- expr                       ; field write
+                    | field-access <<- expr                      ; non-owning-view field write (S10.10)
                     | field-access << expr                       ; copy field write (S7.1)
 
 choice-stmt       ::= choice-lhs <- expr ( | expr )+             ; first-success; commits via the operator (S7.17)
                     | choice-lhs <<- expr ( | expr )+            ;   inline | is the choice separator, not a recovery block (SB.7)
                     | choice-lhs << expr ( | expr )+
 choice-lhs        ::= # type-expr? identifier                    ; typed or untyped intro
+move-stmt         ::= identifier >> place                        ; move (S7.1): source frame-owned; source uninit after
+extract-stmt      ::= identifier ->  type-path identifier?       ; vesting extraction (S4.14); requires an UPDATE-licensed source
+                    | identifier ->> type-path identifier?       ; lending extraction (S4.14); binder iff payload-bearing
+msg-construct     ::= ( type-path <- expr )                      ; owning envelope (S4.14)
+                    | ( type-path <<- expr )                     ; viewing envelope; bare type-path admitted in placement rhs
                     | identifier                                ; rewrite existing local
 
 field-access      ::= expr :: identifier                         ; named field access
@@ -3753,7 +3788,7 @@ arg               ::= expr | # identifier | _
 
 Subcommand declarations appear at the head of *body-content* per &sect;3.12's strict placement rule. After the contiguous subcommand-declaration block, only *statement*s are admitted.
 
-A *scope-block* (`.scope`) and its staged variant (`.stage`) are body-internal keyword constructs, not among the eleven block markers (&sect;3.1). Both compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:` &mdash; while adding the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17.
+A *scope-block* (`.scope`) and its staged variant (`.stage`) are body-internal keyword constructs, not among the twelve block markers (&sect;3.1). Both compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:` &mdash; while adding the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17.
 
 ### B.7 Block Markers and Indentation-Sensitive Composition
 
@@ -3771,6 +3806,7 @@ rewind-block      ::= ^ cmd-body                                 ; ^ DO_REWIND
 
 recovery-block    ::= | recovery-spec? cmd-body                  ; | DO_RECOVER
 recovery-spec     ::= TypeName identifier? -> 
+discharge-arm     ::= |! type-path                               ; theorem: Spec-or-below cannot reach here (S4.6); no body
 
 else-block        ::= - cmd-body                                 ; - DO_ELSE
 group-block       ::= % cmd-body                                 ; % DO_BLOCK
@@ -3778,7 +3814,7 @@ at-block          ::= @ cmd-body                                 ; @ DO_ON_EXIT
                     | @! cmd-body                                ; @! DO_ON_EXIT_FAIL
 ```
 
-The eleven markers (&sect;3.1, &sect;4.4) are sequenced as adjacent siblings at the same indentation level. A *cmd-body* with multiple statements is an indented block of statements (per &sect;A.5); statements within a body include further *block-marker-construct*s, producing arbitrarily deep nesting. The `.scope` keyword construct (*scope-block*, &sect;B.6) is not among these eleven markers but sequences as a sibling among them and composes like *group-block* (&sect;3.17).
+The twelve markers (&sect;3.1, &sect;4.4) are sequenced as adjacent siblings at the same indentation level. A *cmd-body* with multiple statements is an indented block of statements (per &sect;A.5); statements within a body include further *block-marker-construct*s, producing arbitrarily deep nesting. The `.scope` keyword construct (*scope-block*, &sect;B.6) is not among these eleven markers but sequences as a sibling among them and composes like *group-block* (&sect;3.17).
 
 ### B.8 The `<-` and `-<` Operator Forms
 
@@ -3992,6 +4028,9 @@ A note on `Expr`. Basis has syntactic expressions (B.6's `expr` productions, &se
 | `DoScope` | `.scope` | `body: CmdBody` |
 | `DoStage` | `.stage` | `body: CmdBody` |
 | `DoStatic` | `.static` | `body: CmdBody` |
+| `Extract` | `->` / `->>` | `vesting: Bool`, `source: identifier`, `spec: TypePath`, `binder: identifier?` |
+| `Move` | `>>` | `source: identifier`, `dest: Place` |
+| `MsgConstruct` | `( T <- e )` / `( T <<- e )` / `T` | `path: TypePath`, `payload: Expr?`, `owning: Bool` |
 | `DoOnExit` | `@` | `body: CmdBody` |
 | `DoOnExitFail` | `@!` | `body: CmdBody` |
 | `DoBranch` | (paired with `?` or `?-`) | (the `-` is a sibling, recorded in the parent body's statement list) |
@@ -4095,6 +4134,7 @@ The `|` and `|`-with-spec block markers introduce recovery contexts (&sect;4.4, 
 | --- | --- |
 | `DoRecover` | `spec: RecoverySpec?`, `body: CmdBody` |
 | `RecoverySpec` | `messageName: TypeName`, `binding: identifier?` |
+| `DischargeArm` | `spec: TypePath` |
 
 The bare `|` form has `spec = null` and engages on any propagating failure. The `|`-with-spec form has a populated `spec` field and engages only on failures whose message is at-or-below `spec.messageName` (&sect;4.9). The `binding` identifier, when present, is in scope throughout the recovery body and refers to the bound payload value (&sect;4.6).
 
@@ -4638,6 +4678,8 @@ A `.stage` block (&sect;3.17) types as a `.scope` block under the same visibilit
 
 A `.static`-marked declaration (&sect;10.16) adds a conformance obligation on the same walk: within a marked command or region no implicit default fires &mdash; every duty conferred there is verified manually discharged on every path, or carries the acknowledged `static.unproven-discharge` caveat &mdash; calls to unmarked callees carry the acknowledged `static.dynamic-callee` caveat, and no `~` parameter or DISPOSE receiver appears in the marked signature. The check is frame-local; no judgment crosses a declaration boundary.
 
+Extraction typing (&sect;4.14): `m ->> S x` and `m -> S x` require `m`'s static type and `S` to lie on one hierarchy path; the match tests the dynamic type at-or-below `S` by &sect;4.6's subsumption; the binder, present iff `S` is payload-bearing, is typed at `S`'s declared payload type; the vesting form additionally requires an UPDATE-licensed source. Move typing (&sect;7.1): `src >> dst` requires `src` to be a frame-introduced binding of a type admissible at `dst`; after the statement `src` is `uninit` in the initialization lattice, exactly as after `~ src`. Discharge-arm typing (&sect;4.6): `|! S` typechecks iff the failure-state lattice (&sect;4.13, E.3) proves no `S`-or-below failure reaches the arm's position; on success the propagating set is `S`-subtracted for everything downstream, and the enclosing mark and failure-set obligations are computed from the subtracted set.
+
 ---
 
 ## Appendix E. Static Analyses (Joint CFG-Walking Composition)
@@ -4884,10 +4926,10 @@ $$
 \langle c_1\, \vec{v},\ \epsilon,\ \Sigma \rangle \to \langle v,\ \epsilon,\ \Sigma \rangle \qquad \text{(when } c_1 \text{ has fully reduced and } \Phi = \epsilon \text{)}
 $$
 
-**R3 &mdash; Failure firing (`.fail`).** The `.fail Name: payload` directive populates &Phi; (the failure register):
+**R3 &mdash; Failure firing (`.fail`).** The `.fail Name <- payload` directive populates &Phi; (the failure register):
 
 ```
-<.fail Name: payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
+<.fail Name <- payload, epsilon, Sigma>  ->  <epsilon, (Name, &payload, W), Sigma>
 ```
 
 where W is the dictionary selected at the `.fail` site for the (concrete-payload-type, Name's payload concept) pair, and `&payload` is the pointer to the payload's storage. For payload-less messages, the second and third components are null.
@@ -4984,7 +5026,7 @@ Failure propagation copies the three-word slot up the call stack without moving 
 
 A payload value's *holding frame* is the frame whose slot storage currently contains the value. The holding-frame model (&sect;4.11):
 
-- **Initial holding frame.** When `.fail Name: payload` fires, the payload value resides in the firing frame's slot storage. That frame becomes the holding frame.
+- **Initial holding frame.** When `.fail Name <- payload` fires, the payload value resides in the firing frame's slot storage. That frame becomes the holding frame.
 - **Propagation.** As the failure propagates up the call stack, the holding frame does *not* change &mdash; only the failure-slot triple (message, pointer, dictionary) is copied. The payload value stays in its originating frame's storage.
 - **Binding event.** When a `|`-with-spec recovery engages, the bound payload value moves from its originating frame to the recovery frame. The holding frame becomes the recovery frame; the originating frame's payload storage is now invalid for this value (the move is the value's transfer).
 - **Re-fail event.** When a recovery handler re-emits the payload as a fresh failure (&sect;4.10), the value moves into the new originating frame. The holding frame becomes the new originating frame.
@@ -5414,6 +5456,7 @@ Codes are string values (&sect;3.18), spelled `area.condition` in kebab-case and
 | `static.dynamic-callee` | a call within a `.static` command or region to a command whose declaration is unmarked, including any command-typed value (&sect;10.16) | no duty lands in this frame unhandled through the callee's outputs, write-backs, or stores |
 | `static.unknown-provenance-store` | owning `<-` into a `.static` field or region slot from a binding the analysis cannot classify (&sect;10.16) | the stored value carries no open duty |
 | `static.unproven-discharge` | a duty conferred within a `.static` extent that the analysis cannot prove discharged within it, including a duty vested outward (&sect;10.16) | discharge occurs by means the analysis cannot see, or the receiving caller handles the vested duty |
+| `msg.transferred-payload` | payload extraction or re-emission through an envelope whose payload was vested out by `->` (&sect;4.14) | the use is sound: the envelope never owned the payload, or the vested duty's handling covers this use |
 
 **Warnings** (dispellable):
 
