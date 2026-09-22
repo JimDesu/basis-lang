@@ -2691,7 +2691,7 @@ The delegate edge comes in two kinds, distinguished by the field's declared type
 
   ```
   .concept StateHandling :
-      .decl StateHandling &s :: ?onEvent: Event e
+      .decl StateHandling &s :: ?onEvent: Machine &m, Event e   ; the machine rides the contract
 
   .object Machine : ^StateHandling active, IdleState idle, RunState run
   .witness MachineAsState[Machine] : StateHandling -> active
@@ -2700,9 +2700,19 @@ The delegate edge comes in two kinds, distinguished by the field's declared type
       m :: active <- m :: run &          ; the transition commit: one unit-write; the
                                           ; (RunState, StateHandling) witness was
                                           ; selected at this installation site
+
+  .cmd RunState &s :: ?onEvent: Machine &m, Event e =
+      ?- (canContinue: s, e)
+          m :: active <- m :: idle &     ; the handler itself commits the transition:
+                                          ;   this invocation completes under RunState's
+                                          ;   dictionary; the next dispatch routes to idle
   ```
 
   The dynamic edge is the language's statechart mechanism: an object satisfies a state-handling concept by delegating to a re-pointable field, and a transition replaces value and behavior atomically. It is also, structurally, the same construction as the embedded dictionary of witness-bearing types (&sect;9.20) at field granularity &mdash; value and governing dictionary selected together, carried together, replaced together.
+
+A re-point performed during a delegated method's own execution is ordinary: the in-flight invocation runs to completion under the dictionary read at its call site, and the committed cell governs subsequent dispatches &mdash; a state's handler may itself commit the transition, as the exemplar shows, with callers never aware of the routing.
+
+**One hop, never self.** The delegated indirection is followed exactly once: `::` through the delegate dereferences a single reference and dispatches on that value; deeper routing in a hierarchy is an explicit call in the substate's body, visible in source. And the delegate may never be the owning object: each re-point carries a pointer-identity check (target &ne; owner), a runtime error on failure, lifting to a static error when the delegate slot's type excludes the owner's &mdash; the variant-field form gets the static exclusion for free. Without the guard, the owner *is-a* the state concept by this very delegation and is type-compatible with its own delegate slot: the silent infinite-delegation footgun, closed. Transitions are compute-then-commit by discipline: guards, target computation, and all fallible work precede the single unit-write, so a failure leaves the chart on the old state untouched; changing per-state data lives in buffer-backed slots, where copy-restore supplies per-call atomicity (&sect;6.3).
 
 **Migration note (from earlier drafts of this specification).** The former multi-concept list form (`.instance T : C1, C2, C3`) is not grammatical: each concept takes its own named declaration. The list's *bundling* role &mdash; one name selecting a whole wiring of satisfactions &mdash; is served by the `.profile` declaration (&sect;2), which bundles witness names for selection purposes.
 
@@ -3570,6 +3580,7 @@ cmd-decl          ::= .cmd .static? cmd-signature = cmd-body
 decl-decl         ::= .decl .static? cmd-signature
 domain-decl       ::= .domain TypeName : fixed-size-type-expr
 enum-decl         ::= .enum TypeName : enum-entries                ; one-name form (S5.9)
+                    | .enum TypeName TypeName : enum-entries       ; two-name form: representational constraint, then enum type (S5.9)
                     | .enum TypeName TypeName : enum-entries        ; two-name form: repr-type enum-type (S5.9)
 enum-entries      ::= enum-entry ( , enum-entry )*
 enum-entry        ::= identifier ( = literal )?
