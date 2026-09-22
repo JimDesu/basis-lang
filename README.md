@@ -255,21 +255,18 @@ Methods dispatch on the runtime types of all receivers in concert. The implement
  
 ### 3.3 Frame-exit hooks: `@` and `@!`
  
-A concept or module may declare methods that run at frame exit:
- 
+`@` and `@!` are **body-internal cleanup blocks** — statements a command schedules to run at frame exit, in reverse order of registration: `@` on every exit, `@!` only when the frame exits failing. Read them "at exit" and "at exit on failure."
+
 ```
-.concept Resource:
-    .decl Resource r: String name
-    .decl @ Resource r   ; runs at frame exit (success or
-                         ;   failure)
-    .decl @! Resource r  ; runs at frame exit only on
-                         ;   failure
+.cmd process: Path p =
+    #f <- openRaw: p
+    @ closeRaw: f            ; runs when this frame retires
+    @! rollbackJournal: p    ; only if we exit failing
+    ...
 ```
- 
-`@` is read "at exit"; `@!` is "at exit on failure." These execute when the frame holding the value retires, in reverse order of registration (most-recently-introduced first), composing cleanly with the failure system.
- 
-This is an `RAII`-equivalent mechanism, but the hooks are *not* destructors: they are tied to **stack-frame lifetime**, not to object lifetime. An `@` handler fires only when a frame slot directly holding the value retires; a value that exists solely as a field within a record or object does *not* fire its `@` handler when that container goes away. The value must occupy a slot in the stack frame — not be buried inside another structure — for the handler to fire.
- 
+
+They are *not* destructors: they are tied to **stack-frame lifetime**, not value lifetime. Value-tied, RAII-style cleanup is the obligation system's job (§4.5) — a `.promise` travels *with the value* wherever it goes, while `@`/`@!` stay with the frame that wrote them.
+
 ### 3.4 Calling commands
  
 A regular call:
@@ -358,7 +355,8 @@ Indentation establishes block scopes. The first character of a block-bearing lin
 | `%` | "block" | Plain grouping; the body is a single logical unit but does not consume any failure of its own. |
 | `^` | "rewind" | Sibling block that rewinds control to its *preceding sibling* at the same indentation level. Body is optional: a bodiless `^` rewinds unconditionally; a `^` with a body rewinds on body success and consumes any body failure (terminating the loop). Requires a preceding sibling — a bare `^` with none is a static error. |
 | `\|` | "recover" | Catch-all recovery: runs only when an earlier sibling at the same indentation has produced a propagating failure. |
-| `\| TypeName name ->` | "recover, when of type" | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. |
+| `\| TypeName name ->` | "recover, when of type" |
+| `\|! Spec` | "cannot happen — proven" | Discharge arm: the compiler must *prove* the failure unreachable, or it's a compile error; no `.ack` escape, no body. | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. |
 | `@` | "at exit" | At frame exit, fire the body. |
 | `@!` | "at exit, on failure" | At frame exit, fire the body only on the failure path. |
  
@@ -474,7 +472,7 @@ The **default sink** (the first listed) fires automatically when the obligated v
 
 Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by a vesting by-name binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, vesting versus lending, and object retirement — is in the spec's §10.
  
-### 4.6 All-or-nothing updates: `.atomic`
+### 4.6 All-or-nothing updates: `.stage`
 
 Updates in Basis become observable at **statement boundaries**: a statement commits nothing until it succeeds. So how you split a pipeline across statements is also a choice about *when its effects land*:
 
@@ -492,17 +490,17 @@ Updates in Basis become observable at **statement boundaries**: a statement comm
                         ;   above stays
 ```
 
-Both shapes are legitimate — sometimes you *want* the intermediate state to survive. When you want the several-statement shape with the single-boundary guarantee, `.atomic` groups statements under one join point:
+Both shapes are legitimate — sometimes you *want* the intermediate state to survive. When you want the several-statement shape with the single-boundary guarantee, `.stage` groups statements under one join point:
 
 ```
-.atomic
+.stage
     parseHeader: ctx, raw        ; ctx is UPDATE-mode in
                                  ;   parseHeader's signature
     validateSchema: ctx, policy  ; sees the parsed ctx
     applyMigrations: ctx         ; if THIS fails, ctx is
                                  ;   bit-identical to what
                                  ;   it was before the
-                                 ;   .atomic
+                                 ;   .stage
 ```
 
 Inside the group, everything reads and writes normally and in order; the difference is entirely on the failure path, where every slot the group was updating snaps back untouched. Two honest limits, both by design: the group is *not* a scope (names you introduce inside live on after it, and resources you open belong to the surrounding scope, as they should — they're part of what you're committing), and the guarantee covers *slot state*, not effects — a file written inside a failed group stays written. It's your updates that are all-or-nothing, which is usually exactly the promise you wanted.
@@ -517,7 +515,11 @@ For every reachable point in a command body, the typechecker maintains a *failur
 Block markers and recovery contexts manipulate the lattice precisely; the typechecker's job is to confirm the body's structure conforms.
  
  
-### 4.8 Messages beyond failures: one currency, many transports
+### 4.8 Performance-critical code: `.static`
+
+Obligations fire code — a scope-end default is a call you didn't write at the place it runs. Code that cannot afford that surprise opts out: `.cmd .static` (or a `.static` block inside a body) turns the *automatic* obligation machinery off for its extent while leaving conferral on. Every duty the extent generates must be **manually and provably discharged** — a direct sink call or an `@`/`@!` block, on every path — or **vested outward**, its records riding the value into the receiving caller's ordinary machinery. Nothing fires implicitly; where the compiler can't prove your discharge, it says so and you `.ack` it (`static.unproven-discharge`); calling a command that isn't itself `.static` gets the same treatment (`static.dynamic-callee`), because that callee could hand you a duty you'd silently drop. `.static` also marks objects and fields (storage that never holds a dynamically-obligated value, so teardown is obligation-flat) and composes with `.scope`, `.stage`, and `.box`. One hard rule: a `.static` command takes no `~` parameters — consuming a value you didn't create detonates whatever rides it, which is exactly the machinery you turned off.
+
+### 4.9 Messages beyond failures: one currency, many transports
 
 The messages that failures carry aren't special to failures — they're a first-class currency, and the failure system is just their first transport. You can construct one, hold it in a slot, queue it in an object, and unpack it anywhere:
 
@@ -542,7 +544,7 @@ Mismatches simply *fail*, so receive loops are ordinary guard chains — no matc
 
 Two spellings tie the room together. `.fail Overheat <- reading` is this same construction launched on the failure transport. And `src >> dest` is the **move**: the value transfers and `src` dies — the one placement that invalidates its source, which makes it the safest way to relocate something carrying an obligation, and the natural verb for handing messages to the channels and mailboxes of Basis's (future) concurrency story.
 
-When something impossible-by-construction would force a `| ; can't happen` handler, the **discharge arm** `|! Spec` does better: the compiler must *prove* the failure unreachable — then the arm vanishes and your signature comes out clean — or it's a compile error telling you what fact is missing. There is no "trust me" spelling; the multi-million-dollar `unwrap()` has no Basis translation. Language-fired failures all live in one catalog under `Basis::Lang::Failure` (bounds, narrowing mismatches, ownership violations, math), which your libraries can extend and your tests can fire.
+When something impossible-by-construction would force a `| ; can't happen` handler, the **discharge arm** `|! Spec` does better: the compiler must *prove* the failure unreachable — then the arm vanishes and your signature comes out clean — or it's a compile error telling you what fact is missing. There is no "trust me" spelling; the multi-million-dollar `unwrap()` bug has no Basis translation. Language-fired failures all live in one catalog under `Basis::Lang::Failure` (bounds, narrowing mismatches, ownership violations, math), which your libraries can extend and your tests can fire.
 
 ## 5. Types
  
@@ -791,12 +793,10 @@ Copy-restore is the default because it makes mutation transactional — but on a
                               ;   zero restore
     ^ moreSamples: src        ; rewind while more samples
                               ;   remain
-    .unbox state              ; back to ordinary semantics
-                              ;   (or at scope end)
     commit: state
 ```
 
-The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a boxed value passes to `*` parameters (full access, no restore — even if the callee fails, whatever it wrote stays written) and to ordinary read-only parameters and methods, which don't care; and the box lasts until you `.unbox` or the enclosing scope ends, whichever comes first — so cleanup machinery always sees a normal slot. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
+The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a box's extent runs to its enclosing scope's close — there is no unbox. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
 
 ## 7. Construction and Initialization
  
@@ -916,7 +916,7 @@ A `=` declaration binds a default value or default constructor for a slot:
     LogLevel level = LogLevel[info]
 ```
  
-Defaults are evaluated lazily — at the moment the slot would otherwise be uninitialized.
+Defaults are evaluated **at construction time**, at the construct site — an omitted defaulted field is filled as though you had written it.
  
 ## 8. Command-typed values
  
@@ -1048,7 +1048,7 @@ When delegation is used, the *delegate itself* is the receiver in calls to the d
                                ;   together
 ```
  
-Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism (the spec's §9.4 has the details).
+Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism — and a state's handler may commit the transition itself: the in-flight call finishes under the dictionary it dispatched with, the next call routes to the new state, and the delegate may never be the owner (one implicit hop, target ≠ self, checked at every re-point). (See the spec's §9.4 has the details).
  
 For every witness, the compiler builds a *dictionary* — a record-like value whose fields hold command-typed values for each of the concept's methods. Dispatch is an indirect call through the appropriate dictionary slot.
  
