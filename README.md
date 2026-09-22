@@ -517,7 +517,7 @@ Block markers and recovery contexts manipulate the lattice precisely; the typech
  
 ### 4.8 Performance-critical code: `.static`
 
-Obligations fire code — a scope-end default is a call you didn't write at the place it runs. Code that cannot afford that surprise opts out: `.cmd .static` (or a `.static` block inside a body) turns the *automatic* obligation machinery off for its extent while leaving conferral on. Every duty the extent generates must be **manually and provably discharged** — a direct sink call or an `@`/`@!` block, on every path — or **vested outward**, its records riding the value into the receiving caller's ordinary machinery. Nothing fires implicitly; where the compiler can't prove your discharge, it says so and you `.ack` it (`static.unproven-discharge`); calling a command that isn't itself `.static` gets the same treatment (`static.dynamic-callee`), because that callee could hand you a duty you'd silently drop. `.static` also marks objects and fields (storage that never holds a dynamically-obligated value, so teardown is obligation-flat) and composes with `.scope`, `.stage`, and `.box`. One hard rule: a `.static` command takes no `~` parameters — consuming a value you didn't create detonates whatever rides it, which is exactly the machinery you turned off.
+Obligations fire code — a scope-end default is a call you didn't write at the place it runs. Code that cannot afford that surprise opts out: `.cmd .static` (or a `.static` block inside a body) turns the *automatic* obligation machinery off for its extent while leaving conferral on. Every duty the extent generates must be **manually and provably discharged** — a direct sink call or an `@`/`@!` block, on every path — or **vested outward**, its records riding the value into the receiving caller's ordinary machinery. Nothing fires implicitly; where the compiler can't prove your discharge, it says so and you `.ack` it (`static.unproven-discharge`); calling a command that isn't itself `.static` gets the same treatment (`static.dynamic-callee`), because that callee could hand you a duty you'd silently drop. `.static` also marks objects and fields (storage that never holds a dynamically-obligated value, so teardown is obligation-flat) and composes with `.scope`, `.stage`, and `.restrict`. One hard rule: a `.static` command takes no `~` parameters — consuming a value you didn't create detonates whatever rides it, which is exactly the machinery you turned off.
 
 ### 4.9 Messages beyond failures: one currency, many transports
 
@@ -571,7 +571,7 @@ An unsized range `[]T` describes a buffer whose size is determined at the call s
 .cmd run: []String args = ...
 ```
  
-Indexing uses the postfix `[i]` syntax. Indexing is failable (out-of-bounds is a first-class failure). C-style pointer arithmetic does not exist; stepping through buffer contents requires indexing.
+A range may be self-owning or a *view* into another buffer. Indexing uses the postfix `[i]` syntax, and two sibling forms carve out zero-copy **subrange views**: `buf[x,y]` views elements `x` up to but not including `y`, and `buf[x:y]` views `y` elements starting at `x` — both alias the buffer (no copy, no ownership moved), both bounds-checked like `[i]`, and a view may even be taken at a *different* element type when the sizes divide cleanly. Indexing is failable (out-of-bounds is a first-class failure). C-style pointer arithmetic does not exist; stepping through buffer contents requires indexing.
  
 ### 5.2 Domains
  
@@ -675,6 +675,17 @@ In expressions, postfix `^` dereferences a pointer (`p^` is the value the pointe
  
 For object types, pointers carry runtime type information at the implementation level. The `-<` operator (§7.5) uses this to perform safe downcasting through an object hierarchy.
  
+**When you don't need a pointer at all.** Many modern programmers have never implemented an index-based data structure, so it's worth spelling out: where a reference's legal targets form a closed, owner-co-located set — nodes in a pool, entries in an arena, slots in a table — you usually don't want a pointer, you want an **index domain over an owned buffer**:
+
+```
+.domain NodeId : Int32                    ; a branded index — not an Int32, and
+                                          ;   not any other pool's index
+.record Node : Payload data, NodeId next  ; a record can hold THIS reference
+.object Pool : [4096] Node nodes, NodeId freeHead
+```
+
+Notice what just happened: records can't contain pointers, but `NodeId` is a domain — ordinary bytes — so linked structures become expressible *inside the byte world*. Copy the pool's bytes to another machine and the whole graph arrives intact, because indices are positions, not addresses. Traversal walks one contiguous allocation instead of chasing heap-scattered nodes (several links per cache line instead of one); one obligation on the pool covers every node in it; the pool can grow, move, or be copied wholesale and every index survives; a dangling reference is structurally impossible, since an index doesn't point — access goes through the buffer's checked indexing. Two honest limits: an index can be *logically* stale (the slot got reused — memory-safe, but liveness is your discipline; generation counters are the classic upgrade), and the branding is per-domain, not per-pool-instance, so an index from pool A applied to pool B of the same type is legal and wrong. Pointers keep their real jobs — open sets, cross-module identity, unbounded lifetimes — but if your lifetimes are pool-shaped, reach for the index first. The same instinct, applied to *behavior* instead of data, is the concept-closing enum of §5.10 and the statechart selector of §9.2.
+ 
 ### 5.8 Command-typed values
  
 Commands are first-class. A command-typed value is described by a command-type expression that names the failure mark and the parameter types in declaration order, with a postfix `'` on each writeable type:
@@ -715,6 +726,10 @@ Enumerations are nominal sets of named values:
 Enum values are referenced via `EnumName[itemName]` in expressions.
  
 Enumerations are compile-time constants — read-only values fixed at module compile time. As such, they are the language's one principled exception to the no-non-local-state principle. Whether the constructed values are built up-front at module load or on-demand at first reference is an implementation-dependent concern.
+ 
+### 5.10 Alignment: `.align`
+ 
+Basis never aligns anything behind your back — if a layout matters, you declare it, and it becomes part of the type. `.align 64` (bytes) or `.align CacheLine` (to `sizeof` of a type) sits in a declaration's preamble: on a field, or on a whole `.record`, `.object`, or `.domain`. On a compound field the alignment is **per element** — `.align 64 [4]Counter` strides each counter to its own cache line, tail included, which is the whole false-sharing cure in one annotation. Records stay packed unless you say otherwise; declared padding is deterministic and zero-filled, so an aligned value's bytes still serialize completely. And because alignment is part of the type, `.align 64 [4]Counter` and plain `[4]Counter` are *different datatypes*: crossing between them is always explicit — a `-<` view where the payload is contiguous, an element-wise constructor otherwise — never a silent coercion. Together with `.restrict` (§6.6), subrange views (§5.1), the index-pool idiom (§5.7), and the selector enum (§9.2), this rounds out the performance kit: contiguous data, declared layout, checked no-aliasing, and no chases you didn't ask for.
  
 ## 6. Parameters and Mode Markers
  
@@ -770,7 +785,7 @@ Parameters listed after a `/` separator are *implicit context parameters* — Sc
  
 Ambiguity (two `Logger` values in scope) is a compile error; absence (no `Logger` value in scope) is also a compile error. Both are resolvable by passing the value explicitly with the full positional form.
  
-### 6.6 When a section of code must perform: `.box`
+### 6.6 When a section of code must perform: `.restrict`
 
 Copy-restore is the default because it makes mutation transactional — but on a hot path, copying a large record in and out of every call is a price you may refuse. Boxing is the refusal, made explicit:
 
@@ -787,7 +802,7 @@ Copy-restore is the default because it makes mutation transactional — but on a
 .cmd render: Frame f =
     # FrameState state
     ...
-    .box state                ; from here, state passes
+    .restrict state                ; from here, state passes
                               ;   directly — no copies
     step: state, (next: src)  ; tight loop: zero copy-in,
                               ;   zero restore
@@ -796,7 +811,7 @@ Copy-restore is the default because it makes mutation transactional — but on a
     commit: state
 ```
 
-The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a box's extent runs to its enclosing scope's close — there is no unbox. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
+If you know C, this is `restrict` — the real thing: the compiler may treat each `*` binding as the sole route to its storage and cache, reorder, and vectorize accordingly. The difference is that C trusts you and miscompiles silently when you're wrong, while Basis *checks*: aliasing is either impossible by rule, or loudly acknowledged (`restrict.aliasing-hazard`) with the optimization honestly given back. The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a box's extent runs to its enclosing scope's close — there is no unbox; and one boxed slot can appear at most once in any single call — two routes in would falsify the license from inside. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
 
 ## 7. Construction and Initialization
  
@@ -1048,7 +1063,7 @@ When delegation is used, the *delegate itself* is the receiver in calls to the d
                                ;   together
 ```
  
-Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism — and a state's handler may commit the transition itself: the in-flight call finishes under the dictionary it dispatched with, the next call routes to the new state, and the delegate may never be the owner (one implicit hop, target ≠ self, checked at every re-point). (See the spec's §9.4 has the details).
+Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism — and where the state set is closed, the *recommended* form drops the pointer entirely: a concept-closing enum (`.enum StateHandling MachineState : IdleState, RunState, ...`) makes the active state a compact tag-selector, never absent, never self-pointing, with the transition an ordinary enum write and state data living in the machine's own fields. A state's handler may commit the transition itself: the in-flight call finishes under the dictionary it dispatched with, the next call routes to the new state, and the delegate may never be the owner (one implicit hop, target ≠ self, checked at every re-point). (See the spec's §9.4 has the details).
  
 For every witness, the compiler builds a *dictionary* — a record-like value whose fields hold command-typed values for each of the concept's methods. Dispatch is an indirect call through the appropriate dictionary slot.
  
