@@ -234,7 +234,7 @@ The second form, the *file-path form*, names a source file directly:
 
 The path is interpreted relative to the importing file's location (the exact resolution rule is build-system-specific). The named file is loaded as a source file and its top-level definitions become visible.
 
-Names from an imported module include only the imported module's own top-level definitions. A module that imports `Std::Core` does not thereby make `Std::Core`'s names visible to its own importers &mdash; each file requiring `Std::Core`'s names must `.import` it directly. Every name visible at a use site is traceable to a specific import in the same file, with one exception: the module `Basis::Lang`, the language's **prelude**, is imported implicitly into every module. Its contents are the declarations this specification makes there, such as the failure catalog (&sect;4.9), and an implementation adds nothing to them.
+Names from an imported module include only the imported module's own top-level definitions. A module that imports `Std::Core` does not thereby make `Std::Core`'s names visible to its own importers &mdash; each file requiring `Std::Core`'s names must `.import` it directly. Every name visible at a use site is traceable to a specific import in the same file, with one exception: the module `Basis::Lang`, the language's **prelude**, is imported implicitly into every module. Its contents are part of the language standard: every conforming implementation provides the same declarations there and adds nothing to them, so every program can rely on them. They include the failure catalog, which this specification declares (&sect;4.9), and the standard domains with their intrinsics (&sect;5.2).
 
 ### 2.5 The `.program` Directive
 
@@ -293,7 +293,7 @@ The discipline is enforced at the source-text level; it propagates through the r
 
 ### 2.8 Bracket, Brace, and Indentation Composition
 
-Basis has three independent structural nesting mechanisms: bracket pairs `(` `)` and `[` `]`, brace pairs `{` `}` (including the `${`-`}` and `$[`-`]` literal fences), and indentation-determined nested blocks. They nest but never cross: indentation stays in force inside every bracket and brace, so a bracketed construct's continuation lines sit at greater indentation than the line that opened it, and its closing bracket rides either the opening line or one of those continuations (A.5). A block at some indentation level may contain a bracket-delimited type expression, which may contain a brace-delimited body, which may contain its own indented content.
+Basis has three independent structural nesting mechanisms: bracket pairs `(` `)` and `[` `]`, brace pairs `{` `}` (including the `${`-`}` and `$[`-`]` literal fences), and indentation-determined nested blocks. They nest but never cross: indentation stays in force inside every bracket and brace, so every line continuing an open bracket begins to the right of that bracket's column, and its closing bracket rides either the opening line or one of those continuations (A.5). A block at some indentation level may contain a bracket-delimited type expression, which may contain a brace-delimited body, which may contain its own indented content.
 
 Indentation is the language's primary block delimiter. A line indented under another line is part of the construct begun by that line. Block markers (&sect;4.4) carry a body whose extent is determined by indentation: the body comprises every line indented strictly more than the marker's own line, up to the first line not so indented. The block-marker composition rules &mdash; sibling adjacency for `?:` chains, `|` recovery cascades, `^` rewinds &mdash; operate on the marker's siblings, the other lines of its body; the composing markers &mdash; `?`, `?-`, `??`, `?:`, `-`, `%` and `^` &mdash; find their partners at exactly the marker's column (A.5). The user reading source can determine block structure by inspection; the language enforces the same structure during parsing.
 
@@ -809,8 +809,6 @@ The connection is released at the end of the guard scope &mdash; on either outco
 
 **Relationship to subcommands.** A `.scope` block and a subcommand (&sect;3.12) can both bound cleanup to a region smaller than the enclosing command's body &mdash; a subcommand's frame retirement fires the `@`/`@!` blocks registered in it &mdash; but a `.scope` provides that boundary directly, without a separate signature, parameter threading, or call. A subcommand earns its weight here only when the bounded region also needs its own parameters or recursion; for pure scoping, a `.scope` is the form to reach for. The distinction is that a subcommand is a *call* (a fresh frame entered by invocation, with its own parameters), while a `.scope` is an *inline region* (no call, sharing the enclosing frame's parameters and visible locals).
 
-A `.restrict` extent (&sect;6.14) ends at its enclosing scope's close: the boxed slots return to ordinary access on every exit path.
-
 **The staged block: `.stage`.** A **staged block** groups statements under one copy-restore join point: its writes to slots that exist at block entry defer to the block's success edge. The guarantee is **slot-state atomicity, never effect atomicity**: effects inside the block &mdash; I/O, sink discharges, object mutation &mdash; happen and are not recalled; what the block guarantees is that on failure every deferred slot is bit-identical to block entry. For each outer slot the block touches writeable, the frame materializes a working copy (&sect;6.3) at the block's first touch; every read and write of that slot within the block resolves through the working copy in textual order; one join lands the copy on the real slot at the block's success edge. Failure anywhere in the block discards the copies and propagates normally. In failure flow a staged block composes exactly as `%` does, including in guard position (&sect;4.4).
 
 Statement granularity (&sect;6.3) already makes the division of a pipeline across statements a choice about **when updates become observable**: calls nested within one statement share that statement's single boundary, while the same calls as separate statements commit one by one:
@@ -843,7 +841,7 @@ Both divisions are legitimate &mdash; an intermediate state is often *meant* to 
                                  ;   to its state at entry
 ```
 
-**A staged block is not a scope.** A `#name` introduced inside declares a slot of the enclosing scope, visible after the block, and the same-scope rules apply across the boundary (Appendix G.3). Such a slot did not exist at block entry, so it is not deferred; after a failed block its initialization follows the ordinary per-path analysis (&sect;6.13). The block's only storage of its own is its working copies and temporaries, reclaimed at the join or the discard and invisible to naming. Everything scope-shaped belongs to the enclosing scope under its existing rules: obligations acquired inside are owned by the enclosing scope and discharge at its end &mdash; resources opened inside are part of the state being committed, and the join does not cut their lifetimes short; obligation transfers stay eager at the call boundary (&sect;10.10), since the block defers copy-restore write-backs, exactly and only (&sect;6.3); `@` and `@!` blocks registered inside fire at the enclosing scope's end (&sect;3.13); and a `.restrict` inside the block runs to the enclosing scope's close (&sect;6.14). Nothing fires at the block's boundary except the join itself. A `.scope` nested inside a staged block is a real scope: its obligations discharge at its own end, and since sink calls are effects rather than write-backs, a later discard leaves them discharged while the outer slots stand bit-identical.
+**A staged block is not a scope.** A `#name` introduced inside declares a slot of the enclosing scope, visible after the block, and the same-scope rules apply across the boundary (Appendix G.3). Such a slot did not exist at block entry, so it is not deferred; after a failed block its initialization follows the ordinary per-path analysis (&sect;6.13). The block's only storage of its own is its working copies and temporaries, reclaimed at the join or the discard and invisible to naming. Everything scope-shaped belongs to the enclosing scope under its existing rules: obligations acquired inside are owned by the enclosing scope and discharge at its end &mdash; resources opened inside are part of the state being committed, and the join does not cut their lifetimes short; obligation transfers stay eager at the call boundary (&sect;10.10), since the block defers copy-restore write-backs, exactly and only (&sect;6.3); and `@` and `@!` blocks registered inside fire at the enclosing scope's end (&sect;3.13). Nothing fires at the block's boundary except the join itself. A `.restrict` block inside the staged block ends at its own dedent, which lies within the staged block (&sect;6.14). A `.scope` nested inside a staged block is a real scope: its obligations discharge at its own end, and since sink calls are effects rather than write-backs, a later discard leaves them discharged while the outer slots stand bit-identical.
 
 **Staged blocks do not nest.** A `.stage` within the lexical extent of another `.stage` in the same command body is a static error, whatever block markers or `.scope` blocks stand between them. The construct is flat: a nested block's success-edge join would commit only into the outer block's working copies &mdash; a join point in name only, silently deferred to the outer success. A lambda or command literal inside the block has a body of its own, which is not lexical nesting; and a callee invoked from within the block may contain its own `.stage`, which joins the callee's slots, the call's ordinary copy-restore write-back then landing in the caller's working copies. Statements inside the block carry their own boundaries (&sect;6.3) and join into the block's working copies.
 
@@ -952,7 +950,7 @@ In guard position the desugared sequence forms the guard's body under &sect;4.4'
 
 **Dispatch and ambiguity.** The desugared invocation is an ordinary method call: witness resolution follows &sect;9.12/&sect;9.15 at the dispatch, and where two visible concepts map one symbol applicably for the operand types, the application is ambiguous per &sect;9.16 &mdash; the error names the candidate concepts, and the remedy line shows the **desugared method form**, which the user writes directly (with &sect;9.16's method-prefix disambiguation where needed) in place of the operator.
 
-**Standard domains.** The standard library's numeric domains satisfy stdlib arithmetic and comparison concepts whose mapped methods bottom out at the &sect;5.2 intrinsics; the operator system introduces no primitives of its own.
+**Standard domains.** The prelude's numeric domains (&sect;5.2) satisfy standard arithmetic and comparison concepts whose mapped methods bottom out at the &sect;5.2 intrinsics; the operator system introduces no primitives of its own.
 
 ---
 
@@ -1373,7 +1371,7 @@ The bracket form `[n]` denotes an `n`-byte buffer with the length fixed in the t
 
 **Subrange views.** Two postfix forms create a range viewing part of a buffer, both taking **element indices of the underlying buffer's element type**: `buf[x,y]` views elements `x` through `y` *exclusive* &mdash; the half-open `[x,y)`, substring-style &mdash; and `buf[x:y]` views `y` elements starting at `x` (so for an `[]Int32` value, `x[3:4]` views four elements from index 3: sixteen bytes). Both alias the buffer's contents under the ordinary view machinery &mdash; the region-escape ceiling bounds the view by the buffer's extent, and no ownership moves &mdash; and both fail on out-of-bounds exactly as `[i]` does, with no new failure identity. The view's element type is spelled by the receiving slot's declared type; when none is given, the source buffer's element type is taken by default. **Retyping is admissible iff** `sizeof(range element type) <= sizeof(buffer element type)` and `sizeof(buffer element type)` is cleanly divisible by `sizeof(range element type)`; incompatible sizes are a **static error**.
 
-There are no privileged primitive types in Basis. The standard library defines `Int32`, `UInt32`, `Float32`, `Int8`, and similar names as domains over buffer-primitives of appropriate size, with associated intrinsics for arithmetic and comparison; the infix operator surface over them is &sect;3.19's concept mapping, the intrinsics its floor. User-defined domains use the same mechanism &mdash; there is no conceptual distinction between standard-library domains and user domains. The buffer primitives are the unifying substrate; everything else is a refinement.
+There are no privileged primitive types in Basis. The prelude (&sect;2.4) defines `Int32`, `UInt32`, `Float32`, `Int8`, and similar names as domains over buffer-primitives of appropriate size, with associated intrinsics for arithmetic and comparison; the infix operator surface over them is &sect;3.19's concept mapping, the intrinsics its floor. User-defined domains use the same mechanism &mdash; there is no conceptual distinction between the prelude's domains and user domains. The buffer primitives are the unifying substrate; everything else is a refinement.
 
 ### 5.3 Domains
 
@@ -1634,7 +1632,7 @@ A parameter or receiver in Basis carries one of five **modes** &mdash; **READ**,
 
 The five modes apply to receivers identically. A method's receiver-mode is part of its signature; the discipline that governs receivers uniformly across signature shapes is in &sect;6.6 (the R1 and R2 rules) and &sect;6.7 (the receiver-mode-by-signature-shape table). Receivers and parameters are dispatched the same way at the call boundary &mdash; call-by-value for READ, copy-restore for CREATE and UPDATE, and consume-on-entry for DISPOSE (&sect;7.22, &sect;10.10) &mdash; with R1 imposing a uniform call-site initialization requirement on receivers that does not apply to non-receiver parameters.
 
-**DIRECT** &mdash; marked with `*` on the name (e.g., `*buf`); admissible only for boxed arguments. The callee operates on the caller's storage itself &mdash; no copy at entry, no restore on failure &mdash; under the no-alias license. The mode exists only in combination with the `.restrict` statement; &sect;6.14 is its section.
+**DIRECT** &mdash; marked with `*` on the name (e.g., `*buf`); admissible only for boxed arguments. The callee operates on the caller's storage itself &mdash; no copy at entry, no restore on failure &mdash; under the no-alias license. The mode exists only in combination with the `.restrict` block; &sect;6.14 is its section.
 
 ### 6.2 Marker Placement
 
@@ -1686,7 +1684,7 @@ For CREATE parameters specifically, the caller's slot may be uninitialized at th
 
 Three consequences pin the mechanics. Same-slot READs within the statement go through the working copy, so textual-order visibility is exact: in `f: ctx, (g: ctx, x)` where `g` binds `ctx` UPDATE by signature, the READ binding of `ctx` supplied to `f` sees the post-`g` working copy. Invoking a command-typed value carrying an UPDATE-mode capture or binding of a working-copied slot, within the statement, is a static error: the invocation's own copy-restore against the real slot would race the statement-end join into a lost update &mdash; the tracking is the capture-list and binding machinery of &sect;6.9 and &sect;8.2, and the rule has the same shape as the stale-capture rule for boxed slots (&sect;6.14). A single-call statement degenerates to the per-call semantics at zero cost, because the working copy *is* the call's own copy; the mechanism is pay-per-use &mdash; one extra slot and one final join, only in multi-call statements with writeable bindings, and only for the bound slots.
 
-The statement is the smallest instance of a general mechanism. A **`.stage` block** (&sect;3.17) is a programmer-placed boundary with the same semantics at block granularity: working copies per touched outer slot, textual-order resolution, one success-edge join, discard on failure. Boundaries compose by one rule: **every boundary joins into the nearest enclosing boundary; the real slot is the outermost.** A statement inside a staged block joins into the block's working copies; staged blocks themselves do not nest (&sect;3.17).
+The statement is the smallest instance of a general mechanism. A **`.stage` block** (&sect;3.17) is a programmer-placed boundary with the same semantics at block granularity: working copies per touched outer slot, textual-order resolution, one success-edge join, discard on failure. Boundaries compose upward, and only upward: a statement inside a staged block joins into the block's working copies, and the block's join lands them on the real slots. Staged blocks do not nest (&sect;3.17).
 
 **Exclusions from the boundary.** Three categories stand outside it, each on existing principle: boxed slots under `*`, the declared principle-4 exception (&sect;6.14); obligation transfers, which are eager at the call boundary (&sect;10.10) and not restore-based &mdash; the obligation system's own failure-edge machinery governs them; and object-mediated field mutation, which is reference semantics performed in place (&sect;5.11). The boundary defers copy-restore write-backs, exactly and only.
 
@@ -1831,19 +1829,20 @@ The implementation of the analysis is a forward-flow walk over the body's CFG, j
 
 ### 6.14 DIRECT Access: `.restrict` and the `*` Marker
 
-The `.restrict` statement places one or more frame-owned slots under **DIRECT** access:
+A `.restrict` block places one or more frame-owned slots under **DIRECT** access for the extent of its indented body:
 
 ```
 .restrict identifier ( , identifier )*
+    body
 ```
 
-Each named slot is boxed from the statement to the close of its enclosing scope (&sect;3.17); the extent is lexical, and no unbox form exists. The slot state is called **boxed** throughout this specification; the keyword names what the declaration grants &mdash; the restrict-style no-alias license below. Within the extent the slot is accessed through **`*` bindings** &mdash; the DIRECT mode (&sect;6.1) &mdash; and mutation through a `*` binding is **in place**: no copy at the call boundary, no restore on failure. This is the declared exception to principle 4 (&sect;1.2): a failing callee leaves whatever it wrote, and the trade is visible at the `.restrict`, at every `*` in every signature, and at every supplying call site.
+Each named slot is boxed from the `.restrict` line to the dedent that closes the body, on every exit path, and returns to ordinary access after it; the extent is lexical, and no unbox form exists. Like a staged block (&sect;3.17), a `.restrict` block is not a scope: a `#name` introduced in its body declares a slot of the enclosing scope, visible after the block; obligations acquired and `@`/`@!` hooks registered inside belong to the enclosing scope; and nothing happens at the dedent except the end of the extent. In failure flow it composes exactly as `%` does, including in guard position (&sect;4.4). The slot state is called **boxed** throughout this specification; the keyword names what the declaration grants &mdash; the restrict-style no-alias license below. Within the extent the slot is accessed through **`*` bindings** &mdash; the DIRECT mode (&sect;6.1) &mdash; and mutation through a `*` binding is **in place**: no copy at the call boundary, no restore on failure. This is the declared exception to principle 4 (&sect;1.2): a failing callee leaves whatever it wrote, and the trade is visible at the `.restrict`, at every `*` in every signature, and at every supplying call site.
 
 **The no-alias license.** DIRECT's safety and performance rest on one assumption the discipline below keeps sound: within a `*` binding's extent, the implementation may treat the binding as the **sole route** to the storage &mdash; caching, reordering, and vectorizing accordingly. The license is what boxing buys; everything this section polices exists to keep it true or to make its withdrawal explicit. **The intent is C99 `restrict`, by name**: the license grants exactly that qualifier's compiler contract &mdash; obtained here by *enforcement* rather than promise. Where C makes violation undefined behavior, Basis makes it impossible (the static rules of this section), or explicit and sound (the `restrict.aliasing-hazard` acknowledgment, which withdraws the license and mandates aliased codegen). `.restrict` programs are aggressively optimizable *because* they cannot be silently wrong about aliasing.
 
 **Eligibility.** Boxable slots are frame-owned and buffer-backed &mdash; region-resident storage a license can be sole over. Each of the following is a static error at the `.restrict`: an object slot (objects mutate in place by reference already; there is nothing to exempt), a view (`<<-` &mdash; no owned storage), a command-typed slot, and a slot under an open `.promise` duty.
 
-**Exclusivity.** While boxed, a slot binds at `*` and READ positions only. Supplying it at a CREATE or UPDATE position is a static error &mdash; copy-restore against DIRECT storage is a contradiction: the deferral virtualizes exactly what boxing declares real. `~ x` on a boxed slot is a static error (finalize before the box, or let scope close end the extent first). `.restrict` of an already-boxed slot is a static error. A `*` parameter demands a boxed argument; a boxed slot supplied to any writeable position binds only at `*`. And within a single invocation, a boxed slot may bind at **at most one position**: a second binding of the same slot in the same call &mdash; at `*` or at READ &mdash; is a static error at the call site, where both argument expressions name the slot. Two routes into one storage would falsify the license from inside; the check is syntactic, because boxing is name-based and frame-owned.
+**Exclusivity.** While boxed, a slot binds at `*` and READ positions only. Supplying it at a CREATE or UPDATE position is a static error &mdash; copy-restore against DIRECT storage is a contradiction: the deferral virtualizes exactly what boxing declares real. `~ x` on a boxed slot is a static error (finalize before the `.restrict` block, or after its dedent). `.restrict` of an already-boxed slot is a static error. A `*` parameter demands a boxed argument; a boxed slot supplied to any writeable position binds only at `*`. And within a single invocation, a boxed slot may bind at **at most one position**: a second binding of the same slot in the same call &mdash; at `*` or at READ &mdash; is a static error at the call site, where both argument expressions name the slot. Two routes into one storage would falsify the license from inside; the check is syntactic, because boxing is name-based and frame-owned.
 
 **DIRECT never converts to copy-restore.** A `*` parameter arrives bound to boxed storage and stays DIRECT in the callee: the callee may pass it onward at `*` and READ positions only, never at CREATE or UPDATE. A `*` receiver is the method spelling of the same binding and counts as the call's one binding of the slot; where a concept declares a method with a `*` receiver, every witness's implementation takes that receiver `*`, since the mode is part of the signature (&sect;6.11). The salient consequence, and the reason the trade is kept visible (above), is that a DIRECT write survives the callee's failure:
 
@@ -1857,9 +1856,9 @@ Each named slot is boxed from the statement to the close of its enclosing scope 
 .cmd tally =
     # Int64 count <- 0
     .restrict count
-    bump: count
-    | Interrupted ->
-        log: count        ; 1: the write survived.
+        bump: count
+        | Interrupted ->
+            log: count    ; 1: the write survived.
                           ;   With count unrestricted
                           ;   and bump taking &n, the
                           ;   failed call would commit
@@ -1867,20 +1866,29 @@ Each named slot is boxed from the statement to the close of its enclosing scope 
                           ;   still be 0
 ```
 
-**Stale captures.** A command value whose capture list or `&` bindings reach a slot whose access category changed between construction and use is rejected at the use, by the same frame-local capture-list tracking &sect;6.9 already performs, and the binding tracking of &sect;8.2:
+**Stale captures.** A command value whose capture list or `&` bindings reach a slot whose access category at the use differs from its category at construction is rejected at the use, by the same frame-local capture-list tracking &sect;6.9 already performs, and the binding tracking of &sect;8.2:
 
 ```
 # Buffer buf <- (make: 4096)
-#report <- {:< / &buf>{ emit: buf }} ; &-capture: copy-restore semantics
-                                     ;   against buf's real slot, baked in
-                                     ;   at construction
-.restrict buf                             ; buf's storage goes DIRECT
-fill: buf, source                    ; in-place mutation, no copy, no restore
-report                               ; STATIC ERROR (stale capture): the
-                                     ;   &-capture predates the box; invoking
-                                     ;   it now would run its copy-restore
-                                     ;   write-back against storage the box
-                                     ;   mutates directly -- a lost update
+#report <- {:< / &buf>{ emit: buf }}
+                      ; &-capture: copy-restore
+                      ;   against buf's real
+                      ;   slot, baked in at
+                      ;   construction
+.restrict buf         ; buf's storage goes DIRECT
+    fill: buf, source ; in-place mutation, no
+                      ;   copy, no restore
+    report            ; STATIC ERROR (stale
+                      ;   capture): the &-capture
+                      ;   predates the box;
+                      ;   invoking it now would
+                      ;   run its copy-restore
+                      ;   write-back against
+                      ;   storage the box mutates
+                      ;   directly — a lost update
+report                ; legal: past the dedent,
+                      ;   buf's access is what it
+                      ;   was at construction
 ```
 
 The mirror rule: a lambda with a `*` capture-list entry (&sect;6.9) may not be invoked, stored, or placed outside the `.restrict` extent that boxed the captured slot. Both halves are checked at the invocation or placement site.
@@ -1890,22 +1898,29 @@ The mirror rule: a lambda with a `*` capture-list entry (&sect;6.9) may not be i
 ```
 # Buffer secret <- (make: 64)
 .restrict secret
-scrub: secret                    ; DIRECT under the no-alias license: the
-                                 ;   compiler may cache, reorder, vectorize
-                                 ;   through *secret freely
-.ack "restrict.aliasing-hazard"
-#p <- secret&                    ; pointer-of a boxed slot, in-region:
-                                 ;   raises the caveat the .ack answers;
-                                 ;   the acknowledgment WITHDRAWS the
-                                 ;   license -- every *secret binding below
-                                 ;   compiles as aliased (loads and stores
-                                 ;   kept), memory-safe, unoptimized
-audit: p, secret                 ; legal: acknowledged aliasing, no license
+    scrub: secret     ; DIRECT under the no-alias
+                      ;   license: the compiler
+                      ;   may cache, reorder,
+                      ;   vectorize through
+                      ;   *secret freely
+    .ack "restrict.aliasing-hazard"
+    #p <- secret&     ; pointer-of a boxed slot,
+                      ;   in-region: raises the
+                      ;   caveat the .ack answers;
+                      ;   the acknowledgment
+                      ;   WITHDRAWS the license —
+                      ;   every *secret binding
+                      ;   below compiles as
+                      ;   aliased (loads and
+                      ;   stores kept), memory-
+                      ;   safe, unoptimized
+    audit: p, secret  ; legal: acknowledged
+                      ;   aliasing, no license
 ```
 
 The caveat covers in-region address-taking; pointers predating or bypassing the region discipline remain Appendix I A3's documented territory.
 
-**Scope close.** The extent ends at the enclosing scope's close on every exit path; the slot returns to ordinary access, its storage and lifetime otherwise untouched (&sect;3.17).
+**The dedent.** The extent ends at the dedent that closes the block's body, on every exit path; the slot returns to ordinary access, its storage and lifetime otherwise untouched.
 
 ---
 
@@ -3627,21 +3642,28 @@ Siblings at uneven columns are legal, if untidy; each line's parent is what coun
         report: e             ; the | block's body
 ```
 
-A more-indented line either begins the body of the construct above it or, where that construct's line is unfinished &mdash; an open bracket, or an argument list ending in a comma (&sect;3.14) &mdash; continues it. Top-level declarations begin at column 0.
+A more-indented line either begins the body of the construct above it or, where that construct's line is unfinished &mdash; an open bracket, or an argument list ending in a comma (&sect;3.14) &mdash; continues it. A line continuing an open bracket also begins to the right of that bracket's column (below). Top-level declarations begin at column 0.
 
 **Tab vs. space treatment.** A tab is conventionally treated as eight columns. Mixing tabs and spaces in leading whitespace is admitted but discouraged; an implementation may emit a warning.
 
 **Comments and blank lines.** A line consisting only of a comment or only of whitespace is ignored for the purpose of indentation comparison and is logically skipped.
 
-**Brackets do not suspend indentation.** The indentation discipline remains in force inside every bracketed and braced construct (`(...)`, `[...]`, `{...}`, `${...}`, `$[...]`): continuation lines of a bracketed construct are **more indented** than the line that opened it, and consequently **the closing bracket always sits at greater indentation than its opening bracket** &mdash; either on the opening line itself or on a more-indented continuation line. A closing bracket at or left of the opening line's indentation is a syntax error: the dedent would end the enclosing block while the bracket is still open, and the two nesting mechanisms may never cross.
+**Brackets do not suspend indentation.** The indentation discipline remains in force inside every bracketed and braced construct (`(...)`, `[...]`, `{...}`, `${...}`, `$[...]`), and an open bracket is measured by its own column. Every line that continues an open bracket begins to the right of that bracket's column, so the bracket's contents lie on its own line or on later lines indented past it, and its closing bracket lies on one of those lines, to the right of its opener. A line inside an open bracket that begins at or left of the bracket's column is a syntax error: bracket nesting and block nesting may never cross.
 
 ```
-(                ; NEGATIVE: the closing paren returns
-  stuff          ;   to the opening column, a dedent
-)                ;   inside an open bracket — error
+(                ; NEGATIVE: the closing paren sits at
+  stuff          ;   the opening paren's column — error
+)
 
-( stuff          ; POSITIVE: the continuation is more
-  more stuff )   ;   indented, and the paren closes on it
+( stuff          ; POSITIVE: the continuation begins
+  more stuff )   ;   right of the paren's column
+
+#total <- (a + b +
+  c)             ; NEGATIVE: c begins left of the
+                 ;   paren's column (10) — error
+
+#total <- (a + b +
+            c)   ; POSITIVE: c begins right of it
 ```
 
 The lexer and parser coordinate to enforce this consistency; the mechanism is an implementation concern, and this specification constrains only the observable rule above.
@@ -3656,7 +3678,7 @@ Basis distinguishes three independent kinds of nesting:
 
 At end-of-input, every opening must have been closed, and the source must have returned to its top-level indentation. Unbalanced brackets, unbalanced braces, or unclosed nested blocks at end-of-input are static errors.
 
-Within a bracketed or braced construct, the indentation discipline remains in force (A.5): continuation lines are more indented than the opening line, and the closing token sits at greater indentation than its opener. Multi-line argument lists and aggregate literals are therefore laid out as continuations, never as dedents, and bracket nesting and block nesting can never cross.
+Within a bracketed or braced construct, the indentation discipline remains in force (A.5): every line continuing an open bracket or brace begins to the right of its opener's column, so the closing token lies to the right of its opener. Multi-line argument lists and aggregate literals are therefore laid out as continuations, never as dedents, and bracket nesting and block nesting can never cross.
 
 ### A.7 Disambiguation Rules
 
@@ -3907,7 +3929,7 @@ subcommand-decl   ::= .sub regular-signature = cmd-body          ; lexically sco
 statement         ::= placement-stmt | narrow-stmt | move-stmt | extract-stmt
                     | call | expr-stmt | fail-directive | finalize-stmt
                     | block-marker-construct | scope-block | stage-block | static-block
-                    | ack-stmt | restrict-stmt | using-directive
+                    | restrict-block | ack-stmt | using-directive
 expr-stmt         ::= expr                                       ; an expression standing as a statement, typically a test (S3.19)
 
 finalize-stmt     ::= ~ identifier                               ; finalize the slot now (S7.22)
@@ -3920,11 +3942,10 @@ fail-directive    ::= .fail                                     ; message-less f
                     | .fail type-path <- expr                   ; owning payload
                     | .fail type-path <<- expr                  ; viewing payload (S4.3, S4.14)
 
-restrict-stmt     ::= .restrict identifier ( , identifier )*    ; DIRECT extent to scope close (S6.14)
-
 scope-block       ::= .scope cmd-body                            ; body-internal block (S3.17), composing like group-block
 stage-block       ::= .stage cmd-body                            ; not a scope: outer writes defer to the success edge (S3.17, S6.3)
 static-block      ::= .static cmd-body                           ; obligation-static region (S10.16)
+restrict-block    ::= .restrict identifier ( , identifier )* cmd-body ; not a scope: the body is the DIRECT extent (S6.14)
 
 expr              ::= operand ( binary-op operand )*             ; parsed flat: S3.19's tiers and chaining apply after parsing
 binary-op         ::= * | / | % | + | - | < | <= | > | >= | == | <> | = | !=
@@ -4002,7 +4023,7 @@ Subcommand declarations appear at the head of *body-content* per &sect;3.12's st
 
 **Names and calls.** A call with arguments announces itself by its `:`; as an operand or argument it is parenthesized, while on a placement's right-hand side it may stand bare (`#x <- quotrem: remainder, 10, 3`). A name standing alone is also a call, wherever it stands (&sect;3.14): a command name, a method `receiver :: name`, a local or parameter holding a command value, or a type-path, which calls the type's zero-argument constructor (&sect;3.9) &mdash; for a payload-less message, the empty envelope (`#q <- Ctl::Shutdown`, &sect;4.14). Parenthesized, each is the same call: `(SortedSet[NumberField])` is `SortedSet[NumberField]` (&sect;9.20). Only the quote (B.10) makes a command value. In a method call, the last `:: name` of the chain names the method, and the chain before it is the receiver. Brackets directly after a type-path are its type arguments (`MachineState[DoneState]`, &sect;9.4); an index follows a value, never a type-path.
 
-A *scope-block* (`.scope`) and a *stage-block* (`.stage`) are body-internal keyword constructs, not among the twelve block markers (&sect;3.1). Both compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and it may stand in the guard position of a `?`, `?-`, or `?:`. A scope-block adds the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17; a stage-block, which is not a scope, adds only its success-edge join.
+A *scope-block* (`.scope`), a *stage-block* (`.stage`), and a *restrict-block* (`.restrict`) are body-internal keyword constructs, not among the twelve block markers (&sect;3.1). All three compose in failure flow exactly as *group-block* (`%`) does &mdash; an unrecovered body failure propagates out, and each may stand in the guard position of a `?`, `?-`, or `?:`. A scope-block adds the scope-local declaration, storage-reclamation, and obligation-discharge semantics of &sect;3.17; a stage-block, which is not a scope, adds only its working copies, joined on its success edge and discarded on failure; a restrict-block, which is not a scope either, adds only its DIRECT extent over the slots it names (&sect;6.14).
 
 ### B.7 Block Markers and Indentation-Sensitive Composition
 
@@ -4233,6 +4254,7 @@ A note on `Expr`. Basis has syntactic expressions (B.6's `expr` productions, &se
 | `DoScope` | `.scope` | `body: CmdBody` |
 | `DoStage` | `.stage` | `body: CmdBody` |
 | `DoStatic` | `.static` | `body: CmdBody` |
+| `DoRestrict` | `.restrict` | `slots: [identifier]`, `body: CmdBody` |
 | `Extract` | `->` / `->>` | `vesting: Bool`, `source: identifier`, `spec: TypePath`, `binder: identifier?` |
 | `Move` | `>>` | `source: identifier`, `dest: Place` |
 | `MsgConstruct` | `( T <- e )` / `( T <<- e )` | `path: TypePath`, `payload: Expr`, `owning: Bool` |
@@ -4933,7 +4955,9 @@ $$
 
 At the block's close, every obligation still owned by a scope-local binding is discharged (&sect;10.5, &sect;10), scope-local frame-bound-region storage is reclaimed (&sect;7.20), and any `@`/`@!` hooks registered within the block fire (&sect;4.11) &mdash; together, in the reverse-registration order of &sect;3.17.
 
-A `.stage` block (&sect;3.17) is not a scope: a local introduced inside it is visible after it, as any local of the enclosing scope is, and no judgment of this section applies at its close. Its outer-write deferral is the boundary discipline of &sect;6.3 and adds no typing judgment of its own. Of the three static errors it introduces, nesting one staged block within another is lexical; finalizing or boxing an outer working-copied slot within the block is enforced by the boundary analysis (&sect;6.3, Appendix E).
+A `.stage` block (&sect;3.17) is not a scope: a local introduced inside it is visible after it, as any local of the enclosing scope is, and no judgment of this section applies at its close. Its outer-write deferral is the boundary discipline of &sect;6.3 and adds no typing judgment of its own. Of the static errors it introduces, nesting one staged block within another is lexical; finalizing or boxing an outer working-copied slot, and storing a view or address of a working copy in any slot (&sect;3.17), are enforced by the boundary analysis (&sect;6.3, Appendix E).
+
+A `.restrict` block (&sect;6.14) is likewise not a scope: a local introduced inside it is visible after it, and no judgment of this section applies at its close. Its extent is its body, within which &sect;6.14's rules govern the slots it names.
 
 A `.static`-marked declaration (&sect;10.16) adds a conformance obligation on the same walk: within a marked command or region no implicit default fires &mdash; every duty conferred there is verified manually discharged on every path, or carries the acknowledged `static.unproven-discharge` caveat &mdash; calls to unmarked callees carry the acknowledged `static.dynamic-callee` caveat, and no `~` parameter or DISPOSE receiver appears in the marked signature. The check is frame-local; no judgment crosses a declaration boundary.
 
