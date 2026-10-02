@@ -108,7 +108,7 @@ A command that may fail, and a caller that handles the failure:
         writeLn: "couldn't divide"
 ```
  
-The `?` prefix on `safeDivide`'s name in `.cmd ?safeDivide` declares "may fail." The body uses `?` as a block marker — "when `d = 0`," do the indented block, which fires `.fail DivByZero: n` to construct a payload-bearing failure with the numerator carried in the payload. Because `safeDivide` has exactly one writeable parameter — CREATE `'result` — that slot is automatically the value when the command is invoked as an expression, which is what makes `#q <- safeDivide: 10, 0` a legal use site: the call's `'result` slot is supplied by `#q`. If the call fails, the typed-recovery block `| DivByZero e -> ...` catches and recovers, binding the constructed payload to `e`; the bound name `e` is in scope only inside the recovery body.
+The `?` prefix on `safeDivide`'s name in `.cmd ?safeDivide` declares "may fail." The body uses `?` as a block marker — "when `d = 0`," do the indented block, which fires `.fail DivByZero <- n` to construct a payload-bearing failure with the numerator carried in the payload. Because `safeDivide` has exactly one writeable parameter — CREATE `'result` — that slot is automatically the value when the command is invoked as an expression, which is what makes `#q <- safeDivide: 10, 0` a legal use site: the call's `'result` slot is supplied by `#q`. If the call fails, the typed-recovery block `| DivByZero e -> ...` catches and recovers, binding the constructed payload to `e`; the bound name `e` is in scope only inside the recovery body.
  
 Three points distinguish this from mainstream-language exception handling. First, failure messages in Basis are not exceptions — there is no stack unwinding (§4 covers propagation in detail). Second, the pattern `| DivByZero e ->` is a typed match that selects `DivByZero` and any of its subtypes within the message hierarchy, so a recovery block written for a parent message catches all of its descendants. Third, `e` binds only to the message's payload (the `Int` numerator here), not to the message as a whole — the identity `DivByZero` is matched by the pattern, never bound.
  
@@ -116,13 +116,14 @@ A small concept with one declared method and one default-implementation method, 
  
 ```
 .concept Renderable:
-    .decl render: String 'output
-    .cmd describe: String 'output = render: output
+    .decl Renderable r :: render: String 'output
+    .cmd Renderable r :: describe: String 'output =
+        r :: render: output
  
 .witness WidgetArt[Widget] : Renderable
 ```
  
-`.decl` is signature-only (witnesses must supply); `.cmd` inside a concept body is a default that witnesses may override. The line `.witness WidgetArt[Widget] : Renderable` says "the type `Widget` satisfies `Renderable`" — and gives that satisfaction a name, `WidgetArt`. The name is what you say when a type satisfies a concept in more than one way and you need to pick (§9.7); when there's only one way, you never mention it again. Bodies for `Renderable`'s declared methods are supplied either elsewhere (via methods on `Widget` itself, with matching shapes) or by delegation to a field, spelled `-> fieldName`.
+`.decl` is signature-only (witnesses must supply); `.cmd` inside a concept body is a default that witnesses may override. Each method names its receiver, `Renderable r`: the value a call dispatches on (§9.1). The line `.witness WidgetArt[Widget] : Renderable` says "the type `Widget` satisfies `Renderable`" — and gives that satisfaction a name, `WidgetArt`. The name is what you say when a type satisfies a concept in more than one way and you need to pick (§9.7); when there's only one way, you never mention it again. Bodies for `Renderable`'s declared methods are supplied either elsewhere (via methods on `Widget` itself, with matching shapes) or by delegation to a field, spelled `-> fieldName`.
  
 Whitespace is significant. Indentation determines what belongs to what, in the spirit of Python or Haskell. A line indented under another line is part of the construct begun by that line.
  
@@ -136,8 +137,8 @@ A source file is a sequence of four optional sections:
 - Zero or more top-level definitions: `.alias`, `.cmd`, `.concept`, `.decl`, `.domain`, `.enum`, `.implicit`, `.intrinsic`, `.msg`, `.object`, `.profile`, `.program`, `.promise`, `.record`, `.test`, `.union`, `.variant`, `.witness`.
 ```
 .module App::Models
-.import Std:Core
-.alias StringList: List[String]
+.import Std::Core
+.alias StringList = List[String]
 .domain UserId: Int
 .enum UserRole: admin = 0, user = 1, guest = 2
 .record User: UserId id, String name, String email,
@@ -147,7 +148,7 @@ A source file is a sequence of four optional sections:
 .witness UserOrd[User]  : Comparable
 ```
  
-Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). Imports use `Alias:Module` form when binding the imported module to a local alias, or `.import "filename"` for file imports. Type names begin with an uppercase letter; identifier names begin with lowercase. The lexer enforces this: `.witness userJson[User] : Serializable` is a syntax error (lowercase witness name).
+Module names use `::` to qualify namespaces (`Std::Utils`, `App::Models`). An import names a module (`.import Std::Core`), optionally binding it to a local alias (`.import Core=Std::Core`), or names a file (`.import "filename"`). Type names begin with an uppercase letter; identifier names begin with lowercase. The lexer enforces this: `.witness userJson[User] : Serializable` is a syntax error (lowercase witness name).
  
 `.program` defines the program's entry expression:
  
@@ -160,7 +161,7 @@ The rest of the line is an expression that runs at program start; here, `runSimu
 `.test` defines a named test:
  
 ```
-.test "round-trip serialization" = roundTripCheck
+.test "round-trip serialization" : roundTripCheck
 ```
  
 Tests and programs are the only frames in which top-level effects compose freely; everywhere else, the no-non-local-state principle (Introduction) governs.
@@ -206,6 +207,7 @@ A command's *expression-style result* — the value when the command is invoked 
 - **Exactly one writeable parameter:** that single slot is automatically the expression-style result. No further annotation is needed.
 - **More than one writeable parameter:** an explicit `-> name` clause is required, naming which already-declared writeable parameter is the expression-style result. The `->` does *not* introduce a new parameter — it only designates which existing writeable parameter participates in the expression-style sugar.
 - **Zero writeable parameters:** a read parameter may still be designated as the expression-style result via an explicit `-> name` clause. Without such a designation, the command is not expression-callable.
+
 For example, a command with two CREATE outputs needs the `->` clause to make one of them the expression-style result:
  
 ```
@@ -248,14 +250,14 @@ The receivers may carry mode markers (`'r`, no marker for READ). Calling uses th
  
 ```
 myLogger :: log: "ready"
-(myLogger, warning) :: format: "couldn't open file"
+(myLogger, warning) :: format: #line, "couldn't open file"
 ```
  
 Methods dispatch on the runtime types of all receivers in concert. The implementation composes single-concept dispatches per receiver — there is no joint dictionary — so methods work cleanly across module boundaries (see §9.4).
  
 ### 3.3 Frame-exit hooks: `@` and `@!`
  
-`@` and `@!` are **body-internal cleanup blocks** — statements a command schedules to run at frame exit, in reverse order of registration: `@` on every exit, `@!` only when the frame exits failing. Read them "at exit" and "at exit on failure."
+`@` and `@!` are **body-internal cleanup blocks** — statements a command schedules to run when their scope exits (the frame's retirement, or the end of a `.scope` block), in reverse order of registration: `@` on every exit, `@!` only when the scope exits failing. Read them "at exit" and "at exit on failure."
 
 ```
 .cmd process: Path p =
@@ -265,7 +267,7 @@ Methods dispatch on the runtime types of all receivers in concert. The implement
     ...
 ```
 
-They are *not* destructors: they are tied to **stack-frame lifetime**, not value lifetime. Value-tied, RAII-style cleanup is the obligation system's job (§4.5) — a `.promise` travels *with the value* wherever it goes, while `@`/`@!` stay with the frame that wrote them.
+They are *not* destructors: they are tied to **scope lifetime**, not value lifetime. Value-tied, RAII-style cleanup is the obligation system's job (§4.5) — a `.promise` travels *with the value* wherever it goes, while `@`/`@!` stay with the scope that registered them.
 
 ### 3.4 Calling commands
  
@@ -278,7 +280,7 @@ process: arg1, arg2
 A constructor call:
  
 ```
-Widget: x, y
+#w <- Widget: x, y
 ```
  
 A method call with a single receiver (the common case):
@@ -309,6 +311,8 @@ The `_` token is a placeholder; like `::`, it serves multiple purposes. In a CRE
  
 The remainder is computed and discarded. The discard form of `_` is valid only in CREATE parameter positions. Its other uses are partial application (§9.5) and variant construction (§5.6, §7).
  
+A name standing alone is a call too: `refresh` runs a command that needs no arguments, and a type name alone calls the type's zero-argument constructor. To pass or store a command rather than call it, quote it in braces: `{refresh}` (§8).
+ 
 ## 4. Failure and Recovery
  
 Failures in Basis are neither exceptions nor error codes. A failure is a *message* — an identity together with an optional payload — carried in a slot in the active frame's record; it propagates by skipping subsequent commands until it reaches a structurally-marked recovery context. The static type system tracks which commands may fail, must fail, or never fail.
@@ -324,7 +328,7 @@ Failures in Basis are neither exceptions nor error codes. A failure is a *messag
     ; message with constructed (owned) payload
 ```
  
-`.fail` takes a message — either a message identifier alone (no payload), or a message identifier followed by a placement operator and a payload expression: `<-` for a payload the failure *owns*, `<<-` for one it merely *views* (§4.8) — or may be used alone with no message at all. The message identifier is always required when a payload is supplied: a raw value cannot be passed to `.fail` without a message identifier governing it. When a payload expression's evaluation itself fails, *that* failure propagates rather than the intended one.
+`.fail` takes a message — either a message identifier alone (no payload), or a message identifier followed by a placement operator and a payload expression: `<-` for a payload the failure *owns*, `<<-` for one it merely *views* (§4.9) — or may be used alone with no message at all. The message identifier is always required when a payload is supplied: a raw value cannot be passed to `.fail` without a message identifier governing it. When a payload expression's evaluation itself fails, *that* failure propagates rather than the intended one.
  
 ### 4.2 Failure marks on commands
  
@@ -350,15 +354,15 @@ Indentation establishes block scopes. The first character of a block-bearing lin
 | `?` | "when" | The first statement is a *guard*. If it succeeds, subsequent statements run; if it fails, the construct's failure is consumed and execution proceeds after the construct. |
 | `?-` | "unless" | Inverse: the block runs only if the first statement fails. |
 | `?:` | "select" | First statement is a guard; if it succeeds, the rest of the block runs and execution exits the surrounding indentation level. Useful for chained alternatives. |
-| `??` | "elevated when" | Meta-marker that wraps a `?` or `?-` as its first executable inner block; on inner-guard failure, execution resumes past the `??`-block's own siblings (one structural level of elevation) rather than just past the inner construct. Used with `^` for structured loops. |
-| `-` | "else" | The else-companion of a preceding `?` or `?-`; runs if that block's guard failed. |
+| `??` | "elevated when" | Meta-marker that wraps a `?` or `?-` as its first executable inner block; on inner-guard failure, execution resumes at the `??`-block's next sibling (one structural level of elevation) rather than at the inner construct's. Used with `^` for structured loops. |
+| `-` | "else" | The else-companion of a preceding `?` or `?-` at the same column; runs when that block's body didn't — after a `?` whose guard failed, or a `?-` whose guard succeeded. |
 | `%` | "block" | Plain grouping; the body is a single logical unit but does not consume any failure of its own. |
-| `^` | "rewind" | Sibling block that rewinds control to its *preceding sibling* at the same indentation level. Body is optional: a bodiless `^` rewinds unconditionally; a `^` with a body rewinds on body success and consumes any body failure (terminating the loop). Requires a preceding sibling — a bare `^` with none is a static error. |
-| `\|` | "recover" | Catch-all recovery: runs only when an earlier sibling at the same indentation has produced a propagating failure. |
-| `\| TypeName name ->` | "recover, when of type" |
-| `\|! Spec` | "cannot happen — proven" | Discharge arm: the compiler must *prove* the failure unreachable, or it's a compile error; no `.ack` escape, no body. | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. |
-| `@` | "at exit" | At frame exit, fire the body. |
-| `@!` | "at exit, on failure" | At frame exit, fire the body only on the failure path. |
+| `^` | "rewind" | Sibling block that rewinds control to its *preceding sibling*, which must be a `?`-family or `%` block at exactly the same column. Body is optional: a bodiless `^` rewinds unconditionally; a `^` with a body rewinds on body success and consumes any body failure (terminating the loop). A `^` with no such partner is a static error. |
+| `\|` | "recover" | Catch-all recovery: runs only when an earlier sibling in the same body, at whatever column, has produced a propagating failure. |
+| `\| TypeName name ->` | "recover, when of type" | Typed recovery: runs only on failures whose message is `TypeName` (or a subtype within the message hierarchy); binds the payload to `name` for the body's duration. A payload-less message takes no `name`. |
+| `\|! Spec` | "cannot happen — proven" | Discharge arm: the compiler must *prove* the failure unreachable, or it's a compile error; no `.ack` escape, no body. A bare `\|!` claims that no failure of any kind arrives. |
+| `@` | "at exit" | At scope exit, fire the body. |
+| `@!` | "at exit, on failure" | At scope exit, fire the body only on the failure path. |
  
 The if-then-else idiom uses `?` and `-`:
  
@@ -372,8 +376,8 @@ A simple loop uses the canonical `?? ?` + `^` pattern:
  
 ```
 ?? ? hasMore: queue
-        process: pop: queue
-    ^
+        process: (pop: queue)
+   ^
 ```
  
 While `hasMore: queue` succeeds, the `?` body runs; control then reaches `^` (the sibling of `?` inside `??`'s body), which rewinds back to `?`. When `hasMore: queue` eventually fails, `??` elevates the failure past its own block — skipping `^` — and the loop terminates.
@@ -383,22 +387,22 @@ A loop framed by setup and teardown:
 ```
 % acquire: lock
     ?? ? hasMore: queue
-            process: pop: queue
-        ^
+            process: (pop: queue)
+       ^
     release: lock
 ```
  
 `acquire: lock` runs once; the `?? ?` + `^` loop iterates inside `??`'s body; `release: lock` runs after the loop terminates.
  
-This example contains a latent bug: if `process: pop: queue` can fail, the failure propagates out through `??` and out of `%`'s body, skipping `release: lock` and leaking the lock. The proper mechanism for cleanup that must run on every exit path is the `@` frame-exit hook (§3.3).
+This example contains a latent bug: if `process: (pop: queue)` can fail, the failure propagates out through `??` and out of `%`'s body, skipping `release: lock` and leaking the lock. The proper mechanism for cleanup that must run on every exit path is the `@` frame-exit hook (§3.3).
  
 ### 4.4 Typed recovery and concept-valued payloads
  
-A failure message may be **bound to a concept value** — the payload is a value whose runtime type is required to satisfy the named concept, and the recovery handler operates on it through that concept's operations:
+A failure message may **bind its payload to a concept**: the payload is a value whose runtime type is required to satisfy the named concept, and the recovery handler operates on it through that concept's operations:
  
 ```
-; declaration of a payload-bearing message (forward syntax)
-; ... Net::Disconnected payloads must satisfy Diagnosable
+.msg Net::Disconnected[Diagnosable]
+    ; its payloads must satisfy Diagnosable
  
 .cmd ?fetchAll: Url u =
     ?- ping: u
@@ -415,21 +419,22 @@ A failure message may be **bound to a concept value** — the payload is a value
 The `|` family has one more member, and it handles the *opposite* situation — a failure the type system says is possible but you know cannot happen here. Instead of writing an empty `| ; can't happen` handler (which would silently swallow a real bug if you're wrong), you write the **discharge arm**:
 
 ```
-#env <- (Ctl::Throttle <- rate)  ; constructed owning,
-                                 ;   right here
-send: chan, env                  ; send's signature says
-                                 ;   "may fail on
-|! NonOwningMove                 ; non-owning" — but we
-                                 ;   can PROVE ours owns
+# Ctl env <- (Ctl::Throttle <- rate) ; env holds any Ctl
+                                     ;   message; this one
+                                     ;   is built right here
+env ->> Ctl::Throttle r              ; may fail: TagMismatch
+|! TagMismatch                       ; PROVEN by the
+                                     ;   construction above
+applyRate: r
 ```
 
-`|!` is a claim the compiler must *verify*: it checks that the named failure genuinely cannot arrive at this point (here, because the envelope's ownership is known from its construction two lines up). If the proof goes through, the failure vanishes from your command's signature and the arm compiles to *nothing* — a proved impossibility needs no runtime check. If the compiler can't prove it, that's a compile error telling you which fact is missing — not a runtime gamble. There is no "trust me" spelling; if you can't prove it, you handle it.
+`|!` is a claim the compiler must *verify*: it checks that the named failure genuinely cannot arrive at this point (here, `env`'s type admits any `Ctl` message, but its construction a line up fixes which one; extraction is §4.9). If the proof goes through, the failure vanishes from your command's signature and the arm compiles to *nothing* — a proved impossibility needs no runtime check. If the compiler can't prove it, that's a compile error telling you which fact is missing — not a runtime gamble. There is no "trust me" spelling; if you can't prove it, you handle it.
 
 The concept binding makes failures *contractual*: a recovery handler does not need to know the concrete type of the payload, only the operations the bound concept promises. Different `.fail` sites for the same message may pass values of different concrete types, all satisfying the same concept, and consumers continue to work without change. This is Haskell-style typeclass dispatch sliced through the failure machinery.
  
 ### 4.5 Cleanup: at-stack handlers and obligations
  
-`@` and `@!` blocks register cleanup that runs at frame exit:
+`@` and `@!` blocks register cleanup that runs at scope exit:
  
 ```
 .cmd processFile: String path =
@@ -442,7 +447,7 @@ The concept binding makes failures *contractual*: a recovery handler does not ne
  
 If `process: handle` fails, both `closeHandle` and `logIncomplete` fire as the frame retires (in reverse order of registration). On success, only `closeHandle` fires. The handlers cannot themselves create new in-flight failures during exit-cleanup processing; they may, however, invoke commands that fail internally and recover internally.
 
-Frame-exit hooks are one half of Basis's cleanup story. The other is the **obligation system**: a value can carry a *duty* — close this handle, free this buffer, join this thread — that the compiler tracks and guarantees fires exactly once, never silently dropped.
+Frame-exit hooks are one half of Basis's cleanup story. The other is the **obligation system**: a value can carry a *duty* — close this handle, free this buffer, join this thread — that the compiler tracks and guarantees will fire, never silently dropped (short of a fault, which ends the program on the spot).
 
 Setting one up is a single top-level `.promise` declaration binding a **source** (the operation that incurs the duty) to one or more **sinks** (the operations that can settle it):
 
@@ -470,7 +475,7 @@ Reading the first line: `Runtime` is a **receiver type**, and `spawn` and `join`
 
 The **default sink** (the first listed) fires automatically when the obligated value reaches the end of the scope that owns it — which is why the transaction declaration puts `rollback` first: forget everything, and the safe thing happens. Discharging *explicitly* — calling `commit`, or finalizing the value with the **DISPOSE** mode (`~`), construction's destruction-dual — settles the duty early and the default stays quiet.
 
-Unlike `@`/`@!`, which are tied to *frame* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by a vesting by-name binding, and ownership of the duty moves too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, vesting versus lending, and object retirement — is in the spec's §10.
+Unlike `@`/`@!`, which are tied to *scope* lifetime, an obligation travels *with the value*: return it, store it into a longer-lived structure, or hand it to a callee by a vesting by-name binding, and ownership of the duty transfers too — it then fires at the *new* owner's end of life, however far from the acquisition site. A value that never leaves its scope costs nothing at runtime; the tracking is static. The full system — ownership transfer, vesting versus lending, and object retirement — is in the spec's §10.
  
 ### 4.6 All-or-nothing updates: `.stage`
 
@@ -479,9 +484,9 @@ Updates in Basis become observable at **statement boundaries**: a statement comm
 ```
 ; ONE statement — one observability boundary:
 #ok <- validate: (normalize: batch, limits)
-; normalize updates batch and yields its stats; if validate
-; then
-; fails, the WHOLE statement discards — batch is untouched
+; normalize updates batch and yields its stats;
+; if validate then fails, the WHOLE statement
+; discards — batch is untouched
 
 ; TWO statements — two boundaries:
 #stats <- normalize: batch, limits
@@ -512,6 +517,7 @@ For every reachable point in a command body, the typechecker maintains a *failur
 - A MUST-PASS body's exits must all be `clear`.
 - A MAY-FAIL body's exits may be any combination, with the propagating failures' messages constrained to the declared set of failure messages.
 - A MUST-FAIL body's exits must all be `failing(!)`.
+
 Block markers and recovery contexts manipulate the lattice precisely; the typechecker's job is to confirm the body's structure conforms.
  
  
@@ -535,16 +541,16 @@ The messages that failures carry aren't special to failures — they're a first-
                                ;   view the payload
     applyRate: r
 ? m -> Ctl::Throttle r         ; or take it: ownership
-                               ;   moves to r, and the
+                               ;   vests in r, and the
     consume: r                 ; envelope keeps only a
                                ;   view
 ```
 
-Mismatches simply *fail*, so receive loops are ordinary guard chains — no match statement, no special control flow. And the mode system reads as protocol documentation for free: a command taking `Msg m` (READ) can inspect and view but never strip a message; `Msg &m` announces extraction rights in the signature.
+Mismatches simply *fail*, so receive loops are ordinary guard chains — no match statement, no special control flow. And the mode system reads as protocol documentation for free: a command taking `Msg m` (READ) can inspect and lend but never strip a message; `Msg &m` announces vesting rights in the signature.
 
-Two spellings tie the room together. `.fail Overheat <- reading` is this same construction launched on the failure transport. And `src >> dest` is the **move**: the value transfers and `src` dies — the one placement that invalidates its source, which makes it the safest way to relocate something carrying an obligation, and the natural verb for handing messages to the channels and mailboxes of Basis's (future) concurrency story.
+Two spellings tie the room together. `.fail Overheat <- reading` is this same construction launched on the failure transport. And `src >> dest` is the **move**: the value transfers and `src` dies — the one placement that invalidates its source, which makes it the safest way to relocate something carrying an obligation, and the natural verb for handing a message onward.
 
-When something impossible-by-construction would force a `| ; can't happen` handler, the **discharge arm** `|! Spec` does better: the compiler must *prove* the failure unreachable — then the arm vanishes and your signature comes out clean — or it's a compile error telling you what fact is missing. There is no "trust me" spelling; the multi-million-dollar `unwrap()` bug has no Basis translation. Language-fired failures all live in one catalog under `Basis::Lang::Failure` (bounds, narrowing mismatches, ownership violations, math), which your libraries can extend and your tests can fire.
+When something impossible-by-construction would force a `| ; can't happen` handler, the **discharge arm** `|! Spec` does better: the compiler must *prove* the failure unreachable — then the arm vanishes and your signature comes out clean — or it's a compile error telling you what fact is missing. There is no "trust me" spelling; the multi-million-dollar `unwrap()` bug has no Basis translation. Language-fired failures all live in one catalog under `Basis::Lang::Failure`, part of the prelude every module imports implicitly. Under its root it holds just two messages: `TagMismatch`, for a failed narrowing or extraction, and `CoercionFailure`, for a failed conversion. Bounds, arithmetic and division failures belong to the libraries whose commands announce them. Your own hierarchies can extend the catalog, and your tests can fire it.
 
 ## 5. Types
  
@@ -558,7 +564,7 @@ The fundamental type is the buffer — a fixed-size sequence of bytes. The gramm
 [16]                ; sixteen bytes
 ```
  
-A typed range is `[size] T` for some buffer-backed `T`:
+A typed buffer is `[size] T` for some buffer-backed `T`:
  
 ```
 [64] Byte           ; 64 bytes, statically typed as bytes
@@ -571,7 +577,7 @@ An unsized range `[]T` describes a buffer whose size is determined at the call s
 .cmd run: []String args = ...
 ```
  
-A range may be self-owning or a *view* into another buffer. Indexing uses the postfix `[i]` syntax, and two sibling forms carve out zero-copy **subrange views**: `buf[x,y]` views elements `x` up to but not including `y`, and `buf[x:y]` views `y` elements starting at `x` — both alias the buffer (no copy, no ownership moved), both bounds-checked like `[i]`, and a view may even be taken at a *different* element type when the sizes divide cleanly. Indexing is failable (out-of-bounds is a first-class failure). C-style pointer arithmetic does not exist; stepping through buffer contents requires indexing.
+A range may be self-owning or a *view* into another buffer. Indexing uses the postfix `[i]` syntax, and two sibling forms carve out zero-copy **subrange views**: `buf[x,y]` views elements `x` up to but not including `y`, and `buf[x:y]` views `y` elements starting at `x` — both alias the buffer (no copy, no ownership transferred), both bounds-checked like `[i]`, and a view may even be taken at a *different* element type when the sizes divide cleanly. Indexing is failable (out-of-bounds is a first-class failure). C-style pointer arithmetic does not exist; stepping through buffer contents requires indexing.
  
 ### 5.2 Domains
  
@@ -605,13 +611,13 @@ Records are nominal — two records with structurally identical fields are disti
  
 ### 5.4 Objects
  
-An object is a non-buffer type — a heap-residing structure with an identity that survives copying its slot. Objects are declared with `.object`:
+An object is a non-buffer type — a stack- or heap-allocated structure with an identity that survives copying its slot. Objects are declared with `.object`:
  
 ```
 .object UserManager: List[User] users
 ```
  
-Object fields may be any type, buffer-backed or non-buffer. Objects participate in the concept system as receivers; they have lifecycle methods (`@`, `@!`), and pointers to them carry runtime type information for safe downcasting through the `-<` operator (§7.5).
+Object fields may be any type, buffer-backed or non-buffer. Objects participate in the concept system as receivers, and pointers to them carry runtime type information for safe narrowing through the `-<` operator (§7.5). Their value-tied cleanup comes from the obligation system (§4.5); `@` and `@!` are body blocks, not methods (§3.3).
  
 ### 5.5 Unions
  
@@ -628,22 +634,21 @@ A union value implicitly subsumes (by zero-cost byte reinterpretation) to any ty
 A variant is a non-buffer sum type — a tagged union where the language tracks which candidate is active:
  
 ```
-.variant Shape: Circle circle, Rectangle rectangle,
-        Polygon polygon
-.variant Tree[T]: T leaf, ^Tree[T] branch
+.variant Shape: Circle, Rectangle, Polygon
+.variant Tree[T]: T, ^Tree[T]
 ```
  
-Variants have an **absent state** by default — a variant slot may be empty, holding none of its candidates. The absent state is part of the variant's type, not a separate "Optional" wrapper. A variant with a single candidate is usefully an "optional" of that candidate.
+Candidates are types, never named fields: a variant is unpacked by narrowing to a candidate's type (§7.5). Variants have an **absent state** by default — a variant slot may be empty, holding none of its candidates. The absent state is part of the variant's type, not a separate "Optional" wrapper. A variant with a single candidate is usefully an "optional" of that candidate.
  
 A variant type provides a built-in constructor that accepts an aggregate literal designating the active candidate:
  
 ```
 #shape <- Shape: ${Circle <- (Circle: 1.0)}
     ; Circle state
-#shape <- Shape: ${}  ; absent state
+#empty <- Shape      ; absent: a variant's default
 ```
  
-The aggregate literal names which candidate is active and supplies its value; the type prefix `Shape:` provides the explicit type context the literal requires. The empty form `${}` constructs the variant in its absent state. (Aggregate-literal forms are detailed in §7.3.)
+The aggregate literal names which candidate is active and supplies its value; the type prefix `Shape:` provides the explicit type context the literal requires. A type name standing alone calls its zero-argument constructor (§3.4), and a variant's builds the absent state; so does the empty literal, as in `# Shape s <- ${}`. (Aggregate-literal forms are detailed in §7.3.)
  
 A variant may be examined and narrowed via the `-<` dynamic-narrowing operator (§7.5):
  
@@ -661,7 +666,7 @@ The `?-` engages first as the absent-state test; each `?:` then attempts a candi
  
 A variant may be reset to its absent state via `v -< _`. The form `_ -< v` tests whether `v` is non-absent.
  
-A variant may be a member of a concept (declared with a witness like any type): every candidate must satisfy that concept, and the concept's methods may be dispatched on the variant's active candidate without explicit narrowing.
+A variant may be a member of a concept (declared with a witness like any type), and the concept's methods then dispatch on the variant's active candidate — though never while the variant could be absent: such a dispatch is a static error until a narrowing (`-<`) rules the absent state out.
  
 ### 5.7 Pointers
  
@@ -673,22 +678,24 @@ Pointers are the indirection mechanism for non-buffer types. A pointer to `T` is
  
 In expressions, postfix `^` dereferences a pointer (`p^` is the value the pointer points to); postfix `&` takes the address of a value (`x&` is a pointer to `x`). Pointer chains — pointers to pointers — are written `^^T`. There is no pointer arithmetic.
  
-For object types, pointers carry runtime type information at the implementation level. The `-<` operator (§7.5) uses this to perform safe downcasting through an object hierarchy.
+For object types, pointers carry runtime type information at the implementation level. The `-<` operator (§7.5) uses this to narrow safely across a concept hierarchy.
  
 **When you don't need a pointer at all.** Many modern programmers have never implemented an index-based data structure, so it's worth spelling out: where a reference's legal targets form a closed, owner-co-located set — nodes in a pool, entries in an arena, slots in a table — you usually don't want a pointer, you want an **index domain over an owned buffer**:
 
 ```
-.domain NodeId : Int32                    ; a branded index — not an Int32, and
-                                          ;   not any other pool's index
-.record Node : Payload data, NodeId next  ; a record can hold THIS reference
+.domain NodeId : Int32
+    ; a branded index — not an Int32, and not
+    ;   any other pool's index
+.record Node : Payload data, NodeId next
+    ; a record can hold THIS reference
 .object Pool : [4096] Node nodes, NodeId freeHead
 ```
 
-Notice what just happened: records can't contain pointers, but `NodeId` is a domain — ordinary bytes — so linked structures become expressible *inside the byte world*. Copy the pool's bytes to another machine and the whole graph arrives intact, because indices are positions, not addresses. Traversal walks one contiguous allocation instead of chasing heap-scattered nodes (several links per cache line instead of one); one obligation on the pool covers every node in it; the pool can grow, move, or be copied wholesale and every index survives; a dangling reference is structurally impossible, since an index doesn't point — access goes through the buffer's checked indexing. Two honest limits: an index can be *logically* stale (the slot got reused — memory-safe, but liveness is your discipline; generation counters are the classic upgrade), and the branding is per-domain, not per-pool-instance, so an index from pool A applied to pool B of the same type is legal and wrong. Pointers keep their real jobs — open sets, cross-module identity, unbounded lifetimes — but if your lifetimes are pool-shaped, reach for the index first. The same instinct, applied to *behavior* instead of data, is the concept-closing enum of §5.10 and the statechart selector of §9.2.
+Notice what just happened: records can't contain pointers, but `NodeId` is a domain — ordinary bytes — so linked structures become expressible *inside the byte world*. Copy the pool's bytes to another machine and the whole graph arrives intact, because indices are positions, not addresses. Traversal walks one contiguous allocation instead of chasing heap-scattered nodes (several links per cache line instead of one); one obligation on the pool covers every node in it; the pool can grow, move, or be copied wholesale and every index survives; a dangling reference is structurally impossible, since an index doesn't point — access goes through the buffer's checked indexing. Two honest limits: an index can be *logically* stale (the slot got reused — memory-safe, but liveness is your discipline; generation counters are the classic upgrade), and the branding is per-domain, not per-pool-instance, so an index from pool A applied to pool B of the same type is legal and wrong. Pointers keep their real jobs — open sets, cross-module identity, unbounded lifetimes — but if your lifetimes are pool-shaped, reach for the index first. The same instinct, applied to *behavior* instead of data, is the concept-closing enum and statechart selector of §9.2.
  
 ### 5.8 Command-typed values
  
-Commands are first-class. A command-typed value is described by a command-type expression that names the failure mark and the parameter types in declaration order, with a postfix `'` on each writeable type:
+Commands are first-class. A command-typed value is described by a command-type expression that names the failure mark and the parameter types in declaration order, with a postfix mode marker on each non-READ type (`Int'` CREATE, `Int&` UPDATE):
  
 ```
 :<Int, Int'>        ; never-fails command taking an Int
@@ -699,15 +706,15 @@ Commands are first-class. A command-typed value is described by a command-type e
                     ;   parameters
 ```
  
-The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Command-typed values may be stored in fields, passed as arguments, captured in lambdas, and bound from method dispatch — they are values like any other, with one bright line: they live on the stack (§8.5). The three constructional forms that produce them are §8.
+The mark prefix (`:`, `?`, `!`) inside the angle brackets matches the failure-mark discipline on command names. Command-type expressions list types, not parameter names — the `'` writeable marker is postfix on the type itself, marking a slot that must be written by the command. Once quoted (§8), command-typed values may be held in slots, passed as arguments, returned through CREATE and UPDATE outputs, captured in lambdas, and bound from method dispatch — they are values like any other, with one bright line: they live on the stack, never in an object field, a variant, or a message (§8.5). The three constructional forms that produce them are §8.
  
 ### 5.9 Aliases
  
 A `.alias` declaration names an existing type expression for convenience:
  
 ```
-.alias StringList: List[String]
-.alias Bytes: []Byte
+.alias StringList = List[String]
+.alias Bytes = []Byte
 ```
  
 Aliases erase: the alias name and its right-hand side are interchangeable in all contexts.
@@ -727,17 +734,17 @@ Enum values are referenced via `EnumName[itemName]` in expressions.
  
 Enumerations are compile-time constants — read-only values fixed at module compile time. As such, they are the language's one principled exception to the no-non-local-state principle. Whether the constructed values are built up-front at module load or on-demand at first reference is an implementation-dependent concern.
  
-### 5.10 Alignment: `.align`
+### 5.11 Alignment: `.align`
  
 Basis never aligns anything behind your back — if a layout matters, you declare it, and it becomes part of the type. `.align 64` (bytes) or `.align CacheLine` (to `sizeof` of a type) sits in a declaration's preamble: on a field, or on a whole `.record`, `.object`, or `.domain`. On a compound field the alignment is **per element** — `.align 64 [4]Counter` strides each counter to its own cache line, tail included, which is the whole false-sharing cure in one annotation. Records stay packed unless you say otherwise; declared padding is deterministic and zero-filled, so an aligned value's bytes still serialize completely. And because alignment is part of the type, `.align 64 [4]Counter` and plain `[4]Counter` are *different datatypes*: crossing between them is always explicit — a `-<` view where the payload is contiguous, an element-wise constructor otherwise — never a silent coercion. Together with `.restrict` (§6.6), subrange views (§5.1), the index-pool idiom (§5.7), and the selector enum (§9.2), this rounds out the performance kit: contiguous data, declared layout, checked no-aliasing, and no chases you didn't ask for.
  
 ## 6. Parameters and Mode Markers
  
-Every parameter has a *mode* describing what the body and caller can do with it: **READ** (the default, read-only), **CREATE** `'` (write-once on success), and **UPDATE** `&` (read-and-write, with copy-restore semantics). A fourth mode, **DISPOSE** `~`, consumes a value to finalize it; it belongs with the resource-cleanup story (§4.5).
+Every parameter has a *mode* describing what the body and caller can do with it: **READ** (the default, read-only), **CREATE** `'` (write-once on success), and **UPDATE** `&` (read-and-write, with copy-restore semantics). A fourth mode, **DISPOSE** `~`, consumes a value to finalize it; it belongs with the resource-cleanup story (§4.5). A fifth, **DIRECT** `*`, works on the caller's storage in place, with no copy and no restore; it exists only for slots under a `.restrict` block (§6.6).
  
 ### 6.1 The CREATE marker `'`
  
-A parameter name prefixed with `'` is **CREATE**-mode: the body must write to it on every successful exit path, and the caller must supply an uninitialized slot to receive the write:
+A parameter name prefixed with `'` is **CREATE**-mode: the body must write to it on every successful exit path, and the caller supplies a slot, initialized or not, to receive the write:
  
 ```
 .cmd compute: Int x, Int 'result =
@@ -754,17 +761,17 @@ A command with exactly one writeable parameter — CREATE (`'name`) or UPDATE (`
 #nine <- square: 3
 ```
  
-When a command has two or more writeable parameters, an explicit `-> name` clause is required to designate which one becomes the expression-style result; the named parameter must already be declared in the list with the appropriate writeable marker. The `->` does not introduce a new parameter.
+When a command has two or more writeable parameters, an explicit `-> name` clause is required to designate the expression-style result; the named parameter must already be declared in the list, and need not be writeable. The `->` does not introduce a new parameter.
  
 A CREATE parameter that the body fails to write on some path is a static error. A CREATE parameter the body writes more than once on the same path is a static error. The discipline composes with the failure-state lattice: writes on a path that ends in a propagating failure are exempt from the obligation, since the CREATE write-once obligation is *write-once-on-success*.
  
 ### 6.2 The implicit-READ default
  
-A parameter without `'` is read-only. The body may inspect it but cannot modify it. The caller need not provide an uninitialized slot; any value of the right type may be supplied.
+A parameter without a mode marker is read-only. The body may inspect it but cannot modify it. The caller need not provide an uninitialized slot; any value of the right type may be supplied.
  
 ### 6.3 The same-scope rule
  
-A parameter's name cannot be shadowed by another binding of the same name in the same scope, whatever the parameter's mode. The `'`, `&`, and `~` markers are mode markers in the signature, not part of the name — the body refers to every parameter by its bare name — so shadowing a parameter would silently change which contract a bare name operates under; the rule forbids it.
+A parameter's name cannot be shadowed by another binding of the same name in the same scope, whatever the parameter's mode. The `'`, `&`, `~`, and `*` markers are mode markers in the signature, not part of the name — the body refers to every parameter by its bare name — so shadowing a parameter would silently change which contract a bare name operates under; the rule forbids it.
  
 ### 6.4 The transitive READ contract
  
@@ -787,7 +794,7 @@ Ambiguity (two `Logger` values in scope) is a compile error; absence (no `Logger
  
 ### 6.6 When a section of code must perform: `.restrict`
 
-Copy-restore is the default because it makes mutation transactional — but on a hot path, copying a large record in and out of every call is a price you may refuse. Boxing is the refusal, made explicit:
+Copy-restore is the default because it makes mutation transactional — but on a hot path, copying a large record in and out of every call is a price you may refuse. A `.restrict` block is the refusal, made explicit: it **boxes** the slots it names for the length of its indented body, and a boxed slot passes to `*` parameters directly, with no copy in and no restore out:
 
 ```
 .record FrameState : [64]Int64 lanes, Int64 cursor
@@ -802,16 +809,17 @@ Copy-restore is the default because it makes mutation transactional — but on a
 .cmd render: Frame f =
     # FrameState state
     ...
-    .restrict state                ; from here, state passes
-                              ;   directly — no copies
-    step: state, (next: src)  ; tight loop: zero copy-in,
-                              ;   zero restore
-    ^ moreSamples: src        ; rewind while more samples
-                              ;   remain
-    commit: state
+    .restrict state                ; state is boxed for
+                                   ;   the indented body
+        % step: state, (next: src) ; tight loop: zero
+                                   ;   copy-in, zero restore
+        ^ moreSamples: src         ; rewind while more
+                                   ;   samples remain
+    commit: state                  ; past the dedent:
+                                   ;   ordinary again
 ```
 
-If you know C, this is `restrict` — the real thing: the compiler may treat each `*` binding as the sole route to its storage and cache, reorder, and vectorize accordingly. The difference is that C trusts you and miscompiles silently when you're wrong, while Basis *checks*: aliasing is either impossible by rule, or loudly acknowledged (`restrict.aliasing-hazard`) with the optimization honestly given back. The rules are few and loud: only fixed-size, byte-defined values (domains, records, unions, enums) can be boxed; a box's extent runs to its enclosing scope's close — there is no unbox; and one boxed slot can appear at most once in any single call — two routes in would falsify the license from inside. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
+If you know C, this is `restrict` — the real thing: the compiler may treat each `*` binding as the sole route to its storage and cache, reorder, and vectorize accordingly. The difference is that C trusts you and miscompiles silently when you're wrong, while Basis *checks*: aliasing is either impossible by rule, or loudly acknowledged (`restrict.aliasing-hazard`) with the optimization honestly given back. The rules are few and loud: only a buffer-backed slot the frame owns can be boxed — not a view, and not one carrying an open `.promise` duty; the box lasts exactly as long as the indented body, on every exit path, and there is no unbox; and one boxed slot can appear at most once in any single call — two routes in would falsify the license from inside. Like `.stage`, the block is not a scope: names you introduce inside it live on after it. You're telling the compiler "I know what I'm doing here," and the compiler holds you to exactly that — nothing more.
 
 ## 7. Construction and Initialization
  
@@ -830,12 +838,15 @@ Variable introduction uses the `#` prefix on the lvalue:
 `#count <- 0` declares a new local `count` and binds the value `0`. The `<-` operator's right-hand side may be:
  
 - A literal (number, string, hex, binary).
-- A bare identifier, evaluating to a value-copy.
-- A constructor call: `Type: arg1, arg2`.
-- A command call: `name: arg1, arg2`.
+- A bare identifier, evaluating to a value-copy — unless it names a command or a type, which makes it a call.
+- A constructor call: `Type: arg1, arg2`, or a type name standing alone, which calls the type's zero-argument constructor (§3.4).
+- A command call: `name: arg1, arg2`, or a command name standing alone.
+- A quote, `{name}` or `{:<…>{…}}`, which makes a command value rather than calling it (§8).
+- A message construct, `(M <- payload)`; an address, `x&`; a subrange view, `a[x, y]`; or a narrowing, `T -< v` (§4.9, §5.7, §5.1, §7.5).
 - An aggregate or sequence literal (§7.2, §7.3).
 - An expression with operators.
 - A choice expression: `lhs <- a | b | c` evaluates each alternative left-to-right, committing the first that succeeds.
+
 The choice form gives concise fallback behavior:
  
 ```
@@ -843,7 +854,7 @@ The choice form gives concise fallback behavior:
     | (Config: emptyDefaults)
 ```
  
-`<-` is the *vesting* placement: ownership of the value — and of any obligation it carries — **vests in the destination**, while the source name survives as a non-owning view. `<<-` *lends*: the destination gets a view, the owner keeps everything. `<<` *copies*: afterward **both sides own something — different things** (the source keeps its value and its duty; the destination owns an independent, duty-free duplicate). And when you want the source *gone*, `>>` *moves*: ownership transfers and `src` dies — the one placement that invalidates its source, meaning exactly what Rust taught you "move" means. Four verbs — vest, lend, copy, move — and their extraction mirrors for messages (§4.8): `->` is *vesting extraction* (take the payload), `->>` is *lending extraction* (view it). If you're coming from a borrow-checked language: **lend is the borrow**, vest is the transfer that leaves a usable view behind, and the whole family in one table:
+`<-` is the *vesting* placement: ownership of the value — and of any obligation it carries — **vests in the destination**, while the source name survives as a non-owning view. `<<-` *lends*: the destination gets a view, the owner keeps everything. `<<` *copies*: afterward **both sides own something — different things** (the source keeps its value and its duty; the destination owns an independent, duty-free duplicate). And when you want the source *gone*, `>>` *moves*: ownership transfers and `src` dies — the one placement that invalidates its source, meaning exactly what Rust taught you "move" means. Four verbs — vest, lend, copy, move — and their extraction mirrors for messages (§4.9): `->` is *vesting extraction* (take the payload), `->>` is *lending extraction* (view it). If you're coming from a borrow-checked language: **lend is the borrow**, vest is the transfer that leaves a usable view behind, and the whole family in one table:
 
 | Op | Verb | Source afterward | Destination gets |
 |---|---|---|---|
@@ -922,26 +933,26 @@ Wherever a decimal literal like `3.14` appears at a slot expecting `Float32`, th
  
 ### 7.7 Defaults via `=`
  
-A `=` declaration binds a default value or default constructor for a slot:
+A `=` declaration gives a type or a field a default, which is always a literal:
  
 ```
 .record Config:
     Int port = 8080,
     String host = "localhost",
-    LogLevel level = LogLevel[info]
+    Float32 ratio = 0.5
 ```
  
 Defaults are evaluated **at construction time**, at the construct site — an omitted defaulted field is filled as though you had written it.
  
 ## 8. Command-typed values
  
-Three constructional forms produce command-typed values:
+Three constructional forms produce command-typed values. A command name, a command literal, or a lambda is a value only inside the **quote**, a pair of braces; standing bare, it is called where it stands (§3.4):
  
 | Form | Surface | Captures? | Body? | Use |
 |---|---|---|---|---|
 | Command reference | `{name}` or `{cmd: x, _, y}` | No | No (refers to existing command) | Function-pointer-style dispatch capture; partial application |
-| Command literal | `:<args>{body}` (also `?<...>`, `!<...>`) | No | Yes | Eagerly-evaluated thunks; pure callbacks |
-| Lambda | `:<args / caps>{body}` | Yes (explicit slash list) | Yes | Closures over defining-frame state |
+| Command literal | `:<args>{body}`, quoted `{:<args>{body}}` (also `?<...>`, `!<...>`) | No | Yes | Eagerly-evaluated thunks; pure callbacks |
+| Lambda | `:<args / caps>{body}`, quoted `{:<args / caps>{body}}` | Yes (explicit slash list) | Yes | Closures over defining-frame state |
  
 ### 8.1 Command reference
  
@@ -976,23 +987,23 @@ A lambda is a command literal extended with an explicit capture list, separated 
 :<Int x / Int counter>{ counter <- counter + x }
 ```
  
-Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (by-copy) or, in the full design, reference (live, with per-invocation copy-restore). The lifetime rule is §8.5's bright line: a lambda with only READ captures (snapshots) travels freely between slots; a lambda with reference captures cannot leave a frame it references — concretely, it can't be CREATE-returned out of the frame whose slots it captured.
+Captures are explicit: any defining-frame name the body uses must appear in the capture list. The body's free names are otherwise restricted to parameters and top-level names. Captures may be READ (a snapshot), UPDATE `&` (live, with per-invocation copy-restore), or DIRECT `*` (a boxed slot, usable only inside its `.restrict` block, §6.6); CREATE captures are forbidden. The lifetime rule is §8.5's bright line: a lambda with only READ captures travels freely between slots; a lambda with `&` captures references the scopes that own those slots, and can't be written to any slot that outlives one of them — a slot of an enclosing scope, a CREATE or UPDATE output, or a write through a pointer.
  
 ### 8.4 Failure marks across the three forms
  
 All three forms participate in the standard failure-mark discipline:
  
 - A command reference inherits its mark from the underlying command.
-- Command literals and lambdas declare their mark via the prefix (`:`, `?`, `!`) on the angle-bracket or brace-quote.
+- Command literals and lambdas declare their mark on the angle bracket: `:<`, `?<`, or `!<`.
 - Mark subsumption (`:` and `!` may stand in for `?`) applies symmetrically across all three forms.
 ### 8.5 Where command values live
 
-One rule covers the entire lifetime story for command values, and you can hold it in a sentence: **they live on the stack.** A command value sits in a local slot, passes down into calls, and comes back up through CREATE outputs — and that's the whole map. It is never stored in an object field or a variant. The single consequence to remember: a value can't leave a frame it references —
+One rule covers the entire lifetime story for command values, and you can hold it in a sentence: **they live on the stack.** A command value sits in a local slot, passes down into calls, and comes back up through CREATE and UPDATE outputs — and that's the whole map. It is never stored in an object field, a variant, or a message. The single consequence to remember: a value that references a scope's slots can't be written to any slot that outlives that scope —
 
 ```
 .cmd makeCounter: :<Int'> 'out =
     #n <- 0
-    out <- :<Int 'r / &n>{ r <- n + 1 }
+    out <- {:<Int 'r / &n>{ r <- n + 1 }}
     ; ✗ rejected: the lambda references n, and n dies with
     ; this frame
 ```
@@ -1018,19 +1029,19 @@ A concept declaration enumerates the methods that any member type must provide:
  
 ```
 .concept Showable:
-    .decl render: String 'output
-    .cmd describe: String 'output =
-        render: output  ; default body, built on the
-                        ;   declared method
+    .decl Showable s :: render: String 'output
+    .cmd Showable s :: describe: String 'output =
+        s :: render: output  ; default body, built on
+                             ;   the declared method
 ```
  
-`.decl` is signature-only: the witness must supply the body. `.cmd` inside a concept body is a *default* implementation that any witness may override; a witness that does not override the default uses the concept's body.
+`.decl` is signature-only: the witness must supply the body. Every signature names its receiver; a bare concept name there, as in `Showable s`, stands for whichever type satisfies the concept, and dispatch keys on that receiver. `.cmd` inside a concept body is a *default* implementation that any witness may override; a witness that does not override the default uses the concept's body.
  
 A concept may carry additional type parameters beyond the implementing type. Type variables and concept-bound constraints attach to the concept's typename, not to individual method signatures:
  
 ```
 .concept Container[T:Itemable]:
-    .decl insert: T item
+    .decl Container[T] c :: insert: T item
 ```
  
 Methods reference `T` directly; the constraint `T:Itemable` applies across the concept.
@@ -1043,7 +1054,7 @@ A witness declaration says "this type satisfies this concept," under a name:
 .witness ShowWidget[Widget] : Showable
 .witness UserJson[User]     : Serializable
 .witness UserOrd[User]      : Comparable
-.witness MapStore[Map[K, V]] : Container (insert = hashInsert)
+.witness MapStore[Map[K, Item]] : Container[Item] (insert = hashInsert)
 .witness ArrivalOrder[Envelope] : Ord -> stamp
 ```
  
@@ -1063,7 +1074,7 @@ When delegation is used, the *delegate itself* is the receiver in calls to the d
                                ;   together
 ```
  
-Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism — and where the state set is closed, the *recommended* form drops the pointer entirely: a concept-closing enum (`.enum StateHandling MachineState : IdleState, RunState, ...`) makes the active state a compact tag-selector, never absent, never self-pointing, with the transition an ordinary enum write and state data living in the machine's own fields. A state's handler may commit the transition itself: the in-flight call finishes under the dictionary it dispatched with, the next call routes to the new state, and the delegate may never be the owner (one implicit hop, target ≠ self, checked at every re-point). (See the spec's §9.4 has the details).
+Events dispatched at the machine route to whichever state `active` points at; a transition is a single field write. That's the whole statechart mechanism — and where the state set is closed, the *recommended* form drops the pointer entirely: a concept-closing enum (`.enum StateHandling MachineState : IdleState, RunState, ...`) makes the active state a compact tag-selector, never absent, never self-pointing, with the transition an ordinary enum write and state data living in the machine's own fields. A state's handler may commit the transition itself: the in-flight call finishes under the dictionary it dispatched with, the next call routes to the new state, and the delegate may never be the owner (one implicit hop, target ≠ self, checked at every re-point). (The spec's §9.4 has the details.)
  
 For every witness, the compiler builds a *dictionary* — a record-like value whose fields hold command-typed values for each of the concept's methods. Dispatch is an indirect call through the appropriate dictionary slot.
  
@@ -1077,7 +1088,7 @@ The resolved value may be bound and reused — useful for hoisting dispatch out 
 #renderFn <- {myWidget :: render}
 ?? ? hasMore: queue
         renderFn: #localBuffer
-    ^
+   ^
 ```
  
 Dispatch happens once at the binding; thereafter `renderFn` is invoked directly through its captured command-value.
@@ -1099,7 +1110,7 @@ A method invocation over multiple receivers takes a tuple of receivers that must
 Calling:
  
 ```
-(consoleLogger, warning) :: format: "couldn't open file"
+(consoleLogger, warning) :: format: #line, "couldn't open file"
 ```
  
 The implementation composes per-receiver single-concept dispatches — there is no tuple-keyed joint dictionary. The combined behavior is the product of the receivers' types, but each receiver's dispatch resolves through its own concept's dictionary independently. Modules defining `Logger` and `Severity` need not coordinate; methods using both concepts work cleanly across module boundaries.
@@ -1114,9 +1125,9 @@ Method receivers carry mode markers:
 | READ (no marker) | `r` | Externalized-effect operations (logging, sending, emitting) — the receiver mediates an effect on the world |
 | DIRECT `*` | `*r` | Direct in-place mutation of a **boxed** receiver (§6.6) — `signedInt :: negate` on the hot path |
  
-A DIRECT receiver requires a boxed argument, and while a value is boxed, *mutation is direct or nothing*: reads flow through ordinary READ receivers, writes through `*`, and copy-restore mutation waits for the unbox. Constructors and at-stack methods don't admit `*`.
+A DIRECT receiver requires a boxed argument, and while a value is boxed, *mutation is direct or nothing*: reads flow through ordinary READ receivers, writes through `*`, and copy-restore mutation waits for the dedent that ends the `.restrict` block. Constructors don't admit `*`.
  
-Constructors take CREATE receivers only: `.cmd Widget 'w: Int x, Int y = ...`. At-stack methods (`@`, `@!`) take READ or UPDATE receivers, not CREATE.
+Constructors take CREATE receivers only: `.cmd Widget 'w: Int x, Int y = ...`. `@` and `@!` are body blocks, not methods, so they take no receivers (§3.3).
  
 ### 9.5 Partial application
  
@@ -1130,7 +1141,7 @@ Partial application generalizes the receiver-baked-in form to bind any subset of
                                ;   and third deferred
 ```
  
-Receivers are always applied at the partial-application site — never deferred. This keeps dispatch resolved at compile time. Non-receiver parameters may be applied or deferred (`_`) freely. The resulting value's type covers only the deferred parameters in declaration order.
+Receivers are always applied at the partial-application site — never deferred. This resolves the dispatch once, where the reference is built. Non-receiver parameters may be applied or deferred (`_`) freely. The resulting value's type covers only the deferred parameters in declaration order.
  
 ### 9.6 Concept-typed parameters: Cases A and B
  
@@ -1144,7 +1155,7 @@ A parameter whose type names a concept has two structurally distinct forms:
  
 Multiple `T`-typed slots in the signature share a single concrete type at the call site. The dictionary travels once as a hidden parameter; slots are in their natural representation.
  
-**Case B — a concept value at parameter position.** A parameter may be typed by the concept directly; it then accepts any value satisfying the concept, and what it holds is a *concept value* — a value known and operated on through that concept:
+**Case B — a concept value at parameter position.** A parameter may be typed by the concept directly; it then accepts any value satisfying the concept, and what it holds is a *concept value*: an ordinary value of some type that satisfies the concept, known and operated on through the concept:
  
 ```
 .cmd render: String 'output, Showable s = ...
@@ -1167,8 +1178,9 @@ Resolution is simple: if only one witness could apply at a use site, it's used a
 .using ForwardOrd          ; the file's standing choice
 
 .cmd audit: Batch b =
-    .using ReverseOrd      ; scope-level: shadows the file's
-    ...                    ;   choice for this command's frame
+    .using ReverseOrd      ; scope-level: shadows the
+    ...                    ;   file's choice for this
+                           ;   command's frame
 ```
  
 There is no cleverness in between — no ranking, no "most specific module wins," no import-order effects. Nothing you import can silently change which witness your code dispatches through; a new competitor arriving in your dependency graph can at worst turn a site into a loud error asking you to choose. (That's the no-spooky-action principle from the introduction, applied to dispatch.)
@@ -1179,7 +1191,7 @@ One more ergonomic layer: a concept's author may bless a *canonical default* by 
 .concept Ord:
     .witness Ascending  ; the default ordering, unless you
                         ;   say otherwise
-    .decl ?before: ...
+    .decl (S:Ord) a :: ?before: S b
 ```
  
 — so everyone declares how their type inhabits `Ord` and moves on, ambiguity resolving to `Ascending` unless a `.using` in scope or a name at the site says otherwise. Only the concept's own author can set this, so it can't be hijacked from a distance.
@@ -1188,7 +1200,7 @@ The per-call form makes the flexibility concrete. One value, one concept, two wi
 
 ```
 .concept Log:
-    .decl log: String line
+    .decl Log l :: log: String line
 
 .record Event : Int32 code, String text
 
@@ -1202,20 +1214,23 @@ The per-call form makes the flexibility concrete. One value, one concept, two wi
     t :: log: line
 
 # Event e <- ${503, "backend timeout"}
-e :: (XmlLogger :: log): "boot"    ; witness-qualified method:
-                                   ;   this call, the XML shape
-e :: (TextLogger :: log): "boot"   ; same value, same concept —
-                                   ;   the other witness
+e :: (XmlLogger :: log): "boot"    ; witness-qualified
+                                   ;   method: this call,
+                                   ;   the XML shape
+e :: (TextLogger :: log): "boot"   ; same value, same
+                                   ;   concept — the other
+                                   ;   witness
 announce (Log = XmlLogger): e, "boot"
-                                   ; the same selection as a
-                                   ;   prefix clause on a
-                                   ;   regular call (§3.14):
-                                   ;   the clause provides the
-                                   ;   witness for whatever the
-                                   ;   call resolves
+                                   ; the same selection as
+                                   ;   a prefix clause on a
+                                   ;   regular call (the
+                                   ;   spec's §3.14): the
+                                   ;   clause provides the
+                                   ;   witness for whatever
+                                   ;   the call resolves
 ```
 
-Nothing about `e` changed between those calls. Witness selection is a property of the *call site*, never of the value: `Event` inhabits `Log` in two ways at once, and each use names the way it wants — `(XmlLogger :: log)` qualifies the method right at the receiver, and the prefix clause does the same job on a regular call — `announce` here — where it provides the witness for whatever that call resolves (§3.14's rule is keyed to the call *form*, not the signature's shape: regular call takes the prefix clause, method call takes the method-prefix, construction takes the annotation). Absent the clause, the choice falls to the standing rules you just saw: the `.using`, the unique visible witness, or the concept's default. Two details worth noticing in passing: the implementing methods (`xmlLog`, `textLog`) are ordinary methods *on `Event`* — the mapping clause names a method of the subject, not a free-floating command — and the parenthetical can also name a *concept* rather than a witness (`e :: (Log :: log)`), which disambiguates between two concepts that both declare a `log` rather than between two witnesses of one concept.
+Nothing about `e` changed between those calls. Witness selection is a property of the *call site*, never of the value: `Event` inhabits `Log` in two ways at once, and each use names the way it wants — `(XmlLogger :: log)` qualifies the method right at the receiver, and the prefix clause does the same job on a regular call — `announce` here — where it provides the witness for whatever that call resolves (the spec's §3.14 keys the rule to the call *form*, not the signature's shape: regular call takes the prefix clause, method call takes the method-prefix, construction takes the annotation). Absent the clause, the choice falls to the standing rules you just saw: the `.using`, the unique visible witness, or the concept's default. Two details worth noticing in passing: the implementing methods (`xmlLog`, `textLog`) are ordinary methods *on `Event`* — the mapping clause names a method of the subject, not a free-floating command — and the parenthetical can also name a *concept* rather than a witness (`e :: (Log :: log)`), which disambiguates between two concepts that both declare a `log` rather than between two witnesses of one concept.
  
 And a design pattern that falls out of the pieces above, worth knowing on its own: a type parameter's constraint can name a **witness family** instead of just a concept. Read it as "any type is welcome here — domains included — so long as `Ascending` knows how to order it":
  
@@ -1234,11 +1249,13 @@ And a design pattern that falls out of the pieces above, worth knowing on its ow
  
 `Leaderboard[Score]` and `Leaderboard[Priority]` are both fine — the instantiation check is simply "does `Ascending` cover this type?" — and `Leaderboard[Widget]` is a clear error naming exactly what's missing. Pinning the ordering in the header means every leaderboard sorts the same way *by construction*: there is no per-value ordering choice to get wrong. (A nice bonus for buffer-backed types like these domains: with the witness fixed in the type, dispatch is fully static — the compiled code is monomorphic per instantiation.) The workflow for a new type is exactly one line — declare how it inhabits `Ascending` — and every `Ascending`-pinned container in the program accepts it.
  
-Two spec-only teasers, for the curious: leaving the header bound *unpinned* (`SortedSet[T:Ord]`) makes every constructed set instead *remember the ordering that built it* — each value carries its own, and probing code can't accidentally use the wrong one; and witness identity can be tracked statically on individual values (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.22–§9.23.
+Two spec-only teasers, for the curious: leaving the header bound *unpinned* (`SortedSet[T:Ord]`) makes every constructed set instead *remember the ordering that built it* — each value carries its own, and probing code can't accidentally use the wrong one; and witness identity can be tracked statically on individual values (`SortedSet[NumberField:(Ord = ForwardOrd)]`), catching mixed-ordering mistakes at compile time. The gory details are the spec's §9.20–§9.21.
+ 
+Dispatch identity for buffer-backed values still deserves one caution here: buffer-backed slots carry only bytes, so a value's concept-dispatch identity is captured when it enters a concept-typed slot and is preserved through chains of them — but an intermediate pass through a plain parent-typed buffer parameter reduces it to the parent. Reach the concept-typed boundary directly when child-domain dispatch matters (the spec's §9.18 has the full story).
  
 ### 9.8 Operators: concepts license them
  
-Basis has ordinary infix operators — `+ - * / %`, and the comparatives — but no type gets them for free and no programmer can redefine how they work. Precedence, associativity, and evaluation order are fixed by the language; a *concept* declares which of its methods answers to a token, and a type licenses the token by satisfying the concept:
+Basis has ordinary infix operators — `+ - * / %`, and the comparatives — plus unary minus, but no type gets them for free and no programmer can redefine how they work. Precedence, associativity, and evaluation order are fixed by the language; a *concept* declares which of its methods answers to a token, and a type licenses the token by satisfying the concept:
 
 ```
 .concept Additive :
@@ -1258,6 +1275,8 @@ Basis has ordinary infix operators — `+ - * / %`, and the comparatives — but
 
 That's the whole model: `Scaled` gets exactly the operators its concepts sanction, a set type can map `-` to set-difference, and a matrix library can map `*` for both `matrix * vector` and `vector * matrix` orders within one concept.
 
+Unary minus is mapped by an `.operator` item of its own, written with its operand type, `(-T)`. It needs a space or a non-digit after it, since a `-` written right before a digit belongs to a negative literal: `a-1` is an error, and subtraction is `a - 1`.
+
 Comparatives follow Icon rather than C: a comparison is a *may-fail test* that, on success, produces its right-hand value — so comparisons chain:
 
 ```
@@ -1268,6 +1287,4 @@ Comparatives follow Icon rather than C: a comparison is a *may-fail test* that, 
 
 Failure short-circuits the chain (that's just the failure system doing its job), `?-` negates, and there are no boolean operators because there are no booleans — success and failure *are* the logic.
 
-Equality comes in two flavors on purpose: `=` is built-in **identity** (bytes for buffer-backed values, same-object for objects — no concept can redefine it), while `==` is concept-defined **equivalence**, with `!=` and `<>` as their negations. Equivalence is the type author's notion of "the same": a `Rational` treats `2/3` and `4/6` as equivalent (`==` succeeds) even though their bytes differ (`=` fails). For types with one canonical spelling per value the two coincide; picking the right one is part of saying what you mean.
-
-Dispatch identity for buffer-backed values still deserves one caution here: buffer-backed slots carry only bytes, so a value's concept-dispatch identity is captured when it enters a concept-typed slot and is preserved through chains of them — but an intermediate pass through a plain parent-typed buffer parameter reduces it to the parent. Reach the concept-typed boundary directly when child-domain dispatch matters (the spec's §9.18 has the full story).
+Sameness comes in two flavors on purpose: `=` is built-in **identity** (bytes for buffer-backed values, same-object for objects — no concept can redefine it), while `==` is concept-defined **equivalence**, with `!=` as `=`'s negation, and `<>` as `==`'s unless a concept declares both, for a three-valued logic. Equivalence is the type author's notion of sameness, and it can differ from identity. A `Rational` that stores `2/3` and `4/6` as different bytes can map `==` so that they are equivalent (`==` succeeds) though not identical (`=` compares the bytes and fails). Neither relation implies the other: a float type following IEEE 754 maps `==` so that `NaN == NaN` fails, though `NaN = NaN` succeeds on identical bits. Picking the right one is part of saying what you mean.
